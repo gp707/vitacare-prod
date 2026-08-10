@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { Config } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 
@@ -10,9 +11,16 @@ export class UploadService {
   private readonly client: SupabaseClient;
 
   constructor(configService: ConfigService) {
+    // This service only ever uses .storage — Realtime (CLAUDE.md: admin-web/
+    // browser only) is never used here. supabase-js still eagerly constructs
+    // a RealtimeClient in createClient(), which requires a WebSocket
+    // constructor to exist. Node < 22 has no native global WebSocket, so we
+    // supply the `ws` package per Supabase's own documented workaround.
     this.client = createClient(
       configService.getOrThrow<string>('SUPABASE_URL'),
       configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { realtime: { transport: WebSocket as any } },
     );
   }
 
