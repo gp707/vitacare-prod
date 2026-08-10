@@ -1,0 +1,47 @@
+name: API CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared-constants/**"
+      - ".github/workflows/api-ci.yml"
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "packages/shared-constants/**"
+      - ".github/workflows/api-ci.yml"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared-constants
+        run: npm run build --workspace=@vitacare/shared-constants
+
+      - name: Lint API
+        run: npm run lint --workspace=@vitacare/api
+
+      - name: Build API
+        run: npm run build --workspace=@vitacare/api
+
+      - name: Unit tests
+        run: npm run test --workspace=@vitacare/api
+
+      - name: E2E tests
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm run test:e2e --workspace=@vitacare/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}

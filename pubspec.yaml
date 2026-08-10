@@ -1,0 +1,26 @@
+# Root of the Dart/Flutter pub workspace (Melos 7+ format). The TypeScript
+# side (apps/api, packages/shared-constants) is managed separately via the
+# root package.json / npm workspaces — see SPEC.md section 2.1.
+name: vitacare
+publish_to: none
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+workspace:
+  - apps/caregiver-app
+  - apps/admin-web
+  - packages/vitacare_shared
+  - packages/vitacare_ui
+
+dev_dependencies:
+  melos: ^8.2.2
+
+melos:
+  scripts:
+    analyze:
+      run: melos exec -- flutter analyze
+    test:
+      run: melos exec -- flutter test
+    get:
+      run: melos exec -- flutter pub get

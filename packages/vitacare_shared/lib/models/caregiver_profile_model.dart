@@ -1,0 +1,98 @@
+/// Mirrors the API's GET /caregiver/profile response shape (SPEC.md 6.4).
+/// All fields are always present in the response; unset ones are null.
+class CaregiverProfileModel {
+  final String userId;
+  final String profileId;
+  final String fullName;
+  final String phone;
+  final String? email;
+  final String gender;
+  final int age;
+  final String? selfiePhotoUrl;
+  final List<String> languages;
+  final List<String> serviceModes;
+  final List<String> workTypes;
+  final num? salary;
+  final String? highestQualification;
+  final String? qualificationDocumentUrl;
+  final String? aadhaarDocumentUrl;
+  final List<String> otherDocumentUrls;
+  final String? religion;
+  final String? fatherName;
+  final String? fatherPhone;
+  final String? currentAddress;
+  final bool termsAccepted;
+  final String verificationStatus;
+  final String? rejectionMessage;
+  final bool advancedDetailsCompleted;
+  final List<String> preferredCities;
+  final String? notes;
+  final String createdAt;
+
+  const CaregiverProfileModel({
+    required this.userId,
+    required this.profileId,
+    required this.fullName,
+    required this.phone,
+    this.email,
+    required this.gender,
+    required this.age,
+    this.selfiePhotoUrl,
+    required this.languages,
+    required this.serviceModes,
+    required this.workTypes,
+    this.salary,
+    this.highestQualification,
+    this.qualificationDocumentUrl,
+    this.aadhaarDocumentUrl,
+    required this.otherDocumentUrls,
+    this.religion,
+    this.fatherName,
+    this.fatherPhone,
+    this.currentAddress,
+    required this.termsAccepted,
+    required this.verificationStatus,
+    this.rejectionMessage,
+    required this.advancedDetailsCompleted,
+    required this.preferredCities,
+    this.notes,
+    required this.createdAt,
+  });
+
+  factory CaregiverProfileModel.fromJson(Map<String, dynamic> json) {
+    return CaregiverProfileModel(
+      userId: json['user_id'] as String,
+      profileId: json['profile_id'] as String,
+      fullName: json['full_name'] as String,
+      phone: json['phone'] as String,
+      email: json['email'] as String?,
+      gender: json['gender'] as String,
+      age: json['age'] as int,
+      selfiePhotoUrl: json['selfie_photo_url'] as String?,
+      languages: List<String>.from(json['languages'] as List? ?? const []),
+      serviceModes: List<String>.from(json['service_modes'] as List? ?? const []),
+      workTypes: List<String>.from(json['work_types'] as List? ?? const []),
+      salary: json['salary'] as num?,
+      highestQualification: json['highest_qualification'] as String?,
+      qualificationDocumentUrl: json['qualification_document_url'] as String?,
+      aadhaarDocumentUrl: json['aadhaar_document_url'] as String?,
+      otherDocumentUrls: List<String>.from(json['other_document_urls'] as List? ?? const []),
+      religion: json['religion'] as String?,
+      fatherName: json['father_name'] as String?,
+      fatherPhone: json['father_phone'] as String?,
+      currentAddress: json['current_address'] as String?,
+      termsAccepted: json['terms_accepted'] as bool? ?? false,
+      verificationStatus: json['verification_status'] as String,
+      rejectionMessage: json['rejection_message'] as String?,
+      advancedDetailsCompleted: json['advanced_details_completed'] as bool? ?? false,
+      preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
+      notes: json['notes'] as String?,
+      createdAt: json['created_at'] as String,
+    );
+  }
+
+  /// Selfie is already guaranteed by registration (Stage 1); of the
+  /// documents uploaded during advanced details, only Aadhaar is mandatory
+  /// — qualification and "other" documents are optional.
+  bool get hasRequiredDocuments => aadhaarDocumentUrl != null;
+}

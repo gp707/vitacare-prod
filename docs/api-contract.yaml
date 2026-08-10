@@ -1,0 +1,3836 @@
+openapi: 3.0.3
+info:
+  title: VitaCare API
+  description: |
+    VitaCare Caregiver Onboarding Platform API.
+
+    ## Authentication
+    All endpoints (except those under `/auth`) require a valid JWT Bearer token
+    in the `Authorization` header.
+
+    ## Response Format
+    All responses follow a standard envelope:
+    - **Success:** `{ success: true, data: {...}, meta?: {...} }`
+    - **Error:** `{ success: false, error: { code: "XXX_NNN", message: "..." } }`
+  version: "1.0.0"
+  contact:
+    name: VitaCare Engineering
+    email: vitacasahealthindia@gmail.com
+
+servers:
+  - url: https://api.vitacasahealth.in/v1
+    description: Production
+  - url: http://localhost:3000/v1
+    description: Development
+
+tags:
+  - name: Auth
+    description: Authentication and token management
+  - name: Caregiver Profile
+    description: Caregiver profile management
+  - name: Caregiver Jobs
+    description: Job postings visible to caregivers
+  - name: Admin - Caregivers
+    description: Admin caregiver management
+  - name: Admin - Dashboard
+    description: Admin dashboard statistics
+  - name: Admin - Users
+    description: Super Admin user management
+  - name: Admin - Audit Logs
+    description: Audit log viewing
+  - name: Admin - Jobs
+    description: Post, list, close job listings and review caregiver responses
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Custom JWT issued by the VitaCare API. Access token TTL is 1 hour.
+
+  schemas:
+    SuccessResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: "AUTH_001"
+            message:
+              type: string
+              example: "Phone number is already registered"
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 3
+
+    Gender:
+      type: string
+      enum: [male, female, other]
+
+    Language:
+      type: string
+      enum: [hindi, english, kannada, tamil, telugu, malayalam, bengali, gujarati, marathi]
+
+    ServiceMode:
+      type: string
+      enum: [24hrs_live_in, 12hrs_pg]
+
+    Religion:
+      type: string
+      enum: [hindu, muslim, christian, others]
+
+    WorkType:
+      type: string
+      enum: [companion_care, bedside_care, critical_care]
+
+    City:
+      type: string
+      enum: [bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon]
+
+    Qualification:
+      type: string
+      enum:
+        - bsc_gnm_completed
+        - anm_completed
+        - bsc_gnm_anm_backlog
+        - bsc_gnm_anm_student
+        - non_nursing
+
+    VerificationStatus:
+      type: string
+      enum:
+        - pending_call
+        - call_verified
+        - pending_verification
+        - in_process
+        - available
+        - unavailable
+        - assigned
+        - rejected
+
+    DocumentType:
+      type: string
+      enum: [qualification, aadhaar, other]
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        work_type:
+          $ref: "#/components/schemas/WorkType"
+        city:
+          $ref: "#/components/schemas/City"
+        description:
+          type: string
+        duty_timings:
+          $ref: "#/components/schemas/ServiceMode"
+        language:
+          $ref: "#/components/schemas/Language"
+        gender_needed:
+          type: string
+          enum: [male, female]
+        religion:
+          $ref: "#/components/schemas/Religion"
+        status:
+          type: string
+          enum: [active, closed]
+        posted_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: "c3d4e5f6-a7b8-9012-cdef-345678901234"
+        work_type: "bedside_care"
+        city: "bangalore"
+        description: "Need a bedside caregiver for an elderly patient, 24/7."
+        duty_timings: "24hrs_live_in"
+        language: "hindi"
+        gender_needed: "female"
+        religion: "hindu"
+        status: "active"
+        posted_by: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        created_at: "2026-08-09T10:00:00Z"
+        updated_at: "2026-08-09T10:00:00Z"
+
+    JobResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        response:
+          type: string
+          enum: [accepted, rejected, more_details]
+        message:
+          type: string
+          nullable: true
+        full_name:
+          type: string
+        phone:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminNotes:
+      type: object
+      properties:
+        internal_notes:
+          type: string
+          nullable: true
+          example: "Good candidate, verified docs look clean"
+        rate_24hrs_live_in:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+          example: 25000.00
+        rate_12hrs_pg:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+          example: 15000.00
+        availability_remarks:
+          type: string
+          nullable: true
+          example: "Prefers south Bangalore"
+
+    CaregiverProfile:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          example: "Ramesh Kumar"
+        phone:
+          type: string
+          example: "+919876543210"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: "ramesh@example.com"
+        gender:
+          $ref: "#/components/schemas/Gender"
+        age:
+          type: integer
+          minimum: 18
+          maximum: 65
+          example: 32
+        selfie_photo_url:
+          type: string
+          nullable: true
+          description: Signed URL (1-hour expiry)
+        languages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Language"
+        service_modes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceMode"
+          nullable: true
+        highest_qualification:
+          $ref: "#/components/schemas/Qualification"
+        qualification_document_url:
+          type: string
+          nullable: true
+          description: Signed URL (1-hour expiry)
+        aadhaar_document_url:
+          type: string
+          nullable: true
+          description: Signed URL (1-hour expiry)
+        other_document_urls:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Array of signed URLs (1-hour expiry)
+        current_address:
+          type: string
+          nullable: true
+          maxLength: 500
+        terms_accepted:
+          type: boolean
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        rejection_message:
+          type: string
+          nullable: true
+        advanced_details_completed:
+          type: boolean
+        preferred_cities:
+          type: array
+          items:
+            $ref: "#/components/schemas/City"
+          description: Multi-select — zero or more preferred cities.
+        notes:
+          type: string
+          nullable: true
+          maxLength: 500
+        created_at:
+          type: string
+          format: date-time
+
+    CaregiverListItem:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          example: "Ramesh Kumar"
+        phone:
+          type: string
+          example: "+919876543210"
+        gender:
+          $ref: "#/components/schemas/Gender"
+        age:
+          type: integer
+          example: 32
+        highest_qualification:
+          type: string
+          nullable: true
+          example: "gnm"
+        service_modes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceMode"
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        created_at:
+          type: string
+          format: date-time
+
+    CaregiverDetailAdmin:
+      allOf:
+        - $ref: "#/components/schemas/CaregiverProfile"
+        - type: object
+          properties:
+            admin_notes:
+              $ref: "#/components/schemas/AdminNotes"
+            submitted_at:
+              type: string
+              format: date-time
+              nullable: true
+            verified_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_name:
+          type: string
+          example: "Admin One"
+        target_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_user_name:
+          type: string
+          nullable: true
+          example: "Ramesh Kumar"
+        action:
+          type: string
+          example: "status_changed"
+        entity_type:
+          type: string
+          example: "caregiver_profiles"
+        entity_id:
+          type: string
+          format: uuid
+          nullable: true
+        before_value:
+          type: object
+          nullable: true
+        after_value:
+          type: object
+          nullable: true
+        ip_address:
+          type: string
+          nullable: true
+          example: "192.168.1.1"
+        created_at:
+          type: string
+          format: date-time
+
+    AdminUser:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          example: "admin1@vitacasahealth.in"
+        phone:
+          type: string
+          example: "+919999999999"
+        full_name:
+          type: string
+          example: "Admin One"
+        role:
+          type: string
+          enum: [admin, super_admin]
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error:
+              code: "AUTH_005"
+              message: "Invalid or expired token"
+    ForbiddenError:
+      description: Insufficient permissions for this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error:
+              code: "AUTH_007"
+              message: "Insufficient permissions"
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error:
+              code: "GEN_002"
+              message: "Resource not found"
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error:
+              code: "GEN_001"
+              message: "Invalid request body"
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error:
+              code: "GEN_003"
+              message: "Internal server error"
+
+paths:
+  # ============================================================
+  # AUTH ENDPOINTS
+  # ============================================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new caregiver
+      description: |
+        Creates a new caregiver account (Stage 1). Issues JWT immediately.
+        Selfie must be uploaded separately via `POST /caregiver/profile/selfie` after registration.
+        The 4-digit `code` set here is the caregiver's login code from their very first
+        session onward — used with `POST /auth/login/code`. There is no phone-only login.
+      operationId: registerCaregiver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, full_name, gender, age, languages, code]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  description: "Indian mobile number with +91 prefix. Must be unique."
+                  example: "+919876543210"
+                full_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                  description: "Full name. Alphabetic characters and spaces only, 1-100 chars"
+                  example: "Ramesh Kumar"
+                gender:
+                  $ref: "#/components/schemas/Gender"
+                age:
+                  type: integer
+                  minimum: 18
+                  maximum: 65
+                  description: "Must be between 18 and 65 inclusive"
+                  example: 32
+                languages:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Language"
+                  description: "At least one language required"
+                  example: ["hindi", "english"]
+                code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: "4-digit numeric login code, set once at registration"
+                  example: "1234"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      profile_id:
+                        type: string
+                        format: uuid
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+                      verification_status:
+                        type: string
+                        enum: [pending_call]
+              example:
+                success: true
+                data:
+                  user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  profile_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
+                  verification_status: "pending_call"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_phone:
+                  summary: Invalid phone format
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_007"
+                      message: "Invalid phone number format"
+                invalid_name:
+                  summary: Invalid name characters
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_020"
+                      message: "Name must contain only alphabetic characters and spaces"
+                invalid_age:
+                  summary: Age out of range
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_004"
+                      message: "Age must be between 18 and 65"
+                invalid_gender:
+                  summary: Invalid gender
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_003"
+                      message: "Invalid gender value"
+                no_languages:
+                  summary: No languages provided
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_005"
+                      message: "At least one language is required"
+                invalid_code:
+                  summary: Invalid code format
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_016"
+                      message: "Code must be exactly 4 digits"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_001"
+                  message: "Phone number is already registered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/login/code:
+    post:
+      tags: [Auth]
+      summary: Login with phone + 4-digit code
+      description: |
+        Phone + code login. The code is set at registration, so this is the only caregiver
+        login endpoint — there is no phone-only login.
+      operationId: loginCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  example: "+919876543210"
+                code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: "4-digit numeric code"
+                  example: "1234"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+                      advanced_details_completed:
+                        type: boolean
+              example:
+                success: true
+                data:
+                  user_id: "550e8400-e29b-41d4-a716-446655440000"
+                  access_token: "eyJhbGci..."
+                  refresh_token: "dGhpcyBpcyBhIHJl..."
+                  verification_status: "available"
+                  advanced_details_completed: true
+        "401":
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_008"
+                  message: "Invalid code"
+        "404":
+          description: Phone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_002"
+                  message: "No account found with this phone number"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/login/email:
+    post:
+      tags: [Auth]
+      summary: Login with email and password (admin only)
+      description: Email + password login. For admin accounts only. Caregivers use phone + code.
+      operationId: loginEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "ramesh@example.com"
+                password:
+                  type: string
+                  minLength: 6
+                  example: "password123"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+                      advanced_details_completed:
+                        type: boolean
+              example:
+                success: true
+                data:
+                  user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
+                  verification_status: "available"
+                  advanced_details_completed: true
+        "401":
+          description: Invalid credentials or deactivated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_credentials:
+                  summary: Wrong email or password
+                  value:
+                    success: false
+                    error:
+                      code: "AUTH_003"
+                      message: "Invalid email or password"
+                deactivated:
+                  summary: Account deactivated
+                  value:
+                    success: false
+                    error:
+                      code: "AUTH_004"
+                      message: "Account is deactivated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Exchange a valid refresh token for new access and refresh tokens. Old refresh token is revoked.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  description: "Current valid refresh token"
+                  example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+      responses:
+        "200":
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+              example:
+                success: true
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "bmV3IHJlZnJlc2ggdG9rZW4..."
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_006"
+                  message: "Invalid refresh token"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: Revokes the current refresh token and invalidates the session.
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Logged out successfully"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # CAREGIVER PROFILE ENDPOINTS
+  # ============================================================
+  /caregiver/profile:
+    get:
+      tags: [Caregiver Profile]
+      summary: Get own profile
+      description: Returns the full caregiver profile with signed document URLs. All fields are always returned; unset fields return null.
+      operationId: getCaregiverProfile
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/CaregiverProfile"
+              example:
+                success: true
+                data:
+                  user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  profile_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                  full_name: "Ramesh Kumar"
+                  phone: "+919876543210"
+                  email: "ramesh@example.com"
+                  gender: "male"
+                  age: 32
+                  selfie_photo_url: "https://storage.supabase.co/signed/..."
+                  languages: ["hindi", "english"]
+                  service_modes: ["24hrs_live_in", "12hrs_pg"]
+                  highest_qualification: "bsc_gnm_completed"
+                  qualification_document_url: "https://storage.supabase.co/signed/..."
+                  aadhaar_document_url: "https://storage.supabase.co/signed/..."
+                  other_document_urls: ["https://storage.supabase.co/signed/..."]
+                  current_address: "123, MG Road, Bangalore"
+                  terms_accepted: true
+                  verification_status: "available"
+                  rejection_message: null
+                  advanced_details_completed: true
+                  preferred_cities: ["bangalore", "mumbai"]
+                  notes: "Available for night shifts"
+                  created_at: "2026-08-01T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/profile/basic:
+    put:
+      tags: [Caregiver Profile]
+      summary: Update basic profile fields
+      description: |
+        Updates basic profile information. Does NOT change verification status.
+        Profile is flagged as `has_pending_edits = true` for admin review.
+        Does NOT include `full_name` or `gender` — caregivers cannot self-edit
+        their name or gender once set at registration; only admins can
+        (PUT /admin/caregivers/{id}).
+      operationId: updateBasicProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [age, languages]
+              properties:
+                age:
+                  type: integer
+                  minimum: 18
+                  maximum: 65
+                  example: 33
+                languages:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Language"
+                  example: ["hindi", "english", "kannada"]
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      has_pending_edits:
+                        type: boolean
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+              example:
+                success: true
+                data:
+                  message: "Profile updated"
+                  has_pending_edits: true
+                  verification_status: "available"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/profile/advanced:
+    put:
+      tags: [Caregiver Profile]
+      summary: Submit advanced details
+      description: |
+        Submit advanced profile details. Only accessible when verification_status is `call_verified`.
+        Requires the Aadhaar document to already be uploaded (selfie is already guaranteed by
+        registration; qualification and "other" documents are optional, not required).
+        On success, status transitions to `pending_verification`.
+      operationId: submitAdvancedDetails
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [highest_qualification, religion, terms_accepted]
+              properties:
+                highest_qualification:
+                  $ref: "#/components/schemas/Qualification"
+                religion:
+                  $ref: "#/components/schemas/Religion"
+                  description: "Required. Caregiver's religion."
+                father_name:
+                  type: string
+                  nullable: true
+                  minLength: 1
+                  maxLength: 100
+                  pattern: "^[a-zA-Z\\s]+$"
+                  description: "Optional. Father's full name. Alphabetic + spaces only if provided."
+                  example: "Suresh Kumar"
+                father_phone:
+                  type: string
+                  nullable: true
+                  pattern: "^\\+91[6-9]\\d{9}$"
+                  description: "Optional. Father's phone number in +91XXXXXXXXXX format if provided."
+                  example: "+919876500001"
+                current_address:
+                  type: string
+                  nullable: true
+                  minLength: 1
+                  maxLength: 500
+                  description: "Optional. Max 500 characters if provided."
+                  example: "123, MG Road, Bangalore 560001"
+                preferred_cities:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/City"
+                  description: "Multi-select. Optional — omitted or [] means no preference."
+                  example: ["bangalore", "mumbai"]
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+                  description: "Optional notes, max 500 characters"
+                  example: "Available for night shifts"
+                terms_accepted:
+                  type: boolean
+                  description: "Must be true"
+                  enum: [true]
+      responses:
+        "200":
+          description: Advanced details submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      verification_status:
+                        type: string
+                        enum: [pending_verification]
+              example:
+                success: true
+                data:
+                  message: "Advanced details submitted"
+                  verification_status: "pending_verification"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_docs:
+                  summary: Aadhaar document not uploaded
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_017"
+                      message: "Aadhaar card not uploaded. Please upload it before submitting."
+                terms_not_accepted:
+                  summary: Terms not accepted
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_009"
+                      message: "Terms and conditions must be accepted"
+                unexpected_code_field:
+                  summary: A `code` field was included (login code is set at registration, not here)
+                  value:
+                    success: false
+                    error:
+                      code: "GEN_001"
+                      message: "Invalid request body"
+        "403":
+          description: Not in call_verified status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_008"
+                  message: "Advanced details not available. Phone call verification required."
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_008"
+                  message: "Email is already registered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      tags: [Caregiver Profile]
+      summary: Edit advanced profile fields
+      description: |
+        Self-edit of the advanced-details fields any time after the initial
+        submission — unlike the PUT above (one-time/resubmission-only, whole-object,
+        resets status to `pending_verification`), this is a partial update
+        (any subset of fields) that never touches verification_status, only
+        flags `has_pending_edits = true`. Requires `advanced_details_completed = true`.
+        Does NOT include `religion` — once set (via the PUT above, on initial
+        submission or a rejected resubmission), it's locked from self-edit;
+        only admins can change it (PUT /admin/caregivers/{id}).
+      operationId: editAdvancedProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Any subset of these fields — only what's provided gets written.
+              properties:
+                highest_qualification:
+                  $ref: "#/components/schemas/Qualification"
+                father_name:
+                  type: string
+                  nullable: true
+                  pattern: "^[a-zA-Z\\s]+$"
+                father_phone:
+                  type: string
+                  nullable: true
+                  pattern: "^\\+91[6-9]\\d{9}$"
+                current_address:
+                  type: string
+                  maxLength: 500
+                preferred_cities:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/City"
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+            example:
+              current_address: "456, New Address, Bangalore 560001"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      has_pending_edits:
+                        type: boolean
+              example:
+                success: true
+                data:
+                  message: "Profile updated"
+                  has_pending_edits: true
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Advanced details never submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_025"
+                  message: "Advanced details must be submitted before editing them"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/profile/phone:
+    patch:
+      tags: [Caregiver Profile]
+      summary: Change phone number
+      description: |
+        Changes the caregiver's own login phone number. Identity-sensitive:
+        if the caregiver is currently `available` or `unavailable`, this
+        resets them to `pending_verification` for re-review (never from
+        `in_process`/`assigned`). For every other status, it just updates
+        the phone and flags `has_pending_edits = true`.
+      operationId: updatePhone
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[6-9]\\d{9}$"
+                  example: "+919876500099"
+      responses:
+        "200":
+          description: Phone number updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+              example:
+                success: true
+                data:
+                  message: "Phone number updated"
+                  verification_status: "pending_verification"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "409":
+          description: Phone number already registered to another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_001"
+                  message: "Phone number is already registered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/profile/code:
+    patch:
+      tags: [Caregiver Profile]
+      summary: Change login code (PIN)
+      description: |
+        Changes the caregiver's own 4-digit login code. Never triggers
+        re-review — this is an account-security action, not an identity
+        change (unlike phone/Aadhaar).
+      operationId: updateCode
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: "^\\d{4}$"
+                  example: "5678"
+      responses:
+        "200":
+          description: Login code updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Login code updated"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/profile/selfie:
+    post:
+      tags: [Caregiver Profile]
+      summary: Upload selfie photo
+      description: Upload selfie via multipart form data. Max 10MB. No file type restriction. Camera capture only (enforced client-side).
+      operationId: uploadSelfie
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Selfie image file. Max 10MB."
+      responses:
+        "200":
+          description: Selfie uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      file_path:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Selfie uploaded"
+                  file_path: "caregiver-documents/b2c3d4e5-f6a7-8901-bcde-f12345678901/selfie.jpg"
+        "400":
+          description: Upload validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                no_file:
+                  summary: No file provided
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_001"
+                      message: "File is required"
+                too_large:
+                  summary: File exceeds size limit
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_002"
+                      message: "File size exceeds 10MB limit"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "UPLOAD_005"
+                  message: "File upload failed. Please try again."
+
+  /caregiver/profile/documents:
+    post:
+      tags: [Caregiver Profile]
+      summary: Upload documents
+      description: |
+        Upload qualification, Aadhaar, or other documents via multipart form data.
+        - `qualification` and `aadhaar`: One file each, re-upload overwrites.
+        - `other`: Up to 3 files maximum.
+        Max 10MB per file. No file type restriction.
+      operationId: uploadDocument
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, document_type]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Document file. Max 10MB."
+                document_type:
+                  $ref: "#/components/schemas/DocumentType"
+      responses:
+        "200":
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      document_type:
+                        $ref: "#/components/schemas/DocumentType"
+                      file_path:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Document uploaded"
+                  document_type: "aadhaar"
+                  file_path: "caregiver-documents/b2c3d4e5-f6a7-8901-bcde-f12345678901/aadhaar.pdf"
+        "400":
+          description: Upload validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                no_file:
+                  summary: No file provided
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_001"
+                      message: "File is required"
+                too_large:
+                  summary: File exceeds size limit
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_002"
+                      message: "File size exceeds 10MB limit"
+                max_other_docs:
+                  summary: Too many other documents
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_003"
+                      message: "Maximum 3 additional documents allowed"
+                invalid_type:
+                  summary: Invalid document type
+                  value:
+                    success: false
+                    error:
+                      code: "UPLOAD_004"
+                      message: "Invalid document_type. Must be: qualification, aadhaar, or other"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "UPLOAD_005"
+                  message: "File upload failed. Please try again."
+
+  /caregiver/verification-status:
+    get:
+      tags: [Caregiver Profile]
+      summary: Get verification status
+      description: Returns current verification status, rejection message, and key timestamps.
+      operationId: getVerificationStatus
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+                      rejection_message:
+                        type: string
+                        nullable: true
+                      submitted_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      verified_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+              example:
+                success: true
+                data:
+                  verification_status: "pending_verification"
+                  rejection_message: null
+                  submitted_at: "2026-08-01T10:00:00Z"
+                  verified_at: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/fcm-token:
+    put:
+      tags: [Caregiver Profile]
+      summary: Update FCM token
+      description: Update the Firebase Cloud Messaging token for push notifications. Call after registration, on each app launch, and when token refreshes.
+      operationId: updateFcmToken
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: "Firebase Cloud Messaging device token"
+                  example: "dK8xM2nQR_-abc123..."
+      responses:
+        "200":
+          description: Token updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "FCM token updated"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_021"
+                  message: "FCM token is required"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # CAREGIVER JOBS ENDPOINTS (SPEC.md 6.6)
+  # ============================================================
+  /caregiver/jobs:
+    get:
+      tags: [Caregiver Jobs]
+      summary: List active job postings
+      description: |
+        Viewable at ANY verification status — browsing motivates completing
+        onboarding (CLAUDE.md/SPEC.md 12.1). Only responding is gated.
+        Each item includes `my_response` (null if this caregiver hasn't
+        responded yet).
+      operationId: listCaregiverJobs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Active jobs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Job"
+                        - type: object
+                          properties:
+                            my_response:
+                              type: string
+                              nullable: true
+                              enum: [accepted, rejected, more_details, null]
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/jobs/{id}/respond:
+    post:
+      tags: [Caregiver Jobs]
+      summary: Respond to a job posting
+      description: |
+        Only `available`/`assigned` caregivers can respond (`unavailable`
+        must toggle back to available first) — JOB_001 otherwise.
+        Re-responding updates the existing response rather than duplicating it.
+      operationId: respondToJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response:
+                  type: string
+                  enum: [accepted, rejected, more_details]
+                message:
+                  type: string
+                  description: "Required if response is more_details."
+            example:
+              response: "more_details"
+              message: "What are the exact duty hours?"
+      responses:
+        "200":
+          description: Response recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      response: { type: string }
+              example:
+                success: true
+                data: { message: "Response recorded", response: "accepted" }
+        "400":
+          description: Validation error or job closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                closed:
+                  summary: Job is closed
+                  value:
+                    success: false
+                    error: { code: "JOB_002", message: "Job is closed and no longer accepting responses" }
+                missing_message:
+                  summary: more_details without a message
+                  value:
+                    success: false
+                    error: { code: "JOB_003", message: "Message is required when asking for more details" }
+                invalid_response:
+                  summary: Invalid response value
+                  value:
+                    success: false
+                    error: { code: "JOB_004", message: "Invalid response value" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Caregiver not available/assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_001", message: "Cannot respond to jobs until your profile is verified" }
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # ADMIN DASHBOARD ENDPOINTS
+  # ============================================================
+  /admin/dashboard/stats:
+    get:
+      tags: [Admin - Dashboard]
+      summary: Get dashboard statistics
+      description: Returns aggregate counts by verification status and recent registration metrics.
+      operationId: getDashboardStats
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Stats retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      total_caregivers:
+                        type: integer
+                        example: 150
+                      pending_call:
+                        type: integer
+                        example: 12
+                      call_verified:
+                        type: integer
+                        example: 5
+                      pending_verification:
+                        type: integer
+                        example: 8
+                      in_process:
+                        type: integer
+                        example: 3
+                      available:
+                        type: integer
+                        example: 80
+                      unavailable:
+                        type: integer
+                        example: 20
+                      assigned:
+                        type: integer
+                        example: 10
+                      rejected:
+                        type: integer
+                        example: 12
+                      pending_edits_count:
+                        type: integer
+                        example: 3
+                      new_registrations_24h:
+                        type: integer
+                        example: 4
+                      new_registrations_7d:
+                        type: integer
+                        example: 18
+              example:
+                success: true
+                data:
+                  total_caregivers: 150
+                  pending_call: 12
+                  call_verified: 5
+                  pending_verification: 8
+                  in_process: 3
+                  available: 80
+                  unavailable: 20
+                  assigned: 10
+                  rejected: 12
+                  pending_edits_count: 3
+                  new_registrations_24h: 4
+                  new_registrations_7d: 18
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # ADMIN CAREGIVER ENDPOINTS
+  # ============================================================
+  /admin/caregivers:
+    get:
+      tags: [Admin - Caregivers]
+      summary: List caregivers
+      description: Paginated, filterable, sortable list of all caregivers.
+      operationId: listCaregivers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Items per page (max 100)
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, full_name, age]
+            default: created_at
+          description: Sort field
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by full_name or phone
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/VerificationStatus"
+          description: Filter by verification status
+        - name: qualification
+          in: query
+          schema:
+            $ref: "#/components/schemas/Qualification"
+          description: Filter by qualification
+        - name: language
+          in: query
+          schema:
+            type: string
+          description: Filter by language (comma-separated for multiple)
+          example: "hindi,english"
+        - name: service_mode
+          in: query
+          schema:
+            $ref: "#/components/schemas/ServiceMode"
+          description: Filter by service mode
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Registration date from (ISO date)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Registration date to (ISO date)
+      responses:
+        "200":
+          description: Caregiver list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CaregiverListItem"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+              example:
+                success: true
+                data:
+                  - user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    profile_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    full_name: "Ramesh Kumar"
+                    phone: "+919876543210"
+                    gender: "male"
+                    age: 32
+                    highest_qualification: "bsc_gnm_completed"
+                    service_modes: ["24hrs_live_in"]
+                    verification_status: "pending_verification"
+                    created_at: "2026-08-01T10:00:00Z"
+                meta:
+                  page: 1
+                  limit: 20
+                  total: 45
+                  totalPages: 3
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "GEN_005"
+                  message: "Invalid pagination parameters"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}:
+    get:
+      tags: [Admin - Caregivers]
+      summary: Get caregiver detail
+      description: Full caregiver profile with signed document URLs and admin notes.
+      operationId: getCaregiverDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      responses:
+        "200":
+          description: Caregiver detail retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    $ref: "#/components/schemas/CaregiverDetailAdmin"
+              example:
+                success: true
+                data:
+                  user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  profile_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                  full_name: "Ramesh Kumar"
+                  phone: "+919876543210"
+                  email: "ramesh@example.com"
+                  gender: "male"
+                  age: 32
+                  selfie_photo_url: "https://storage.supabase.co/signed/..."
+                  languages: ["hindi", "english"]
+                  service_modes: ["24hrs_live_in", "12hrs_pg"]
+                  highest_qualification: "bsc_gnm_completed"
+                  qualification_document_url: "https://storage.supabase.co/signed/..."
+                  aadhaar_document_url: "https://storage.supabase.co/signed/..."
+                  other_document_urls: ["https://storage.supabase.co/signed/..."]
+                  current_address: "123, MG Road, Bangalore"
+                  terms_accepted: true
+                  verification_status: "pending_verification"
+                  rejection_message: null
+                  advanced_details_completed: true
+                  preferred_cities: ["bangalore"]
+                  notes: null
+                  admin_notes:
+                    internal_notes: "Good candidate, verified docs look clean"
+                    rate_24hrs_live_in: 25000.00
+                    rate_12hrs_pg: 15000.00
+                    availability_remarks: "Prefers south Bangalore"
+                  created_at: "2026-08-01T10:00:00Z"
+                  submitted_at: "2026-08-02T14:00:00Z"
+                  verified_at: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      tags: [Admin - Caregivers]
+      summary: Edit caregiver profile (admin override)
+      description: |
+        Admin can edit any subset of caregiver profile fields.
+        Does NOT change verification status (admin edits are trusted).
+      operationId: adminEditCaregiver
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                Any subset of caregiver profile fields. Does NOT include service_modes,
+                work_types, or salary — those are admin-assigned via their own dedicated
+                endpoints (PUT .../work-types, PUT .../service-modes, PATCH .../salary),
+                not this generic profile edit.
+              properties:
+                full_name:
+                  type: string
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                gender:
+                  $ref: "#/components/schemas/Gender"
+                age:
+                  type: integer
+                  minimum: 18
+                  maximum: 65
+                languages:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Language"
+                highest_qualification:
+                  $ref: "#/components/schemas/Qualification"
+                religion:
+                  $ref: "#/components/schemas/Religion"
+                father_name:
+                  type: string
+                  pattern: '^[a-zA-Z\s]+$'
+                father_phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                current_address:
+                  type: string
+                  maxLength: 500
+                preferred_cities:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/City"
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+            example:
+              full_name: "Ramesh Kumar"
+              age: 33
+              languages: ["hindi", "english", "tamil"]
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Profile updated"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/call-verified:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Mark caregiver as call verified
+      description: |
+        Marks a caregiver's phone call as verified. Only valid when current status is `pending_call`.
+        Sends push notification to caregiver.
+      operationId: markCallVerified
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      responses:
+        "200":
+          description: Call verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      verification_status:
+                        type: string
+                        enum: [call_verified]
+              example:
+                success: true
+                data:
+                  message: "Caregiver marked as call verified"
+                  verification_status: "call_verified"
+        "400":
+          description: Invalid current status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_002"
+                  message: "Cannot mark as call verified. Current status is not pending_call."
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/status:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Update verification status (admin override — unrestricted)
+      description: |
+        Sets a caregiver's verification status directly. Deliberately
+        unrestricted: admin can set ANY of the 8 statuses from ANY current
+        status — there is no transition-matrix check on this endpoint
+        (CLAUDE.md documents the *normal* flow that caregiver actions,
+        system triggers, and admin-web's quick-action buttons produce, but
+        this endpoint is a free-form override on top of that).
+
+        Side effects, regardless of the "from" status:
+        - Target `available`: stamps `verified_at`/`verified_by`, clears `rejection_message`.
+        - Target `rejected`: sets `rejection_message` to the given value (or null).
+        - Every other target: clears `rejection_message`, leaves `verified_at`/`verified_by` untouched.
+
+        Sends a push notification to the caregiver for `available`, `rejected`, and `in_process` only.
+      operationId: updateCaregiverStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: "#/components/schemas/VerificationStatus"
+                rejection_message:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  description: "Only relevant when status is 'rejected'. Max 1000 characters."
+                  example: "Aadhaar document is not clearly legible. Please re-upload."
+            example:
+              status: "available"
+              rejection_message: null
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      verification_status:
+                        $ref: "#/components/schemas/VerificationStatus"
+              example:
+                success: true
+                data:
+                  message: "Status updated"
+                  verification_status: "available"
+        "400":
+          description: Invalid status transition or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_transition:
+                  summary: Invalid status transition
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_001"
+                      message: "Invalid status transition from pending_call to available"
+                rejection_too_long:
+                  summary: Rejection message too long
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_007"
+                      message: "Rejection message must be under 1000 characters"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/notes:
+    post:
+      tags: [Admin - Caregivers]
+      summary: Add or update admin notes
+      description: |
+        Upsert admin notes for a caregiver (internal notes, rates, remarks).
+        Admin notes are never exposed to caregivers.
+      operationId: upsertAdminNotes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                internal_notes:
+                  type: string
+                  nullable: true
+                  description: "Internal admin notes. No max length."
+                  example: "Verified all documents. Candidate seems experienced."
+                rate_24hrs_live_in:
+                  type: number
+                  format: double
+                  minimum: 0
+                  nullable: true
+                  description: "Monthly rate for 24Hrs Live-In mode (INR). Must be >= 0."
+                  example: 25000.00
+                rate_12hrs_pg:
+                  type: number
+                  format: double
+                  minimum: 0
+                  nullable: true
+                  description: "Monthly rate for 12Hrs PG mode (INR). Must be >= 0."
+                  example: 15000.00
+                availability_remarks:
+                  type: string
+                  nullable: true
+                  description: "Admin remarks on availability. No max length."
+                  example: "Prefers morning shifts, south Bangalore area"
+      responses:
+        "200":
+          description: Notes saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Notes saved"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/work-types:
+    put:
+      tags: [Admin - Caregivers]
+      summary: Assign work types to caregiver
+      description: |
+        Assign work types to a caregiver. This is admin-only — caregivers can view
+        their assigned work types but cannot modify them. Replaces all existing work types.
+      operationId: assignWorkTypes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [work_types]
+              properties:
+                work_types:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/WorkType"
+                  description: "At least one work type required."
+                  example: ["companion_care", "bedside_care"]
+      responses:
+        "200":
+          description: Work types assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      work_types:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/WorkType"
+              example:
+                success: true
+                data:
+                  message: "Work types assigned"
+                  work_types: ["companion_care", "bedside_care"]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+
+  /admin/caregivers/{id}/service-modes:
+    put:
+      tags: [Admin - Caregivers]
+      summary: Assign service modes to caregiver
+      description: |
+        Assign service modes to a caregiver. This is admin-only — caregivers can view
+        their assigned service modes but cannot modify them. Replaces all existing service modes.
+      operationId: assignServiceModes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_modes]
+              properties:
+                service_modes:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/ServiceMode"
+                  description: "At least one service mode required."
+                  example: ["24hrs_live_in", "12hrs_pg"]
+      responses:
+        "200":
+          description: Service modes assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      service_modes:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ServiceMode"
+              example:
+                success: true
+                data:
+                  message: "Service modes assigned"
+                  service_modes: ["24hrs_live_in", "12hrs_pg"]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+
+  /admin/caregivers/{id}/salary:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Set caregiver salary
+      description: Set or update a caregiver's salary. Admin-only. Visible to caregiver on their profile.
+      operationId: setCaregiverSalary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [salary]
+              properties:
+                salary:
+                  type: number
+                  format: double
+                  minimum: 0
+                  description: "Monthly salary in INR"
+                  example: 28000.00
+      responses:
+        "200":
+          description: Salary updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      salary:
+                        type: number
+              example:
+                success: true
+                data:
+                  message: "Salary updated"
+                  salary: 28000.00
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+
+  /admin/caregivers/{id}/documents:
+    get:
+      tags: [Admin - Caregivers]
+      summary: Get caregiver documents
+      description: Returns all signed document URLs for a caregiver (1-hour expiry).
+      operationId: getCaregiverDocuments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      responses:
+        "200":
+          description: Documents retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      selfie_photo_url:
+                        type: string
+                        nullable: true
+                        description: Signed URL (1-hour expiry)
+                      qualification_document_url:
+                        type: string
+                        nullable: true
+                        description: Signed URL (1-hour expiry)
+                      aadhaar_document_url:
+                        type: string
+                        nullable: true
+                        description: Signed URL (1-hour expiry)
+                      other_document_urls:
+                        type: array
+                        items:
+                          type: string
+                        description: Array of signed URLs (1-hour expiry)
+              example:
+                success: true
+                data:
+                  selfie_photo_url: "https://storage.supabase.co/signed/..."
+                  qualification_document_url: "https://storage.supabase.co/signed/..."
+                  aadhaar_document_url: "https://storage.supabase.co/signed/..."
+                  other_document_urls:
+                    - "https://storage.supabase.co/signed/..."
+                    - "https://storage.supabase.co/signed/..."
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/acknowledge-edits:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Acknowledge pending edits
+      description: Clears the `has_pending_edits` flag after admin review.
+      operationId: acknowledgeEdits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      responses:
+        "200":
+          description: Edits acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      has_pending_edits:
+                        type: boolean
+                        enum: [false]
+              example:
+                success: true
+                data:
+                  message: "Edits acknowledged"
+                  has_pending_edits: false
+        "400":
+          description: No pending edits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_011"
+                  message: "No pending edits to acknowledge"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/phone:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Change caregiver phone number
+      description: |
+        Change a caregiver's phone number for account recovery.
+        Only admins can perform this action. Does NOT change verification status.
+      operationId: changeCaregiverPhone
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_phone]
+              properties:
+                new_phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  description: "New Indian mobile number with +91 prefix. Must be unique."
+                  example: "+919876500000"
+      responses:
+        "200":
+          description: Phone updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      old_phone:
+                        type: string
+                      new_phone:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Phone number updated"
+                  old_phone: "+919876543210"
+                  new_phone: "+919876500000"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_format:
+                  summary: Invalid phone format
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_010"
+                      message: "Invalid phone number format"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "409":
+          description: Phone already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_009"
+                  message: "This phone number is already registered to another account"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/caregivers/{id}/code:
+    patch:
+      tags: [Admin - Caregivers]
+      summary: Change caregiver login code
+      description: Change a caregiver's 4-digit login code. Admin can reset this at any time.
+      operationId: adminChangeCaregiverCode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Caregiver profile ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: "New 4-digit numeric code"
+                  example: "5678"
+      responses:
+        "200":
+          description: Code updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Code updated"
+        "400":
+          description: Invalid code format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_008"
+                  message: "Invalid code format. Must be exactly 4 digits."
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Caregiver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_019"
+                  message: "Caregiver profile not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # SUPER ADMIN USER MANAGEMENT ENDPOINTS
+  # ============================================================
+  /admin/users:
+    post:
+      tags: [Admin - Users]
+      summary: Create admin account
+      description: Create a new admin account. Super Admin only.
+      operationId: createAdmin
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, phone, full_name, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: "Must be unique"
+                  example: "newadmin@vitacasahealth.in"
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  description: "Indian mobile number. Must be unique."
+                  example: "+919999999999"
+                full_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                  description: "Full name"
+                  example: "Admin User"
+                password:
+                  type: string
+                  minLength: 6
+                  description: "Minimum 6 characters"
+                  example: "securepassword"
+      responses:
+        "201":
+          description: Admin created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      role:
+                        type: string
+                        enum: [admin]
+              example:
+                success: true
+                data:
+                  user_id: "c3d4e5f6-a7b8-9012-cdef-234567890123"
+                  email: "newadmin@vitacasahealth.in"
+                  role: "admin"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_003"
+                  message: "Admin with this email already exists"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Admin - Users]
+      summary: List admin accounts
+      description: List all admin accounts. Super Admin only.
+      operationId: listAdmins
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Admin list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminUser"
+              example:
+                success: true
+                data:
+                  - user_id: "c3d4e5f6-a7b8-9012-cdef-234567890123"
+                    email: "admin1@vitacasahealth.in"
+                    phone: "+919999999999"
+                    full_name: "Admin One"
+                    role: "admin"
+                    is_active: true
+                    created_at: "2026-08-01T10:00:00Z"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/users/{id}:
+    put:
+      tags: [Admin - Users]
+      summary: Update admin account
+      description: Update admin account details. Super Admin only.
+      operationId: updateAdmin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Admin user ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                full_name:
+                  type: string
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                password:
+                  type: string
+                  minLength: 6
+                  description: "If provided, updates the password"
+      responses:
+        "200":
+          description: Admin updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Admin updated"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Admin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_004"
+                  message: "Admin user not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [Admin - Users]
+      summary: Deactivate admin account
+      description: |
+        Soft-deletes an admin by setting `is_active = false`. Super Admin only.
+        Cannot deactivate yourself or a super_admin.
+      operationId: deactivateAdmin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Admin user ID
+      responses:
+        "200":
+          description: Admin deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Admin deactivated"
+        "400":
+          description: Cannot deactivate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                self_deactivation:
+                  summary: Self-deactivation
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_005"
+                      message: "Cannot deactivate your own account"
+                super_admin:
+                  summary: Cannot deactivate super admin
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_006"
+                      message: "Cannot deactivate a super admin"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Admin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_004"
+                  message: "Admin user not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/users/{id}/activate:
+    patch:
+      tags: [Admin - Users]
+      summary: Reactivate a deactivated admin account
+      description: |
+        Sets `is_active = true` on a previously-deactivated admin. Super Admin
+        only. Idempotent — succeeds even if the admin is already active.
+      operationId: activateAdmin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Admin user ID
+      responses:
+        "200":
+          description: Admin activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                data:
+                  message: "Admin activated"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Admin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_004"
+                  message: "Admin user not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/users/{id}/role:
+    patch:
+      tags: [Admin - Users]
+      summary: Change an admin's role (promote to / demote from super_admin)
+      description: |
+        Sets an admin's role to `admin` or `super_admin`. Super Admin only.
+        Cannot change your own role, and cannot demote the last remaining
+        active super_admin (the system must always have at least one).
+      operationId: updateAdminRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Admin user ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [admin, super_admin]
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      role:
+                        type: string
+                        enum: [admin, super_admin]
+              example:
+                success: true
+                data:
+                  user_id: "uuid"
+                  role: "super_admin"
+        "400":
+          description: Cannot change role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                self_role_change:
+                  summary: Self-role-change
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_012"
+                      message: "Cannot change your own role"
+                last_super_admin:
+                  summary: Cannot demote the last super admin
+                  value:
+                    success: false
+                    error:
+                      code: "ADMIN_013"
+                      message: "Cannot demote the last super admin"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Admin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "ADMIN_004"
+                  message: "Admin user not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # AUDIT LOG ENDPOINTS
+  # ============================================================
+  /admin/audit-logs:
+    get:
+      tags: [Admin - Audit Logs]
+      summary: List audit logs
+      description: Paginated, filterable audit log list. Admin and Super Admin access.
+      operationId: listAuditLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at]
+            default: created_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by actor (who performed the action)
+        - name: target_user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by target (who was affected)
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum:
+              - registration
+              - login
+              - call_verified
+              - advanced_details_submitted
+              - profile_updated
+              - status_changed
+              - code_changed
+              - service_mode_assigned
+              - job_posted
+              - job_closed
+              - job_response
+              - admin_edit_profile
+              - admin_note_added
+              - admin_created
+              - admin_deactivated
+              - phone_changed
+              - edits_acknowledged
+              - admin_document_uploaded
+          description: Filter by action type
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter from date (ISO date)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter to date (ISO date)
+      responses:
+        "200":
+          description: Audit logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLogEntry"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+              example:
+                success: true
+                data:
+                  - id: "d4e5f6a7-b8c9-0123-def0-345678901234"
+                    user_id: "c3d4e5f6-a7b8-9012-cdef-234567890123"
+                    user_name: "Admin One"
+                    target_user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    target_user_name: "Ramesh Kumar"
+                    action: "status_changed"
+                    entity_type: "caregiver_profiles"
+                    entity_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    before_value:
+                      verification_status: "pending_verification"
+                    after_value:
+                      verification_status: "available"
+                    ip_address: "192.168.1.1"
+                    created_at: "2026-08-01T14:30:00Z"
+                meta:
+                  page: 1
+                  limit: 20
+                  total: 100
+                  totalPages: 5
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "GEN_005"
+                  message: "Invalid pagination parameters"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ============================================================
+  # ADMIN JOBS ENDPOINTS (SPEC.md 6.6)
+  # ============================================================
+  /admin/jobs:
+    post:
+      tags: [Admin - Jobs]
+      summary: Post a new job
+      description: |
+        Creates a job (status `active`) and broadcasts a push notification
+        to every caregiver with an FCM token, regardless of verification
+        status (browsing motivates onboarding).
+      operationId: createJob
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [work_type, city, description, duty_timings, language, gender_needed, religion]
+              properties:
+                work_type:
+                  $ref: "#/components/schemas/WorkType"
+                city:
+                  $ref: "#/components/schemas/City"
+                description:
+                  type: string
+                duty_timings:
+                  $ref: "#/components/schemas/ServiceMode"
+                language:
+                  $ref: "#/components/schemas/Language"
+                gender_needed:
+                  type: string
+                  enum: [male, female]
+                  description: "Jobs table only allows male/female, unlike the general Gender enum."
+                religion:
+                  $ref: "#/components/schemas/Religion"
+            example:
+              work_type: "bedside_care"
+              city: "bangalore"
+              description: "Need a bedside caregiver for an elderly patient, 24/7."
+              duty_timings: "24hrs_live_in"
+              language: "hindi"
+              gender_needed: "female"
+              religion: "hindu"
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Admin - Jobs]
+      summary: List job postings
+      operationId: listJobs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, closed] }
+        - name: work_type
+          in: query
+          schema:
+            $ref: "#/components/schemas/WorkType"
+        - name: city
+          in: query
+          schema:
+            $ref: "#/components/schemas/City"
+      responses:
+        "200":
+          description: Job list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/jobs/{id}:
+    get:
+      tags: [Admin - Jobs]
+      summary: Get job detail with all caregiver responses
+      operationId: getJobDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job detail retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/Job"
+                      - type: object
+                        properties:
+                          responses:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/JobResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/jobs/{id}/close:
+    patch:
+      tags: [Admin - Jobs]
+      summary: Close a job posting
+      description: Sets status to `closed` — closed jobs no longer accept caregiver responses (JOB_002).
+      operationId: closeJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string, enum: [closed] }
+              example:
+                success: true
+                data: { message: "Job closed", status: "closed" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/jobs/{id}/remind:
+    post:
+      tags: [Admin - Jobs]
+      summary: Send a reminder push for an existing job posting
+      description: |
+        Re-broadcasts a push notification to every caregiver reminding them
+        to apply, reusing the same title/body format as the initial posting
+        push but with reminder copy. Only allowed while the job is still
+        `active` (JOB_005 otherwise).
+      operationId: sendJobReminder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Reminder sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+              example:
+                success: true
+                data: { message: "Reminder sent" }
+        "400":
+          description: Job is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_005", message: "Cannot send a reminder for a closed job" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"

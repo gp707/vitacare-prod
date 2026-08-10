@@ -1,0 +1,22 @@
+name: vitacare_ui
+description: "Shared design tokens and platform-agnostic micro-widgets for VitaCare's Flutter apps."
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.19.0"
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  vitacare_shared:
+    path: ../vitacare_shared
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

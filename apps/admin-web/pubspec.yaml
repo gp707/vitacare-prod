@@ -1,0 +1,31 @@
+name: admin_web
+description: "VitaCare admin verification dashboard (Flutter Web)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.19.0"
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.5.1
+  dio: ^5.5.0
+  shared_preferences: ^2.3.2
+  url_launcher: ^6.3.1
+  file_picker: ^8.1.2
+  vitacare_shared:
+    path: ../../packages/vitacare_shared
+  vitacare_ui:
+    path: ../../packages/vitacare_ui
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

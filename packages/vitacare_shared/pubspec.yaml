@@ -1,0 +1,14 @@
+name: vitacare_shared
+description: Shared pure-Dart enums, error codes, validation rules, and models for VitaCare's Flutter apps.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+resolution: workspace
+
+dependencies:
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -1,0 +1,8 @@
+{
+  "name": "vitacare-ts",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "packages/shared-constants"
+  ]
+}
