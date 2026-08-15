@@ -6,9 +6,6 @@ import '../theme/app_spacing.dart';
 
 const Map<String, String> _statusLabels = {
   VerificationStatus.pendingCall: 'Pending Call',
-  VerificationStatus.callVerified: 'Call Verified',
-  VerificationStatus.pendingVerification: 'Pending Verification',
-  VerificationStatus.inProcess: 'In Process',
   VerificationStatus.available: 'Available',
   VerificationStatus.unavailable: 'Unavailable',
   VerificationStatus.assigned: 'Assigned',
@@ -17,9 +14,6 @@ const Map<String, String> _statusLabels = {
 
 const Map<String, Color> _statusColors = {
   VerificationStatus.pendingCall: AppColors.statusPendingCall,
-  VerificationStatus.callVerified: AppColors.statusCallVerified,
-  VerificationStatus.pendingVerification: AppColors.statusPendingVerification,
-  VerificationStatus.inProcess: AppColors.statusInProcess,
   VerificationStatus.available: AppColors.statusAvailable,
   VerificationStatus.unavailable: AppColors.textSecondary,
   VerificationStatus.assigned: AppColors.statusAssigned,

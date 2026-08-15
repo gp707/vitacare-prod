@@ -10,9 +10,12 @@ class AuthRepository {
 
   /// [code] is the 4-digit login PIN, set here at registration — caregivers
   /// log in with phone + this code from the very first session onward.
-  /// [religion] is set once here and locked from self-edit afterward — only
-  /// admins can change it from that point on. [preferredCities] remains
-  /// self-editable later via ProfileRepository.editAdvancedProfile.
+  /// [religion] and [highestQualification] are set once here — religion is
+  /// locked from self-edit afterward (admin-only past this point);
+  /// highestQualification remains self-editable later via
+  /// ProfileRepository.editProfile. [preferredCities] also remains
+  /// self-editable later. There is no separate "Advanced Details" step
+  /// anymore — everything is collected in this one registration.
   Future<AuthResult> register({
     required String phone,
     required String fullName,
@@ -21,6 +24,8 @@ class AuthRepository {
     required List<String> languages,
     required String code,
     required String religion,
+    required String highestQualification,
+    required bool termsAccepted,
     List<String>? preferredCities,
   }) async {
     try {
@@ -32,6 +37,8 @@ class AuthRepository {
         'languages': languages,
         'code': code,
         'religion': religion,
+        'highest_qualification': highestQualification,
+        'terms_accepted': termsAccepted,
         if (preferredCities != null) 'preferred_cities': preferredCities,
       });
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);

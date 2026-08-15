@@ -56,13 +56,7 @@
 │ terms_accepted       │
 │ verification_status  │
 │ rejection_message    │
-│ call_verified_at     │
-│ call_verified_by     │
-│   (FK→users)         │
-│ advanced_details_    │
-│   completed          │
 │ has_pending_edits    │
-│ submitted_at         │
 │ verified_at          │
 │ verified_by (FK→users)│
 │ created_at           │
@@ -126,7 +120,6 @@ same 1:N junction-table pattern as caregiver_languages.)
 | users | refresh_tokens | 1:N | refresh_tokens.user_id | A user can have multiple active/revoked tokens |
 | users | audit_logs (actor) | 1:N | audit_logs.user_id | Who performed the action |
 | users | audit_logs (target) | 1:N | audit_logs.target_user_id | Who was affected by the action |
-| users | caregiver_profiles (call_verified_by) | 1:N | caregiver_profiles.call_verified_by | Admin who verified the phone call |
 | users | caregiver_profiles (verified_by) | 1:N | caregiver_profiles.verified_by | Admin who verified the profile |
 | users | admin_notes (admin) | 1:N | admin_notes.admin_id | Admin who wrote the notes |
 | caregiver_profiles | caregiver_languages | 1:N | caregiver_languages.profile_id | A profile has 1+ languages |
@@ -145,7 +138,7 @@ same 1:N junction-table pattern as caregiver_languages.)
 |-------|---------|
 | **users** | Core identity table for all user types (caregivers, admins, super_admins). Holds auth credentials, contact info, role, and FCM token for push notifications. |
 | **refresh_tokens** | Stores hashed refresh tokens for JWT rotation. Each token use generates a new one and revokes the old. Supports 30-day TTL. |
-| **caregiver_profiles** | Full onboarding profile for caregivers including document URLs, verification workflow state, and submission timestamps. Central to the verification pipeline. |
+| **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **caregiver_service_modes** | Junction table for service delivery modes: 24Hrs (Live-In) or 12Hrs (nearby PG). |
 | **caregiver_work_types** | Admin-assigned work categories: companion care, bedside care, critical care. Caregivers can view but not modify. |

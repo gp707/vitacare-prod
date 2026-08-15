@@ -330,9 +330,6 @@ Enums and validation rules are defined in both `packages/shared-constants` (Type
 ```typescript
 export const VerificationStatus = {
   PENDING_CALL: 'pending_call',
-  CALL_VERIFIED: 'call_verified',
-  PENDING_VERIFICATION: 'pending_verification',
-  IN_PROCESS: 'in_process',
   AVAILABLE: 'available',       // Verified & available for work (verified_at is set, green icon)
   UNAVAILABLE: 'unavailable',   // Verified but not available (caregiver or admin toggled off)
   ASSIGNED: 'assigned',         // Currently assigned to work
@@ -414,8 +411,6 @@ export const Qualification = {
 export const AuditAction = {
   REGISTRATION: 'registration',
   LOGIN: 'login',
-  CALL_VERIFIED: 'call_verified',
-  ADVANCED_DETAILS_SUBMITTED: 'advanced_details_submitted',
   PROFILE_UPDATED: 'profile_updated',
   STATUS_CHANGED: 'status_changed',
   CODE_CHANGED: 'code_changed',
@@ -449,9 +444,7 @@ export const Validation = {
   CODE_REGEX: /^\d{4}$/,
   AGE_MIN: 18,
   AGE_MAX: 65,
-  ADDRESS_MAX_LENGTH: 500,
   REJECTION_MESSAGE_MAX_LENGTH: 1000,
-  NOTES_MAX_LENGTH: 500,
   FILE_MAX_SIZE_BYTES: 10 * 1024 * 1024, // 10MB
   MAX_OTHER_DOCUMENTS: 3,
   PAGINATION_DEFAULT_LIMIT: 20,
@@ -463,15 +456,12 @@ export const Validation = {
 ```dart
 class VerificationStatus {
   static const pendingCall = 'pending_call';
-  static const callVerified = 'call_verified';
-  static const pendingVerification = 'pending_verification';
-  static const inProcess = 'in_process';
   static const available = 'available';       // Verified & available (green icon)
   static const unavailable = 'unavailable';   // Verified but not available (toggled off)
   static const assigned = 'assigned';         // Currently assigned to work
   static const rejected = 'rejected';
 
-  static const all = [pendingCall, callVerified, pendingVerification, inProcess, available, unavailable, assigned, rejected];
+  static const all = [pendingCall, available, unavailable, assigned, rejected];
 }
 
 class JobStatus {
@@ -707,25 +697,25 @@ class AppSpacing {
 
 All authentication is handled by the NestJS backend using custom JWT tokens. Supabase is used only for database, storage, and realtime — not for auth. This avoids complexity of dual-token validation and Supabase Auth's OTP requirement for phone login.
 
-#### Registration: Phone + 4-Digit Code (Stage 1)
+#### Registration: Everything in One Step
 
-- Caregiver registers with phone number, basic details, and a self-chosen 4-digit numeric code.
+- Caregiver registers with phone number, basic details (gender, age, languages, religion, highest qualification, terms acceptance), and a self-chosen 4-digit numeric code — all in one `POST /auth/register` call. There is no separate "Advanced Details" step; documents (selfie, Aadhaar — both mandatory; qualification document and up to 3 "other" documents — optional) are uploaded via their own endpoints immediately after, on the same Registration screen.
 - Backend creates a row in `users` table; code is hashed (bcrypt) and stored in `code_hash` at creation.
 - Backend generates and issues a custom JWT immediately.
 - **Login (from registration onward):** Caregiver enters phone number + 4-digit code → backend looks up user in `users` table, verifies the code hash → issues JWT.
-- **Security model:** The code is collected at registration (not deferred to Stage 3) so every caregiver login, from the very first session, is phone + code — there is no phone-only fallback to reason about.
+- **Security model:** The code is collected at registration so every caregiver login, from the very first session, is phone + code — there is no phone-only fallback to reason about.
 - **Session persistence:** JWT stored locally on device. Caregiver stays logged in until token expires or they log out.
+- Admin reviews the phone call and the full submitted profile (already complete) and approves or rejects directly from `pending_call` — there's no intermediate "call verified" or "in review" state to track separately.
 
 **DO NOT:**
 - Do NOT use Supabase Auth for any accounts (caregiver or admin).
 - Do NOT implement OTP verification at registration or login.
-- Do NOT store any sensitive data (Aadhaar, address) until Stage 3 (advanced details) — the login code is not sensitive profile data and is fine to collect at Stage 1.
 - Do NOT reintroduce a phone-only login endpoint.
+- Do NOT reintroduce a separate "Advanced Details" submission step — everything is collected at registration.
 
-#### Stage 3: Advanced Details (Code Unchanged)
+#### Self-Edit and the Login Code
 
-- After admin marks "Call Verified", caregiver fills advanced details (qualification, religion, family/address info, documents). The login code is NOT part of this step — it was already set at registration.
-- Admin can change a caregiver's code at any time via `/admin/caregivers/:id/code`.
+- Admin can change a caregiver's code at any time via `/admin/caregivers/:id` (admin edit) or the caregiver can change it themselves via `PATCH /caregiver/profile/code`.
 
 #### Token Structure
 
@@ -861,20 +851,13 @@ CREATE TABLE caregiver_profiles (
   verification_status VARCHAR(30) DEFAULT 'pending_call'
     CHECK (verification_status IN (
       'pending_call',
-      'call_verified',
-      'pending_verification',
-      'in_process',
       'available',
       'unavailable',
       'assigned',
       'rejected'
     )),
   rejection_message TEXT,
-  call_verified_at TIMESTAMPTZ,
-  call_verified_by UUID REFERENCES users(id),  -- App validates this is admin/super_admin
-  advanced_details_completed BOOLEAN DEFAULT false,
   has_pending_edits BOOLEAN DEFAULT false,
-  submitted_at TIMESTAMPTZ,
   verified_at TIMESTAMPTZ,
   verified_by UUID REFERENCES users(id),      -- App validates this is admin/super_admin
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1004,8 +987,6 @@ CREATE TABLE audit_logs (
   action VARCHAR(50) NOT NULL CHECK (action IN (
     'registration',
     'login',
-    'call_verified',
-    'advanced_details_submitted',
     'profile_updated',
     'status_changed',
     'code_changed',
@@ -1160,7 +1141,10 @@ All responses follow this structure:
 
 #### POST `/auth/register`
 
-Register a new caregiver (Stage 1).
+Register a new caregiver. There is no separate "Advanced Details" step — every
+field is collected here in one call. Documents (selfie, Aadhaar, optional
+qualification/other documents) are uploaded via their own endpoints
+immediately after, on the same Registration screen.
 
 **Request:**
 ```json
@@ -1172,7 +1156,9 @@ Register a new caregiver (Stage 1).
   "languages": ["hindi", "english"],
   "code": "1234",
   "religion": "hindu",
-  "preferred_cities": ["bangalore", "mumbai"]
+  "preferred_cities": ["bangalore", "mumbai"],
+  "highest_qualification": "rn_above_2_years",
+  "terms_accepted": true
 }
 ```
 
@@ -1198,9 +1184,11 @@ Register a new caregiver (Stage 1).
 - `languages`: Required, array, min 1 item, each must be valid language enum.
 - `code`: Required, exactly 4 digits, numeric only (`/^\d{4}$/`). This is the caregiver's login code from their very first session — used with `/auth/login/code` for every subsequent login. Hashed (bcrypt) and stored in `code_hash` at creation.
 - `religion`: Required, must be one of: `hindu`, `muslim`, `christian`, `others`. Set once here — locked from self-edit afterward; only admins can change it.
-- `preferred_cities`: Optional array (multi-select). If provided, each value must be one of: `bangalore`, `mumbai`, `hyderabad`, `chennai`, `pune`, `delhi`, `gurgaon`. Omitted or `[]` means no preference. Remains editable later via the advanced-details self-edit endpoint.
+- `preferred_cities`: Optional array (multi-select). If provided, each value must be one of: `bangalore`, `mumbai`, `hyderabad`, `chennai`, `pune`, `delhi`, `gurgaon`. Omitted or `[]` means no preference. Remains editable later via the self-edit endpoint.
+- `highest_qualification`: Required, must be a valid qualification enum value. Remains editable later via the self-edit endpoint.
+- `terms_accepted`: Required, must be `true`.
 
-**Note:** Selfie is uploaded separately via `POST /caregiver/profile/selfie` immediately after registration.
+**Note:** Selfie and Aadhaar are uploaded separately via `POST /caregiver/profile/selfie` and `POST /caregiver/profile/documents` immediately after registration — both are mandatory, but there's no server-side gate enforcing they exist (same as the existing selfie-upload gap); admin visibility during review covers this.
 
 ---
 
@@ -1224,8 +1212,7 @@ Login with phone + 4-digit code. The code is set at registration, so this is the
     "user_id": "uuid",
     "access_token": "jwt_token",
     "refresh_token": "refresh_token",
-    "verification_status": "available",
-    "advanced_details_completed": true
+    "verification_status": "available"
   }
 }
 ```
@@ -1320,7 +1307,6 @@ Get own full profile.
     "terms_accepted": true,
     "verification_status": "available",
     "rejection_message": null,
-    "advanced_details_completed": true,
     "preferred_cities": ["bangalore", "mumbai"],
     "created_at": "2026-08-01T10:00:00Z"
   }
@@ -1330,24 +1316,32 @@ Get own full profile.
 **Notes:**
 - All fields are always returned in the response. Fields not yet set return `null`. No fields are omitted.
 - Document URLs are signed URLs with 1-hour expiry (or `null` if not uploaded).
-- If `verification_status` is `pending_call`, advanced fields will be `null`.
-- If `advanced_details_completed` is `false`, advanced fields will be `null`.
+- `highest_qualification`, `religion`, and `terms_accepted` are always set from registration onward — there's no intermediate state where they're `null` for a normally-registered caregiver.
 
 ---
 
-#### PUT `/caregiver/profile/basic`
+#### PATCH `/caregiver/profile`
 
-Update basic profile fields.
+Single self-edit endpoint for every caregiver-editable field. Any subset —
+only what's provided gets written/diffed. There is no more "basic" vs
+"advanced" split (that distinction only existed when Advanced Details was a
+separate onboarding stage).
 
 **Request:**
 ```json
 {
   "age": 33,
-  "languages": ["hindi", "english", "kannada"]
+  "languages": ["hindi", "english", "kannada"],
+  "highest_qualification": "rn_above_2_years",
+  "preferred_cities": ["bangalore", "mumbai"]
 }
 ```
 
-full_name and gender are NOT accepted here — both are locked from self-edit past registration; only an admin can change them.
+`full_name`, `gender`, and `religion` are NOT accepted here — all three are
+locked from self-edit past registration; only an admin can change them.
+Phone and the login code live on their own endpoints (`PATCH
+/caregiver/profile/phone`, `PATCH /caregiver/profile/code`) with different
+review-trigger semantics.
 
 **Response (200):**
 ```json
@@ -1361,70 +1355,17 @@ full_name and gender are NOT accepted here — both are locked from self-edit pa
 }
 ```
 
-Note: `verification_status` remains unchanged. It reflects the current status, NOT a reset.
-
 **Side effects:**
-- Audit log entry created with before/after values.
+- Audit log entry created with before/after values (only for fields that actually changed).
 - Email notification sent to admin with changed fields.
 - Profile is flagged as `has_pending_edits = true` in the database.
-- **Status does NOT change automatically.** Admin reviews the edits and manually decides whether to re-verify.
+- **While `available`/`unavailable`, status does NOT change automatically.** Admin reviews the edits and manually decides whether to re-verify.
+- **While `rejected`, any actual change here auto-resubmits** — `verification_status` is reset to `pending_call` server-side, no separate "resubmit" action needed. The response's `verification_status` reflects this.
 
 **DO NOT:**
-- Do NOT auto-reset verification status on profile edit.
+- Do NOT auto-reset verification status on profile edit for `available`/`unavailable` caregivers.
 - Do NOT block the caregiver from using the app while edits are pending review.
 - Each profile edit re-sets `has_pending_edits = true` even if previously acknowledged.
-- Profile edits for caregivers in `available`/`assigned` status flag for review. For `rejected` status, edits trigger re-submission flow instead.
-
----
-
-#### PUT `/caregiver/profile/advanced`
-
-Submit advanced details (only accessible after `call_verified` status).
-religion and preferred_cities are NOT part of this payload — both are
-collected once at registration (`POST /auth/register`). father_name,
-father_phone, current_address, and notes have been removed from the
-product entirely.
-
-**Request:**
-```json
-{
-  "highest_qualification": "rn_above_2_years",
-  "terms_accepted": true
-}
-```
-
-**Validation Rules:**
-- `highest_qualification`: Required, must be one of: `rn_above_2_years`, `rn_below_2_years`, `registered_recently`, `bsc_gnm_unregistered`, `anm_student_backlog`, `gda_non_nursing`.
-- `terms_accepted`: Required, must be `true`.
-
-**Preconditions:**
-- Caregiver must have `verification_status = 'call_verified'` OR `'rejected'` (re-submission).
-- Aadhaar document must already be uploaded. Selfie is already guaranteed by
-  registration (Stage 1). Qualification document and "other" documents are
-  optional — not required to submit.
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Advanced details submitted",
-    "verification_status": "pending_verification"
-  }
-}
-```
-
-**Side effects:**
-- `advanced_details_completed` set to `true`.
-- `verification_status` changed to `pending_verification`.
-- `submitted_at` set to current timestamp.
-- Email notification sent to admin.
-- Audit log entry created.
-
-**DO NOT:**
-- Do NOT allow this endpoint if status is not `call_verified` or `rejected`.
-- Do NOT allow submission if Aadhaar is not uploaded.
-- Do NOT accept a `code` field here — the login code is set once, at registration (`POST /auth/register`). A `code` field in this request body is rejected by the whitelist validator (`GEN_001`).
 
 ---
 
@@ -1489,9 +1430,8 @@ Upload qualification doc, Aadhaar, or other documents. Multipart form data.
 {
   "success": true,
   "data": {
-    "verification_status": "pending_verification",
+    "verification_status": "pending_call",
     "rejection_message": null,
-    "submitted_at": "2026-08-01T10:00:00Z",
     "verified_at": null
   }
 }
@@ -1571,9 +1511,6 @@ Update the FCM token for push notifications.
   "data": {
     "total_caregivers": 150,
     "pending_call": 12,
-    "call_verified": 5,
-    "pending_verification": 8,
-    "in_process": 3,
     "available": 80,
     "unavailable": 20,
     "assigned": 10,
@@ -1597,7 +1534,7 @@ Paginated, filterable list.
 - `sort` (default: `created_at`, options: `created_at`, `full_name`, `age`)
 - `order` (default: `desc`, options: `asc`, `desc`)
 - `search` (searches: full_name, phone)
-- `status` (filter: `pending_call`, `call_verified`, `pending_verification`, `in_process`, `available`, `unavailable`, `assigned`, `rejected`)
+- `status` (filter: `pending_call`, `available`, `unavailable`, `assigned`, `rejected`)
 - `qualification` (filter by qualification)
 - `language` (filter by language, comma-separated for multiple)
 - `service_mode` (filter: `24hrs_live_in`, `12hrs_pg`)
@@ -1621,7 +1558,7 @@ Paginated, filterable list.
       "highest_qualification": "rn_above_2_years",
       "service_modes": ["24hrs_live_in"],
       "work_types": ["companion_care"],
-      "verification_status": "pending_verification",
+      "verification_status": "pending_call",
       "created_at": "2026-08-01T10:00:00Z"
     }
   ],
@@ -1662,9 +1599,8 @@ Full caregiver detail with signed document URLs.
     "aadhaar_document_url": "https://signed-url...",
     "other_document_urls": ["https://signed-url..."],
     "terms_accepted": true,
-    "verification_status": "pending_verification",
+    "verification_status": "pending_call",
     "rejection_message": null,
-    "advanced_details_completed": true,
     "preferred_cities": ["bangalore", "mumbai"],
     "admin_notes": {
       "internal_notes": "Good candidate, verified docs look clean",
@@ -1673,7 +1609,6 @@ Full caregiver detail with signed document URLs.
       "availability_remarks": "Prefers south Bangalore"
     },
     "created_at": "2026-08-01T10:00:00Z",
-    "submitted_at": "2026-08-02T14:00:00Z",
     "verified_at": null
   }
 }
@@ -1681,38 +1616,16 @@ Full caregiver detail with signed document URLs.
 
 ---
 
-#### PATCH `/admin/caregivers/:id/call-verified`
-
-Mark caregiver as phone-call verified.
-
-**Precondition:** Caregiver must have `verification_status = 'pending_call'`.
-
-**Request:** No body required.
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Caregiver marked as call verified",
-    "verification_status": "call_verified"
-  }
-}
-```
-
-**Side effects:**
-- `verification_status` → `call_verified`.
-- `call_verified_at` set to current timestamp.
-- `call_verified_by` set to admin user ID.
-- Push notification sent to caregiver.
-- Email sent to caregiver (if email available — unlikely at this stage, so push only).
-- Audit log entry created.
-
----
-
 #### PATCH `/admin/caregivers/:id/status`
 
-Update verification status (for document review stage).
+Admin override — deliberately unrestricted. Admin can set any caregiver to
+any of the 5 statuses, from any current status; there is no transition-
+matrix check on this endpoint. The *normal* day-to-day flow, driven by
+admin-web's Approve/Reject quick-action buttons (only offered from
+`pending_call`), is `pending_call` → `available` or `pending_call` →
+`rejected` — everything else (jumping to `assigned`, manually resetting
+back to `pending_call`, etc.) is available as a free-form override for
+edge cases.
 
 **Request:**
 ```json
@@ -1722,27 +1635,15 @@ Update verification status (for document review stage).
 }
 ```
 
-**Allowed transitions:**
-- `pending_verification` → `in_process`
-- `pending_verification` → `available` (approves — sets verified_at, caregiver becomes available)
-- `pending_verification` → `rejected`
-- `in_process` → `available` (approves — sets verified_at, caregiver becomes available)
-- `in_process` → `rejected`
-- `available` → `pending_verification` (admin manually resets after reviewing edits)
-- `rejected` → `pending_verification` (only via caregiver re-submission, NOT admin action)
-
-**DO NOT:**
-- Do NOT allow setting status to `pending_call` or `call_verified` via this endpoint.
-- Do NOT allow `rejected` → `available` directly (caregiver must re-submit first).
-- Do NOT allow `available` → `rejected` directly (must go through `pending_verification` first).
-
 **Validation:**
-- `status`: Required, must be `in_process`, `available`, or `rejected`.
+- `status`: Required, must be one of the 5 valid statuses.
 - `rejection_message`: Optional, only relevant when status is `rejected`, max 1000 characters.
 
 **Side effects:**
-- If `available`: `verified_at` set, `verified_by` set to admin ID. Green icon shown.
-- Push notification sent to caregiver.
+- If `available`: `verified_at` set, `verified_by` set to admin ID. `rejection_message` cleared. Green icon shown.
+- If `rejected`: `rejection_message` set.
+- Every other target status: `rejection_message` cleared.
+- Push notification sent to caregiver only for `available` and `rejected` targets.
 - Audit log entry created.
 
 ---
@@ -2367,7 +2268,7 @@ Deactivate admin account (soft delete — sets `is_active = false`).
       "action": "status_changed",
       "entity_type": "caregiver_profiles",
       "entity_id": "uuid",
-      "before_value": { "verification_status": "pending_verification" },
+      "before_value": { "verification_status": "pending_call" },
       "after_value": { "verification_status": "available" },
       "ip_address": "192.168.1.1",
       "created_at": "2026-08-01T14:30:00Z"
@@ -2408,14 +2309,12 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | PROFILE_005 | 400 | At least one language is required | Empty languages array |
 | PROFILE_006 | 400 | Invalid language value: {value} | Language not in enum |
 | PROFILE_007 | 400 | Invalid phone number format | Phone doesn't match pattern |
-| PROFILE_008 | 403 | Advanced details not available. Phone call verification required. | Trying to submit advanced details before call_verified |
-| PROFILE_009 | 400 | Terms and conditions must be accepted | terms_accepted is false |
+| PROFILE_009 | 400 | Terms and conditions must be accepted | terms_accepted is false (registration) |
 | PROFILE_010 | 400 | Invalid religion value | Religion not in enum (registration) |
 | PROFILE_012 | 400 | At least one service mode is required | Empty service_modes array |
 | PROFILE_013 | 400 | Invalid service mode: {value} | Service mode not in enum |
 | PROFILE_016 | 400 | Code must be exactly 4 digits | Code not matching /^\d{4}$/ |
-| PROFILE_017 | 400 | Aadhaar card not uploaded. Please upload it before submitting. | Advanced submit without Aadhaar |
-| PROFILE_018 | 400 | Invalid qualification value | Qualification not in allowed list |
+| PROFILE_018 | 400 | Invalid qualification value | Qualification not in allowed list (registration or self-edit) |
 | PROFILE_019 | 404 | Caregiver profile not found | Profile ID doesn't exist |
 | PROFILE_020 | 400 | Name must contain only alphabetic characters and spaces | Invalid characters in name |
 | PROFILE_021 | 400 | FCM token is required | Empty/missing token on `PUT /caregiver/fcm-token` |
@@ -2434,8 +2333,7 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 
 | Code | HTTP Status | Message | When |
 |------|-------------|---------|------|
-| ADMIN_001 | 400 | Invalid status transition from {current} to {requested} | Invalid status change |
-| ADMIN_002 | 400 | Cannot mark as call verified. Current status is not pending_call. | Call verify on wrong status |
+| ADMIN_001 | 400 | Invalid status transition from {current} to {requested} | Invalid status value on `PATCH /admin/caregivers/:id/status` |
 | ADMIN_003 | 409 | Admin with this email already exists | Creating duplicate admin |
 | ADMIN_004 | 404 | Admin user not found | Invalid admin user ID |
 | ADMIN_005 | 400 | Cannot deactivate your own account | Self-deactivation attempt |
@@ -2482,10 +2380,8 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 
 | Event | Recipient | Title | Body |
 |-------|-----------|-------|------|
-| Call Verified | Caregiver | Phone Verified | Your phone has been verified. Please fill your details to proceed. |
 | Status: Available | Caregiver | Profile Approved | Congratulations! Your profile has been verified. You are now available for work assignments. |
 | Status: Rejected | Caregiver | Profile Update Required | Your profile needs updates. Please check the app for details. |
-| Status: In Process | Caregiver | Profile Under Review | Your documents are being reviewed. We'll update you soon. |
 | New Job Posted | All Caregivers | New Job: {work_type_display} - ₹{min}–₹{max} | {city} \| {duty_timings_display} \| IMMEDIATELY APPLY |
 | Daily Availability Reminder | Verified caregivers (available/unavailable) | Update Your Availability | Are you available for work today? Open app to confirm. |
 
@@ -2493,12 +2389,12 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 ```json
 {
   "notification": {
-    "title": "Phone Verified",
-    "body": "Your phone has been verified. Please fill your details to proceed."
+    "title": "Profile Approved",
+    "body": "Congratulations! Your profile has been verified. You are now available for work assignments."
   },
   "data": {
     "type": "status_change",
-    "status": "call_verified",
+    "status": "available",
     "profile_id": "uuid"
   }
 }
@@ -2521,10 +2417,8 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | Terminated | System notification shown. App opens on tap. |
 
 **Tap Navigation:**
-- `type: "status_change"` + `status: "call_verified"` → Navigate to Advanced Details screen.
 - `type: "status_change"` + `status: "available"` → Navigate to Home screen.
 - `type: "status_change"` + `status: "rejected"` → Navigate to Profile screen (shows rejection message).
-- `type: "status_change"` + `status: "in_process"` → Navigate to Verification Status screen.
 
 **DO NOT:**
 - Do NOT send push notifications to admins in V1 (admins use real-time dashboard).
@@ -2618,27 +2512,11 @@ Phone: {phone}
 Gender: {gender}
 Age: {age}
 Languages: {languages_comma_separated}
+Religion: {religion}
 
 Status: Pending Call
 
-Please call to verify their phone number.
-
----
-VitaCare Admin
-```
-
-#### Advanced Details Submitted (to Admin)
-
-```
-Subject: Profile Submitted for Review - {full_name}
-
-Caregiver {full_name} has submitted their profile for verification.
-
-Phone: {phone}
-Qualification: {highest_qualification}
-Service Modes: {service_modes_comma_separated}
-
-Please review their documents in the admin dashboard.
+Please call to verify their phone number and review their submitted profile and documents in the admin dashboard.
 
 ---
 VitaCare Admin
@@ -2683,10 +2561,8 @@ Implemented as a NestJS interceptor that wraps every mutating request.
 
 | Action | entity_type | Captured Values |
 |--------|-------------|-----------------|
-| `registration` | `users` | after: new user data |
+| `registration` | `users` | after: new user data (including religion, highest_qualification) |
 | `login` | `users` | after: { timestamp, method } |
-| `call_verified` | `caregiver_profiles` | before/after: status change |
-| `advanced_details_submitted` | `caregiver_profiles` | after: submitted fields |
 | `profile_updated` | `caregiver_profiles` | before/after: changed fields only |
 | `status_changed` | `caregiver_profiles` | before/after: status + who changed it |
 | `code_changed` | `users` | after: { timestamp, changed_by } |
@@ -2724,34 +2600,34 @@ Implemented as a NestJS interceptor that wraps every mutating request.
 | 2 | Login | `/login` | Unauthenticated |
 | 3 | Registration | `/register` | Unauthenticated |
 | 4 | Pending Call | `/pending-call` | Authenticated, status = pending_call |
-| 5 | Advanced Details Form (incl. document upload) | `/advanced-details` | Authenticated, status = call_verified |
-| 7 | Verification Status | `/verification-status` | Authenticated, status = pending_verification or in_process |
 | 8 | Rejection Details | `/rejection` | Authenticated, status = rejected |
 | 9 | Home | `/home` | Authenticated, status = available/assigned |
 | 9a | Jobs Dashboard | `/jobs` | Authenticated, any status (view jobs; respond only if available/assigned) |
 | 10 | Profile View | `/profile` | Authenticated, any status |
-| 11 | Edit Basic Profile | `/profile/edit-basic` | Authenticated, any status |
-| 12 | Edit Advanced Profile | `/profile/edit-advanced` | Authenticated, advanced_details_completed = true |
+| 11 | Edit Profile (incl. document upload) | `/profile/edit` | Authenticated, any status |
 | 14 | Settings | `/settings` | Authenticated |
+
+There is no "Advanced Details" screen or route — every field (including
+documents) is collected on the Registration screen itself.
 
 ### 12.2 Navigation Flow
 
 ```
 App Launch → Splash
   ├── No token → Login
-  │     ├── "Register" tap → Registration
+  │     ├── "Register" tap → Registration (collects everything, incl. documents)
   │     └── Successful login → Route by status (see below)
   └── Has valid token → Route by status
 
 Route by verification_status:
   ├── pending_call → Pending Call screen
-  ├── call_verified → Advanced Details Form (documents uploaded inline on this same screen)
-  ├── pending_verification → Verification Status
-  ├── in_process → Verification Status
   ├── rejected → Rejection Details
-  │     └── "Edit & Resubmit" → Edit Advanced Profile
+  │     └── "Edit & Resubmit" → Edit Profile
+  │           — editing any field auto-resubmits (sends status back to
+  │             pending_call) server-side; there's no separate "resubmit" flow
   ├── available → Home
-  └── assigned → Home
+  ├── assigned → Home
+  └── unavailable → Home (greyed out / not taking work)
 ```
 
 ### 12.3 Screen Details
@@ -2774,9 +2650,14 @@ Route by verification_status:
   - Companion Care: ₹25,000 – ₹30,000
   - Bedside Care: ₹28,000 – ₹35,000
   - Critical Care: ₹30,000 – ₹45,000
-- Fields, in order: Full Name, Phone (+91), 4-Digit Login Code (numeric PIN input, obscured, right after phone number) — this is the code the caregiver will use with their phone number to log in from here on — Gender (dropdown), Age (number input), Languages (multi-select chips), Religion (dropdown: Hindu, Muslim, Christian, Others, mandatory), Preferred City (multi-select chips: Bangalore, Mumbai, etc., optional).
+- Fields, in order: Full Name, Phone (+91), 4-Digit Login Code (numeric PIN input, obscured, right after phone number) — this is the code the caregiver will use with their phone number to log in from here on — Gender (dropdown), Age (number input), Languages (multi-select chips), Religion (dropdown: Hindu, Muslim, Christian, Others, mandatory), Highest Qualification (dropdown, mandatory), Preferred City (multi-select chips: Bangalore, Mumbai, etc., optional), Terms & Conditions (checkbox with link, mandatory). father_name, father_phone, current_address, and notes have been removed from the product entirely.
 - "Take Selfie" button → opens camera (NOT gallery). Use Flutter `ImagePicker` with `source: ImageSource.camera`. Do NOT offer `ImageSource.gallery` option. No server-side EXIF validation — this is client-side enforcement only.
-- "Register" button.
+- Document upload, inline on this same screen (no separate page/navigation):
+  - Aadhaar Card (mandatory): upload button + status indicator.
+  - Qualification Document (optional): upload button + status indicator.
+  - Other Documents (optional): up to 3 upload slots.
+  - Each upload shows a progress indicator and updates in place.
+- "Register" button (disabled until Aadhaar is uploaded and all other required fields are filled — qualification document/other documents are not required).
 - On success → navigate to Pending Call screen.
 
 #### Pending Call (`/pending-call`)
@@ -2785,23 +2666,9 @@ Route by verification_status:
 - No action buttons. This is a waiting screen.
 - Pull-to-refresh to check if status has changed.
 
-#### Advanced Details Form (`/advanced-details`)
-- Fields: Highest Qualification (dropdown, mandatory), Terms & Conditions (checkbox with link, mandatory). Religion and Preferred City are collected once at registration instead of here. No code field here — the login code was already set at registration. father_name, father_phone, current_address, and notes have been removed from the product entirely.
-- Document upload is inline on this same screen (no separate page/navigation):
-  - Aadhaar Card (mandatory): upload button + status indicator.
-  - Qualification Document (optional): upload button + status indicator.
-  - Other Documents (optional): up to 3 upload slots.
-  - Each upload shows a progress indicator and updates in place.
-- "Submit" button (disabled until Aadhaar is uploaded and all other required fields are filled — qualification/other documents are not required).
-
-#### Verification Status (`/verification-status`)
-- Show current status with visual indicator (timeline/stepper).
-- Status message: "Your profile is under review. We'll notify you once verified."
-- Pull-to-refresh.
-
 #### Rejection Details (`/rejection`)
 - Show rejection message from admin (if provided).
-- "Edit & Resubmit" button → navigates to Edit Advanced Profile.
+- "Edit & Resubmit" button → navigates to Edit Profile. Editing any field while rejected auto-resubmits (status flips back to `pending_call` server-side) — there's no separate "resubmit" action.
 
 #### Home (`/home`)
 - Welcome message with caregiver's name.
@@ -2824,19 +2691,15 @@ Route by verification_status:
 - Display all profile information (read-only).
 - "Edit" button.
 
-#### Edit Basic Profile (`/profile/edit-basic`)
-- Editable: Age, Languages.
-- Full Name and Gender shown read-only — contact the office to change either; only admins can.
-- "Save" button.
-- Info banner: "Changes will be reviewed by admin. Your current verification status is not affected."
-
-#### Edit Advanced Profile (`/profile/edit-advanced`)
-- Editable: Qualification, Preferred City.
-- Religion shown read-only — contact the office to change it; only admins can (it's set once at registration, not here).
-- Document re-upload buttons.
+#### Edit Profile (`/profile/edit`)
+- Editable: Age, Languages, Highest Qualification, Preferred City — one "Save" button for this section.
+- Full Name, Gender, and Religion shown read-only — contact the office to change any of them; only admins can.
+- Phone Number: own input + "Save" button (re-verification sensitive — see below).
+- Login PIN: own input + "Save" button.
+- Document upload/re-upload: Selfie, Aadhaar, Qualification Document, Other Documents — each uploads immediately on pick, individually.
 - Service Modes, Work Types, Salary displayed as read-only (admin-assigned).
-- "Save" button.
-- Info banner: "Changes will be reviewed by admin. Your current verification status is not affected."
+- Info banner: "Changes will be reviewed by admin. Your current verification status is not affected." — except changing Phone Number or re-uploading Aadhaar, which is flagged as identity-sensitive and (for `available`/`unavailable`/`rejected`) resets status to `pending_call` for re-verification.
+- If current status is `rejected`, any other edit (age, languages, qualification, preferred city, selfie, qualification/other documents, login PIN) also resets status to `pending_call` automatically — no separate resubmit action.
 
 #### Settings (`/settings`)
 - Change code (4-digit PIN update).
@@ -2846,10 +2709,8 @@ Route by verification_status:
 ### 12.4 Navigation Rules
 
 **DO NOT:**
-- Do NOT allow navigation to Advanced Details if status is not `call_verified`.
 - Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding.
 - Do NOT allow back navigation from Pending Call to Registration (registration is complete).
-- Do NOT show "Edit Advanced Profile" if `advanced_details_completed` is false.
 
 ---
 
@@ -2914,11 +2775,8 @@ Route by verification_status:
   - Notes: Admin notes form (internal notes, rates per mode, remarks). Save button.
   - Audit History: Filtered audit log for this caregiver.
 - **Action buttons (based on status):**
-  - `pending_call` → "Mark Call Verified" button.
-  - `pending_verification` → "Start Review" (→ in_process), "Approve", "Reject" buttons.
-  - `in_process` → "Approve", "Reject" buttons.
-  - `verified` → No status actions.
-  - `rejected` → No status actions (caregiver must re-submit).
+  - `pending_call` → "Approve" (→ available), "Reject" buttons. Admin reviews the full profile (all fields collected at registration) and approves in one step — there's no separate call-verification step.
+  - `available` / `unavailable` / `assigned` / `rejected` → No status actions (status override endpoint can still force any transition, but the quick-action buttons only surface from `pending_call`).
 - **Reject modal:** Text input for rejection message (optional), Confirm button.
 - **Change Phone button:** Opens modal with new phone number input. For account recovery.
 
@@ -3024,23 +2882,21 @@ Basic offline support: cache data for viewing, require internet for all writes.
 ### 15.4 Status Transition Matrix
 
 ```
-pending_call ──────────────→ call_verified (admin action: call-verified endpoint)
-call_verified ─────────────→ pending_verification (caregiver: submit advanced details)
-pending_verification ──────→ in_process (admin: status endpoint)
-pending_verification ──────→ available (admin: approve — sets verified_at, green icon)
-pending_verification ──────→ rejected (admin: status endpoint)
-in_process ────────────────→ available (admin: approve — sets verified_at, green icon)
-in_process ────────────────→ rejected (admin: status endpoint)
+pending_call ──────────────→ available (admin: approve — sets verified_at, green icon)
+pending_call ──────────────→ rejected (admin: status endpoint)
 available ─────────────────→ unavailable (caregiver OR admin: "not taking work right now")
 unavailable ───────────────→ available (caregiver OR admin: "ready for work again")
 available ─────────────────→ assigned (admin: assign endpoint — only from available, NOT unavailable)
 assigned ──────────────────→ available (admin: unassign endpoint — work completed)
-available ─────────────────→ pending_verification (admin: manual reset for re-review)
-unavailable ───────────────→ pending_verification (admin: manual reset for re-review)
-rejected ──────────────────→ pending_verification (caregiver: re-submit, no new call needed)
+available ─────────────────→ pending_call (system: caregiver changed phone / re-uploaded Aadhaar)
+unavailable ────────────────→ pending_call (system: caregiver changed phone / re-uploaded Aadhaar)
+rejected ──────────────────→ pending_call (system: caregiver edited any profile field — auto-resubmit, no new call needed)
 ```
 
-**No other transitions are allowed.**
+The admin status-override endpoint (`PATCH /admin/caregivers/:id/status`) is deliberately
+unrestricted: it accepts any of the 5 statuses as a target from any current status, bypassing
+this matrix. The matrix above documents the *normal* flow driven by caregiver actions and
+system triggers.
 
 ### 15.5 Naming Conventions
 
@@ -3048,13 +2904,13 @@ rejected ──────────────────→ pending_verif
 |---------|-----------|---------|
 | Database tables | snake_case | `caregiver_profiles` |
 | Database columns | snake_case | `verification_status` |
-| API endpoints | kebab-case | `/admin/caregivers/:id/call-verified` |
+| API endpoints | kebab-case | `/admin/caregivers/:id/status` |
 | API request/response fields | snake_case | `full_name`, `verification_status` |
 | NestJS files | kebab-case | `caregiver.controller.ts` |
 | NestJS classes | PascalCase | `CaregiverController` |
 | Flutter files | snake_case | `caregiver_profile_screen.dart` |
 | Flutter classes | PascalCase | `CaregiverProfileScreen` |
-| Flutter routes | kebab-case | `/advanced-details` |
+| Flutter routes | kebab-case | `/pending-call` |
 | Enums (DB) | snake_case | `pending_call`, `24hrs_live_in` |
 | Error codes | UPPER_SNAKE | `AUTH_001`, `PROFILE_005` |
 

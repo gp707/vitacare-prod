@@ -25,11 +25,11 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Realtime:** Supabase Realtime for admin dashboard only. Caregivers use FCM push.
 - **Email:** Nodemailer + Gmail SMTP (vitacasahealthindia@gmail.com). Plain text only in V1.
 - **No OTP:** Phone login has no OTP. Phone verified via office call.
-- **Caregiver login:** Phone + 4-digit code, always. The code is set at registration (not deferred to advanced details) and is required for every login from the first session onward. There is no phone-only login endpoint.
-- **Religion and preferred cities are collected once at registration** (`POST /auth/register`), not during Advanced Details. Religion is required at registration; preferred cities is optional there and remains editable afterward via the advanced-details self-edit endpoint.
+- **Caregiver login:** Phone + 4-digit code, always. The code is set at registration and is required for every login from the first session onward. There is no phone-only login endpoint.
+- **There is no separate "Advanced Details" step.** Everything is collected in one registration (`POST /auth/register`): basic info, religion, highest qualification, and terms acceptance, plus documents uploaded via their own endpoints immediately after (selfie and Aadhaar are mandatory; qualification document and up to 3 "other" documents are optional). Religion is required at registration and locked from self-edit afterward; highest_qualification, preferred_cities (optional at registration), and documents all remain editable afterward via the single self-edit endpoint (`PATCH /caregiver/profile`) or document re-upload endpoints.
 - **father_name, father_phone, current_address, and notes have been removed from the product entirely** — no longer collected, stored, or displayed anywhere (caregiver-app, admin-web, or the database).
-- **Profile edits don't auto-reset status**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends an `available`/`unavailable` caregiver back to `pending_verification` (not from `in_process`/`assigned` — see transition matrix). Every other edit (gender, age, languages, login code/PIN, qualification, city, selfie/profile picture, qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched.
-- **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile/advanced`) — only admins can change it from that point on. Every other basic/advanced field remains caregiver-editable via self-edit.
+- **Profile edits don't auto-reset status for `available`/`unavailable` caregivers**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends them back to `pending_call` (see transition matrix). Every other edit (age, languages, highest_qualification, preferred_cities, login code/PIN, selfie/qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched. **For a `rejected` caregiver, this is different: any edit at all — not just identity-sensitive ones — automatically resubmits them** (sends status back to `pending_call`). There's no separate "resubmit" action; editing the flagged field(s) normally is the resubmission.
+- **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile`) — only admins can change it from that point on. Every other field remains caregiver-editable via self-edit.
 
 ## Naming Conventions (STRICT)
 
@@ -37,13 +37,13 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 |---------|-----------|---------|
 | Database tables | snake_case | `caregiver_profiles` |
 | Database columns | snake_case | `verification_status` |
-| API endpoints | kebab-case | `/admin/caregivers/:id/call-verified` |
+| API endpoints | kebab-case | `/admin/caregivers/:id/status` |
 | API request/response fields | snake_case | `full_name` |
 | NestJS files | kebab-case | `caregiver.controller.ts` |
 | NestJS classes | PascalCase | `CaregiverController` |
 | Flutter files | snake_case | `caregiver_profile_screen.dart` |
 | Flutter classes | PascalCase | `CaregiverProfileScreen` |
-| Flutter routes | kebab-case | `/advanced-details` |
+| Flutter routes | kebab-case | `/pending-call` |
 | Enums (DB values) | snake_case | `pending_call`, `24hrs_live_in` |
 | Error codes | UPPER_SNAKE | `AUTH_001`, `PROFILE_005` |
 | Shared widgets | Vita prefix | `VitaStatusBadge` |
@@ -71,8 +71,8 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - Do NOT store refresh tokens or codes in plain text. Store bcrypt hash.
 - Do NOT validate file MIME types. Accept any file type, enforce 10MB max only.
 - Do NOT use the Supabase service role key in client apps.
-- Do NOT auto-reset verification status on profile edit — EXCEPT changing phone or re-uploading Aadhaar, which resets `available`/`unavailable` back to `pending_verification` (never from `in_process`/`assigned`).
-- Do NOT allow status transitions not in the transition matrix — EXCEPT via the admin status-override endpoint (`PATCH /admin/caregivers/:id/status`), which is deliberately unrestricted: admin can set any caregiver to any status from any current status. Caregiver-initiated and system-triggered transitions (phone/Aadhaar change, availability toggle, resubmission) still must follow the matrix below.
+- Do NOT auto-reset verification status on profile edit — EXCEPT changing phone or re-uploading Aadhaar (resets `available`/`unavailable` back to `pending_call`), and EXCEPT any edit at all while `rejected` (also resets to `pending_call` — auto-resubmit).
+- Do NOT allow status transitions not in the transition matrix — EXCEPT via the admin status-override endpoint (`PATCH /admin/caregivers/:id/status`), which is deliberately unrestricted: admin can set any caregiver to any status from any current status. Caregiver-initiated and system-triggered transitions (phone/Aadhaar change, edit-while-rejected) still must follow the matrix below.
 - Do NOT return more than 100 items per page.
 - Do NOT allow caregivers to modify work types or salary. Both are admin-assigned, read-only for caregivers.
 
@@ -83,7 +83,7 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - Do NOT build a full ThemeData in the shared UI package.
 - Do NOT queue offline writes. All mutations require internet.
 - Show bottom navigation at all times after registration. Caregivers can browse jobs even before approval (motivates onboarding).
-- Do NOT navigate to Advanced Details unless status is `call_verified` or `rejected` (rejected caregivers resubmit through the same screen, "Edit & Resubmit" from Profile View — prefilled from their previous submission).
+- There is no "Advanced Details" screen. All fields (including documents) are collected on the Registration screen itself; the caregiver's own profile is always reachable and editable at any status via one Edit Profile screen (`/profile/edit`) — a rejected caregiver edits the same way as anyone else, and the backend auto-resubmits them.
 - Do NOT allow caregivers to modify service_modes. Admin-assigned, read-only for caregivers.
 
 ### General
@@ -94,23 +94,20 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 
 ## Verification Status Transitions
 
-Admin has an unrestricted override (`PATCH /admin/caregivers/:id/status` accepts any of the 8 statuses below as a target, from any current status — no transition-matrix check). The matrix below documents the *normal* flow — what caregiver actions, system triggers, and admin-web's quick-action buttons (Start Review/Approve/Reject) actually produce day to day:
+Only **5 statuses** exist: `pending_call`, `available`, `unavailable`, `assigned`, `rejected`. There is no `call_verified`, `pending_verification`, or `in_process` — those existed only to track progress through a multi-stage onboarding funnel (phone verification, then a separate "Advanced Details" submission, then document review) that no longer exists. Since every field (including documents) is collected in one registration, the office call and document review both happen while the caregiver sits in `pending_call`, and admin decides directly.
+
+Admin has an unrestricted override (`PATCH /admin/caregivers/:id/status` accepts any of the 5 statuses below as a target, from any current status — no transition-matrix check). The matrix below documents the *normal* flow — what caregiver actions, system triggers, and admin-web's quick-action buttons (Approve/Reject) actually produce day to day:
 
 ```
-pending_call → call_verified                     (admin: call-verified endpoint)
-call_verified → pending_verification             (caregiver: submit advanced details)
-pending_verification → in_process                (admin: status endpoint)
-pending_verification → available                 (admin: approve — sets verified_at, green icon)
-pending_verification → rejected                  (admin: status endpoint)
-in_process → available                           (admin: approve — sets verified_at, green icon)
-in_process → rejected                            (admin: status endpoint)
-available → unavailable                          (caregiver OR admin: "not taking work right now")
-unavailable → available                          (caregiver OR admin: "ready for work again")
-available → assigned                             (admin: assign — ONLY from available, NOT unavailable)
-assigned → available                             (admin: unassign — work completed)
-available → pending_verification                 (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
-unavailable → pending_verification               (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
-rejected → pending_verification                  (caregiver: re-submit)
+pending_call → available                         (admin: approve — sets verified_at, green icon)
+pending_call → rejected                           (admin: reject)
+available → unavailable                           (caregiver OR admin: "not taking work right now")
+unavailable → available                           (caregiver OR admin: "ready for work again")
+available → assigned                              (admin: assign — ONLY from available, NOT unavailable)
+assigned → available                              (admin: unassign — work completed)
+available → pending_call                          (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
+unavailable → pending_call                        (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
+rejected → pending_call                           (system: any caregiver edit at all — auto-resubmit, no separate "resubmit" action)
 ```
 
 **Notes:**

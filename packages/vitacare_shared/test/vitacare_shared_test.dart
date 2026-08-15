@@ -32,8 +32,8 @@ void main() {
   });
 
   group('Enums', () {
-    test('VerificationStatus.all has all 8 statuses from SPEC.md', () {
-      expect(VerificationStatus.all, hasLength(8));
+    test('VerificationStatus.all has all 5 statuses from SPEC.md', () {
+      expect(VerificationStatus.all, hasLength(5));
       expect(VerificationStatus.all, contains('pending_call'));
       expect(VerificationStatus.all, contains('available'));
     });
@@ -97,15 +97,10 @@ void main() {
         'aadhaar_document_url': null,
         'other_document_urls': [],
         'religion': null,
-        'father_name': null,
-        'father_phone': null,
-        'current_address': null,
         'terms_accepted': false,
         'verification_status': 'pending_call',
         'rejection_message': null,
-        'advanced_details_completed': false,
         'preferred_cities': [],
-        'notes': null,
         'created_at': '2026-08-01T10:00:00Z',
       });
 
@@ -128,8 +123,7 @@ void main() {
         'work_types': [],
         'other_document_urls': [],
         'terms_accepted': false,
-        'verification_status': 'call_verified',
-        'advanced_details_completed': false,
+        'verification_status': 'pending_call',
         'created_at': '2026-08-01T10:00:00Z',
         'selfie_photo_url': 'https://signed/selfie',
         'qualification_document_url': null,

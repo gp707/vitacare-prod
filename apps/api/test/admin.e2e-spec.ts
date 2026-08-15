@@ -18,8 +18,8 @@ import { FcmService } from '../src/fcm/fcm.service';
  * against the same live DB, so a broad filter like "email LIKE
  * '%@e2e-test.local'" would delete another spec file's in-flight rows and
  * cause spurious FK failures. Caregiver-role test users must be deleted
- * BEFORE admin-role ones — caregiver_profiles.call_verified_by /
- * verified_by reference users without ON DELETE CASCADE.
+ * BEFORE admin-role ones — caregiver_profiles.verified_by references users
+ * without ON DELETE CASCADE.
  */
 describe('Admin (e2e)', () => {
   let app: INestApplication;
@@ -60,6 +60,8 @@ describe('Admin (e2e)', () => {
         age: 29,
         languages: ['hindi'],
         religion: 'hindu',
+        highest_qualification: 'rn_above_2_years',
+        terms_accepted: true,
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string };
@@ -129,6 +131,8 @@ describe('Admin (e2e)', () => {
           age: 30,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: '1234',
         });
       const res = await request(app.getHttpServer())
@@ -220,43 +224,9 @@ describe('Admin (e2e)', () => {
     });
   });
 
-  describe('Call verification + status transitions', () => {
-    it('walks pending_call -> call_verified -> in_process -> available with notes', async () => {
+  describe('Status transitions', () => {
+    it('walks pending_call -> available in a single admin approval, with notes', async () => {
       const { profile_id: profileId } = await registerCaregiver('0003', 'Workflow Subject');
-
-      const callVerified = await request(app.getHttpServer())
-        .patch(`/v1/admin/caregivers/${profileId}/call-verified`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      expect(callVerified.body.data.verification_status).toBe('call_verified');
-      expect(fcmService.sendToUser).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        expect.any(String),
-      );
-      fcmService.sendToUser.mockClear();
-
-      const repeatCallVerify = await request(app.getHttpServer())
-        .patch(`/v1/admin/caregivers/${profileId}/call-verified`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(400);
-      expect(repeatCallVerify.body.error.code).toBe('ADMIN_002');
-
-      // Simulate the caregiver having submitted advanced details (Phase 2 flow).
-      await db.query(
-        "UPDATE caregiver_profiles SET verification_status = 'pending_verification' WHERE id = $1",
-        [profileId],
-      );
-
-      const inProcess = await request(app.getHttpServer())
-        .patch(`/v1/admin/caregivers/${profileId}/status`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ status: 'in_process' })
-        .expect(200);
-      expect(inProcess.body.data.verification_status).toBe('in_process');
-      // in_process now sends its own push too (SPEC.md 6.7) — clear it so
-      // the assertion below only counts the 'available' step's push.
-      fcmService.sendToUser.mockClear();
 
       const notes = await request(app.getHttpServer())
         .post(`/v1/admin/caregivers/${profileId}/notes`)
@@ -316,10 +286,6 @@ describe('Admin (e2e)', () => {
 
     it('rejects with a message, persists rejection_message, and enforces the length limit', async () => {
       const { profile_id: profileId } = await registerCaregiver('0005', 'Reject Subject');
-      await db.query(
-        "UPDATE caregiver_profiles SET verification_status = 'pending_verification' WHERE id = $1",
-        [profileId],
-      );
 
       const rejected = await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
@@ -334,10 +300,6 @@ describe('Admin (e2e)', () => {
         .expect(200);
       expect(detail.body.data.rejection_message).toBe('Aadhaar not legible');
 
-      await db.query(
-        "UPDATE caregiver_profiles SET verification_status = 'pending_verification' WHERE id = $1",
-        [profileId],
-      );
       const tooLong = await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -522,30 +484,31 @@ describe('Admin (e2e)', () => {
       expect(caregiver.user_id).toBeDefined();
     });
 
-    it('records call_verified with before/after values and returns it filtered by target_user_id and action', async () => {
+    it('records status_changed with before/after values and returns it filtered by target_user_id and action', async () => {
       const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
         '0009',
         'Audit Trail Subject',
       );
       await request(app.getHttpServer())
-        .patch(`/v1/admin/caregivers/${profileId}/call-verified`)
+        .patch(`/v1/admin/caregivers/${profileId}/status`)
         .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'available' })
         .expect(200);
 
       const res = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
-        .query({ target_user_id: targetUserId, action: 'call_verified' })
+        .query({ target_user_id: targetUserId, action: 'status_changed' })
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
       expect(res.body.data).toHaveLength(1);
       const entry = res.body.data[0];
-      expect(entry.action).toBe('call_verified');
+      expect(entry.action).toBe('status_changed');
       expect(entry.entity_type).toBe('caregiver_profiles');
       expect(entry.user_id).toBe(superAdminId);
       expect(entry.target_user_id).toBe(targetUserId);
       expect(entry.before_value).toEqual({ verification_status: 'pending_call' });
-      expect(entry.after_value).toEqual({ verification_status: 'call_verified' });
+      expect(entry.after_value).toEqual({ verification_status: 'available' });
       expect(entry.created_at).toBeDefined();
       expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });

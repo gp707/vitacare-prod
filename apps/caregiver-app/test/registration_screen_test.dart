@@ -26,6 +26,8 @@ class _FakeAuthRepository extends AuthRepository {
     required List<String> languages,
     required String code,
     required String religion,
+    required String highestQualification,
+    required bool termsAccepted,
     List<String>? preferredCities,
   }) async {
     registerCalled = true;
@@ -36,7 +38,6 @@ class _FakeAuthRepository extends AuthRepository {
       accessToken: 'access',
       refreshToken: 'refresh',
       verificationStatus: 'pending_call',
-      advancedDetailsCompleted: false,
     );
   }
 }
@@ -45,7 +46,7 @@ class _FakeAuthRepository extends AuthRepository {
 /// system never mounts the submit button (it's outside the viewport + cache
 /// extent), so `find` can't see it even though it "exists" logically.
 Future<void> _pumpTall(WidgetTester tester, Widget child) async {
-  await tester.binding.setSurfaceSize(const Size(400, 2400));
+  await tester.binding.setSurfaceSize(const Size(400, 3200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(child);
 }
@@ -65,6 +66,31 @@ Future<void> _pumpRegistration(WidgetTester tester, _FakeAuthRepository authRepo
       child: const MaterialApp(home: RegistrationScreen()),
     ),
   );
+}
+
+/// Fills name/phone/age/language/code — the fields that come before
+/// Religion in validation order — so later-field tests can start from there.
+Future<void> _fillUpToCode(WidgetTester tester) async {
+  await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
+  await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+  await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
+  await tester.tap(find.text('Hindi'));
+  await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
+  await tester.pump();
+}
+
+Future<void> _selectReligion(WidgetTester tester) async {
+  await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(Religion.displayNames[Religion.hindu]!).last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectQualification(WidgetTester tester) async {
+  await tester.tap(find.byType(DropdownButtonFormField<String>).at(2));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(Qualification.displayNames[Qualification.all.first]!).last);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -88,13 +114,7 @@ void main() {
   testWidgets('blocks submission without religion selected, without calling register', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
-
-    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
-    await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
-    await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
-    await tester.tap(find.text('Hindi'));
-    await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
-    await tester.pump();
+    await _fillUpToCode(tester);
 
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump();
@@ -103,20 +123,25 @@ void main() {
     expect(authRepo.registerCalled, isFalse);
   });
 
+  testWidgets('blocks submission without a qualification selected, without calling register', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+    await _fillUpToCode(tester);
+    await _selectReligion(tester);
+
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+
+    expect(find.text('Select your highest qualification'), findsOneWidget);
+    expect(authRepo.registerCalled, isFalse);
+  });
+
   testWidgets('blocks submission without a selfie, without calling register', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
-
-    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
-    await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
-    await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
-    await tester.tap(find.text('Hindi'));
-    await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
-    await tester.pump();
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(Religion.displayNames[Religion.hindu]!).last);
-    await tester.pumpAndSettle();
+    await _fillUpToCode(tester);
+    await _selectReligion(tester);
+    await _selectQualification(tester);
 
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump();

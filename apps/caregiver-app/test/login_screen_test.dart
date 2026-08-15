@@ -30,7 +30,6 @@ class _FakeAuthRepository extends AuthRepository {
       accessToken: 'access',
       refreshToken: 'refresh',
       verificationStatus: 'available',
-      advancedDetailsCompleted: true,
     );
   }
 }

@@ -35,10 +35,8 @@ describe('AdminService', () => {
     terms_accepted: false,
     verification_status: VerificationStatus.PENDING_CALL,
     rejection_message: null,
-    advanced_details_completed: false,
     has_pending_edits: false,
     created_at: new Date(),
-    submitted_at: null,
     verified_at: null,
   };
 
@@ -47,7 +45,6 @@ describe('AdminService', () => {
       getDashboardStats: jest.fn(),
       listCaregivers: jest.fn(),
       getDetailById: jest.fn(),
-      markCallVerified: jest.fn(),
       updateStatus: jest.fn(),
     };
     notesRepo = { findByProfileId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
@@ -156,58 +153,15 @@ describe('AdminService', () => {
     });
   });
 
-  describe('markCallVerified', () => {
-    it('throws PROFILE_019 when not found', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(null);
-      await expect(service.markCallVerified('missing', 'admin-1')).rejects.toMatchObject({
-        code: 'PROFILE_019',
-      });
-    });
-
-    it('throws ADMIN_002 when current status is not pending_call', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue({
-        ...detail,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-      });
-      await expect(service.markCallVerified('profile-1', 'admin-1')).rejects.toMatchObject({
-        code: 'ADMIN_002',
-      });
-    });
-
-    it('succeeds when status is pending_call', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(detail);
-      const result = await service.markCallVerified('profile-1', 'admin-1');
-      expect(caregiversRepo.markCallVerified).toHaveBeenCalledWith('profile-1', 'admin-1');
-      expect(result.verification_status).toBe('call_verified');
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          targetUserId: 'user-1',
-          action: 'call_verified',
-          entityType: 'caregiver_profiles',
-          entityId: 'profile-1',
-        }),
-      );
-      expect(fcmService.sendToUser).toHaveBeenCalledWith(
-        'user-1',
-        expect.any(String),
-        expect.any(String),
-      );
-    });
-  });
-
   describe('updateStatus', () => {
     it.each([
-      [VerificationStatus.PENDING_VERIFICATION, 'in_process'],
-      [VerificationStatus.PENDING_VERIFICATION, 'available'],
-      [VerificationStatus.PENDING_VERIFICATION, 'rejected'],
-      [VerificationStatus.IN_PROCESS, 'available'],
-      [VerificationStatus.IN_PROCESS, 'rejected'],
-      // Deliberately unrestricted (no transition-matrix check) — these were
-      // ADMIN_001 rejections before this admin-override feature and now
-      // all succeed, from any status to any status.
+      // The common-case flow: admin approves or rejects directly from
+      // pending_call (no more call_verified/pending_verification/in_process
+      // checkpoints — see architecture note in CLAUDE.md).
       [VerificationStatus.PENDING_CALL, 'available'],
-      [VerificationStatus.CALL_VERIFIED, 'in_process'],
+      [VerificationStatus.PENDING_CALL, 'rejected'],
+      // Deliberately unrestricted (no transition-matrix check) — these all
+      // succeed, from any status to any status.
       [VerificationStatus.AVAILABLE, 'rejected'],
       [VerificationStatus.REJECTED, 'available'],
       [VerificationStatus.AVAILABLE, 'unavailable'],
@@ -219,19 +173,19 @@ describe('AdminService', () => {
       expect(result.verification_status).toBe(target);
     });
 
-    it('sends a push notification for available/rejected/in_process, not other statuses', async () => {
-      for (const status of ['unavailable', 'assigned', 'pending_call', 'call_verified', 'pending_verification']) {
+    it('sends a push notification for available/rejected, not other statuses', async () => {
+      for (const status of ['unavailable', 'assigned', 'pending_call']) {
         fcmService.sendToUser.mockClear();
         caregiversRepo.getDetailById.mockResolvedValue({ ...detail, verification_status: 'available' });
         await service.updateStatus('profile-1', 'admin-1', { status } as any);
         expect(fcmService.sendToUser).not.toHaveBeenCalled();
       }
 
-      for (const status of ['available', 'rejected', 'in_process']) {
+      for (const status of ['available', 'rejected']) {
         fcmService.sendToUser.mockClear();
         caregiversRepo.getDetailById.mockResolvedValue({
           ...detail,
-          verification_status: VerificationStatus.PENDING_VERIFICATION,
+          verification_status: VerificationStatus.PENDING_CALL,
         });
         await service.updateStatus('profile-1', 'admin-1', { status } as any);
         expect(fcmService.sendToUser).toHaveBeenCalledWith('user-1', expect.any(String), expect.any(String));
@@ -241,7 +195,7 @@ describe('AdminService', () => {
     it('passes the rejection_message through only for rejected', async () => {
       caregiversRepo.getDetailById.mockResolvedValue({
         ...detail,
-        verification_status: VerificationStatus.PENDING_VERIFICATION,
+        verification_status: VerificationStatus.PENDING_CALL,
       });
       await service.updateStatus('profile-1', 'admin-1', {
         status: 'rejected',

@@ -49,6 +49,8 @@ describe('Jobs (e2e)', () => {
         age: 28,
         languages: ['hindi'],
         religion: 'hindu',
+        highest_qualification: 'rn_above_2_years',
+        terms_accepted: true,
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string; access_token: string };

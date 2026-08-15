@@ -6,20 +6,17 @@ import '../../../core/network/api_exception.dart';
 class VerificationStatusResult {
   final String verificationStatus;
   final String? rejectionMessage;
-  final String? submittedAt;
   final String? verifiedAt;
 
   const VerificationStatusResult({
     required this.verificationStatus,
     this.rejectionMessage,
-    this.submittedAt,
     this.verifiedAt,
   });
 
   factory VerificationStatusResult.fromJson(Map<String, dynamic> json) => VerificationStatusResult(
         verificationStatus: json['verification_status'] as String,
         rejectionMessage: json['rejection_message'] as String?,
-        submittedAt: json['submitted_at'] as String?,
         verifiedAt: json['verified_at'] as String?,
       );
 }
@@ -38,25 +35,8 @@ class ProfileRepository {
     }
   }
 
-  /// full_name and gender are intentionally not parameters — caregivers
-  /// cannot self-edit their own name or gender (admin-only past
-  /// registration), so the backend rejects those fields entirely.
-  Future<void> updateBasic({
-    required int age,
-    required List<String> languages,
-  }) async {
-    try {
-      await _dio.put(ApiRoutes.caregiverProfileBasic, data: {
-        'age': age,
-        'languages': languages,
-      });
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Identity-sensitive: if the caregiver is currently available/unavailable,
-  /// the backend resets them to pending_verification for re-review.
+  /// Identity-sensitive: if the caregiver is currently available/unavailable
+  /// or rejected, the backend resets them to pending_call for re-review.
   Future<String> updatePhone(String phone) async {
     try {
       final res = await _dio.patch(ApiRoutes.caregiverProfilePhone, data: {'phone': phone});
@@ -75,32 +55,24 @@ class ProfileRepository {
     }
   }
 
-  /// Partial self-edit of the advanced-details fields any time after the
-  /// initial submission — only non-null fields are sent/written. Requires
-  /// advanced_details_completed to already be true (server-enforced).
-  /// religion is intentionally not a parameter — once set, it's locked from
-  /// self-edit; only admins can change it from that point on.
-  Future<void> editAdvancedProfile({
+  /// Single self-edit endpoint for every caregiver-editable field — only
+  /// non-null fields are sent/written. full_name, gender, and religion are
+  /// intentionally not parameters — locked from self-edit once set at
+  /// registration; only admins can change them. While rejected, any actual
+  /// change here auto-resubmits (sends the caregiver back to pending_call)
+  /// server-side — no separate "resubmit" call needed.
+  Future<String> editProfile({
+    int? age,
+    List<String>? languages,
     String? highestQualification,
     List<String>? preferredCities,
   }) async {
     try {
-      await _dio.patch(ApiRoutes.caregiverProfileAdvanced, data: {
+      final res = await _dio.patch(ApiRoutes.caregiverProfile, data: {
+        if (age != null) 'age': age,
+        if (languages != null) 'languages': languages,
         if (highestQualification != null) 'highest_qualification': highestQualification,
         if (preferredCities != null) 'preferred_cities': preferredCities,
-      });
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  Future<String> submitAdvanced({
-    required String highestQualification,
-  }) async {
-    try {
-      final res = await _dio.put(ApiRoutes.caregiverProfileAdvanced, data: {
-        'highest_qualification': highestQualification,
-        'terms_accepted': true,
       });
       return res.data['data']['verification_status'] as String;
     } on DioException catch (e) {

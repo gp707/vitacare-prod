@@ -21,7 +21,6 @@ class CaregiverProfileModel {
   final bool termsAccepted;
   final String verificationStatus;
   final String? rejectionMessage;
-  final bool advancedDetailsCompleted;
   final List<String> preferredCities;
   final String createdAt;
 
@@ -46,7 +45,6 @@ class CaregiverProfileModel {
     required this.termsAccepted,
     required this.verificationStatus,
     this.rejectionMessage,
-    required this.advancedDetailsCompleted,
     required this.preferredCities,
     required this.createdAt,
   });
@@ -73,14 +71,12 @@ class CaregiverProfileModel {
       termsAccepted: json['terms_accepted'] as bool? ?? false,
       verificationStatus: json['verification_status'] as String,
       rejectionMessage: json['rejection_message'] as String?,
-      advancedDetailsCompleted: json['advanced_details_completed'] as bool? ?? false,
       preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
       createdAt: json['created_at'] as String,
     );
   }
 
-  /// Selfie is already guaranteed by registration (Stage 1); of the
-  /// documents uploaded during advanced details, only Aadhaar is mandatory
-  /// — qualification and "other" documents are optional.
+  /// Selfie and Aadhaar are both mandatory at registration; qualification
+  /// and "other" documents are optional.
   bool get hasRequiredDocuments => aadhaarDocumentUrl != null;
 }

@@ -6,9 +6,6 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 /// ProfileViewScreen (the caregiver's default post-funnel landing screen).
 String statusMessageFor(String status, String? rejectionMessage) {
   switch (status) {
-    case VerificationStatus.pendingVerification:
-    case VerificationStatus.inProcess:
-      return "Your profile is under review. We'll notify you once verified.";
     case VerificationStatus.available:
       return "You're verified and marked as available. We'll notify you when there's work for you.";
     case VerificationStatus.unavailable:

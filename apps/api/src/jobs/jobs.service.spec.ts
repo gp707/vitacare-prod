@@ -173,9 +173,6 @@ describe('JobsService', () => {
 
     it.each([
       VerificationStatus.PENDING_CALL,
-      VerificationStatus.CALL_VERIFIED,
-      VerificationStatus.PENDING_VERIFICATION,
-      VerificationStatus.IN_PROCESS,
       VerificationStatus.UNAVAILABLE,
       VerificationStatus.REJECTED,
     ])('throws JOB_001 when caregiver status is %s', async (status) => {

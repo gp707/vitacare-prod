@@ -9,8 +9,9 @@ import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 
 /// Full read-only view of the caregiver's own profile, reachable at any
-/// verification status (unlike Advanced Details, which is onboarding-only).
-/// Edit entry points hand off to EditBasicProfileScreen/EditAdvancedProfileScreen.
+/// verification status. The single Edit entry point hands off to
+/// EditProfileScreen — editing while rejected auto-resubmits server-side,
+/// so there's no separate "Edit & Resubmit" flow to route to.
 class ProfileViewScreen extends ConsumerStatefulWidget {
   const ProfileViewScreen({super.key});
 
@@ -81,18 +82,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     );
   }
 
-  // While rejected, the partial-edit screen (which never changes
-  // verification_status) isn't the right path — "Edit & Resubmit" above
-  // (the full one-time-submission form, which does reset status) is.
-  bool _canEditAdvanced(CaregiverProfileModel profile) =>
-      profile.advancedDetailsCompleted && profile.verificationStatus != VerificationStatus.rejected;
-
-  String? _advancedEditDisabledReason(CaregiverProfileModel profile) {
-    if (!profile.advancedDetailsCompleted) return 'Complete Advanced Details first';
-    if (profile.verificationStatus == VerificationStatus.rejected) return 'Use Edit & Resubmit above';
-    return null;
-  }
-
   Widget _buildContent(BuildContext context, CaregiverProfileModel profile) {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -103,19 +92,10 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           statusMessageFor(profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
-        if (profile.verificationStatus == VerificationStatus.rejected) ...[
-          const SizedBox(height: AppSpacing.md),
-          Center(
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pushNamed('/advanced-details').then((_) => _load()),
-              child: const Text('Edit & Resubmit'),
-            ),
-          ),
-        ],
         const SizedBox(height: AppSpacing.xl),
         _Section(
           title: 'Basic Info',
-          onEdit: () => Navigator.of(context).pushNamed('/profile/edit-basic').then((_) => _load()),
+          onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
             _Field('Full Name', profile.fullName),
             _Field('Phone', profile.phone),
@@ -127,10 +107,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Professional & Contact Info',
-          onEdit: _canEditAdvanced(profile)
-              ? () => Navigator.of(context).pushNamed('/profile/edit-advanced').then((_) => _load())
-              : null,
-          editDisabledReason: _advancedEditDisabledReason(profile),
+          onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
             _Field('Qualification', Qualification.displayNames[profile.highestQualification] ?? '—'),
             _Field('Religion', Religion.displayNames[profile.religion] ?? '—'),
@@ -145,10 +122,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Documents',
-          onEdit: _canEditAdvanced(profile)
-              ? () => Navigator.of(context).pushNamed('/profile/edit-advanced').then((_) => _load())
-              : null,
-          editDisabledReason: _advancedEditDisabledReason(profile),
+          onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
             _Field('Selfie', profile.selfiePhotoUrl != null ? 'Uploaded' : 'Not uploaded'),
             _Field('Aadhaar Card', profile.aadhaarDocumentUrl != null ? 'Uploaded' : 'Not uploaded'),
@@ -186,13 +160,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
 class _Section extends StatelessWidget {
   final String title;
   final VoidCallback? onEdit;
-  final String? editDisabledReason;
   final List<Widget> children;
 
   const _Section({
     required this.title,
     required this.onEdit,
-    this.editDisabledReason,
     required this.children,
   });
 
@@ -213,16 +185,7 @@ class _Section extends StatelessWidget {
               Expanded(
                 child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              if (onEdit != null)
-                TextButton(onPressed: onEdit, child: const Text('Edit'))
-              else if (editDisabledReason != null)
-                Flexible(
-                  child: Text(
-                    editDisabledReason!,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                ),
+              if (onEdit != null) TextButton(onPressed: onEdit, child: const Text('Edit')),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

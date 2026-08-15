@@ -92,6 +92,8 @@ describe('Auth (e2e)', () => {
           age: 32,
           languages: ['hindi', 'english'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: '1234',
         })
         .expect(201);
@@ -116,6 +118,8 @@ describe('Auth (e2e)', () => {
           age: 32,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: '1234',
         })
         .expect(409);
@@ -136,6 +140,8 @@ describe('Auth (e2e)', () => {
           age: 5,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: '1234',
         })
         .expect(400);
@@ -153,6 +159,8 @@ describe('Auth (e2e)', () => {
           age: 30,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: 'abcd',
         })
         .expect(400);
@@ -170,10 +178,50 @@ describe('Auth (e2e)', () => {
           age: 30,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
         })
         .expect(400);
 
       expect(res.body.error.code).toBe('PROFILE_016');
+    });
+
+    it('rejects an invalid highest_qualification with PROFILE_018 / 400', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          phone: testPhone('0002'),
+          full_name: 'Test',
+          gender: 'male',
+          age: 30,
+          languages: ['hindi'],
+          religion: 'hindu',
+          highest_qualification: 'not_a_real_qualification',
+          terms_accepted: true,
+          code: '1234',
+        })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('PROFILE_018');
+    });
+
+    it('rejects terms_accepted: false with PROFILE_009 / 400', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          phone: testPhone('0002'),
+          full_name: 'Test',
+          gender: 'male',
+          age: 30,
+          languages: ['hindi'],
+          religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: false,
+          code: '1234',
+        })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('PROFILE_009');
     });
 
     it('rejects an extra unwhitelisted field with GEN_001 / 400', async () => {
@@ -186,6 +234,8 @@ describe('Auth (e2e)', () => {
           age: 30,
           languages: ['hindi'],
           religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
           code: '1234',
           role: 'super_admin',
         })
@@ -204,7 +254,6 @@ describe('Auth (e2e)', () => {
 
       expect(res.body.data.access_token).toBeDefined();
       expect(res.body.data.verification_status).toBe('pending_call');
-      expect(res.body.data.advanced_details_completed).toBe(false);
     });
 
     it('returns AUTH_002 / 404 for an unregistered phone', async () => {

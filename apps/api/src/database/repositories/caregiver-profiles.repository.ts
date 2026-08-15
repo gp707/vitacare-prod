@@ -9,7 +9,6 @@ export interface CaregiverProfileRecord {
   gender: Gender;
   age: number;
   verification_status: VerificationStatus;
-  advanced_details_completed: boolean;
 }
 
 export interface CaregiverProfileFullRecord {
@@ -30,9 +29,7 @@ export interface CaregiverProfileFullRecord {
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
-  advanced_details_completed: boolean;
   has_pending_edits: boolean;
-  submitted_at: Date | null;
   verified_at: Date | null;
   created_at: Date;
 }
@@ -42,10 +39,8 @@ export interface CreateCaregiverProfileInput {
   gender: Gender;
   age: number;
   religion: Religion;
-}
-
-export interface UpdateBasicProfileInput {
-  age: number;
+  highest_qualification: Qualification;
+  terms_accepted: boolean;
 }
 
 /** Admin partial-edit — only the keys present (not undefined) are written. */
@@ -56,16 +51,15 @@ export interface AdminUpdateProfileInput {
   religion?: Religion;
 }
 
-/** Caregiver self-edit of advanced fields, any subset — same partial-write
- *  semantics as AdminUpdateProfileInput, but always flags has_pending_edits
- *  and never touches verification_status (unlike the one-time submission).
- *  religion is intentionally absent — locked from self-edit once set. */
-export interface EditAdvancedProfileInput {
+/** Caregiver self-edit, any subset — same partial-write semantics as
+ *  AdminUpdateProfileInput, but always flags has_pending_edits and never
+ *  touches verification_status directly (callers handle the
+ *  rejected -> pending_call auto-resubmit transition separately).
+ *  full_name, gender, and religion are intentionally absent — locked from
+ *  self-edit once set at registration; only admins can change them. */
+export interface EditProfileInput {
+  age?: number;
   highest_qualification?: Qualification;
-}
-
-export interface UpdateAdvancedProfileInput {
-  highest_qualification: Qualification;
 }
 
 const FULL_PROFILE_COLUMNS = `
@@ -73,8 +67,8 @@ const FULL_PROFILE_COLUMNS = `
   cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
   cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
   cp.terms_accepted,
-  cp.verification_status, cp.rejection_message, cp.advanced_details_completed,
-  cp.has_pending_edits, cp.submitted_at, cp.verified_at, cp.created_at
+  cp.verification_status, cp.rejection_message,
+  cp.has_pending_edits, cp.verified_at, cp.created_at
 `;
 
 @Injectable()
@@ -87,17 +81,24 @@ export class CaregiverProfilesRepository {
   ): Promise<CaregiverProfileRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CaregiverProfileRecord>(
-      `INSERT INTO caregiver_profiles (user_id, gender, age, religion)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, user_id, gender, age, verification_status, advanced_details_completed`,
-      [input.user_id, input.gender, input.age, input.religion],
+      `INSERT INTO caregiver_profiles (user_id, gender, age, religion, highest_qualification, terms_accepted)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, user_id, gender, age, verification_status`,
+      [
+        input.user_id,
+        input.gender,
+        input.age,
+        input.religion,
+        input.highest_qualification,
+        input.terms_accepted,
+      ],
     );
     return result.rows[0];
   }
 
   async findByUserId(userId: string): Promise<CaregiverProfileRecord | null> {
     const result = await this.db.query<CaregiverProfileRecord>(
-      `SELECT id, user_id, gender, age, verification_status, advanced_details_completed
+      `SELECT id, user_id, gender, age, verification_status
        FROM caregiver_profiles WHERE user_id = $1`,
       [userId],
     );
@@ -113,40 +114,6 @@ export class CaregiverProfilesRepository {
       [userId],
     );
     return result.rows[0] ?? null;
-  }
-
-  async updateBasic(
-    profileId: string,
-    input: UpdateBasicProfileInput,
-    client?: PoolClient,
-  ): Promise<void> {
-    const runner: QueryRunner = client ?? this.db;
-    await runner.query(
-      `UPDATE caregiver_profiles
-       SET age = $2, has_pending_edits = true, updated_at = NOW()
-       WHERE id = $1`,
-      [profileId, input.age],
-    );
-  }
-
-  async updateAdvanced(
-    profileId: string,
-    input: UpdateAdvancedProfileInput,
-    client?: PoolClient,
-  ): Promise<void> {
-    const runner: QueryRunner = client ?? this.db;
-    await runner.query(
-      `UPDATE caregiver_profiles
-       SET highest_qualification = $2,
-           terms_accepted = true,
-           advanced_details_completed = true,
-           verification_status = 'pending_verification',
-           submitted_at = NOW(),
-           rejection_message = NULL,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [profileId, input.highest_qualification],
-    );
   }
 
   /** Partial update — only fields present (not undefined) on `input` are written.
@@ -170,7 +137,7 @@ export class CaregiverProfilesRepository {
 
   /** Partial update — only fields present (not undefined) on `input` are written.
    *  Always flags has_pending_edits; never touches verification_status. */
-  async editAdvancedFields(profileId: string, input: EditAdvancedProfileInput): Promise<void> {
+  async editFields(profileId: string, input: EditProfileInput): Promise<void> {
     const entries = Object.entries(input).filter(([, value]) => value !== undefined);
     if (entries.length === 0) return;
 
@@ -184,10 +151,10 @@ export class CaregiverProfilesRepository {
     );
   }
 
-  /** Used when a self-edit only touches preferred_cities (a separate
-   *  junction table, not a column here) — editAdvancedFields is a no-op for
-   *  an all-undefined input, so this is the fallback that still flags the
-   *  edit for admin visibility. */
+  /** Used when a self-edit only touches a non-column field (e.g.
+   *  preferred_cities or languages, both separate junction tables) —
+   *  editFields is a no-op for an all-undefined input, so this is the
+   *  fallback that still flags the edit for admin visibility. */
   async flagPendingEdits(profileId: string): Promise<void> {
     await this.db.query(
       'UPDATE caregiver_profiles SET has_pending_edits = true, updated_at = NOW() WHERE id = $1',
@@ -195,15 +162,17 @@ export class CaregiverProfilesRepository {
     );
   }
 
-  /** Sends a verified/available-or-unavailable caregiver back for re-review
-   *  after an identity-sensitive change (phone number, Aadhaar re-upload).
-   *  Callers are responsible for only invoking this when eligible — this
-   *  method itself doesn't check the current status. */
+  /** Sends a caregiver back to pending_call for re-review: either after an
+   *  identity-sensitive change (phone number, Aadhaar re-upload) while
+   *  available/unavailable, or any edit at all while rejected (auto-
+   *  resubmit — see CaregiverService). Callers are responsible for only
+   *  invoking this when eligible — this method itself doesn't check the
+   *  current status. */
   async markForReReview(profileId: string): Promise<void> {
     await this.db.query(
       `UPDATE caregiver_profiles
-       SET verification_status = 'pending_verification',
-           submitted_at = NOW(),
+       SET verification_status = 'pending_call',
+           rejection_message = NULL,
            has_pending_edits = true,
            updated_at = NOW()
        WHERE id = $1`,

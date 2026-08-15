@@ -80,24 +80,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           onTap: () => _goToCaregivers(status: 'pending_call'),
                         ),
                         _StatCard(
-                          label: 'Call Verified',
-                          value: _stats!.callVerified,
-                          color: AppColors.statusCallVerified,
-                          onTap: () => _goToCaregivers(status: 'call_verified'),
-                        ),
-                        _StatCard(
-                          label: 'Pending Verification',
-                          value: _stats!.pendingVerification,
-                          color: AppColors.statusPendingVerification,
-                          onTap: () => _goToCaregivers(status: 'pending_verification'),
-                        ),
-                        _StatCard(
-                          label: 'In Process',
-                          value: _stats!.inProcess,
-                          color: AppColors.statusInProcess,
-                          onTap: () => _goToCaregivers(status: 'in_process'),
-                        ),
-                        _StatCard(
                           label: 'Verified',
                           value: _stats!.available,
                           color: AppColors.statusAvailable,

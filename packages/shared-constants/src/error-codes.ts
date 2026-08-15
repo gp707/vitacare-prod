@@ -21,19 +21,11 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   PROFILE_005: { status: 400, message: 'At least one language is required' },
   PROFILE_006: { status: 400, message: 'Invalid language value' },
   PROFILE_007: { status: 400, message: 'Invalid phone number format' },
-  PROFILE_008: {
-    status: 403,
-    message: 'Advanced details not available. Phone call verification required.',
-  },
   PROFILE_009: { status: 400, message: 'Terms and conditions must be accepted' },
   PROFILE_010: { status: 400, message: 'Invalid religion value' },
   PROFILE_012: { status: 400, message: 'At least one service mode is required' },
   PROFILE_013: { status: 400, message: 'Invalid service mode' },
   PROFILE_016: { status: 400, message: 'Code must be exactly 4 digits' },
-  PROFILE_017: {
-    status: 400,
-    message: 'Aadhaar card not uploaded. Please upload it before submitting.',
-  },
   PROFILE_018: { status: 400, message: 'Invalid qualification value' },
   PROFILE_019: { status: 404, message: 'Caregiver profile not found' },
   PROFILE_020: {
@@ -44,10 +36,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   PROFILE_022: { status: 400, message: 'At least one work type is required' },
   PROFILE_023: { status: 400, message: 'Invalid work type' },
   PROFILE_024: { status: 400, message: 'Salary must be zero or greater' },
-  PROFILE_025: {
-    status: 403,
-    message: 'Advanced details must be submitted before editing them',
-  },
 
   // Upload errors
   UPLOAD_001: { status: 400, message: 'File is required' },
@@ -61,10 +49,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
 
   // Admin errors
   ADMIN_001: { status: 400, message: 'Invalid status transition' },
-  ADMIN_002: {
-    status: 400,
-    message: 'Cannot mark as call verified. Current status is not pending_call.',
-  },
   ADMIN_003: { status: 409, message: 'Admin with this email already exists' },
   ADMIN_004: { status: 404, message: 'Admin user not found' },
   ADMIN_005: { status: 400, message: 'Cannot deactivate your own account' },

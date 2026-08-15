@@ -134,9 +134,6 @@ components:
       type: string
       enum:
         - pending_call
-        - call_verified
-        - pending_verification
-        - in_process
         - available
         - unavailable
         - assigned
@@ -309,8 +306,6 @@ components:
         rejection_message:
           type: string
           nullable: true
-        advanced_details_completed:
-          type: boolean
         preferred_cities:
           type: array
           items:
@@ -361,10 +356,6 @@ components:
           properties:
             admin_notes:
               $ref: "#/components/schemas/AdminNotes"
-            submitted_at:
-              type: string
-              format: date-time
-              nullable: true
             verified_at:
               type: string
               format: date-time
@@ -506,8 +497,12 @@ paths:
       tags: [Auth]
       summary: Register a new caregiver
       description: |
-        Creates a new caregiver account (Stage 1). Issues JWT immediately.
-        Selfie must be uploaded separately via `POST /caregiver/profile/selfie` after registration.
+        Creates a new caregiver account with every profile field (basic info, religion,
+        highest qualification, terms acceptance) collected in this single call. Issues JWT
+        immediately. There is no separate "Advanced Details" step. Documents (selfie, Aadhaar —
+        both mandatory; qualification document and up to 3 "other" documents — optional) must
+        be uploaded separately via their own endpoints (e.g. `POST /caregiver/profile/selfie`)
+        immediately after registration.
         The 4-digit `code` set here is the caregiver's login code from their very first
         session onward — used with `POST /auth/login/code`. There is no phone-only login.
       operationId: registerCaregiver
@@ -517,7 +512,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [phone, full_name, gender, age, languages, code, religion]
+              required: [phone, full_name, gender, age, languages, code, religion, highest_qualification, terms_accepted]
               properties:
                 phone:
                   type: string
@@ -554,6 +549,12 @@ paths:
                 religion:
                   $ref: "#/components/schemas/Religion"
                   description: "Set once here — locked from self-edit afterward; only admins can change it."
+                highest_qualification:
+                  $ref: "#/components/schemas/Qualification"
+                terms_accepted:
+                  type: boolean
+                  enum: [true]
+                  description: "Must be true. Terms & conditions acceptance, collected once at registration."
                 preferred_cities:
                   type: array
                   items:
@@ -644,6 +645,20 @@ paths:
                     error:
                       code: "PROFILE_016"
                       message: "Code must be exactly 4 digits"
+                invalid_qualification:
+                  summary: Invalid or missing highest_qualification
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_018"
+                      message: "Invalid highest qualification value"
+                terms_not_accepted:
+                  summary: terms_accepted not true
+                  value:
+                    success: false
+                    error:
+                      code: "PROFILE_009"
+                      message: "Terms and conditions must be accepted"
         "409":
           description: Phone already registered
           content:
@@ -706,8 +721,6 @@ paths:
                         type: string
                       verification_status:
                         $ref: "#/components/schemas/VerificationStatus"
-                      advanced_details_completed:
-                        type: boolean
               example:
                 success: true
                 data:
@@ -715,7 +728,6 @@ paths:
                   access_token: "eyJhbGci..."
                   refresh_token: "dGhpcyBpcyBhIHJl..."
                   verification_status: "available"
-                  advanced_details_completed: true
         "401":
           description: Invalid code
           content:
@@ -786,8 +798,6 @@ paths:
                         type: string
                       verification_status:
                         $ref: "#/components/schemas/VerificationStatus"
-                      advanced_details_completed:
-                        type: boolean
               example:
                 success: true
                 data:
@@ -795,7 +805,6 @@ paths:
                   access_token: "eyJhbGciOiJIUzI1NiIs..."
                   refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
                   verification_status: "available"
-                  advanced_details_completed: true
         "401":
           description: Invalid credentials or deactivated account
           content:
@@ -953,7 +962,6 @@ paths:
                   terms_accepted: true
                   verification_status: "available"
                   rejection_message: null
-                  advanced_details_completed: true
                   preferred_cities: ["bangalore", "mumbai"]
                   created_at: "2026-08-01T10:00:00Z"
         "401":
@@ -961,17 +969,24 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /caregiver/profile/basic:
-    put:
+    patch:
       tags: [Caregiver Profile]
-      summary: Update basic profile fields
+      summary: Edit own profile fields
       description: |
-        Updates basic profile information. Does NOT change verification status.
-        Profile is flagged as `has_pending_edits = true` for admin review.
-        Does NOT include `full_name` or `gender` — caregivers cannot self-edit
-        their name or gender once set at registration; only admins can
-        (PUT /admin/caregivers/{id}).
-      operationId: updateBasicProfile
+        Single self-edit endpoint covering every caregiver-editable field. Every field is
+        optional — send any subset and only those get written (partial update). There is no
+        separate "Advanced Details" endpoint; everything not locked can be edited here.
+        Does NOT include `full_name`, `gender`, or `religion` — all three are locked from
+        self-edit (set once at registration or admin-assigned); only admins can change them
+        (PATCH /admin/caregivers/{id}).
+        Normally this does NOT change `verification_status` — it only flags
+        `has_pending_edits = true` for admin review. The one exception: if the caregiver's
+        current status is `rejected`, any edit here (even a single field) automatically
+        resets status to `pending_call` (auto-resubmit) — there is no separate "resubmit"
+        action. Phone number and Aadhaar re-upload are handled by their own endpoints
+        (`PATCH /caregiver/profile/phone`, document upload endpoints) since they are
+        identity-sensitive and have different re-verification behavior.
+      operationId: editProfile
       security:
         - BearerAuth: []
       requestBody:
@@ -980,7 +995,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [age, languages]
+              description: Any subset of these fields — only what's provided gets written.
               properties:
                 age:
                   type: integer
@@ -993,6 +1008,15 @@ paths:
                   items:
                     $ref: "#/components/schemas/Language"
                   example: ["hindi", "english", "kannada"]
+                highest_qualification:
+                  $ref: "#/components/schemas/Qualification"
+                preferred_cities:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/City"
+            example:
+              age: 33
+              preferred_cities: ["bangalore", "mumbai"]
       responses:
         "200":
           description: Profile updated
@@ -1013,196 +1037,27 @@ paths:
                         type: boolean
                       verification_status:
                         $ref: "#/components/schemas/VerificationStatus"
-              example:
-                success: true
-                data:
-                  message: "Profile updated"
-                  has_pending_edits: true
-                  verification_status: "available"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/UnauthorizedError"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /caregiver/profile/advanced:
-    put:
-      tags: [Caregiver Profile]
-      summary: Submit advanced details
-      description: |
-        Submit advanced profile details. Only accessible when verification_status is `call_verified`.
-        Requires the Aadhaar document to already be uploaded (selfie is already guaranteed by
-        registration; qualification and "other" documents are optional, not required).
-        On success, status transitions to `pending_verification`.
-        religion and preferred_cities are NOT part of this payload — both are collected once
-        at registration (`POST /auth/register`). father_name, father_phone, current_address,
-        and notes have been removed from the product entirely.
-      operationId: submitAdvancedDetails
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [highest_qualification, terms_accepted]
-              properties:
-                highest_qualification:
-                  $ref: "#/components/schemas/Qualification"
-                terms_accepted:
-                  type: boolean
-                  description: "Must be true"
-                  enum: [true]
-      responses:
-        "200":
-          description: Advanced details submitted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      verification_status:
-                        type: string
-                        enum: [pending_verification]
-              example:
-                success: true
-                data:
-                  message: "Advanced details submitted"
-                  verification_status: "pending_verification"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
               examples:
-                missing_docs:
-                  summary: Aadhaar document not uploaded
+                normal_edit:
+                  summary: Edit while available/unavailable/assigned/pending_call
                   value:
-                    success: false
-                    error:
-                      code: "PROFILE_017"
-                      message: "Aadhaar card not uploaded. Please upload it before submitting."
-                terms_not_accepted:
-                  summary: Terms not accepted
+                    success: true
+                    data:
+                      message: "Profile updated"
+                      has_pending_edits: true
+                      verification_status: "available"
+                auto_resubmit:
+                  summary: Edit while rejected — auto-resubmits
                   value:
-                    success: false
-                    error:
-                      code: "PROFILE_009"
-                      message: "Terms and conditions must be accepted"
-                unexpected_code_field:
-                  summary: A `code` field was included (login code is set at registration, not here)
-                  value:
-                    success: false
-                    error:
-                      code: "GEN_001"
-                      message: "Invalid request body"
-        "403":
-          description: Not in call_verified status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_008"
-                  message: "Advanced details not available. Phone call verification required."
-        "409":
-          description: Email already registered
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "AUTH_008"
-                  message: "Email is already registered"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    patch:
-      tags: [Caregiver Profile]
-      summary: Edit advanced profile fields
-      description: |
-        Self-edit of the advanced-details fields any time after the initial
-        submission — unlike the PUT above (one-time/resubmission-only, whole-object,
-        resets status to `pending_verification`), this is a partial update
-        (any subset of fields) that never touches verification_status, only
-        flags `has_pending_edits = true`. Requires `advanced_details_completed = true`.
-        Does NOT include `religion` — it's collected once at registration
-        (`POST /auth/register`) and locked from self-edit thereafter; only
-        admins can change it (PUT /admin/caregivers/{id}). father_name,
-        father_phone, current_address, and notes have been removed from the
-        product entirely.
-      operationId: editAdvancedProfile
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              description: Any subset of these fields — only what's provided gets written.
-              properties:
-                highest_qualification:
-                  $ref: "#/components/schemas/Qualification"
-                preferred_cities:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/City"
-            example:
-              preferred_cities: ["bangalore", "mumbai"]
-      responses:
-        "200":
-          description: Profile updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      has_pending_edits:
-                        type: boolean
-              example:
-                success: true
-                data:
-                  message: "Profile updated"
-                  has_pending_edits: true
+                    success: true
+                    data:
+                      message: "Profile updated and resubmitted for review"
+                      has_pending_edits: true
+                      verification_status: "pending_call"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
-        "403":
-          description: Advanced details never submitted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_025"
-                  message: "Advanced details must be submitted before editing them"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1212,10 +1067,10 @@ paths:
       summary: Change phone number
       description: |
         Changes the caregiver's own login phone number. Identity-sensitive:
-        if the caregiver is currently `available` or `unavailable`, this
-        resets them to `pending_verification` for re-review (never from
-        `in_process`/`assigned`). For every other status, it just updates
-        the phone and flags `has_pending_edits = true`.
+        if the caregiver is currently `available`, `unavailable`, or `rejected`, this
+        resets them to `pending_call` for re-review (never from `assigned`, and a no-op if
+        already `pending_call`). For every other status, it just updates the phone and
+        flags `has_pending_edits = true`.
       operationId: updatePhone
       security:
         - BearerAuth: []
@@ -1253,7 +1108,7 @@ paths:
                 success: true
                 data:
                   message: "Phone number updated"
-                  verification_status: "pending_verification"
+                  verification_status: "pending_call"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -1528,10 +1383,6 @@ paths:
                       rejection_message:
                         type: string
                         nullable: true
-                      submitted_at:
-                        type: string
-                        format: date-time
-                        nullable: true
                       verified_at:
                         type: string
                         format: date-time
@@ -1539,9 +1390,8 @@ paths:
               example:
                 success: true
                 data:
-                  verification_status: "pending_verification"
+                  verification_status: "pending_call"
                   rejection_message: null
-                  submitted_at: "2026-08-01T10:00:00Z"
                   verified_at: null
         "401":
           $ref: "#/components/responses/UnauthorizedError"
@@ -1779,15 +1629,6 @@ paths:
                       pending_call:
                         type: integer
                         example: 12
-                      call_verified:
-                        type: integer
-                        example: 5
-                      pending_verification:
-                        type: integer
-                        example: 8
-                      in_process:
-                        type: integer
-                        example: 3
                       available:
                         type: integer
                         example: 80
@@ -1814,9 +1655,6 @@ paths:
                 data:
                   total_caregivers: 150
                   pending_call: 12
-                  call_verified: 5
-                  pending_verification: 8
-                  in_process: 3
                   available: 80
                   unavailable: 20
                   assigned: 10
@@ -1938,7 +1776,7 @@ paths:
                     age: 32
                     highest_qualification: "rn_above_2_years"
                     service_modes: ["24hrs_live_in"]
-                    verification_status: "pending_verification"
+                    verification_status: "pending_call"
                     created_at: "2026-08-01T10:00:00Z"
                 meta:
                   page: 1
@@ -2011,9 +1849,8 @@ paths:
                   other_document_urls: ["https://storage.supabase.co/signed/..."]
                   religion: "hindu"
                   terms_accepted: true
-                  verification_status: "pending_verification"
+                  verification_status: "pending_call"
                   rejection_message: null
-                  advanced_details_completed: true
                   preferred_cities: ["bangalore"]
                   admin_notes:
                     internal_notes: "Good candidate, verified docs look clean"
@@ -2021,7 +1858,6 @@ paths:
                     rate_12hrs_pg: 15000.00
                     availability_remarks: "Prefers south Bangalore"
                   created_at: "2026-08-01T10:00:00Z"
-                  submitted_at: "2026-08-02T14:00:00Z"
                   verified_at: null
         "401":
           $ref: "#/components/responses/UnauthorizedError"
@@ -2137,84 +1973,16 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /admin/caregivers/{id}/call-verified:
-    patch:
-      tags: [Admin - Caregivers]
-      summary: Mark caregiver as call verified
-      description: |
-        Marks a caregiver's phone call as verified. Only valid when current status is `pending_call`.
-        Sends push notification to caregiver.
-      operationId: markCallVerified
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Caregiver profile ID
-      responses:
-        "200":
-          description: Call verified
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      verification_status:
-                        type: string
-                        enum: [call_verified]
-              example:
-                success: true
-                data:
-                  message: "Caregiver marked as call verified"
-                  verification_status: "call_verified"
-        "400":
-          description: Invalid current status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "ADMIN_002"
-                  message: "Cannot mark as call verified. Current status is not pending_call."
-        "401":
-          $ref: "#/components/responses/UnauthorizedError"
-        "403":
-          $ref: "#/components/responses/ForbiddenError"
-        "404":
-          description: Caregiver not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_019"
-                  message: "Caregiver profile not found"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /admin/caregivers/{id}/status:
     patch:
       tags: [Admin - Caregivers]
       summary: Update verification status (admin override — unrestricted)
       description: |
-        Sets a caregiver's verification status directly. Deliberately
-        unrestricted: admin can set ANY of the 8 statuses from ANY current
+        Sets a caregiver's verification status directly. There is no separate
+        "mark call verified" step — admin reviews the full profile (every field, including
+        documents, is collected at registration) while it sits in `pending_call` and approves
+        or rejects directly via this endpoint. Deliberately
+        unrestricted: admin can set ANY of the 5 statuses from ANY current
         status — there is no transition-matrix check on this endpoint
         (CLAUDE.md documents the *normal* flow that caregiver actions,
         system triggers, and admin-web's quick-action buttons produce, but
@@ -2225,7 +1993,7 @@ paths:
         - Target `rejected`: sets `rejection_message` to the given value (or null).
         - Every other target: clears `rejection_message`, leaves `verified_at`/`verified_by` untouched.
 
-        Sends a push notification to the caregiver for `available`, `rejected`, and `in_process` only.
+        Sends a push notification to the caregiver for `available` and `rejected` targets only.
       operationId: updateCaregiverStatus
       security:
         - BearerAuth: []
@@ -3428,8 +3196,6 @@ paths:
             enum:
               - registration
               - login
-              - call_verified
-              - advanced_details_submitted
               - profile_updated
               - status_changed
               - code_changed
@@ -3486,7 +3252,7 @@ paths:
                     entity_type: "caregiver_profiles"
                     entity_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                     before_value:
-                      verification_status: "pending_verification"
+                      verification_status: "pending_call"
                     after_value:
                       verification_status: "available"
                     ip_address: "192.168.1.1"

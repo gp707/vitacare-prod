@@ -75,6 +75,8 @@ describe('AuthService', () => {
           age: 30,
           languages: ['hindi'] as any,
           religion: 'hindu' as any,
+          highest_qualification: 'rn_above_2_years' as any,
+          terms_accepted: true,
           code: '1234',
         }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
@@ -96,6 +98,8 @@ describe('AuthService', () => {
         age: 30,
         languages: ['hindi', 'english'] as any,
         religion: 'hindu' as any,
+        highest_qualification: 'rn_above_2_years' as any,
+        terms_accepted: true,
         code: '1234',
       });
 
@@ -142,6 +146,8 @@ describe('AuthService', () => {
         age: 30,
         languages: ['hindi'] as any,
         religion: 'hindu' as any,
+        highest_qualification: 'rn_above_2_years' as any,
+        terms_accepted: true,
         preferred_cities: ['bangalore', 'mumbai'] as any,
         code: '1234',
       });
@@ -159,6 +165,8 @@ describe('AuthService', () => {
         age: 30,
         languages: ['hindi'] as any,
         religion: 'hindu' as any,
+        highest_qualification: 'rn_above_2_years' as any,
+        terms_accepted: true,
         code: '1234',
       });
       expect(caregiverPreferredCitiesRepo.createMany).not.toHaveBeenCalled();
@@ -180,6 +188,8 @@ describe('AuthService', () => {
         age: 30,
         languages: ['hindi'] as any,
         religion: 'hindu' as any,
+        highest_qualification: 'rn_above_2_years' as any,
+        terms_accepted: true,
         code: '1234',
       });
 
@@ -212,7 +222,6 @@ describe('AuthService', () => {
       usersRepo.findByPhone.mockResolvedValue({ ...baseUser, code_hash: codeHash });
       caregiverProfilesRepo.findByUserId.mockResolvedValue({
         verification_status: VerificationStatus.AVAILABLE,
-        advanced_details_completed: true,
       });
       const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
       expect(result.verification_status).toBe('available');

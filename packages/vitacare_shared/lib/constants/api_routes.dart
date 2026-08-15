@@ -9,8 +9,6 @@ class ApiRoutes {
   static const logout = '/auth/logout';
 
   static const caregiverProfile = '/caregiver/profile';
-  static const caregiverProfileBasic = '/caregiver/profile/basic';
-  static const caregiverProfileAdvanced = '/caregiver/profile/advanced';
   static const caregiverProfilePhone = '/caregiver/profile/phone';
   static const caregiverProfileCode = '/caregiver/profile/code';
   static const caregiverProfileSelfie = '/caregiver/profile/selfie';

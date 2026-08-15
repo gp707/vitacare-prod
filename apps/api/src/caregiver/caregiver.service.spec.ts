@@ -14,17 +14,12 @@ describe('CaregiverService', () => {
   let emailService: any;
   let auditService: any;
 
-  const shortProfile = {
+  const fullProfile = {
     id: 'profile-1',
     user_id: 'user-1',
     gender: 'female',
     age: 28,
     verification_status: VerificationStatus.PENDING_CALL,
-    advanced_details_completed: false,
-  };
-
-  const fullProfile = {
-    ...shortProfile,
     full_name: 'Test Caregiver',
     phone: '+919876543210',
     email: null,
@@ -35,10 +30,9 @@ describe('CaregiverService', () => {
     other_document_urls: [],
     religion: null,
     salary: null,
-    terms_accepted: false,
+    terms_accepted: true,
     rejection_message: null,
     has_pending_edits: false,
-    submitted_at: null,
     verified_at: null,
     created_at: new Date(),
   };
@@ -55,11 +49,8 @@ describe('CaregiverService', () => {
       findByPhone: jest.fn().mockResolvedValue(null),
     };
     profilesRepo = {
-      findByUserId: jest.fn(),
       findFullByUserId: jest.fn(),
-      updateBasic: jest.fn(),
-      updateAdvanced: jest.fn(),
-      editAdvancedFields: jest.fn(),
+      editFields: jest.fn(),
       flagPendingEdits: jest.fn(),
       markForReReview: jest.fn(),
       setSelfieUrl: jest.fn(),
@@ -128,155 +119,151 @@ describe('CaregiverService', () => {
     });
   });
 
-  describe('updateBasicProfile', () => {
+  describe('editProfile', () => {
     it('throws PROFILE_019 when no profile exists', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue(null);
       await expect(
-        service.updateBasicProfile('user-1', {
-          age: 30,
-          languages: ['hindi'] as any,
-        }),
+        service.editProfile('user-1', { age: 30 }),
       ).rejects.toMatchObject({ code: 'PROFILE_019' });
     });
 
-    it('updates fields and flags has_pending_edits without changing verification_status, never touching full_name or gender', async () => {
+    it('writes age/highest_qualification via editFields and flags has_pending_edits, without changing verification_status when not rejected', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
+        age: 28,
+        highest_qualification: 'non_nursing',
         verification_status: VerificationStatus.AVAILABLE,
       });
-      languagesRepo.findByProfileId.mockResolvedValue(['hindi']);
 
-      const result = await service.updateBasicProfile('user-1', {
+      const result = await service.editProfile('user-1', {
         age: 31,
-        languages: ['hindi', 'tamil'] as any,
+        highest_qualification: 'anm_student_backlog' as any,
       });
 
+      expect(profilesRepo.editFields).toHaveBeenCalledWith('profile-1', {
+        age: 31,
+        highest_qualification: 'anm_student_backlog',
+      });
+      expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
       expect(result).toEqual({
         message: 'Profile updated',
         has_pending_edits: true,
         verification_status: 'available',
       });
       expect(usersRepo.updateFullName).not.toHaveBeenCalled();
-      expect(profilesRepo.updateBasic).toHaveBeenCalledWith('profile-1', { age: 31 }, expect.anything());
     });
 
-    it('emails the admin with only the changed fields', async () => {
+    it('replaces languages when provided and different', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
-        age: 28,
         verification_status: VerificationStatus.AVAILABLE,
       });
       languagesRepo.findByProfileId.mockResolvedValue(['hindi']);
 
-      await service.updateBasicProfile('user-1', {
-        age: 31,
-        languages: ['hindi'] as any,
+      await service.editProfile('user-1', { languages: ['hindi', 'tamil'] as any });
+
+      expect(languagesRepo.replaceForProfile).toHaveBeenCalledWith(
+        'profile-1',
+        ['hindi', 'tamil'],
+        expect.anything(),
+      );
+    });
+
+    it('replaces preferred_cities and flags pending edits even when no scalar field changed', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.AVAILABLE,
+      });
+      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore']);
+
+      const result = await service.editProfile('user-1', {
+        preferred_cities: ['mumbai', 'pune'] as any,
       });
 
-      expect(emailService.sendToAdmin).toHaveBeenCalledTimes(1);
-      const [, body] = emailService.sendToAdmin.mock.calls[0];
-      expect(body).toContain('age: 28 -> 31');
-      expect(body).not.toContain('languages:');
-
+      expect(preferredCitiesRepo.replaceForProfile).toHaveBeenCalledWith(
+        'profile-1',
+        ['mumbai', 'pune'],
+        expect.anything(),
+      );
+      expect(profilesRepo.editFields).not.toHaveBeenCalled();
+      expect(profilesRepo.flagPendingEdits).toHaveBeenCalledWith('profile-1');
+      expect(result).toEqual({
+        message: 'Profile updated',
+        has_pending_edits: true,
+        verification_status: 'available',
+      });
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: 'user-1',
-          action: 'profile_updated',
-          entityType: 'caregiver_profiles',
-          entityId: 'profile-1',
-          beforeValue: { age: 28 },
-          afterValue: { age: 31 },
+          beforeValue: { preferred_cities: ['bangalore'] },
+          afterValue: { preferred_cities: ['mumbai', 'pune'] },
         }),
       );
     });
 
-    it('does not email or audit-log the admin when nothing actually changed', async () => {
+    it('does not write or email/audit-log when nothing actually changed', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
-        age: 28,
+        highest_qualification: 'anm_student_backlog',
         verification_status: VerificationStatus.AVAILABLE,
       });
-      languagesRepo.findByProfileId.mockResolvedValue(['hindi']);
 
-      await service.updateBasicProfile('user-1', {
-        age: 28,
-        languages: ['hindi'] as any,
-      });
+      await service.editProfile('user-1', { highest_qualification: 'anm_student_backlog' as any });
 
+      expect(profilesRepo.editFields).not.toHaveBeenCalled();
       expect(emailService.sendToAdmin).not.toHaveBeenCalled();
       expect(auditService.log).not.toHaveBeenCalled();
     });
-  });
 
-  describe('submitAdvancedDetails', () => {
-    const validDto = {
-      highest_qualification: 'rn_above_2_years' as any,
-      terms_accepted: true,
-    };
-
-    it('throws PROFILE_008 when status is not call_verified or rejected', async () => {
+    it('does not replace preferred_cities when the (order-insensitive) set is unchanged', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
-        verification_status: VerificationStatus.PENDING_CALL,
+        verification_status: VerificationStatus.AVAILABLE,
       });
-      await expect(service.submitAdvancedDetails('user-1', validDto)).rejects.toMatchObject({
-        code: 'PROFILE_008',
-      });
+      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore', 'mumbai']);
+
+      await service.editProfile('user-1', { preferred_cities: ['mumbai', 'bangalore'] as any });
+
+      expect(preferredCitiesRepo.replaceForProfile).not.toHaveBeenCalled();
+      expect(profilesRepo.flagPendingEdits).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
     });
 
-    it('throws PROFILE_017 when aadhaar is missing', async () => {
+    it('auto-resubmits (sends back to pending_call) when a rejected caregiver changes anything', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-        selfie_photo_url: 'p/selfie.jpg',
-        qualification_document_url: 'p/q.jpg',
-        aadhaar_document_url: null,
-      });
-      await expect(service.submitAdvancedDetails('user-1', validDto)).rejects.toMatchObject({
-        code: 'PROFILE_017',
-      });
-    });
-
-    it('succeeds with only aadhaar uploaded — qualification document is optional', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-        selfie_photo_url: 'p/selfie.jpg',
-        qualification_document_url: null,
-        aadhaar_document_url: 'p/aadhaar.jpg',
-      });
-      const result = await service.submitAdvancedDetails('user-1', validDto);
-      expect(result.verification_status).toBe('pending_verification');
-    });
-
-    it('succeeds for a rejected caregiver resubmitting, transitions to pending_verification', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
+        age: 28,
         verification_status: VerificationStatus.REJECTED,
-        selfie_photo_url: 'p/selfie.jpg',
-        qualification_document_url: 'p/q.jpg',
-        aadhaar_document_url: 'p/a.jpg',
       });
 
-      const result = await service.submitAdvancedDetails('user-1', validDto);
-      expect(result).toEqual({
-        message: 'Advanced details submitted',
-        verification_status: 'pending_verification',
+      const result = await service.editProfile('user-1', { age: 31 });
+
+      expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
+      expect(result.verification_status).toBe('pending_call');
+    });
+
+    it('does not auto-resubmit a rejected caregiver when nothing changed', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        age: 28,
+        verification_status: VerificationStatus.REJECTED,
       });
-      expect(usersRepo.updateCodeHash).not.toHaveBeenCalled();
-      expect(profilesRepo.updateAdvanced).toHaveBeenCalled();
-      expect(emailService.sendToAdmin).toHaveBeenCalledWith(
-        expect.stringContaining('Advanced details'),
-        expect.stringContaining('Test Caregiver'),
-      );
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'user-1',
-          action: 'advanced_details_submitted',
-          entityType: 'caregiver_profiles',
-          entityId: 'profile-1',
-        }),
-      );
+
+      await service.editProfile('user-1', { age: 28 });
+
+      expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
+    });
+
+    it('does not auto-resubmit an available caregiver (only rejected gets the any-edit auto-resubmit)', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        age: 28,
+        verification_status: VerificationStatus.AVAILABLE,
+      });
+
+      const result = await service.editProfile('user-1', { age: 31 });
+
+      expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
+      expect(result.verification_status).toBe('available');
     });
   });
 
@@ -288,7 +275,7 @@ describe('CaregiverService', () => {
     });
 
     it('uploads to the correct path and updates the profile', async () => {
-      profilesRepo.findByUserId.mockResolvedValue(shortProfile);
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
       const file = { originalname: 'me.png', buffer: Buffer.from('x'), mimetype: 'image/png' } as any;
       uploadService.extractExtension.mockReturnValue('png');
 
@@ -302,13 +289,23 @@ describe('CaregiverService', () => {
       expect(profilesRepo.setSelfieUrl).toHaveBeenCalledWith('profile-1', 'profile-1/selfie.png');
       expect(result.file_path).toBe('caregiver-documents/profile-1/selfie.png');
     });
+
+    it('auto-resubmits a rejected caregiver', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.REJECTED,
+      });
+      const file = { originalname: 'me.png', buffer: Buffer.from('x'), mimetype: 'image/png' } as any;
+      await service.uploadSelfie('user-1', file);
+      expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
+    });
   });
 
   describe('uploadDocument', () => {
     const file = { originalname: 'doc.pdf', buffer: Buffer.from('x'), mimetype: 'application/pdf' } as any;
 
     beforeEach(() => {
-      profilesRepo.findByUserId.mockResolvedValue(shortProfile);
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
       uploadService.extractExtension.mockReturnValue('pdf');
     });
 
@@ -355,27 +352,45 @@ describe('CaregiverService', () => {
     });
 
     it('re-uploading aadhaar on an available profile sends it back for review', async () => {
-      profilesRepo.findByUserId.mockResolvedValue({
-        ...shortProfile,
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
         verification_status: VerificationStatus.AVAILABLE,
       });
       await service.uploadDocument('user-1', { document_type: 'aadhaar' as any }, file);
       expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
     });
 
-    it('re-uploading aadhaar on a pending_verification profile does not touch status', async () => {
-      profilesRepo.findByUserId.mockResolvedValue(shortProfile); // pending_call
+    it('re-uploading aadhaar on a pending_call profile does not touch status', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile); // pending_call
       await service.uploadDocument('user-1', { document_type: 'aadhaar' as any }, file);
       expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
     });
 
-    it('re-uploading qualification never triggers review, even when available', async () => {
-      profilesRepo.findByUserId.mockResolvedValue({
-        ...shortProfile,
+    it('re-uploading aadhaar on a rejected profile auto-resubmits', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.REJECTED,
+      });
+      await service.uploadDocument('user-1', { document_type: 'aadhaar' as any }, file);
+      expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
+    });
+
+    it('re-uploading qualification never triggers review for an available caregiver', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
         verification_status: VerificationStatus.AVAILABLE,
       });
       await service.uploadDocument('user-1', { document_type: 'qualification' as any }, file);
       expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
+    });
+
+    it('re-uploading qualification auto-resubmits a rejected caregiver', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.REJECTED,
+      });
+      await service.uploadDocument('user-1', { document_type: 'qualification' as any }, file);
+      expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
     });
   });
 
@@ -405,20 +420,30 @@ describe('CaregiverService', () => {
       const result = await service.updatePhone('user-1', { phone: '+919999999999' });
       expect(usersRepo.updatePhone).toHaveBeenCalledWith('user-1', '+919999999999');
       expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
-      expect(result.verification_status).toBe('pending_verification');
+      expect(result.verification_status).toBe('pending_call');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'phone_changed' }),
       );
     });
 
-    it('updates the phone without touching status when not available/unavailable', async () => {
+    it('changing phone also sends a rejected caregiver back for review', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
-        verification_status: VerificationStatus.IN_PROCESS,
+        verification_status: VerificationStatus.REJECTED,
+      });
+      const result = await service.updatePhone('user-1', { phone: '+919999999999' });
+      expect(profilesRepo.markForReReview).toHaveBeenCalledWith('profile-1');
+      expect(result.verification_status).toBe('pending_call');
+    });
+
+    it('updates the phone without touching status when pending_call', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.PENDING_CALL,
       });
       const result = await service.updatePhone('user-1', { phone: '+919999999999' });
       expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
-      expect(result.verification_status).toBe('in_process');
+      expect(result.verification_status).toBe('pending_call');
     });
   });
 
@@ -435,87 +460,6 @@ describe('CaregiverService', () => {
         expect.objectContaining({ action: 'code_changed' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
-    });
-  });
-
-  describe('editAdvancedProfile', () => {
-    it('throws PROFILE_025 when advanced details were never submitted', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        advanced_details_completed: false,
-      });
-      await expect(
-        service.editAdvancedProfile('user-1', { highest_qualification: 'anm_student_backlog' as any }),
-      ).rejects.toMatchObject({ code: 'PROFILE_025' });
-    });
-
-    it('writes only the provided fields and never touches verification_status', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        advanced_details_completed: true,
-        highest_qualification: 'non_nursing',
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      const result = await service.editAdvancedProfile('user-1', {
-        highest_qualification: 'anm_student_backlog' as any,
-      });
-      expect(profilesRepo.editAdvancedFields).toHaveBeenCalledWith('profile-1', {
-        highest_qualification: 'anm_student_backlog',
-      });
-      expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
-      expect(result).toEqual({ message: 'Profile updated', has_pending_edits: true });
-    });
-
-    it('does not write or email/audit-log when the given value matches the current one', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        advanced_details_completed: true,
-        highest_qualification: 'anm_student_backlog',
-      });
-      await service.editAdvancedProfile('user-1', { highest_qualification: 'anm_student_backlog' as any });
-      expect(profilesRepo.editAdvancedFields).not.toHaveBeenCalled();
-      expect(emailService.sendToAdmin).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
-    });
-
-    it('replaces preferred_cities and flags pending edits even when no scalar field changed', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        advanced_details_completed: true,
-      });
-      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore']);
-
-      const result = await service.editAdvancedProfile('user-1', {
-        preferred_cities: ['mumbai', 'pune'] as any,
-      });
-
-      expect(preferredCitiesRepo.replaceForProfile).toHaveBeenCalledWith('profile-1', [
-        'mumbai',
-        'pune',
-      ]);
-      expect(profilesRepo.editAdvancedFields).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).toHaveBeenCalledWith('profile-1');
-      expect(result).toEqual({ message: 'Profile updated', has_pending_edits: true });
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          beforeValue: { preferred_cities: ['bangalore'] },
-          afterValue: { preferred_cities: ['mumbai', 'pune'] },
-        }),
-      );
-    });
-
-    it('does not replace preferred_cities when the (order-insensitive) set is unchanged', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        advanced_details_completed: true,
-      });
-      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore', 'mumbai']);
-
-      await service.editAdvancedProfile('user-1', { preferred_cities: ['mumbai', 'bangalore'] as any });
-
-      expect(preferredCitiesRepo.replaceForProfile).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
     });
   });
 
@@ -537,7 +481,6 @@ describe('CaregiverService', () => {
       expect(result).toEqual({
         verification_status: 'rejected',
         rejection_message: 'Aadhaar unclear',
-        submitted_at: null,
         verified_at: null,
       });
     });

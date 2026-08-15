@@ -1,5 +1,5 @@
-import { ArrayMinSize, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, Matches, Max, Min } from 'class-validator';
-import { City, Gender, Language, Religion, Validation } from '@vitacare/shared-constants';
+import { ArrayMinSize, Equals, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, Matches, Max, Min } from 'class-validator';
+import { City, Gender, Language, Qualification, Religion, Validation } from '@vitacare/shared-constants';
 
 export class RegisterDto {
   @Matches(Validation.PHONE_REGEX, { message: 'PROFILE_007' })
@@ -30,8 +30,14 @@ export class RegisterDto {
   @IsIn(Object.values(City), { each: true, message: 'GEN_001' })
   preferred_cities?: City[];
 
-  /** Set at registration (not Stage 3/advanced-details) — caregiver logs in
-   * with phone + this code from the very first session onward. */
+  @IsIn(Object.values(Qualification), { message: 'PROFILE_018' })
+  highest_qualification!: Qualification;
+
+  @Equals(true, { message: 'PROFILE_009' })
+  terms_accepted!: boolean;
+
+  /** Caregiver logs in with phone + this code from the very first session
+   * onward. */
   @Matches(Validation.CODE_REGEX, { message: 'PROFILE_016' })
   code!: string;
 }

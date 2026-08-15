@@ -4,9 +4,6 @@ import '../../../core/network/api_exception.dart';
 class DashboardStats {
   final int totalCaregivers;
   final int pendingCall;
-  final int callVerified;
-  final int pendingVerification;
-  final int inProcess;
   final int available;
   final int unavailable;
   final int assigned;
@@ -18,9 +15,6 @@ class DashboardStats {
   const DashboardStats({
     required this.totalCaregivers,
     required this.pendingCall,
-    required this.callVerified,
-    required this.pendingVerification,
-    required this.inProcess,
     required this.available,
     required this.unavailable,
     required this.assigned,
@@ -33,9 +27,6 @@ class DashboardStats {
   factory DashboardStats.fromJson(Map<String, dynamic> json) => DashboardStats(
         totalCaregivers: json['total_caregivers'] as int,
         pendingCall: json['pending_call'] as int,
-        callVerified: json['call_verified'] as int,
-        pendingVerification: json['pending_verification'] as int,
-        inProcess: json['in_process'] as int,
         available: json['available'] as int,
         unavailable: json['unavailable'] as int,
         assigned: json['assigned'] as int,

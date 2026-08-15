@@ -28,7 +28,6 @@ AdminCaregiverDetail _detail({String status = 'pending_call'}) {
     otherDocumentUrls: const [],
     termsAccepted: false,
     verificationStatus: status,
-    advancedDetailsCompleted: false,
     hasPendingEdits: false,
     adminNotes: const AdminNotes(),
     createdAt: '2026-08-01T10:00:00Z',

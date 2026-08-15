@@ -7,9 +7,7 @@ class Validation {
   static final RegExp codeRegex = RegExp(r'^\d{4}$');
   static const ageMin = 18;
   static const ageMax = 65;
-  static const addressMaxLength = 500;
   static const rejectionMessageMaxLength = 1000;
-  static const notesMaxLength = 500;
   static const fileMaxSizeBytes = 10 * 1024 * 1024;
   static const maxOtherDocuments = 3;
   static const paginationDefaultLimit = 20;

@@ -10,8 +10,7 @@ void main() {
         for (final status in VerificationStatus.all) status: statusMessageFor(status, null),
       };
 
-      expect(messages[VerificationStatus.pendingVerification], contains('under review'));
-      expect(messages[VerificationStatus.inProcess], contains('under review'));
+      expect(messages[VerificationStatus.pendingCall], contains('under review'));
       expect(messages[VerificationStatus.available], contains('verified'));
       expect(messages[VerificationStatus.available], isNot(contains('under review')));
       expect(messages[VerificationStatus.unavailable], contains('verified'));

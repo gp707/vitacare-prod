@@ -55,16 +55,6 @@ export class AdminController {
     return this.adminService.getCaregiverDetail(id);
   }
 
-  @Patch('caregivers/:id/call-verified')
-  @HttpCode(HttpStatus.OK)
-  markCallVerified(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.adminService.markCallVerified(id, user.sub, ip);
-  }
-
   @Patch('caregivers/:id/status')
   @HttpCode(HttpStatus.OK)
   updateStatus(

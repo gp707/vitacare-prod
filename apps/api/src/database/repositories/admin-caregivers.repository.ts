@@ -5,9 +5,6 @@ import { DatabaseService } from '../database.service';
 export interface DashboardStats {
   total_caregivers: number;
   pending_call: number;
-  call_verified: number;
-  pending_verification: number;
-  in_process: number;
   available: number;
   unavailable: number;
   assigned: number;
@@ -67,10 +64,8 @@ export interface AdminCaregiverDetail {
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
-  advanced_details_completed: boolean;
   has_pending_edits: boolean;
   created_at: Date;
-  submitted_at: Date | null;
   verified_at: Date | null;
 }
 
@@ -138,9 +133,6 @@ export class AdminCaregiversRepository {
       `SELECT
          COUNT(*) AS total_caregivers,
          COUNT(*) FILTER (WHERE verification_status = 'pending_call') AS pending_call,
-         COUNT(*) FILTER (WHERE verification_status = 'call_verified') AS call_verified,
-         COUNT(*) FILTER (WHERE verification_status = 'pending_verification') AS pending_verification,
-         COUNT(*) FILTER (WHERE verification_status = 'in_process') AS in_process,
          COUNT(*) FILTER (WHERE verification_status = 'available') AS available,
          COUNT(*) FILTER (WHERE verification_status = 'unavailable') AS unavailable,
          COUNT(*) FILTER (WHERE verification_status = 'assigned') AS assigned,
@@ -205,24 +197,14 @@ export class AdminCaregiversRepository {
               cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
               cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
               cp.terms_accepted,
-              cp.verification_status, cp.rejection_message, cp.advanced_details_completed,
-              cp.has_pending_edits, cp.created_at, cp.submitted_at, cp.verified_at
+              cp.verification_status, cp.rejection_message,
+              cp.has_pending_edits, cp.created_at, cp.verified_at
        FROM caregiver_profiles cp
        JOIN users u ON u.id = cp.user_id
        WHERE cp.id = $1`,
       [profileId],
     );
     return result.rows[0] ?? null;
-  }
-
-  async markCallVerified(profileId: string, adminId: string): Promise<void> {
-    await this.db.query(
-      `UPDATE caregiver_profiles
-       SET verification_status = 'call_verified', call_verified_at = NOW(), call_verified_by = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [profileId, adminId],
-    );
   }
 
   /** Admin override — any VerificationStatus, from any current status (no

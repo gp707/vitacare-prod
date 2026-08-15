@@ -1,8 +1,5 @@
 export const VerificationStatus = {
   PENDING_CALL: 'pending_call',
-  CALL_VERIFIED: 'call_verified',
-  PENDING_VERIFICATION: 'pending_verification',
-  IN_PROCESS: 'in_process',
   AVAILABLE: 'available',
   UNAVAILABLE: 'unavailable',
   ASSIGNED: 'assigned',
@@ -94,8 +91,6 @@ export type Qualification = (typeof Qualification)[keyof typeof Qualification];
 export const AuditAction = {
   REGISTRATION: 'registration',
   LOGIN: 'login',
-  CALL_VERIFIED: 'call_verified',
-  ADVANCED_DETAILS_SUBMITTED: 'advanced_details_submitted',
   PROFILE_UPDATED: 'profile_updated',
   STATUS_CHANGED: 'status_changed',
   CODE_CHANGED: 'code_changed',

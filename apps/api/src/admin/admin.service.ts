@@ -135,7 +135,6 @@ export class AdminService {
       terms_accepted: profile.terms_accepted,
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
-      advanced_details_completed: profile.advanced_details_completed,
       has_pending_edits: profile.has_pending_edits,
       preferred_cities: preferredCities,
       admin_notes: {
@@ -149,50 +148,16 @@ export class AdminService {
         availability_remarks: notes?.availability_remarks ?? null,
       },
       created_at: profile.created_at,
-      submitted_at: profile.submitted_at,
       verified_at: profile.verified_at,
     };
   }
 
-  async markCallVerified(
-    profileId: string,
-    adminId: string,
-    ipAddress: string | null = null,
-  ) {
-    const profile = await this.caregiversRepo.getDetailById(profileId);
-    if (!profile) throw new AppException('PROFILE_019');
-    if (profile.verification_status !== 'pending_call') {
-      throw new AppException('ADMIN_002');
-    }
-
-    await this.caregiversRepo.markCallVerified(profileId, adminId);
-
-    await this.auditService.log({
-      userId: adminId,
-      targetUserId: profile.user_id,
-      action: AuditAction.CALL_VERIFIED,
-      entityType: 'caregiver_profiles',
-      entityId: profileId,
-      beforeValue: { verification_status: profile.verification_status },
-      afterValue: { verification_status: 'call_verified' },
-      ipAddress,
-    });
-
-    await this.fcmService.sendToUser(
-      profile.user_id,
-      'Phone verified',
-      'Your phone has been verified. Please fill in your advanced details to continue.',
-    );
-
-    return { message: 'Caregiver marked as call verified', verification_status: 'call_verified' };
-  }
-
   /** Admin override — no transition-matrix restriction here deliberately.
    *  Admin can move any caregiver directly to any status; admin-web's own
-   *  "Start Review"/"Approve"/"Reject" buttons cover the common-case flow,
-   *  this endpoint is also exposed as a free-form override for everything
-   *  else (including statuses those buttons never offer, e.g. jumping
-   *  straight to `assigned` or back to `pending_call`). */
+   *  "Approve"/"Reject" buttons (only offered from pending_call) cover the
+   *  common-case flow, this endpoint is also exposed as a free-form
+   *  override for everything else (including statuses those buttons never
+   *  offer, e.g. jumping straight to `assigned` or back to `pending_call`). */
   async updateStatus(
     profileId: string,
     adminId: string,
@@ -234,14 +199,6 @@ export class AdminService {
         profile.user_id,
         'Profile update',
         dto.rejection_message ?? 'Your profile status has been updated. Please check the app for details.',
-      );
-    } else if (dto.status === 'in_process') {
-      // SPEC.md 6.7's notification table documents this one too — was
-      // previously missing (only available/rejected were ever sent).
-      await this.fcmService.sendToUser(
-        profile.user_id,
-        'Profile Under Review',
-        "Your documents are being reviewed. We'll update you soon.",
       );
     }
 

@@ -14,7 +14,6 @@ class SessionAuthenticated extends SessionState {
   final String fullName;
   final String phone;
   final String verificationStatus;
-  final bool advancedDetailsCompleted;
   final bool hasRequiredDocuments;
   final String? rejectionMessage;
 
@@ -22,7 +21,6 @@ class SessionAuthenticated extends SessionState {
     required this.fullName,
     required this.phone,
     required this.verificationStatus,
-    required this.advancedDetailsCompleted,
     required this.hasRequiredDocuments,
     this.rejectionMessage,
   });
@@ -32,7 +30,6 @@ class SessionAuthenticated extends SessionState {
       fullName: fullName,
       phone: phone,
       verificationStatus: verificationStatus ?? this.verificationStatus,
-      advancedDetailsCompleted: advancedDetailsCompleted,
       hasRequiredDocuments: hasRequiredDocuments,
       // Always taken from the fresh value (not merged with the old one) —
       // this is only ever called from refreshStatus, which always has an

@@ -16,9 +16,6 @@ class AppColors {
 
   // Verification status colors
   static const statusPendingCall = Color(0xFFF59E0B);
-  static const statusCallVerified = Color(0xFF8B5CF6);
-  static const statusPendingVerification = Color(0xFFF97316);
-  static const statusInProcess = Color(0xFF06B6D4);
   static const statusAvailable = Color(0xFF16A34A); // Green — verified & available
   static const statusAssigned = Color(0xFF2563EB); // Blue — currently assigned
   static const statusRejected = Color(0xFFDC2626);

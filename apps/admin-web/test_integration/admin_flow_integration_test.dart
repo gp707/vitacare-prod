@@ -70,7 +70,7 @@ void main() {
     );
   });
 
-  test('lists a freshly-registered caregiver and walks call-verify + status flow', () async {
+  test('lists a freshly-registered caregiver and walks the approval + notes flow', () async {
     await loginAsSuperAdmin();
 
     // Register directly via the auth endpoint's raw path (AuthRepository in
@@ -84,6 +84,8 @@ void main() {
       'age': 29,
       'languages': ['hindi'],
       'religion': 'hindu',
+      'highest_qualification': 'rn_above_2_years',
+      'terms_accepted': true,
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;
@@ -98,25 +100,23 @@ void main() {
     final detail = await caregiversRepo.getDetail(profileId);
     expect(detail.verificationStatus, 'pending_call');
 
-    final afterCallVerify = await caregiversRepo.markCallVerified(profileId);
-    expect(afterCallVerify, 'call_verified');
-
-    await expectLater(
-      caregiversRepo.updateStatus(profileId, 'available'),
-      throwsA(isA<ApiException>().having((e) => e.code, 'code', 'ADMIN_001')),
-    );
-
     await caregiversRepo.upsertNotes(profileId, internalNotes: 'Looks solid', rate24hrsLiveIn: 25000);
     final detailWithNotes = await caregiversRepo.getDetail(profileId);
     expect(detailWithNotes.adminNotes.internalNotes, 'Looks solid');
     expect(detailWithNotes.adminNotes.rate24hrsLiveIn, 25000);
 
+    // Every field (including what used to be "Advanced Details") is
+    // collected at registration now, so admin approves directly from
+    // pending_call in a single step.
+    final afterApprove = await caregiversRepo.updateStatus(profileId, 'available');
+    expect(afterApprove, 'available');
+
     final auditResult = await auditLogsRepo.list(
-      AuditLogListFilters(targetUserId: targetUserId, action: 'call_verified'),
+      AuditLogListFilters(targetUserId: targetUserId, action: 'status_changed'),
     );
     expect(auditResult.items, hasLength(1));
     expect(auditResult.items.first.beforeValue, {'verification_status': 'pending_call'});
-    expect(auditResult.items.first.afterValue, {'verification_status': 'call_verified'});
+    expect(auditResult.items.first.afterValue, {'verification_status': 'available'});
   });
 
   test('admin can edit profile fields, assign work types/service modes, and set salary', () async {
@@ -130,6 +130,8 @@ void main() {
       'age': 28,
       'languages': ['hindi'],
       'religion': 'hindu',
+      'highest_qualification': 'rn_above_2_years',
+      'terms_accepted': true,
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;
@@ -171,6 +173,8 @@ void main() {
       'age': 27,
       'languages': ['hindi'],
       'religion': 'hindu',
+      'highest_qualification': 'rn_above_2_years',
+      'terms_accepted': true,
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;

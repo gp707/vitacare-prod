@@ -52,7 +52,14 @@ export class AuthService {
       const user = userResult.rows[0];
 
       const profile = await this.caregiverProfilesRepo.create(
-        { user_id: user.id, gender: dto.gender, age: dto.age, religion: dto.religion },
+        {
+          user_id: user.id,
+          gender: dto.gender,
+          age: dto.age,
+          religion: dto.religion,
+          highest_qualification: dto.highest_qualification,
+          terms_accepted: dto.terms_accepted,
+        },
         client,
       );
 
@@ -82,6 +89,7 @@ export class AuthService {
         gender: dto.gender,
         age: dto.age,
         religion: dto.religion,
+        highest_qualification: dto.highest_qualification,
       },
       ipAddress,
     });
@@ -123,7 +131,6 @@ export class AuthService {
       user_id: user.id,
       ...tokens,
       verification_status: profile?.verification_status ?? VerificationStatus.PENDING_CALL,
-      advanced_details_completed: profile?.advanced_details_completed ?? false,
     };
   }
 
@@ -156,7 +163,6 @@ export class AuthService {
       ...tokens,
       // Not applicable to admin accounts (no caregiver_profiles row).
       verification_status: null,
-      advanced_details_completed: null,
     };
   }
 

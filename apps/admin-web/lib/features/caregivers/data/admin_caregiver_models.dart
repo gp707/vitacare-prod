@@ -84,12 +84,10 @@ class AdminCaregiverDetail {
   final bool termsAccepted;
   final String verificationStatus;
   final String? rejectionMessage;
-  final bool advancedDetailsCompleted;
   final bool hasPendingEdits;
   final List<String> preferredCities;
   final AdminNotes adminNotes;
   final String createdAt;
-  final String? submittedAt;
   final String? verifiedAt;
 
   const AdminCaregiverDetail({
@@ -113,12 +111,10 @@ class AdminCaregiverDetail {
     required this.termsAccepted,
     required this.verificationStatus,
     this.rejectionMessage,
-    required this.advancedDetailsCompleted,
     required this.hasPendingEdits,
     required this.preferredCities,
     required this.adminNotes,
     required this.createdAt,
-    this.submittedAt,
     this.verifiedAt,
   });
 
@@ -143,12 +139,10 @@ class AdminCaregiverDetail {
         termsAccepted: json['terms_accepted'] as bool? ?? false,
         verificationStatus: json['verification_status'] as String,
         rejectionMessage: json['rejection_message'] as String?,
-        advancedDetailsCompleted: json['advanced_details_completed'] as bool? ?? false,
         hasPendingEdits: json['has_pending_edits'] as bool? ?? false,
         preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
         adminNotes: AdminNotes.fromJson(json['admin_notes'] as Map<String, dynamic>? ?? const {}),
         createdAt: json['created_at'] as String,
-        submittedAt: json['submitted_at'] as String?,
         verifiedAt: json['verified_at'] as String?,
       );
 }

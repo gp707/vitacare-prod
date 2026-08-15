@@ -15,21 +15,18 @@ import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { UploadService } from '../upload/upload.service';
-import { UpdateBasicProfileDto } from './dto/update-basic-profile.dto';
-import { SubmitAdvancedDetailsDto } from './dto/submit-advanced-details.dto';
-import { EditAdvancedProfileDto } from './dto/edit-advanced-profile.dto';
+import { EditProfileDto } from './dto/edit-profile.dto';
 import { UpdatePhoneDto } from './dto/update-phone.dto';
 import { UpdateCodeDto } from './dto/update-code.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto';
 
-const CALL_VERIFIED_OR_REJECTED = ['call_verified', 'rejected'];
-// Only these two statuses have an existing "re-review" transition back to
-// pending_verification in the matrix (previously admin-manual, unbuilt) —
-// in_process/assigned are deliberately excluded per product decision, so an
-// identity-sensitive edit mid-review or mid-assignment doesn't yank the
-// caregiver out of that state.
-const RE_REVIEW_ELIGIBLE_STATUSES = ['available', 'unavailable'];
+// Identity-sensitive changes (phone, Aadhaar re-upload) send a caregiver
+// back to pending_call for re-review from these statuses. assigned is
+// deliberately excluded — this can't yank someone off an active job.
+// rejected is included here (not just available/unavailable)
+// so fixing the flagged identity document also auto-resubmits.
+const IDENTITY_SENSITIVE_REVIEW_STATUSES = ['available', 'unavailable', 'rejected'];
 
 @Injectable()
 export class CaregiverService {
@@ -90,80 +87,117 @@ export class CaregiverService {
       terms_accepted: profile.terms_accepted,
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
-      advanced_details_completed: profile.advanced_details_completed,
       preferred_cities: preferredCities,
       created_at: profile.created_at,
     };
   }
 
-  async updateBasicProfile(userId: string, dto: UpdateBasicProfileDto, ipAddress: string | null = null) {
+  /** Single self-edit endpoint for every caregiver-editable field — age,
+   *  languages, highest_qualification, preferred_cities. full_name, gender,
+   *  and religion are intentionally absent — locked from self-edit once set
+   *  at registration; only admins can change them (see update-phone.dto.ts
+   *  and update-code.dto.ts for the identity-sensitive fields that live on
+   *  their own endpoints, each with different review-trigger semantics).
+   *  Any subset of fields — only what's provided gets written/diffed.
+   *  While rejected, any actual change here auto-resubmits (sends the
+   *  caregiver back to pending_call) instead of just flagging
+   *  has_pending_edits — no separate "resubmit" action needed. */
+  async editProfile(userId: string, dto: EditProfileDto, ipAddress: string | null = null) {
     const profile = await this.requireFullProfile(userId);
-    const previousLanguages = await this.languagesRepo.findByProfileId(profile.id);
+
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+
+    if (dto.age !== undefined && dto.age !== profile.age) {
+      before.age = profile.age;
+      after.age = dto.age;
+    }
+    if (
+      dto.highest_qualification !== undefined &&
+      dto.highest_qualification !== profile.highest_qualification
+    ) {
+      before.highest_qualification = profile.highest_qualification;
+      after.highest_qualification = dto.highest_qualification;
+    }
+
+    let languagesChanged = false;
+    if (dto.languages !== undefined) {
+      const previousLanguages = await this.languagesRepo.findByProfileId(profile.id);
+      const prevSorted = [...previousLanguages].sort();
+      const nextSorted = [...dto.languages].sort();
+      if (prevSorted.join(',') !== nextSorted.join(',')) {
+        before.languages = prevSorted;
+        after.languages = nextSorted;
+        languagesChanged = true;
+      }
+    }
+
+    let citiesChanged = false;
+    if (dto.preferred_cities !== undefined) {
+      const previousCities = await this.preferredCitiesRepo.findByProfileId(profile.id);
+      const prevSorted = [...previousCities].sort();
+      const nextSorted = [...dto.preferred_cities].sort();
+      if (prevSorted.join(',') !== nextSorted.join(',')) {
+        before.preferred_cities = prevSorted;
+        after.preferred_cities = nextSorted;
+        citiesChanged = true;
+      }
+    }
+
+    const scalarFieldsChanged = Object.keys(after).some(
+      (field) => field !== 'preferred_cities' && field !== 'languages',
+    );
+    const anyChanged = scalarFieldsChanged || languagesChanged || citiesChanged;
 
     await this.db.withTransaction(async (client) => {
-      await this.profilesRepo.updateBasic(
-        profile.id,
-        { age: dto.age },
-        client,
-      );
-      await this.languagesRepo.replaceForProfile(profile.id, dto.languages, client);
+      if (scalarFieldsChanged) {
+        await this.profilesRepo.editFields(profile.id, {
+          age: dto.age,
+          highest_qualification: dto.highest_qualification,
+        });
+      } else if (anyChanged) {
+        // languages/preferred_cities-only change — editFields would be a
+        // no-op for an all-undefined input, so flag explicitly instead.
+        await this.profilesRepo.flagPendingEdits(profile.id);
+      }
+      if (languagesChanged) {
+        await this.languagesRepo.replaceForProfile(profile.id, dto.languages!, client);
+      }
+      if (citiesChanged) {
+        await this.preferredCitiesRepo.replaceForProfile(profile.id, dto.preferred_cities!, client);
+      }
     });
 
-    await this.recordBasicProfileChange(userId, profile, previousLanguages, dto, ipAddress);
+    const wasResubmitted = anyChanged && (await this.triggerResubmitIfRejected(profile));
+
+    if (anyChanged) {
+      void this.emailService.sendToAdmin(
+        'Caregiver profile updated (pending review)',
+        `${profile.full_name} updated their profile:\n` +
+          Object.keys(after)
+            .map((field) => `${field}: "${before[field]}" -> "${after[field]}"`)
+            .join('\n'),
+      );
+      await this.auditService.log({
+        userId,
+        action: AuditAction.PROFILE_UPDATED,
+        entityType: 'caregiver_profiles',
+        entityId: profile.id,
+        beforeValue: before,
+        afterValue: after,
+        ipAddress,
+      });
+    }
 
     return {
       message: 'Profile updated',
       has_pending_edits: true,
-      verification_status: profile.verification_status,
+      verification_status: wasResubmitted ? 'pending_call' : profile.verification_status,
     };
   }
 
-  /** Diffs old vs. new basic-profile fields once and reuses it for both the
-   *  admin notification email and the audit log's before/after values —
-   *  both only ever describe fields that actually changed. */
-  private async recordBasicProfileChange(
-    userId: string,
-    previous: { id: string; full_name: string; age: number },
-    previousLanguages: string[],
-    next: UpdateBasicProfileDto,
-    ipAddress: string | null,
-  ): Promise<void> {
-    const before: Record<string, unknown> = {};
-    const after: Record<string, unknown> = {};
-    const changeLines: string[] = [];
-
-    if (previous.age !== next.age) {
-      before.age = previous.age;
-      after.age = next.age;
-      changeLines.push(`age: ${previous.age} -> ${next.age}`);
-    }
-    const prevLangs = [...previousLanguages].sort();
-    const nextLangs = [...next.languages].sort();
-    if (prevLangs.join(',') !== nextLangs.join(',')) {
-      before.languages = prevLangs;
-      after.languages = nextLangs;
-      changeLines.push(`languages: [${prevLangs.join(', ')}] -> [${nextLangs.join(', ')}]`);
-    }
-    if (changeLines.length === 0) return;
-
-    void this.emailService.sendToAdmin(
-      'Caregiver profile updated (pending review)',
-      `${previous.full_name} updated their profile:\n${changeLines.join('\n')}`,
-    );
-
-    await this.auditService.log({
-      userId,
-      action: AuditAction.PROFILE_UPDATED,
-      entityType: 'caregiver_profiles',
-      entityId: previous.id,
-      beforeValue: before,
-      afterValue: after,
-      ipAddress,
-    });
-  }
-
-  /** Phone is identity-sensitive: changing it re-sends a verified/available
-   *  caregiver for review (unlike every other self-editable field). */
+  /** Phone is identity-sensitive: changing it re-sends a verified/available/
+   *  rejected caregiver for review (unlike every other self-editable field). */
   async updatePhone(userId: string, dto: UpdatePhoneDto, ipAddress: string | null = null) {
     const profile = await this.requireFullProfile(userId);
     if (dto.phone === profile.phone) {
@@ -193,7 +227,7 @@ export class CaregiverService {
 
     return {
       message: 'Phone number updated',
-      verification_status: wasReReviewed ? 'pending_verification' : profile.verification_status,
+      verification_status: wasReReviewed ? 'pending_call' : profile.verification_status,
     };
   }
 
@@ -215,135 +249,35 @@ export class CaregiverService {
     return { message: 'Login code updated' };
   }
 
-  /** Self-edit of the advanced-details fields any time after the initial
-   *  submission — unlike submitAdvancedDetails (one-time/resubmission-only,
-   *  whole-object, resets status to pending_verification), this is a
-   *  partial update that never touches verification_status. */
-  async editAdvancedProfile(userId: string, dto: EditAdvancedProfileDto, ipAddress: string | null = null) {
-    const profile = await this.requireFullProfile(userId);
-    if (!profile.advanced_details_completed) {
-      throw new AppException('PROFILE_025');
-    }
-
-    const before: Record<string, unknown> = {};
-    const after: Record<string, unknown> = {};
-    const fields: (keyof EditAdvancedProfileDto)[] = ['highest_qualification'];
-    for (const field of fields) {
-      if (dto[field] === undefined) continue;
-      const previousValue = profile[field as keyof CaregiverProfileFullRecord] ?? null;
-      if (previousValue === dto[field]) continue;
-      before[field] = previousValue;
-      after[field] = dto[field];
-    }
-
-    let citiesChanged = false;
-    if (dto.preferred_cities !== undefined) {
-      const previousCities = await this.preferredCitiesRepo.findByProfileId(profile.id);
-      const prevSorted = [...previousCities].sort();
-      const nextSorted = [...dto.preferred_cities].sort();
-      if (prevSorted.join(',') !== nextSorted.join(',')) {
-        before.preferred_cities = prevSorted;
-        after.preferred_cities = nextSorted;
-        citiesChanged = true;
-      }
-    }
-
-    const scalarFieldsChanged = Object.keys(after).some((field) => field !== 'preferred_cities');
-
-    if (scalarFieldsChanged) {
-      await this.profilesRepo.editAdvancedFields(profile.id, {
-        highest_qualification: dto.highest_qualification,
-      });
-    } else if (citiesChanged) {
-      await this.profilesRepo.flagPendingEdits(profile.id);
-    }
-
-    if (citiesChanged) {
-      await this.preferredCitiesRepo.replaceForProfile(profile.id, dto.preferred_cities!);
-    }
-
-    if (Object.keys(after).length > 0) {
-      void this.emailService.sendToAdmin(
-        'Caregiver profile updated (pending review)',
-        `${profile.full_name} updated their profile:\n` +
-          Object.keys(after)
-            .map((field) => `${field}: "${before[field]}" -> "${after[field]}"`)
-            .join('\n'),
-      );
-      await this.auditService.log({
-        userId,
-        action: AuditAction.PROFILE_UPDATED,
-        entityType: 'caregiver_profiles',
-        entityId: profile.id,
-        beforeValue: before,
-        afterValue: after,
-        ipAddress,
-      });
-    }
-
-    return { message: 'Profile updated', has_pending_edits: true };
-  }
-
-  /** Re-sends a caregiver for review after an identity-sensitive change,
-   *  but only from the two statuses where that's an existing, safe
-   *  transition (available/unavailable) — never mid-review (in_process) or
-   *  mid-assignment (assigned), so this can't yank someone off an active
-   *  job or interrupt an admin's in-progress review. Returns whether the
-   *  reset actually happened, for the caller's response/email wording. */
+  /** Re-sends a caregiver for review after an identity-sensitive change
+   *  (phone, Aadhaar), from any of the statuses where that's eligible.
+   *  Returns whether the reset actually happened, for the caller's
+   *  response/email wording. */
   private async triggerReReviewIfEligible(profile: { id: string; verification_status: string }): Promise<boolean> {
-    if (!RE_REVIEW_ELIGIBLE_STATUSES.includes(profile.verification_status)) return false;
+    if (!IDENTITY_SENSITIVE_REVIEW_STATUSES.includes(profile.verification_status)) return false;
     await this.profilesRepo.markForReReview(profile.id);
     return true;
   }
 
-  async submitAdvancedDetails(
-    userId: string,
-    dto: SubmitAdvancedDetailsDto,
-    ipAddress: string | null = null,
-  ) {
-    const profile = await this.requireFullProfile(userId);
-
-    if (!CALL_VERIFIED_OR_REJECTED.includes(profile.verification_status)) {
-      throw new AppException('PROFILE_008');
-    }
-    // Selfie is already guaranteed by registration (Stage 1); of the
-    // documents uploaded here, only Aadhaar is mandatory — qualification
-    // and "other" documents are optional.
-    if (!profile.aadhaar_document_url) {
-      throw new AppException('PROFILE_017');
-    }
-
-    await this.profilesRepo.updateAdvanced(profile.id, {
-      highest_qualification: dto.highest_qualification,
-    });
-
-    void this.emailService.sendToAdmin(
-      'Advanced details submitted — pending document review',
-      `${profile.full_name} (${profile.phone}) submitted advanced details and is ready for document review.`,
-    );
-
-    await this.auditService.log({
-      userId,
-      action: AuditAction.ADVANCED_DETAILS_SUBMITTED,
-      entityType: 'caregiver_profiles',
-      entityId: profile.id,
-      afterValue: {
-        highest_qualification: dto.highest_qualification,
-      },
-      ipAddress,
-    });
-
-    return { message: 'Advanced details submitted', verification_status: 'pending_verification' };
+  /** Auto-resubmit: any edit at all while rejected sends the caregiver back
+   *  to pending_call — no separate "resubmit" action needed. Unlike
+   *  triggerReReviewIfEligible, this never fires for available/unavailable
+   *  (those only care about identity-sensitive changes). */
+  private async triggerResubmitIfRejected(profile: { id: string; verification_status: string }): Promise<boolean> {
+    if (profile.verification_status !== 'rejected') return false;
+    await this.profilesRepo.markForReReview(profile.id);
+    return true;
   }
 
   async uploadSelfie(userId: string, file: Express.Multer.File | undefined) {
     if (!file) throw new AppException('UPLOAD_001');
-    const profile = await this.requireProfile(userId);
+    const profile = await this.requireFullProfile(userId);
 
     const ext = this.uploadService.extractExtension(file.originalname);
     const path = `${profile.id}/selfie${ext ? `.${ext}` : ''}`;
     await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
     await this.profilesRepo.setSelfieUrl(profile.id, path);
+    await this.triggerResubmitIfRejected(profile);
 
     return { message: 'Selfie uploaded', file_path: `${Config.STORAGE_BUCKET}/${path}` };
   }
@@ -354,7 +288,7 @@ export class CaregiverService {
     file: Express.Multer.File | undefined,
   ) {
     if (!file) throw new AppException('UPLOAD_001');
-    const profile = await this.requireProfile(userId);
+    const profile = await this.requireFullProfile(userId);
     const ext = this.uploadService.extractExtension(file.originalname);
 
     let path: string;
@@ -362,6 +296,7 @@ export class CaregiverService {
       path = `${profile.id}/qualification${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.setQualificationDocumentUrl(profile.id, path);
+      await this.triggerResubmitIfRejected(profile);
     } else if (dto.document_type === DocumentType.AADHAAR) {
       path = `${profile.id}/aadhaar${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
@@ -378,6 +313,7 @@ export class CaregiverService {
       path = `${profile.id}/other_${index}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.appendOtherDocumentUrl(profile.id, path);
+      await this.triggerResubmitIfRejected(profile);
     }
 
     return {
@@ -392,7 +328,6 @@ export class CaregiverService {
     return {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
-      submitted_at: profile.submitted_at,
       verified_at: profile.verified_at,
     };
   }
@@ -400,12 +335,6 @@ export class CaregiverService {
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
     await this.usersRepo.updateFcmToken(userId, dto.token);
     return { message: 'FCM token updated' };
-  }
-
-  private async requireProfile(userId: string) {
-    const profile = await this.profilesRepo.findByUserId(userId);
-    if (!profile) throw new AppException('PROFILE_019');
-    return profile;
   }
 
   private async requireFullProfile(userId: string): Promise<CaregiverProfileFullRecord> {

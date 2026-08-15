@@ -35,7 +35,7 @@ void main() {
 
   String testPhone(String suffix) => '+91700002$suffix';
 
-  test('register -> getProfile -> updateBasic -> upload selfie/qualification/aadhaar', () async {
+  test('register -> getProfile -> editProfile -> upload selfie/qualification/aadhaar', () async {
     final result = await authRepo.register(
       phone: testPhone('0001'),
       fullName: 'Repo Test',
@@ -43,6 +43,8 @@ void main() {
       age: 29,
       languages: ['hindi'],
       religion: 'hindu',
+      highestQualification: 'rn_above_2_years',
+      termsAccepted: true,
       code: '1234',
     );
     expect(result.verificationStatus, 'pending_call');
@@ -51,17 +53,18 @@ void main() {
     final profile = await profileRepo.getProfile();
     expect(profile.fullName, 'Repo Test');
     expect(profile.languages, ['hindi']);
+    expect(profile.highestQualification, 'rn_above_2_years');
     expect(profile.selfiePhotoUrl, isNull);
     expect(profile.hasRequiredDocuments, isFalse);
 
-    await profileRepo.updateBasic(
+    await profileRepo.editProfile(
       age: 30,
       languages: ['hindi', 'english'],
     );
     final updated = await profileRepo.getProfile();
     expect(updated.fullName, 'Repo Test'); // unchanged — caregivers can't self-edit their name
     expect(updated.languages, ['hindi', 'english']);
-    expect(updated.verificationStatus, 'pending_call', reason: 'basic edits must not change status');
+    expect(updated.verificationStatus, 'pending_call', reason: 'profile edits must not change status');
 
     final selfieBytes = Uint8List.fromList('fake selfie bytes'.codeUnits);
     final qualificationBytes = Uint8List.fromList('fake qualification'.codeUnits);
@@ -76,26 +79,6 @@ void main() {
     expect(withDocs.selfiePhotoUrl, isNotNull);
   });
 
-  test('submitAdvanced throws PROFILE_008 (as ApiException) while still pending_call', () async {
-    final result = await authRepo.register(
-      phone: testPhone('0002'),
-      fullName: 'Repo Test Two',
-      gender: 'female',
-      age: 25,
-      languages: ['tamil'],
-      religion: 'hindu',
-      code: '1234',
-    );
-    await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
-
-    await expectLater(
-      profileRepo.submitAdvanced(
-        highestQualification: 'rn_above_2_years',
-      ),
-      throwsA(isA<ApiException>().having((e) => e.code, 'code', 'PROFILE_008')),
-    );
-  });
-
   test('register with a duplicate phone throws ApiException(AUTH_001)', () async {
     await authRepo.register(
       phone: testPhone('0003'),
@@ -104,6 +87,8 @@ void main() {
       age: 40,
       languages: ['hindi'],
       religion: 'hindu',
+      highestQualification: 'rn_above_2_years',
+      termsAccepted: true,
       code: '1234',
     );
 
@@ -115,6 +100,8 @@ void main() {
         age: 40,
         languages: ['hindi'],
         religion: 'hindu',
+        highestQualification: 'rn_above_2_years',
+        termsAccepted: true,
         code: '1234',
       ),
       throwsA(isA<ApiException>().having((e) => e.code, 'code', 'AUTH_001')),
@@ -129,12 +116,13 @@ void main() {
       age: 35,
       languages: ['english'],
       religion: 'hindu',
+      highestQualification: 'rn_above_2_years',
+      termsAccepted: true,
       code: '5678',
     );
 
     final login = await authRepo.loginCode(testPhone('0004'), '5678');
     expect(login.verificationStatus, 'pending_call');
-    expect(login.advancedDetailsCompleted, isFalse);
   });
 
   test('loginCode with an unregistered phone throws ApiException(AUTH_002)', () async {

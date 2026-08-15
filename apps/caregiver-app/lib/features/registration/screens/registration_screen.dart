@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,8 +26,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final List<String> _languages = [];
   String? _religion;
   final List<String> _preferredCities = [];
+  String? _qualification;
+  bool _termsAccepted = false;
   Uint8List? _selfieBytes;
   String? _selfieFilename;
+  Uint8List? _aadhaarBytes;
+  String? _aadhaarFilename;
+  Uint8List? _qualificationDocBytes;
+  String? _qualificationDocFilename;
+  final List<PlatformFile> _otherDocs = [];
   bool _loading = false;
   String? _errorMessage;
 
@@ -58,6 +66,33 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
+  Future<void> _pickAadhaar() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+    final picked = result?.files.single;
+    if (picked == null || picked.bytes == null) return;
+    setState(() {
+      _aadhaarBytes = picked.bytes;
+      _aadhaarFilename = picked.name;
+    });
+  }
+
+  Future<void> _pickQualificationDoc() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+    final picked = result?.files.single;
+    if (picked == null || picked.bytes == null) return;
+    setState(() {
+      _qualificationDocBytes = picked.bytes;
+      _qualificationDocFilename = picked.name;
+    });
+  }
+
+  Future<void> _pickOtherDoc() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+    final picked = result?.files.single;
+    if (picked == null || picked.bytes == null) return;
+    setState(() => _otherDocs.add(picked));
+  }
+
   Future<void> _submit() async {
     final name = _fullNameController.text.trim();
     final ageText = _ageController.text.trim();
@@ -87,8 +122,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       setState(() => _errorMessage = 'Select your religion');
       return;
     }
+    if (_qualification == null) {
+      setState(() => _errorMessage = 'Select your highest qualification');
+      return;
+    }
     if (_selfieBytes == null) {
       setState(() => _errorMessage = 'Take a selfie to continue');
+      return;
+    }
+    if (_aadhaarBytes == null) {
+      setState(() => _errorMessage = 'Upload your Aadhaar card to continue');
+      return;
+    }
+    if (!_termsAccepted) {
+      setState(() => _errorMessage = 'You must accept the Terms & Conditions to continue');
       return;
     }
 
@@ -108,6 +155,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         code: _codeController.text.trim(),
         religion: _religion!,
         preferredCities: _preferredCities.isEmpty ? null : _preferredCities,
+        highestQualification: _qualification!,
+        termsAccepted: _termsAccepted,
       );
 
       final localStorage = ref.read(localStorageProvider);
@@ -116,6 +165,17 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
       final ProfileRepository profileRepo = ref.read(profileRepositoryProvider);
       await profileRepo.uploadSelfie(_selfieBytes!, _selfieFilename ?? 'selfie.jpg');
+      await profileRepo.uploadDocument(_aadhaarBytes!, _aadhaarFilename ?? 'aadhaar', DocumentType.aadhaar);
+      if (_qualificationDocBytes != null) {
+        await profileRepo.uploadDocument(
+          _qualificationDocBytes!,
+          _qualificationDocFilename ?? 'qualification',
+          DocumentType.qualification,
+        );
+      }
+      for (final doc in _otherDocs) {
+        await profileRepo.uploadDocument(doc.bytes!, doc.name, DocumentType.other);
+      }
 
       if (!mounted) return;
       await showDialog<void>(
@@ -233,11 +293,26 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   ..addAll(next);
               }),
             ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _qualification,
+              decoration: const InputDecoration(
+                labelText: 'Highest Qualification',
+                border: OutlineInputBorder(),
+              ),
+              items: Qualification.all
+                  .map((q) => DropdownMenuItem(value: q, child: Text(Qualification.displayNames[q] ?? q)))
+                  .toList(),
+              onChanged: (value) => setState(() => _qualification = value),
+            ),
             const SizedBox(height: AppSpacing.lg),
+            const Text('Documents', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: AppSpacing.sm),
             OutlinedButton.icon(
               onPressed: _takeSelfie,
               icon: const Icon(Icons.camera_alt),
-              label: Text(_selfieBytes == null ? 'Take Selfie' : 'Retake Selfie'),
+              label: Text(_selfieBytes == null ? 'Take Selfie (mandatory)' : 'Retake Selfie'),
             ),
             if (_selfieBytes != null) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -246,6 +321,42 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 child: Image.memory(_selfieBytes!, height: 120, width: 120, fit: BoxFit.cover),
               ),
             ],
+            const SizedBox(height: AppSpacing.sm),
+            _DocumentPicker(
+              label: 'Aadhaar Card (mandatory)',
+              filename: _aadhaarFilename,
+              onTap: _pickAadhaar,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _DocumentPicker(
+              label: 'Qualification Document (optional)',
+              filename: _qualificationDocFilename,
+              onTap: _pickQualificationDoc,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Other Documents (optional, up to ${Validation.maxOtherDocuments})',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (int i = 0; i < _otherDocs.length; i++) ...[
+              _DocumentPicker(label: 'Other document ${i + 1}', filename: _otherDocs[i].name, onTap: null),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            if (_otherDocs.length < Validation.maxOtherDocuments)
+              OutlinedButton.icon(
+                onPressed: _pickOtherDoc,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add Other Document'),
+              ),
+            const SizedBox(height: AppSpacing.lg),
+            CheckboxListTile(
+              value: _termsAccepted,
+              onChanged: (value) => setState(() => _termsAccepted = value ?? false),
+              title: const Text('I accept the Terms & Conditions (mandatory)'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
             if (_errorMessage != null) ...[
               const SizedBox(height: AppSpacing.md),
               Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
@@ -263,6 +374,37 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DocumentPicker extends StatelessWidget {
+  final String label;
+  final String? filename;
+  final VoidCallback? onTap;
+
+  const _DocumentPicker({required this.label, required this.filename, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            filename != null ? Icons.check_circle : Icons.insert_drive_file_outlined,
+            color: filename != null ? AppColors.success : AppColors.textSecondary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(filename ?? label)),
+          if (onTap != null)
+            TextButton(onPressed: onTap, child: Text(filename == null ? 'Upload' : 'Replace')),
+        ],
       ),
     );
   }

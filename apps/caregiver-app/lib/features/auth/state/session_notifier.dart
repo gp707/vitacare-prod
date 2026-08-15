@@ -30,7 +30,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
         fullName: profile.fullName,
         phone: profile.phone,
         verificationStatus: profile.verificationStatus,
-        advancedDetailsCompleted: profile.advancedDetailsCompleted,
         hasRequiredDocuments: profile.hasRequiredDocuments,
         rejectionMessage: profile.rejectionMessage,
       );

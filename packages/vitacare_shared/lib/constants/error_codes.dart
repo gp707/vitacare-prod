@@ -19,14 +19,11 @@ class ErrorCodes {
     'PROFILE_005': 'At least one language is required',
     'PROFILE_006': 'Invalid language value',
     'PROFILE_007': 'Invalid phone number format',
-    'PROFILE_008':
-        'Advanced details not available. Phone call verification required.',
     'PROFILE_009': 'Terms and conditions must be accepted',
     'PROFILE_010': 'Invalid religion value',
     'PROFILE_012': 'At least one service mode is required',
     'PROFILE_013': 'Invalid service mode',
     'PROFILE_016': 'Code must be exactly 4 digits',
-    'PROFILE_017': 'Aadhaar card not uploaded. Please upload it before submitting.',
     'PROFILE_018': 'Invalid qualification value',
     'PROFILE_019': 'Caregiver profile not found',
     'PROFILE_020': 'Name must contain only alphabetic characters and spaces',
@@ -34,7 +31,6 @@ class ErrorCodes {
     'PROFILE_022': 'At least one work type is required',
     'PROFILE_023': 'Invalid work type',
     'PROFILE_024': 'Salary must be zero or greater',
-    'PROFILE_025': 'Advanced details must be submitted before editing them',
 
     // Upload
     'UPLOAD_001': 'File is required',
@@ -45,7 +41,6 @@ class ErrorCodes {
 
     // Admin
     'ADMIN_001': 'Invalid status transition',
-    'ADMIN_002': 'Cannot mark as call verified. Current status is not pending_call.',
     'ADMIN_003': 'Admin with this email already exists',
     'ADMIN_004': 'Admin user not found',
     'ADMIN_005': 'Cannot deactivate your own account',

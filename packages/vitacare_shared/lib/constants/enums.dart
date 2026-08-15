@@ -1,8 +1,5 @@
 class VerificationStatus {
   static const pendingCall = 'pending_call';
-  static const callVerified = 'call_verified';
-  static const pendingVerification = 'pending_verification';
-  static const inProcess = 'in_process';
   static const available = 'available'; // Verified & available (green icon)
   static const unavailable = 'unavailable'; // Verified but not available (toggled off)
   static const assigned = 'assigned'; // Currently assigned to work
@@ -10,9 +7,6 @@ class VerificationStatus {
 
   static const all = [
     pendingCall,
-    callVerified,
-    pendingVerification,
-    inProcess,
     available,
     unavailable,
     assigned,
@@ -179,8 +173,6 @@ class Qualification {
 class AuditAction {
   static const registration = 'registration';
   static const login = 'login';
-  static const callVerified = 'call_verified';
-  static const advancedDetailsSubmitted = 'advanced_details_submitted';
   static const profileUpdated = 'profile_updated';
   static const statusChanged = 'status_changed';
   static const codeChanged = 'code_changed';
@@ -203,8 +195,6 @@ class AuditAction {
   static const all = [
     registration,
     login,
-    callVerified,
-    advancedDetailsSubmitted,
     profileUpdated,
     statusChanged,
     codeChanged,

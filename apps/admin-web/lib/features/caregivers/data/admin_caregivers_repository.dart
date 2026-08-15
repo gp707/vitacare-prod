@@ -84,15 +84,6 @@ class AdminCaregiversRepository {
     }
   }
 
-  Future<String> markCallVerified(String profileId) async {
-    try {
-      final res = await _dio.patch('/admin/caregivers/$profileId/call-verified');
-      return res.data['data']['verification_status'] as String;
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
   Future<String> updateStatus(String profileId, String status, {String? rejectionMessage}) async {
     try {
       final res = await _dio.patch(

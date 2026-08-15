@@ -13,12 +13,11 @@ import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../data/admin_caregiver_models.dart';
 
-/// Allowed status action buttons per SPEC.md 13.3 — matches the backend's
-/// ALLOWED_STATUS_TRANSITIONS map exactly (call-verified is a separate
-/// endpoint/button; availability/assignment transitions are a later phase).
+/// Allowed status action buttons per SPEC.md 13.3 — every field (including
+/// what used to be "Advanced Details") is now collected at registration, so
+/// admin approves or rejects directly from pending_call in a single step.
 const Map<String, List<String>> _statusActions = {
-  'pending_verification': ['in_process', 'available', 'rejected'],
-  'in_process': ['available', 'rejected'],
+  'pending_call': ['available', 'rejected'],
 };
 
 class CaregiverDetailScreen extends ConsumerStatefulWidget {
@@ -120,18 +119,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       // without the audit tab, so failures here don't surface an error banner.
     } finally {
       if (mounted) setState(() => _auditLoading = false);
-    }
-  }
-
-  Future<void> _markCallVerified() async {
-    setState(() => _actionInFlight = true);
-    try {
-      await ref.read(adminCaregiversRepositoryProvider).markCallVerified(widget.profileId);
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) _showSnackBar(e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _actionInFlight = false);
     }
   }
 
@@ -390,12 +377,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   Widget _buildActionButtons(AdminCaregiverDetail detail) {
     final buttons = <Widget>[];
-    if (detail.verificationStatus == 'pending_call') {
-      buttons.add(ElevatedButton(
-        onPressed: _actionInFlight ? null : _markCallVerified,
-        child: const Text('Mark Call Verified'),
-      ));
-    }
     final actions = _statusActions[detail.verificationStatus] ?? [];
     for (final action in actions) {
       if (action == 'rejected') {
@@ -408,11 +389,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         buttons.add(ElevatedButton(
           onPressed: _actionInFlight ? null : () => _updateStatus('available'),
           child: const Text('Approve'),
-        ));
-      } else if (action == 'in_process') {
-        buttons.add(OutlinedButton(
-          onPressed: _actionInFlight ? null : () => _updateStatus('in_process'),
-          child: const Text('Start Review'),
         ));
       }
     }

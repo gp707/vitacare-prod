@@ -20,9 +20,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { CaregiverService } from './caregiver.service';
-import { UpdateBasicProfileDto } from './dto/update-basic-profile.dto';
-import { SubmitAdvancedDetailsDto } from './dto/submit-advanced-details.dto';
-import { EditAdvancedProfileDto } from './dto/edit-advanced-profile.dto';
+import { EditProfileDto } from './dto/edit-profile.dto';
 import { UpdatePhoneDto } from './dto/update-phone.dto';
 import { UpdateCodeDto } from './dto/update-code.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
@@ -39,34 +37,14 @@ export class CaregiverController {
     return this.caregiverService.getProfile(user.sub);
   }
 
-  @Put('profile/basic')
+  @Patch('profile')
   @HttpCode(HttpStatus.OK)
-  updateBasicProfile(
+  editProfile(
     @CurrentUser() user: JwtPayload,
-    @Body() dto: UpdateBasicProfileDto,
+    @Body() dto: EditProfileDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.caregiverService.updateBasicProfile(user.sub, dto, ip);
-  }
-
-  @Put('profile/advanced')
-  @HttpCode(HttpStatus.OK)
-  submitAdvancedDetails(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: SubmitAdvancedDetailsDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.caregiverService.submitAdvancedDetails(user.sub, dto, ip);
-  }
-
-  @Patch('profile/advanced')
-  @HttpCode(HttpStatus.OK)
-  editAdvancedProfile(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: EditAdvancedProfileDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.caregiverService.editAdvancedProfile(user.sub, dto, ip);
+    return this.caregiverService.editProfile(user.sub, dto, ip);
   }
 
   @Patch('profile/phone')
