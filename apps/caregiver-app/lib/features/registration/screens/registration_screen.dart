@@ -23,6 +23,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _codeController = TextEditingController();
   String _gender = Gender.female;
   final List<String> _languages = [];
+  String? _religion;
+  final List<String> _preferredCities = [];
   Uint8List? _selfieBytes;
   String? _selfieFilename;
   bool _loading = false;
@@ -81,6 +83,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       setState(() => _errorMessage = 'Set a 4-digit code — you\'ll use it with your phone to log in');
       return;
     }
+    if (_religion == null) {
+      setState(() => _errorMessage = 'Select your religion');
+      return;
+    }
     if (_selfieBytes == null) {
       setState(() => _errorMessage = 'Take a selfie to continue');
       return;
@@ -100,6 +106,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         age: age,
         languages: _languages,
         code: _codeController.text.trim(),
+        religion: _religion!,
+        preferredCities: _preferredCities.isEmpty ? null : _preferredCities,
       );
 
       final localStorage = ref.read(localStorageProvider);
@@ -162,6 +170,18 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _codeController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: '4-Digit Login Code',
+                helperText: "You'll use this + your phone number to log in from now on",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _gender,
@@ -191,16 +211,27 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               }),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _codeController,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '4-Digit Login Code',
-                helperText: "You'll use this + your phone number to log in from now on",
-                border: OutlineInputBorder(),
-              ),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _religion,
+              decoration: const InputDecoration(labelText: 'Religion', border: OutlineInputBorder()),
+              items: Religion.all
+                  .map((r) => DropdownMenuItem(value: r, child: Text(Religion.displayNames[r] ?? r)))
+                  .toList(),
+              onChanged: (value) => setState(() => _religion = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text('Preferred City (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpacing.sm),
+            VitaMultiSelectChips(
+              options: City.all,
+              labels: City.displayNames,
+              selected: _preferredCities,
+              onChanged: (next) => setState(() {
+                _preferredCities
+                  ..clear()
+                  ..addAll(next);
+              }),
             ),
             const SizedBox(height: AppSpacing.lg),
             OutlinedButton.icon(

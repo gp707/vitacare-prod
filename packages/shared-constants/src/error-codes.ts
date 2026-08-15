@@ -27,11 +27,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   },
   PROFILE_009: { status: 400, message: 'Terms and conditions must be accepted' },
   PROFILE_010: { status: 400, message: 'Invalid religion value' },
-  PROFILE_011: { status: 400, message: "Father's name is required" },
   PROFILE_012: { status: 400, message: 'At least one service mode is required' },
   PROFILE_013: { status: 400, message: 'Invalid service mode' },
-  PROFILE_014: { status: 400, message: 'Current address is required' },
-  PROFILE_015: { status: 400, message: 'Address must be under 500 characters' },
   PROFILE_016: { status: 400, message: 'Code must be exactly 4 digits' },
   PROFILE_017: {
     status: 400,

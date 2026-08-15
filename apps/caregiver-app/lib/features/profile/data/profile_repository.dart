@@ -82,20 +82,12 @@ class ProfileRepository {
   /// self-edit; only admins can change it from that point on.
   Future<void> editAdvancedProfile({
     String? highestQualification,
-    String? fatherName,
-    String? fatherPhone,
-    String? currentAddress,
     List<String>? preferredCities,
-    String? notes,
   }) async {
     try {
       await _dio.patch(ApiRoutes.caregiverProfileAdvanced, data: {
         if (highestQualification != null) 'highest_qualification': highestQualification,
-        if (fatherName != null) 'father_name': fatherName,
-        if (fatherPhone != null) 'father_phone': fatherPhone,
-        if (currentAddress != null) 'current_address': currentAddress,
         if (preferredCities != null) 'preferred_cities': preferredCities,
-        if (notes != null) 'notes': notes,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -104,22 +96,10 @@ class ProfileRepository {
 
   Future<String> submitAdvanced({
     required String highestQualification,
-    required String religion,
-    String? fatherName,
-    String? fatherPhone,
-    String? currentAddress,
-    List<String>? preferredCities,
-    String? notes,
   }) async {
     try {
       final res = await _dio.put(ApiRoutes.caregiverProfileAdvanced, data: {
         'highest_qualification': highestQualification,
-        'religion': religion,
-        if (fatherName != null) 'father_name': fatherName,
-        if (fatherPhone != null) 'father_phone': fatherPhone,
-        if (currentAddress != null) 'current_address': currentAddress,
-        if (preferredCities != null) 'preferred_cities': preferredCities,
-        if (notes != null) 'notes': notes,
         'terms_accepted': true,
       });
       return res.data['data']['verification_status'] as String;

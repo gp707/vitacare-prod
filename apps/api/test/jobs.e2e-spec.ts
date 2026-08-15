@@ -48,6 +48,7 @@ describe('Jobs (e2e)', () => {
         gender: 'female',
         age: 28,
         languages: ['hindi'],
+        religion: 'hindu',
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string; access_token: string };

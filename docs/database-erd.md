@@ -48,15 +48,11 @@
 │ gender               │
 │ age                  │
 │ highest_qualification│
-│ religion             │
-│ father_name          │
-│ father_phone         │
+│ religion             │  ◄── set at registration, locked
 │ qualification_doc_url│
 │ aadhaar_document_url │
-│ current_address      │
 │ other_document_urls  │
 │ salary               │
-│ notes                │
 │ terms_accepted       │
 │ verification_status  │
 │ rejection_message    │

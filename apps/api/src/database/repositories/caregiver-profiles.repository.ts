@@ -26,11 +26,7 @@ export interface CaregiverProfileFullRecord {
   aadhaar_document_url: string | null;
   other_document_urls: string[];
   religion: Religion | null;
-  father_name: string | null;
-  father_phone: string | null;
-  current_address: string | null;
   salary: string | null;
-  notes: string | null;
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
@@ -45,6 +41,7 @@ export interface CreateCaregiverProfileInput {
   user_id: string;
   gender: Gender;
   age: number;
+  religion: Religion;
 }
 
 export interface UpdateBasicProfileInput {
@@ -57,10 +54,6 @@ export interface AdminUpdateProfileInput {
   age?: number;
   highest_qualification?: Qualification;
   religion?: Religion;
-  father_name?: string;
-  father_phone?: string;
-  current_address?: string;
-  notes?: string | null;
 }
 
 /** Caregiver self-edit of advanced fields, any subset — same partial-write
@@ -69,27 +62,17 @@ export interface AdminUpdateProfileInput {
  *  religion is intentionally absent — locked from self-edit once set. */
 export interface EditAdvancedProfileInput {
   highest_qualification?: Qualification;
-  father_name?: string;
-  father_phone?: string;
-  current_address?: string;
-  notes?: string | null;
 }
 
 export interface UpdateAdvancedProfileInput {
   highest_qualification: Qualification;
-  religion: Religion;
-  father_name: string | null;
-  father_phone: string | null;
-  current_address: string | null;
-  notes: string | null;
 }
 
 const FULL_PROFILE_COLUMNS = `
   cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
   cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
-  cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.father_name,
-  cp.father_phone, cp.current_address, cp.salary,
-  cp.notes, cp.terms_accepted,
+  cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
+  cp.terms_accepted,
   cp.verification_status, cp.rejection_message, cp.advanced_details_completed,
   cp.has_pending_edits, cp.submitted_at, cp.verified_at, cp.created_at
 `;
@@ -104,10 +87,10 @@ export class CaregiverProfilesRepository {
   ): Promise<CaregiverProfileRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CaregiverProfileRecord>(
-      `INSERT INTO caregiver_profiles (user_id, gender, age)
-       VALUES ($1, $2, $3)
+      `INSERT INTO caregiver_profiles (user_id, gender, age, religion)
+       VALUES ($1, $2, $3, $4)
        RETURNING id, user_id, gender, age, verification_status, advanced_details_completed`,
-      [input.user_id, input.gender, input.age],
+      [input.user_id, input.gender, input.age, input.religion],
     );
     return result.rows[0];
   }
@@ -155,11 +138,6 @@ export class CaregiverProfilesRepository {
     await runner.query(
       `UPDATE caregiver_profiles
        SET highest_qualification = $2,
-           religion = $3,
-           father_name = $4,
-           father_phone = $5,
-           current_address = $6,
-           notes = $7,
            terms_accepted = true,
            advanced_details_completed = true,
            verification_status = 'pending_verification',
@@ -167,20 +145,11 @@ export class CaregiverProfilesRepository {
            rejection_message = NULL,
            updated_at = NOW()
        WHERE id = $1`,
-      [
-        profileId,
-        input.highest_qualification,
-        input.religion,
-        input.father_name,
-        input.father_phone,
-        input.current_address,
-        input.notes,
-      ],
+      [profileId, input.highest_qualification],
     );
   }
 
   /** Partial update — only fields present (not undefined) on `input` are written.
-   *  `null` is a valid value (e.g. clearing notes) and is written as-is.
    *  preferred_cities is NOT one of these fields — see CaregiverPreferredCitiesRepository. */
   async adminUpdate(
     profileId: string,

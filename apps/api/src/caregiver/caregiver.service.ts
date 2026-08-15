@@ -87,15 +87,11 @@ export class CaregiverService {
       aadhaar_document_url: aadhaarUrl,
       other_document_urls: otherUrls,
       religion: profile.religion,
-      father_name: profile.father_name,
-      father_phone: profile.father_phone,
-      current_address: profile.current_address,
       terms_accepted: profile.terms_accepted,
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       advanced_details_completed: profile.advanced_details_completed,
       preferred_cities: preferredCities,
-      notes: profile.notes,
       created_at: profile.created_at,
     };
   }
@@ -231,13 +227,7 @@ export class CaregiverService {
 
     const before: Record<string, unknown> = {};
     const after: Record<string, unknown> = {};
-    const fields: (keyof EditAdvancedProfileDto)[] = [
-      'highest_qualification',
-      'father_name',
-      'father_phone',
-      'current_address',
-      'notes',
-    ];
+    const fields: (keyof EditAdvancedProfileDto)[] = ['highest_qualification'];
     for (const field of fields) {
       if (dto[field] === undefined) continue;
       const previousValue = profile[field as keyof CaregiverProfileFullRecord] ?? null;
@@ -263,10 +253,6 @@ export class CaregiverService {
     if (scalarFieldsChanged) {
       await this.profilesRepo.editAdvancedFields(profile.id, {
         highest_qualification: dto.highest_qualification,
-        father_name: dto.father_name,
-        father_phone: dto.father_phone,
-        current_address: dto.current_address,
-        notes: dto.notes,
       });
     } else if (citiesChanged) {
       await this.profilesRepo.flagPendingEdits(profile.id);
@@ -329,13 +315,7 @@ export class CaregiverService {
 
     await this.profilesRepo.updateAdvanced(profile.id, {
       highest_qualification: dto.highest_qualification,
-      religion: dto.religion,
-      father_name: dto.father_name ?? null,
-      father_phone: dto.father_phone ?? null,
-      current_address: dto.current_address ?? null,
-      notes: dto.notes ?? null,
     });
-    await this.preferredCitiesRepo.replaceForProfile(profile.id, dto.preferred_cities ?? []);
 
     await this.emailService.sendToAdmin(
       'Advanced details submitted — pending document review',
@@ -349,9 +329,6 @@ export class CaregiverService {
       entityId: profile.id,
       afterValue: {
         highest_qualification: dto.highest_qualification,
-        religion: dto.religion,
-        current_address: dto.current_address,
-        preferred_cities: dto.preferred_cities ?? [],
       },
       ipAddress,
     });

@@ -82,11 +82,12 @@ export const City = {
 export type City = (typeof City)[keyof typeof City];
 
 export const Qualification = {
-  BSC_GNM_COMPLETED: 'bsc_gnm_completed',
-  ANM_COMPLETED: 'anm_completed',
-  BSC_GNM_ANM_BACKLOG: 'bsc_gnm_anm_backlog',
-  BSC_GNM_ANM_STUDENT: 'bsc_gnm_anm_student',
-  NON_NURSING: 'non_nursing',
+  RN_ABOVE_2_YEARS: 'rn_above_2_years',
+  RN_BELOW_2_YEARS: 'rn_below_2_years',
+  REGISTERED_RECENTLY: 'registered_recently',
+  BSC_GNM_UNREGISTERED: 'bsc_gnm_unregistered',
+  ANM_STUDENT_BACKLOG: 'anm_student_backlog',
+  GDA_NON_NURSING: 'gda_non_nursing',
 } as const;
 export type Qualification = (typeof Qualification)[keyof typeof Qualification];
 

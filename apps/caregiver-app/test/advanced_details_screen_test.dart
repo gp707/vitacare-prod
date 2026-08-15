@@ -42,12 +42,6 @@ class _FakeProfileRepository extends ProfileRepository {
   @override
   Future<String> submitAdvanced({
     required String highestQualification,
-    required String religion,
-    String? fatherName,
-    String? fatherPhone,
-    String? currentAddress,
-    List<String>? preferredCities,
-    String? notes,
   }) async {
     submitAdvancedCalled = true;
     return 'pending_verification';
@@ -60,17 +54,10 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(child);
 }
 
-Future<void> _fillRequiredNonDocFields(WidgetTester tester) async {
-  await tester.enterText(find.widgetWithText(TextField, "Father's Name (optional)"), 'Suresh Kumar');
-  await tester.enterText(find.widgetWithText(TextField, "Father's Phone (optional)"), '9876500001');
-  await tester.enterText(find.widgetWithText(TextField, 'Current Address (optional)'), '123 MG Road');
-  await tester.tap(find.byType(DropdownButtonFormField<String>).at(0));
+Future<void> _fillRequiredFields(WidgetTester tester) async {
+  await tester.tap(find.byType(DropdownButtonFormField<String>));
   await tester.pumpAndSettle();
   await tester.tap(find.text(Qualification.displayNames[Qualification.all.first]!).last);
-  await tester.pumpAndSettle();
-  await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(Religion.displayNames[Religion.hindu]!).last);
   await tester.pumpAndSettle();
   await tester.tap(find.text('I accept the Terms & Conditions (mandatory)'));
   await tester.pump();
@@ -104,14 +91,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await _fillRequiredNonDocFields(tester);
+    await _fillRequiredFields(tester);
 
     final submitButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
     expect(submitButton.onPressed, isNull);
     expect(fakeRepo.submitAdvancedCalled, isFalse);
   });
 
-  testWidgets('Submit becomes enabled once aadhaar is uploaded, even without qualification', (tester) async {
+  testWidgets('Submit becomes enabled once aadhaar is uploaded, even without the qualification document',
+      (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(aadhaarUploaded: true, qualificationUploaded: false));
 
     await _pumpTall(
@@ -122,14 +110,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await _fillRequiredNonDocFields(tester);
+    await _fillRequiredFields(tester);
 
     final submitButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
     expect(submitButton.onPressed, isNotNull);
     expect(fakeRepo.submitAdvancedCalled, isFalse);
   });
 
-  testWidgets("Submit becomes enabled without father's name or phone filled", (tester) async {
+  testWidgets('Submit stays disabled until Highest Qualification is selected', (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(aadhaarUploaded: true));
 
     await _pumpTall(
@@ -139,36 +127,8 @@ void main() {
         child: const MaterialApp(home: AdvancedDetailsScreen()),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Current Address (optional)'), '123 MG Road');
-    await tester.tap(find.byType(DropdownButtonFormField<String>).at(0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(Qualification.displayNames[Qualification.all.first]!).last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(Religion.displayNames[Religion.hindu]!).last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('I accept the Terms & Conditions (mandatory)'));
-    await tester.pump();
-
-    final submitButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
-    expect(submitButton.onPressed, isNotNull);
-  });
-
-  testWidgets('Submit stays disabled when an optional phone field is filled with an invalid format', (tester) async {
-    final fakeRepo = _FakeProfileRepository(_profile(aadhaarUploaded: true));
-
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: AdvancedDetailsScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await _fillRequiredNonDocFields(tester);
-    await tester.enterText(find.widgetWithText(TextField, "Father's Phone (optional)"), '12345');
     await tester.pump();
 
     final submitButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
@@ -191,8 +151,7 @@ void main() {
     expect(find.text('Upload'), findsWidgets);
   });
 
-  testWidgets('rejected resubmission: prefills fields from the previous submission, Submit already enabled',
-      (tester) async {
+  testWidgets('rejected resubmission: prefills the qualification dropdown, Submit already enabled', (tester) async {
     final rejectedProfile = CaregiverProfileModel.fromJson({
       'user_id': 'u1',
       'profile_id': 'p1',
@@ -214,9 +173,6 @@ void main() {
       'aadhaar_document_url': 'https://signed/aadhaar',
       'highest_qualification': 'rn_above_2_years',
       'religion': 'hindu',
-      'father_name': 'Suresh Kumar',
-      'father_phone': '+919876500001',
-      'current_address': '123 Previously Submitted Address',
     });
     final fakeRepo = _FakeProfileRepository(rejectedProfile);
 
@@ -231,37 +187,9 @@ void main() {
 
     expect(find.text(Qualification.displayNames[Qualification.rnAbove2Years]!),
         findsOneWidget); // qualification dropdown, prefilled
-    expect(find.widgetWithText(TextField, "Father's Name (optional)"), findsOneWidget);
-    expect(find.text('Suresh Kumar'), findsOneWidget);
-    expect(find.text('123 Previously Submitted Address'), findsOneWidget);
     expect(find.text('Replace'), findsNWidgets(2)); // aadhaar + qualification already uploaded
 
     final submitButton = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
     expect(submitButton.onPressed, isNotNull);
-  });
-
-  testWidgets('Preferred City is a multi-select — several can be selected at once', (tester) async {
-    final fakeRepo = _FakeProfileRepository(_profile(aadhaarUploaded: true));
-
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: AdvancedDetailsScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Bangalore'));
-    await tester.pump();
-    await tester.tap(find.widgetWithText(FilterChip, 'Mumbai'));
-    await tester.pump();
-
-    final bangalore = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Bangalore'));
-    final mumbai = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Mumbai'));
-    final chennai = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Chennai'));
-    expect(bangalore.selected, isTrue);
-    expect(mumbai.selected, isTrue);
-    expect(chennai.selected, isFalse);
   });
 }

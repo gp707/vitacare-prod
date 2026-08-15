@@ -6,6 +6,7 @@ import { AppException } from '../common/exceptions/app.exception';
 import { UsersRepository, UserRecord } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
+import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly usersRepo: UsersRepository,
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
     private readonly caregiverLanguagesRepo: CaregiverLanguagesRepository,
+    private readonly caregiverPreferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly refreshTokensRepo: RefreshTokensRepository,
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
@@ -50,11 +52,14 @@ export class AuthService {
       const user = userResult.rows[0];
 
       const profile = await this.caregiverProfilesRepo.create(
-        { user_id: user.id, gender: dto.gender, age: dto.age },
+        { user_id: user.id, gender: dto.gender, age: dto.age, religion: dto.religion },
         client,
       );
 
       await this.caregiverLanguagesRepo.createMany(profile.id, dto.languages, client);
+      if (dto.preferred_cities?.length) {
+        await this.caregiverPreferredCitiesRepo.createMany(profile.id, dto.preferred_cities, client);
+      }
 
       return { user, profile };
     });
@@ -71,7 +76,13 @@ export class AuthService {
       action: AuditAction.REGISTRATION,
       entityType: 'users',
       entityId: user.id,
-      afterValue: { full_name: dto.full_name, phone: dto.phone, gender: dto.gender, age: dto.age },
+      afterValue: {
+        full_name: dto.full_name,
+        phone: dto.phone,
+        gender: dto.gender,
+        age: dto.age,
+        religion: dto.religion,
+      },
       ipAddress,
     });
 

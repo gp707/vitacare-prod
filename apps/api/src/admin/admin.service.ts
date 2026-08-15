@@ -129,19 +129,15 @@ export class AdminService {
       salary: profile.salary === null ? null : Number(profile.salary),
       highest_qualification: profile.highest_qualification,
       religion: profile.religion,
-      father_name: profile.father_name,
-      father_phone: profile.father_phone,
       qualification_document_url: qualificationUrl,
       aadhaar_document_url: aadhaarUrl,
       other_document_urls: otherUrls,
-      current_address: profile.current_address,
       terms_accepted: profile.terms_accepted,
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       advanced_details_completed: profile.advanced_details_completed,
       has_pending_edits: profile.has_pending_edits,
       preferred_cities: preferredCities,
-      notes: profile.notes,
       admin_notes: {
         internal_notes: notes?.internal_notes ?? null,
         rate_24hrs_live_in: notes?.rate_24hrs_live_in === undefined || notes?.rate_24hrs_live_in === null
@@ -331,17 +327,7 @@ export class AdminService {
     const before: Record<string, unknown> = {};
     const after: Record<string, unknown> = {};
     const profileRecord = profile as unknown as Record<string, unknown>;
-    const trackedFields = [
-      'full_name',
-      'gender',
-      'age',
-      'highest_qualification',
-      'religion',
-      'father_name',
-      'father_phone',
-      'current_address',
-      'notes',
-    ] as const;
+    const trackedFields = ['full_name', 'gender', 'age', 'highest_qualification', 'religion'] as const;
     for (const field of trackedFields) {
       const nextValue = dto[field];
       if (nextValue === undefined) continue;
@@ -382,10 +368,6 @@ export class AdminService {
           age: dto.age,
           highest_qualification: dto.highest_qualification,
           religion: dto.religion,
-          father_name: dto.father_name,
-          father_phone: dto.father_phone,
-          current_address: dto.current_address,
-          notes: dto.notes,
         },
         client,
       );

@@ -42,6 +42,7 @@ void main() {
       gender: 'male',
       age: 29,
       languages: ['hindi'],
+      religion: 'hindu',
       code: '1234',
     );
     expect(result.verificationStatus, 'pending_call');
@@ -82,6 +83,7 @@ void main() {
       gender: 'female',
       age: 25,
       languages: ['tamil'],
+      religion: 'hindu',
       code: '1234',
     );
     await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
@@ -89,10 +91,6 @@ void main() {
     await expectLater(
       profileRepo.submitAdvanced(
         highestQualification: 'rn_above_2_years',
-        religion: 'hindu',
-        fatherName: 'Suresh Kumar',
-        fatherPhone: '+919876500001',
-        currentAddress: '123 MG Road',
       ),
       throwsA(isA<ApiException>().having((e) => e.code, 'code', 'PROFILE_008')),
     );
@@ -105,6 +103,7 @@ void main() {
       gender: 'male',
       age: 40,
       languages: ['hindi'],
+      religion: 'hindu',
       code: '1234',
     );
 
@@ -115,6 +114,7 @@ void main() {
         gender: 'male',
         age: 40,
         languages: ['hindi'],
+        religion: 'hindu',
         code: '1234',
       ),
       throwsA(isA<ApiException>().having((e) => e.code, 'code', 'AUTH_001')),
@@ -128,6 +128,7 @@ void main() {
       gender: 'other',
       age: 35,
       languages: ['english'],
+      religion: 'hindu',
       code: '5678',
     );
 

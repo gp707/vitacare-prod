@@ -10,6 +10,9 @@ class AuthRepository {
 
   /// [code] is the 4-digit login PIN, set here at registration — caregivers
   /// log in with phone + this code from the very first session onward.
+  /// [religion] is set once here and locked from self-edit afterward — only
+  /// admins can change it from that point on. [preferredCities] remains
+  /// self-editable later via ProfileRepository.editAdvancedProfile.
   Future<AuthResult> register({
     required String phone,
     required String fullName,
@@ -17,6 +20,8 @@ class AuthRepository {
     required int age,
     required List<String> languages,
     required String code,
+    required String religion,
+    List<String>? preferredCities,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.register, data: {
@@ -26,6 +31,8 @@ class AuthRepository {
         'age': age,
         'languages': languages,
         'code': code,
+        'religion': religion,
+        if (preferredCities != null) 'preferred_cities': preferredCities,
       });
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

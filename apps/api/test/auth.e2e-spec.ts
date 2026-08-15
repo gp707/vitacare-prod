@@ -91,6 +91,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 32,
           languages: ['hindi', 'english'],
+          religion: 'hindu',
           code: '1234',
         })
         .expect(201);
@@ -114,6 +115,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 32,
           languages: ['hindi'],
+          religion: 'hindu',
           code: '1234',
         })
         .expect(409);
@@ -133,6 +135,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 5,
           languages: ['hindi'],
+          religion: 'hindu',
           code: '1234',
         })
         .expect(400);
@@ -149,6 +152,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 30,
           languages: ['hindi'],
+          religion: 'hindu',
           code: 'abcd',
         })
         .expect(400);
@@ -165,6 +169,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 30,
           languages: ['hindi'],
+          religion: 'hindu',
         })
         .expect(400);
 
@@ -180,6 +185,7 @@ describe('Auth (e2e)', () => {
           gender: 'male',
           age: 30,
           languages: ['hindi'],
+          religion: 'hindu',
           code: '1234',
           role: 'super_admin',
         })

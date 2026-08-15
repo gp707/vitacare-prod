@@ -18,14 +18,7 @@ class AdvancedDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
-  final _fatherNameController = TextEditingController();
-  final _fatherPhoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _notesController = TextEditingController();
-
   String? _qualification;
-  String? _religion;
-  final List<String> _preferredCities = [];
   bool _termsAccepted = false;
 
   bool _loadingDocs = true;
@@ -42,15 +35,6 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
-  @override
-  void dispose() {
-    _fatherNameController.dispose();
-    _fatherPhoneController.dispose();
-    _addressController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
   /// One-time load on entry — prefills text fields from any previous
   /// submission (a first-time call_verified submission has these all null,
   /// so it's a no-op there; a rejected caregiver resubmitting sees their
@@ -65,15 +49,6 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
           _aadhaarUploaded = profile.aadhaarDocumentUrl != null;
           _otherCount = profile.otherDocumentUrls.length;
           _qualification = profile.highestQualification;
-          _religion = profile.religion;
-          _preferredCities
-            ..clear()
-            ..addAll(profile.preferredCities);
-          _fatherNameController.text = profile.fatherName ?? '';
-          _fatherPhoneController.text =
-              (profile.fatherPhone ?? '').replaceFirst('+91', '');
-          _addressController.text = profile.currentAddress ?? '';
-          _notesController.text = profile.notes ?? '';
           _termsAccepted = profile.termsAccepted;
         });
       }
@@ -126,20 +101,8 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
     }
   }
 
-  // Father's name/phone and Current Address are optional — if left blank
-  // they're omitted from submission, but if the caregiver does type
-  // something in father's name/phone it must still be validly formatted.
   bool get _canSubmit =>
-      !_submitting &&
-      _aadhaarUploaded &&
-      _qualification != null &&
-      _religion != null &&
-      (_fatherNameController.text.trim().isEmpty ||
-          Validators.isValidName(_fatherNameController.text.trim())) &&
-      (_fatherPhoneController.text.trim().isEmpty ||
-          Validators.isValidPhone(
-              '+91${_fatherPhoneController.text.trim()}')) &&
-      _termsAccepted;
+      !_submitting && _aadhaarUploaded && _qualification != null && _termsAccepted;
 
   Future<void> _submit() async {
     setState(() {
@@ -147,19 +110,8 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
       _errorMessage = null;
     });
     try {
-      final fatherName = _fatherNameController.text.trim();
-      final fatherPhone = _fatherPhoneController.text.trim();
-      final currentAddress = _addressController.text.trim();
       await ref.read(profileRepositoryProvider).submitAdvanced(
             highestQualification: _qualification!,
-            religion: _religion!,
-            fatherName: fatherName.isEmpty ? null : fatherName,
-            fatherPhone: fatherPhone.isEmpty ? null : '+91$fatherPhone',
-            currentAddress: currentAddress.isEmpty ? null : currentAddress,
-            preferredCities: _preferredCities,
-            notes: _notesController.text.trim().isEmpty
-                ? null
-                : _notesController.text.trim(),
           );
 
       await ref.read(sessionProvider.notifier).loadSession();
@@ -204,9 +156,8 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
             : ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
-                  // Mandatory fields first, each explicitly labeled, so it's
-                  // obvious up front what's blocking Submit — optional
-                  // fields (father's info, preferred city, etc.) follow.
+                  // The only mandatory field left, explicitly labeled, so
+                  // it's obvious up front what's blocking Submit.
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     initialValue: _qualification,
@@ -219,30 +170,6 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
                         .toList(),
                     onChanged: (value) =>
                         setState(() => _qualification = value),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: _religion,
-                    decoration: const InputDecoration(
-                        labelText: 'Religion (mandatory)',
-                        border: OutlineInputBorder()),
-                    items: Religion.all
-                        .map((r) => DropdownMenuItem(
-                            value: r,
-                            child: Text(Religion.displayNames[r] ?? r)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _religion = value),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _addressController,
-                    maxLines: 3,
-                    maxLength: Validation.addressMaxLength,
-                    decoration: const InputDecoration(
-                        labelText: 'Current Address (optional)',
-                        border: OutlineInputBorder()),
-                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text('Documents',
@@ -284,48 +211,6 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  TextField(
-                    controller: _fatherNameController,
-                    decoration: const InputDecoration(
-                        labelText: "Father's Name (optional)",
-                        border: OutlineInputBorder()),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _fatherPhoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      prefixText: '+91 ',
-                      labelText: "Father's Phone (optional)",
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const Text('Preferred City (optional)',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: AppSpacing.sm),
-                  VitaMultiSelectChips(
-                    options: City.all,
-                    labels: City.displayNames,
-                    selected: _preferredCities,
-                    onChanged: (next) => setState(() {
-                      _preferredCities
-                        ..clear()
-                        ..addAll(next);
-                    }),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _notesController,
-                    maxLines: 2,
-                    maxLength: Validation.notesMaxLength,
-                    decoration: const InputDecoration(
-                        labelText: 'Notes (optional)',
-                        border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
                   CheckboxListTile(
                     value: _termsAccepted,
                     onChanged: (value) =>

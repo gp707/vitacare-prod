@@ -9,6 +9,7 @@ describe('AuthService', () => {
   let usersRepo: any;
   let caregiverProfilesRepo: any;
   let caregiverLanguagesRepo: any;
+  let caregiverPreferredCitiesRepo: any;
   let refreshTokensRepo: any;
   let tokenService: any;
   let emailService: any;
@@ -30,6 +31,7 @@ describe('AuthService', () => {
     usersRepo = { findByPhone: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
     caregiverProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     caregiverLanguagesRepo = { createMany: jest.fn() };
+    caregiverPreferredCitiesRepo = { createMany: jest.fn() };
     refreshTokensRepo = {
       create: jest.fn(),
       findActiveById: jest.fn(),
@@ -54,6 +56,7 @@ describe('AuthService', () => {
       usersRepo,
       caregiverProfilesRepo,
       caregiverLanguagesRepo,
+      caregiverPreferredCitiesRepo,
       refreshTokensRepo,
       tokenService,
       emailService,
@@ -71,6 +74,7 @@ describe('AuthService', () => {
           gender: 'male' as any,
           age: 30,
           languages: ['hindi'] as any,
+          religion: 'hindu' as any,
           code: '1234',
         }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
@@ -91,12 +95,17 @@ describe('AuthService', () => {
         gender: 'male' as any,
         age: 30,
         languages: ['hindi', 'english'] as any,
+        religion: 'hindu' as any,
         code: '1234',
       });
 
       expect(result.verification_status).toBe('pending_call');
       expect(result.user_id).toBe(baseUser.id);
       expect(result.profile_id).toBe('profile-1');
+      expect(caregiverProfilesRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ religion: 'hindu' }),
+        client,
+      );
       expect(caregiverLanguagesRepo.createMany).toHaveBeenCalledWith(
         'profile-1',
         ['hindi', 'english'],
@@ -112,8 +121,47 @@ describe('AuthService', () => {
           action: 'registration',
           entityType: 'users',
           entityId: baseUser.id,
+          afterValue: expect.objectContaining({ religion: 'hindu' }),
         }),
       );
+    });
+
+    it('creates preferred cities when provided, skips when omitted', async () => {
+      usersRepo.findByPhone.mockResolvedValue(null);
+      const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      caregiverProfilesRepo.create.mockResolvedValue({
+        id: 'profile-1',
+        verification_status: VerificationStatus.PENDING_CALL,
+      });
+
+      await service.register({
+        phone: baseUser.phone,
+        full_name: 'Ramesh Kumar',
+        gender: 'male' as any,
+        age: 30,
+        languages: ['hindi'] as any,
+        religion: 'hindu' as any,
+        preferred_cities: ['bangalore', 'mumbai'] as any,
+        code: '1234',
+      });
+      expect(caregiverPreferredCitiesRepo.createMany).toHaveBeenCalledWith(
+        'profile-1',
+        ['bangalore', 'mumbai'],
+        client,
+      );
+
+      caregiverPreferredCitiesRepo.createMany.mockClear();
+      await service.register({
+        phone: baseUser.phone,
+        full_name: 'Ramesh Kumar',
+        gender: 'male' as any,
+        age: 30,
+        languages: ['hindi'] as any,
+        religion: 'hindu' as any,
+        code: '1234',
+      });
+      expect(caregiverPreferredCitiesRepo.createMany).not.toHaveBeenCalled();
     });
 
     it('hashes the code and stores it on the new user row (login code is set from registration onward)', async () => {
@@ -131,6 +179,7 @@ describe('AuthService', () => {
         gender: 'male' as any,
         age: 30,
         languages: ['hindi'] as any,
+        religion: 'hindu' as any,
         code: '1234',
       });
 

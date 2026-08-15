@@ -120,7 +120,14 @@
       "Bash(kill 91300)",
       "Bash(kill 11316)",
       "Bash(kill 11093)",
-      "Bash(kill 48493)"
+      "Bash(kill 48493)",
+      "Bash(npm view *)",
+      "Bash(kill 60767)",
+      "Bash(npm ls *)",
+      "Bash(firebase --version)",
+      "Bash(firebase login:list)",
+      "Bash(/Users/admin/develop/bin/dart --version)",
+      "Bash(xargs kill)"
     ]
   }
 }

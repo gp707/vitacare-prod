@@ -18,15 +18,11 @@ class CaregiverProfileModel {
   final String? aadhaarDocumentUrl;
   final List<String> otherDocumentUrls;
   final String? religion;
-  final String? fatherName;
-  final String? fatherPhone;
-  final String? currentAddress;
   final bool termsAccepted;
   final String verificationStatus;
   final String? rejectionMessage;
   final bool advancedDetailsCompleted;
   final List<String> preferredCities;
-  final String? notes;
   final String createdAt;
 
   const CaregiverProfileModel({
@@ -47,15 +43,11 @@ class CaregiverProfileModel {
     this.aadhaarDocumentUrl,
     required this.otherDocumentUrls,
     this.religion,
-    this.fatherName,
-    this.fatherPhone,
-    this.currentAddress,
     required this.termsAccepted,
     required this.verificationStatus,
     this.rejectionMessage,
     required this.advancedDetailsCompleted,
     required this.preferredCities,
-    this.notes,
     required this.createdAt,
   });
 
@@ -78,15 +70,11 @@ class CaregiverProfileModel {
       aadhaarDocumentUrl: json['aadhaar_document_url'] as String?,
       otherDocumentUrls: List<String>.from(json['other_document_urls'] as List? ?? const []),
       religion: json['religion'] as String?,
-      fatherName: json['father_name'] as String?,
-      fatherPhone: json['father_phone'] as String?,
-      currentAddress: json['current_address'] as String?,
       termsAccepted: json['terms_accepted'] as bool? ?? false,
       verificationStatus: json['verification_status'] as String,
       rejectionMessage: json['rejection_message'] as String?,
       advancedDetailsCompleted: json['advanced_details_completed'] as bool? ?? false,
       preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
-      notes: json['notes'] as String?,
       createdAt: json['created_at'] as String,
     );
   }

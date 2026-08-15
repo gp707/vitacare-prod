@@ -39,7 +39,10 @@ describe('Caregiver (e2e)', () => {
     await db.query("DELETE FROM users WHERE phone LIKE '+91700001%'");
   }
 
-  async function registerTestCaregiver(phoneSuffix: string) {
+  async function registerTestCaregiver(
+    phoneSuffix: string,
+    overrides: { religion?: string; preferred_cities?: string[] } = {},
+  ) {
     const res = await request(app.getHttpServer())
       .post('/v1/auth/register')
       .send({
@@ -48,6 +51,8 @@ describe('Caregiver (e2e)', () => {
         gender: 'female',
         age: 28,
         languages: ['hindi', 'english'],
+        religion: overrides.religion ?? 'hindu',
+        ...(overrides.preferred_cities ? { preferred_cities: overrides.preferred_cities } : {}),
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
@@ -272,11 +277,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          father_name: 'Suresh Kumar',
-          father_phone: '+919876500001',
-          current_address: '123 MG Road',
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(403);
@@ -288,11 +289,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          father_name: 'Suresh Kumar',
-          father_phone: '+919876500001',
-          current_address: '123 MG Road',
+          highest_qualification: 'rn_above_2_years',
           code: '9999',
           terms_accepted: true,
         })
@@ -310,12 +307,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          father_name: 'Suresh Kumar',
-          father_phone: '+919876500001',
-          current_address: '123 MG Road',
-          preferred_cities: ['bangalore', 'mumbai'],
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(200);
@@ -335,12 +327,6 @@ describe('Caregiver (e2e)', () => {
         .expect(200);
       expect(status.body.data.verification_status).toBe('pending_verification');
       expect(status.body.data.submitted_at).not.toBeNull();
-
-      const profile = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-      expect(profile.body.data.preferred_cities.sort()).toEqual(['bangalore', 'mumbai']);
 
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
@@ -366,11 +352,7 @@ describe('Caregiver (e2e)', () => {
       );
 
       const payload = {
-        highest_qualification: 'bsc_gnm_completed',
-        religion: 'hindu',
-        father_name: 'Suresh Kumar',
-        father_phone: '+919876500001',
-        current_address: '123 MG Road',
+        highest_qualification: 'rn_above_2_years',
         terms_accepted: true,
       };
 
@@ -402,88 +384,23 @@ describe('Caregiver (e2e)', () => {
       expect(profile.body.data.qualification_document_url).toBeNull();
     });
 
-    it("submits advanced details successfully without father's name or phone — it's optional", async () => {
-      const created = await registerTestCaregiver('0003');
-      const token = created.access_token as string;
-      const otherProfileId = created.profile_id as string;
+    it('sets preferred_cities from registration; stays empty when omitted', async () => {
+      const withCities = await registerTestCaregiver('0018', {
+        preferred_cities: ['bangalore', 'mumbai'],
+      });
+      const withoutCities = await registerTestCaregiver('0019');
 
-      await request(app.getHttpServer())
-        .post('/v1/caregiver/profile/selfie')
-        .set('Authorization', `Bearer ${token}`)
-        .attach('file', Buffer.from('fake selfie bytes'), 'selfie.jpg')
-        .expect(200);
-
-      await db.query(
-        "UPDATE caregiver_profiles SET verification_status = 'call_verified' WHERE id = $1",
-        [otherProfileId],
-      );
-
-      await request(app.getHttpServer())
-        .post('/v1/caregiver/profile/documents')
-        .set('Authorization', `Bearer ${token}`)
-        .field('document_type', 'aadhaar')
-        .attach('file', Buffer.from('fake aadhaar'), 'aadhaar.pdf')
-        .expect(200);
-
-      const res = await request(app.getHttpServer())
-        .put('/v1/caregiver/profile/advanced')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          current_address: '123 MG Road',
-          terms_accepted: true,
-        })
-        .expect(200);
-      expect(res.body.data.verification_status).toBe('pending_verification');
-
-      const profile = await request(app.getHttpServer())
+      const profileWithCities = await request(app.getHttpServer())
         .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${withCities.access_token}`)
         .expect(200);
-      expect(profile.body.data.father_name).toBeNull();
-      expect(profile.body.data.father_phone).toBeNull();
-    });
+      expect(profileWithCities.body.data.preferred_cities.sort()).toEqual(['bangalore', 'mumbai']);
 
-    it('submits advanced details successfully without current_address — it\'s optional', async () => {
-      const created = await registerTestCaregiver('0016');
-      const token = created.access_token as string;
-      const otherProfileId = created.profile_id as string;
-
-      await request(app.getHttpServer())
-        .post('/v1/caregiver/profile/selfie')
-        .set('Authorization', `Bearer ${token}`)
-        .attach('file', Buffer.from('fake selfie bytes'), 'selfie.jpg')
-        .expect(200);
-
-      await db.query(
-        "UPDATE caregiver_profiles SET verification_status = 'call_verified' WHERE id = $1",
-        [otherProfileId],
-      );
-
-      await request(app.getHttpServer())
-        .post('/v1/caregiver/profile/documents')
-        .set('Authorization', `Bearer ${token}`)
-        .field('document_type', 'aadhaar')
-        .attach('file', Buffer.from('fake aadhaar'), 'aadhaar.pdf')
-        .expect(200);
-
-      const res = await request(app.getHttpServer())
-        .put('/v1/caregiver/profile/advanced')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          terms_accepted: true,
-        })
-        .expect(200);
-      expect(res.body.data.verification_status).toBe('pending_verification');
-
-      const profile = await request(app.getHttpServer())
+      const profileWithoutCities = await request(app.getHttpServer())
         .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${withoutCities.access_token}`)
         .expect(200);
-      expect(profile.body.data.current_address).toBeNull();
+      expect(profileWithoutCities.body.data.preferred_cities).toEqual([]);
     });
   });
 
@@ -571,7 +488,7 @@ describe('Caregiver (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ current_address: '456 New St' })
+        .send({ highest_qualification: 'anm_student_backlog' })
         .expect(403);
       expect(res.body.error.code).toBe('PROFILE_025');
     });
@@ -595,9 +512,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          current_address: '123 Original St',
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(200);
@@ -609,7 +524,7 @@ describe('Caregiver (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${token}`)
-        .send({ current_address: '456 Updated St' })
+        .send({ highest_qualification: 'anm_student_backlog' })
         .expect(200);
       expect(res.body.data).toEqual({ message: 'Profile updated', has_pending_edits: true });
 
@@ -617,13 +532,13 @@ describe('Caregiver (e2e)', () => {
         .get('/v1/caregiver/profile')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(profile.body.data.current_address).toBe('456 Updated St');
+      expect(profile.body.data.highest_qualification).toBe('anm_student_backlog');
       expect(profile.body.data.religion).toBe('hindu');
       expect(profile.body.data.verification_status).toBe('available');
     });
 
     it('replaces preferred_cities (multi-select) via a partial edit', async () => {
-      const created = await registerTestCaregiver('0015');
+      const created = await registerTestCaregiver('0015', { preferred_cities: ['bangalore'] });
       const token = created.access_token as string;
       const otherProfileId = created.profile_id as string;
 
@@ -641,10 +556,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          current_address: '123 St',
-          preferred_cities: ['bangalore'],
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(200);
@@ -680,9 +592,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          current_address: '123 St',
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(200);
@@ -695,7 +605,7 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
-    it('rejects religion on self-edit — locked once set, only admins can change it (GEN_001, whitelist enforced)', async () => {
+    it('rejects religion on self-edit — it is set once at registration and locked thereafter (GEN_001, whitelist enforced)', async () => {
       const created = await registerTestCaregiver('0017');
       const token = created.access_token as string;
       await request(app.getHttpServer())
@@ -712,9 +622,7 @@ describe('Caregiver (e2e)', () => {
         .put('/v1/caregiver/profile/advanced')
         .set('Authorization', `Bearer ${token}`)
         .send({
-          highest_qualification: 'bsc_gnm_completed',
-          religion: 'hindu',
-          current_address: '123 St',
+          highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
         })
         .expect(200);

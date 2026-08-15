@@ -63,11 +63,7 @@ export interface AdminCaregiverDetail {
   aadhaar_document_url: string | null;
   other_document_urls: string[];
   religion: Religion | null;
-  father_name: string | null;
-  father_phone: string | null;
-  current_address: string | null;
   salary: string | null;
-  notes: string | null;
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
@@ -207,9 +203,8 @@ export class AdminCaregiversRepository {
     const result = await this.db.query<AdminCaregiverDetail>(
       `SELECT cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
               cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
-              cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.father_name,
-              cp.father_phone, cp.current_address, cp.salary,
-              cp.notes, cp.terms_accepted,
+              cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
+              cp.terms_accepted,
               cp.verification_status, cp.rejection_message, cp.advanced_details_completed,
               cp.has_pending_edits, cp.created_at, cp.submitted_at, cp.verified_at
        FROM caregiver_profiles cp

@@ -24,11 +24,6 @@ class EditAdvancedProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileScreen> {
-  final _fatherNameController = TextEditingController();
-  final _fatherPhoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _notesController = TextEditingController();
-
   CaregiverProfileModel? _profile;
   bool _loading = true;
   String? _qualification;
@@ -45,15 +40,6 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
     _load();
   }
 
-  @override
-  void dispose() {
-    _fatherNameController.dispose();
-    _fatherPhoneController.dispose();
-    _addressController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
   Future<void> _load() async {
     setState(() => _loading = true);
     final profile = await ref.read(profileRepositoryProvider).getProfile();
@@ -62,10 +48,6 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
       _profile = profile;
       _qualification = profile.highestQualification;
       _preferredCities = List.from(profile.preferredCities);
-      _fatherNameController.text = profile.fatherName ?? '';
-      _fatherPhoneController.text = (profile.fatherPhone ?? '').replaceFirst('+91', '');
-      _addressController.text = profile.currentAddress ?? '';
-      _notesController.text = profile.notes ?? '';
       _loading = false;
     });
   }
@@ -81,20 +63,9 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
       _successMessage = null;
     });
     try {
-      final fatherPhone = _fatherPhoneController.text.trim();
-      if (fatherPhone.isNotEmpty && !Validators.isValidPhone('+91$fatherPhone')) {
-        setState(() => _errorMessage = "Enter a valid 10-digit father's phone number, or leave it blank");
-        return;
-      }
-
       await ref.read(profileRepositoryProvider).editAdvancedProfile(
             highestQualification: _qualification != profile.highestQualification ? _qualification : null,
-            fatherName: _changedOrNull(_fatherNameController.text.trim(), profile.fatherName),
-            fatherPhone: _changedOrNull(fatherPhone.isEmpty ? null : '+91$fatherPhone', profile.fatherPhone),
-            currentAddress:
-                _addressController.text.trim() != (profile.currentAddress ?? '') ? _addressController.text.trim() : null,
             preferredCities: _preferredCitiesChanged(profile) ? _preferredCities : null,
-            notes: _notesController.text.trim() != (profile.notes ?? '') ? _notesController.text.trim() : null,
           );
       setState(() => _successMessage = 'Saved. Your admin will see this change flagged for review.');
       await _load();
@@ -103,14 +74,6 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  // Clearing a previously-set father's name or phone back to blank isn't
-  // supported by the backend (same limitation as admin-web's edit form) —
-  // an empty value here just means "leave it unchanged", not "delete it".
-  String? _changedOrNull(String? next, String? previous) {
-    if (next == null || next.isEmpty) return null;
-    return next != previous ? next : null;
   }
 
   bool _preferredCitiesChanged(CaregiverProfileModel profile) {
@@ -205,28 +168,6 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _fatherNameController,
-                    decoration: const InputDecoration(labelText: "Father's Name (optional)", border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _fatherPhoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      prefixText: '+91 ',
-                      labelText: "Father's Phone (optional)",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _addressController,
-                    maxLines: 3,
-                    maxLength: Validation.addressMaxLength,
-                    decoration: const InputDecoration(labelText: 'Current Address', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
                   const Text('Preferred City (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: AppSpacing.sm),
                   VitaMultiSelectChips(
@@ -234,13 +175,6 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
                     labels: City.displayNames,
                     selected: _preferredCities,
                     onChanged: (next) => setState(() => _preferredCities = next),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _notesController,
-                    maxLines: 2,
-                    maxLength: Validation.notesMaxLength,
-                    decoration: const InputDecoration(labelText: 'Notes (optional)', border: OutlineInputBorder()),
                   ),
                   if (_errorMessage != null) ...[
                     const SizedBox(height: AppSpacing.md),

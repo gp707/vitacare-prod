@@ -403,11 +403,12 @@ export const City = {
 } as const;
 
 export const Qualification = {
-  BSC_GNM_COMPLETED: 'bsc_gnm_completed',
-  ANM_COMPLETED: 'anm_completed',
-  BSC_GNM_ANM_BACKLOG: 'bsc_gnm_anm_backlog',
-  BSC_GNM_ANM_STUDENT: 'bsc_gnm_anm_student',
-  NON_NURSING: 'non_nursing',
+  RN_ABOVE_2_YEARS: 'rn_above_2_years',
+  RN_BELOW_2_YEARS: 'rn_below_2_years',
+  REGISTERED_RECENTLY: 'registered_recently',
+  BSC_GNM_UNREGISTERED: 'bsc_gnm_unregistered',
+  ANM_STUDENT_BACKLOG: 'anm_student_backlog',
+  GDA_NON_NURSING: 'gda_non_nursing',
 } as const;
 
 export const AuditAction = {
@@ -853,13 +854,9 @@ CREATE TABLE caregiver_profiles (
   highest_qualification VARCHAR(100),
   qualification_document_url TEXT,
   aadhaar_document_url TEXT,
-  religion VARCHAR(20) CHECK (religion IN ('hindu', 'muslim', 'christian', 'others')),
-  father_name VARCHAR(100),
-  father_phone VARCHAR(20),
-  current_address TEXT CHECK (char_length(current_address) <= 500),
+  religion VARCHAR(20) CHECK (religion IN ('hindu', 'muslim', 'christian', 'others')),  -- Set once at registration
   other_document_urls JSONB DEFAULT '[]',
   salary DECIMAL(10, 2) CHECK (salary >= 0),  -- Admin-assigned, visible to caregiver
-  notes TEXT CHECK (char_length(notes) <= 500),
   terms_accepted BOOLEAN DEFAULT false,
   verification_status VARCHAR(30) DEFAULT 'pending_call'
     CHECK (verification_status IN (
@@ -1173,7 +1170,9 @@ Register a new caregiver (Stage 1).
   "gender": "male",
   "age": 32,
   "languages": ["hindi", "english"],
-  "code": "1234"
+  "code": "1234",
+  "religion": "hindu",
+  "preferred_cities": ["bangalore", "mumbai"]
 }
 ```
 
@@ -1198,6 +1197,8 @@ Register a new caregiver (Stage 1).
 - `age`: Required, integer, 18-65 inclusive.
 - `languages`: Required, array, min 1 item, each must be valid language enum.
 - `code`: Required, exactly 4 digits, numeric only (`/^\d{4}$/`). This is the caregiver's login code from their very first session — used with `/auth/login/code` for every subsequent login. Hashed (bcrypt) and stored in `code_hash` at creation.
+- `religion`: Required, must be one of: `hindu`, `muslim`, `christian`, `others`. Set once here — locked from self-edit afterward; only admins can change it.
+- `preferred_cities`: Optional array (multi-select). If provided, each value must be one of: `bangalore`, `mumbai`, `hyderabad`, `chennai`, `pune`, `delhi`, `gurgaon`. Omitted or `[]` means no preference. Remains editable later via the advanced-details self-edit endpoint.
 
 **Note:** Selfie is uploaded separately via `POST /caregiver/profile/selfie` immediately after registration.
 
@@ -1311,20 +1312,16 @@ Get own full profile.
     "service_modes": ["24hrs_live_in"],
     "work_types": ["companion_care", "bedside_care"],
     "salary": 28000.00,
-    "highest_qualification": "bsc_gnm_completed",
+    "highest_qualification": "rn_above_2_years",
     "religion": "hindu",
-    "father_name": "Suresh Kumar",
-    "father_phone": "+919876500001",
     "qualification_document_url": "https://signed-url...",
     "aadhaar_document_url": "https://signed-url...",
     "other_document_urls": ["https://signed-url..."],
-    "current_address": "123, MG Road, Bangalore",
     "terms_accepted": true,
     "verification_status": "available",
     "rejection_message": null,
     "advanced_details_completed": true,
     "preferred_cities": ["bangalore", "mumbai"],
-    "notes": "Available for night shifts",
     "created_at": "2026-08-01T10:00:00Z"
   }
 }
@@ -1383,29 +1380,21 @@ Note: `verification_status` remains unchanged. It reflects the current status, N
 #### PUT `/caregiver/profile/advanced`
 
 Submit advanced details (only accessible after `call_verified` status).
+religion and preferred_cities are NOT part of this payload — both are
+collected once at registration (`POST /auth/register`). father_name,
+father_phone, current_address, and notes have been removed from the
+product entirely.
 
 **Request:**
 ```json
 {
-  "highest_qualification": "bsc_gnm_completed",
-  "religion": "hindu",
-  "father_name": "Suresh Kumar",
-  "father_phone": "+919876500001",
-  "current_address": "123, MG Road, Bangalore 560001",
-  "preferred_cities": ["bangalore", "mumbai"],
-  "notes": "Available for night shifts",
+  "highest_qualification": "rn_above_2_years",
   "terms_accepted": true
 }
 ```
 
 **Validation Rules:**
-- `highest_qualification`: Required, must be one of: `bsc_gnm_completed`, `anm_completed`, `bsc_gnm_anm_backlog`, `bsc_gnm_anm_student`, `non_nursing`.
-- `religion`: Required, must be one of: `hindu`, `muslim`, `christian`, `others`.
-- `father_name`: Optional. If provided, 1-100 characters, alphabetic + spaces only.
-- `father_phone`: Optional. If provided, must match `/^\+91[6-9]\d{9}$/`.
-- `current_address`: Optional. If provided, max 500 characters.
-- `preferred_cities`: Optional array (multi-select). If provided, each value must be one of: `bangalore`, `mumbai`, `hyderabad`, `chennai`, `pune`, `delhi`, `gurgaon`. Omitted or `[]` means no preference.
-- `notes`: Optional, max 500 characters.
+- `highest_qualification`: Required, must be one of: `rn_above_2_years`, `rn_below_2_years`, `registered_recently`, `bsc_gnm_unregistered`, `anm_student_backlog`, `gda_non_nursing`.
 - `terms_accepted`: Required, must be `true`.
 
 **Preconditions:**
@@ -1629,7 +1618,7 @@ Paginated, filterable list.
       "phone": "+919876543210",
       "gender": "male",
       "age": 32,
-      "highest_qualification": "bsc_gnm_completed",
+      "highest_qualification": "rn_above_2_years",
       "service_modes": ["24hrs_live_in"],
       "work_types": ["companion_care"],
       "verification_status": "pending_verification",
@@ -1667,20 +1656,16 @@ Full caregiver detail with signed document URLs.
     "service_modes": ["24hrs_live_in"],
     "work_types": ["companion_care", "bedside_care"],
     "salary": 28000.00,
-    "highest_qualification": "bsc_gnm_completed",
+    "highest_qualification": "rn_above_2_years",
     "religion": "hindu",
-    "father_name": "Suresh Kumar",
-    "father_phone": "+919876500001",
     "qualification_document_url": "https://signed-url...",
     "aadhaar_document_url": "https://signed-url...",
     "other_document_urls": ["https://signed-url..."],
-    "current_address": "123, MG Road, Bangalore",
     "terms_accepted": true,
     "verification_status": "pending_verification",
     "rejection_message": null,
     "advanced_details_completed": true,
     "preferred_cities": ["bangalore", "mumbai"],
-    "notes": null,
     "admin_notes": {
       "internal_notes": "Good candidate, verified docs look clean",
       "rate_24hrs_live_in": 25000.00,
@@ -2425,12 +2410,9 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | PROFILE_007 | 400 | Invalid phone number format | Phone doesn't match pattern |
 | PROFILE_008 | 403 | Advanced details not available. Phone call verification required. | Trying to submit advanced details before call_verified |
 | PROFILE_009 | 400 | Terms and conditions must be accepted | terms_accepted is false |
-| PROFILE_010 | 400 | Invalid religion value | Religion not in enum |
-| PROFILE_011 | 400 | Father's name is required | Missing father_name in advanced details |
+| PROFILE_010 | 400 | Invalid religion value | Religion not in enum (registration) |
 | PROFILE_012 | 400 | At least one service mode is required | Empty service_modes array |
 | PROFILE_013 | 400 | Invalid service mode: {value} | Service mode not in enum |
-| PROFILE_014 | 400 | Current address is required | Missing current_address |
-| PROFILE_015 | 400 | Address must be under 500 characters | Address too long |
 | PROFILE_016 | 400 | Code must be exactly 4 digits | Code not matching /^\d{4}$/ |
 | PROFILE_017 | 400 | Aadhaar card not uploaded. Please upload it before submitting. | Advanced submit without Aadhaar |
 | PROFILE_018 | 400 | Invalid qualification value | Qualification not in allowed list |
@@ -2792,7 +2774,7 @@ Route by verification_status:
   - Companion Care: ₹25,000 – ₹30,000
   - Bedside Care: ₹28,000 – ₹35,000
   - Critical Care: ₹30,000 – ₹45,000
-- Fields: Full Name, Phone (+91), Gender (dropdown), Age (number input), Languages (multi-select chips), 4-Digit Login Code (numeric PIN input, obscured) — this is the code the caregiver will use with their phone number to log in from here on.
+- Fields, in order: Full Name, Phone (+91), 4-Digit Login Code (numeric PIN input, obscured, right after phone number) — this is the code the caregiver will use with their phone number to log in from here on — Gender (dropdown), Age (number input), Languages (multi-select chips), Religion (dropdown: Hindu, Muslim, Christian, Others, mandatory), Preferred City (multi-select chips: Bangalore, Mumbai, etc., optional).
 - "Take Selfie" button → opens camera (NOT gallery). Use Flutter `ImagePicker` with `source: ImageSource.camera`. Do NOT offer `ImageSource.gallery` option. No server-side EXIF validation — this is client-side enforcement only.
 - "Register" button.
 - On success → navigate to Pending Call screen.
@@ -2804,7 +2786,7 @@ Route by verification_status:
 - Pull-to-refresh to check if status has changed.
 
 #### Advanced Details Form (`/advanced-details`)
-- Mandatory fields (Highest Qualification, Religion, Aadhaar upload, Terms & Conditions) are shown first and explicitly labeled "(mandatory)"; optional fields follow. Fields: Highest Qualification (dropdown, mandatory), Religion (dropdown: Hindu, Muslim, Christian, Others, mandatory), Current Address (text area, optional), Father's Name (text, optional), Father's Phone (+91, optional), Preferred City (multi-select chips: Bangalore, Mumbai, etc., optional), Notes (text area, optional), Terms & Conditions (checkbox with link, mandatory). No code field here — the login code was already set at registration.
+- Fields: Highest Qualification (dropdown, mandatory), Terms & Conditions (checkbox with link, mandatory). Religion and Preferred City are collected once at registration instead of here. No code field here — the login code was already set at registration. father_name, father_phone, current_address, and notes have been removed from the product entirely.
 - Document upload is inline on this same screen (no separate page/navigation):
   - Aadhaar Card (mandatory): upload button + status indicator.
   - Qualification Document (optional): upload button + status indicator.
@@ -2849,8 +2831,8 @@ Route by verification_status:
 - Info banner: "Changes will be reviewed by admin. Your current verification status is not affected."
 
 #### Edit Advanced Profile (`/profile/edit-advanced`)
-- Editable: Qualification, Address, Preferred City, Notes.
-- Religion shown read-only — contact the office to change it; only admins can (it's still settable on the Advanced Details form itself, during initial submission or rejected-resubmission — just not here).
+- Editable: Qualification, Preferred City.
+- Religion shown read-only — contact the office to change it; only admins can (it's set once at registration, not here).
 - Document re-upload buttons.
 - Service Modes, Work Types, Salary displayed as read-only (admin-assigned).
 - "Save" button.

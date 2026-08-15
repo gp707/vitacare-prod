@@ -123,11 +123,12 @@ components:
     Qualification:
       type: string
       enum:
-        - bsc_gnm_completed
-        - anm_completed
-        - bsc_gnm_anm_backlog
-        - bsc_gnm_anm_student
-        - non_nursing
+        - rn_above_2_years
+        - rn_below_2_years
+        - registered_recently
+        - bsc_gnm_unregistered
+        - anm_student_backlog
+        - gda_non_nursing
 
     VerificationStatus:
       type: string
@@ -301,10 +302,6 @@ components:
             type: string
           nullable: true
           description: Array of signed URLs (1-hour expiry)
-        current_address:
-          type: string
-          nullable: true
-          maxLength: 500
         terms_accepted:
           type: boolean
         verification_status:
@@ -318,11 +315,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/City"
-          description: Multi-select — zero or more preferred cities.
-        notes:
-          type: string
-          nullable: true
-          maxLength: 500
+          description: Multi-select — zero or more preferred cities. Collected at registration; remains editable via the self-edit endpoint.
         created_at:
           type: string
           format: date-time
@@ -524,7 +517,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [phone, full_name, gender, age, languages, code]
+              required: [phone, full_name, gender, age, languages, code, religion]
               properties:
                 phone:
                   type: string
@@ -558,6 +551,15 @@ paths:
                   pattern: '^\d{4}$'
                   description: "4-digit numeric login code, set once at registration"
                   example: "1234"
+                religion:
+                  $ref: "#/components/schemas/Religion"
+                  description: "Set once here — locked from self-edit afterward; only admins can change it."
+                preferred_cities:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/City"
+                  description: "Multi-select. Optional — omitted or [] means no preference. Remains editable later via the self-edit endpoint."
+                  example: ["bangalore", "mumbai"]
       responses:
         "201":
           description: Registration successful
@@ -943,17 +945,16 @@ paths:
                   selfie_photo_url: "https://storage.supabase.co/signed/..."
                   languages: ["hindi", "english"]
                   service_modes: ["24hrs_live_in", "12hrs_pg"]
-                  highest_qualification: "bsc_gnm_completed"
+                  highest_qualification: "rn_above_2_years"
                   qualification_document_url: "https://storage.supabase.co/signed/..."
                   aadhaar_document_url: "https://storage.supabase.co/signed/..."
                   other_document_urls: ["https://storage.supabase.co/signed/..."]
-                  current_address: "123, MG Road, Bangalore"
+                  religion: "hindu"
                   terms_accepted: true
                   verification_status: "available"
                   rejection_message: null
                   advanced_details_completed: true
                   preferred_cities: ["bangalore", "mumbai"]
-                  notes: "Available for night shifts"
                   created_at: "2026-08-01T10:00:00Z"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
@@ -1034,6 +1035,9 @@ paths:
         Requires the Aadhaar document to already be uploaded (selfie is already guaranteed by
         registration; qualification and "other" documents are optional, not required).
         On success, status transitions to `pending_verification`.
+        religion and preferred_cities are NOT part of this payload — both are collected once
+        at registration (`POST /auth/register`). father_name, father_phone, current_address,
+        and notes have been removed from the product entirely.
       operationId: submitAdvancedDetails
       security:
         - BearerAuth: []
@@ -1043,46 +1047,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [highest_qualification, religion, terms_accepted]
+              required: [highest_qualification, terms_accepted]
               properties:
                 highest_qualification:
                   $ref: "#/components/schemas/Qualification"
-                religion:
-                  $ref: "#/components/schemas/Religion"
-                  description: "Required. Caregiver's religion."
-                father_name:
-                  type: string
-                  nullable: true
-                  minLength: 1
-                  maxLength: 100
-                  pattern: "^[a-zA-Z\\s]+$"
-                  description: "Optional. Father's full name. Alphabetic + spaces only if provided."
-                  example: "Suresh Kumar"
-                father_phone:
-                  type: string
-                  nullable: true
-                  pattern: "^\\+91[6-9]\\d{9}$"
-                  description: "Optional. Father's phone number in +91XXXXXXXXXX format if provided."
-                  example: "+919876500001"
-                current_address:
-                  type: string
-                  nullable: true
-                  minLength: 1
-                  maxLength: 500
-                  description: "Optional. Max 500 characters if provided."
-                  example: "123, MG Road, Bangalore 560001"
-                preferred_cities:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/City"
-                  description: "Multi-select. Optional — omitted or [] means no preference."
-                  example: ["bangalore", "mumbai"]
-                notes:
-                  type: string
-                  nullable: true
-                  maxLength: 500
-                  description: "Optional notes, max 500 characters"
-                  example: "Available for night shifts"
                 terms_accepted:
                   type: boolean
                   description: "Must be true"
@@ -1173,9 +1141,11 @@ paths:
         resets status to `pending_verification`), this is a partial update
         (any subset of fields) that never touches verification_status, only
         flags `has_pending_edits = true`. Requires `advanced_details_completed = true`.
-        Does NOT include `religion` — once set (via the PUT above, on initial
-        submission or a rejected resubmission), it's locked from self-edit;
-        only admins can change it (PUT /admin/caregivers/{id}).
+        Does NOT include `religion` — it's collected once at registration
+        (`POST /auth/register`) and locked from self-edit thereafter; only
+        admins can change it (PUT /admin/caregivers/{id}). father_name,
+        father_phone, current_address, and notes have been removed from the
+        product entirely.
       operationId: editAdvancedProfile
       security:
         - BearerAuth: []
@@ -1189,27 +1159,12 @@ paths:
               properties:
                 highest_qualification:
                   $ref: "#/components/schemas/Qualification"
-                father_name:
-                  type: string
-                  nullable: true
-                  pattern: "^[a-zA-Z\\s]+$"
-                father_phone:
-                  type: string
-                  nullable: true
-                  pattern: "^\\+91[6-9]\\d{9}$"
-                current_address:
-                  type: string
-                  maxLength: 500
                 preferred_cities:
                   type: array
                   items:
                     $ref: "#/components/schemas/City"
-                notes:
-                  type: string
-                  nullable: true
-                  maxLength: 500
             example:
-              current_address: "456, New Address, Bangalore 560001"
+              preferred_cities: ["bangalore", "mumbai"]
       responses:
         "200":
           description: Profile updated
@@ -1981,7 +1936,7 @@ paths:
                     phone: "+919876543210"
                     gender: "male"
                     age: 32
-                    highest_qualification: "bsc_gnm_completed"
+                    highest_qualification: "rn_above_2_years"
                     service_modes: ["24hrs_live_in"]
                     verification_status: "pending_verification"
                     created_at: "2026-08-01T10:00:00Z"
@@ -2050,17 +2005,16 @@ paths:
                   selfie_photo_url: "https://storage.supabase.co/signed/..."
                   languages: ["hindi", "english"]
                   service_modes: ["24hrs_live_in", "12hrs_pg"]
-                  highest_qualification: "bsc_gnm_completed"
+                  highest_qualification: "rn_above_2_years"
                   qualification_document_url: "https://storage.supabase.co/signed/..."
                   aadhaar_document_url: "https://storage.supabase.co/signed/..."
                   other_document_urls: ["https://storage.supabase.co/signed/..."]
-                  current_address: "123, MG Road, Bangalore"
+                  religion: "hindu"
                   terms_accepted: true
                   verification_status: "pending_verification"
                   rejection_message: null
                   advanced_details_completed: true
                   preferred_cities: ["bangalore"]
-                  notes: null
                   admin_notes:
                     internal_notes: "Good candidate, verified docs look clean"
                     rate_24hrs_live_in: 25000.00
@@ -2135,23 +2089,10 @@ paths:
                   $ref: "#/components/schemas/Qualification"
                 religion:
                   $ref: "#/components/schemas/Religion"
-                father_name:
-                  type: string
-                  pattern: '^[a-zA-Z\s]+$'
-                father_phone:
-                  type: string
-                  pattern: '^\+91[6-9]\d{9}$'
-                current_address:
-                  type: string
-                  maxLength: 500
                 preferred_cities:
                   type: array
                   items:
                     $ref: "#/components/schemas/City"
-                notes:
-                  type: string
-                  nullable: true
-                  maxLength: 500
             example:
               full_name: "Ramesh Kumar"
               age: 33

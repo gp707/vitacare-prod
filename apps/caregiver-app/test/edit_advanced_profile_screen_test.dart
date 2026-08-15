@@ -28,7 +28,6 @@ CaregiverProfileModel _profile({String status = 'available'}) {
     'aadhaar_document_url': 'https://signed/aadhaar',
     'highest_qualification': 'rn_above_2_years',
     'religion': 'hindu',
-    'current_address': '123 Old Street',
   });
 }
 
@@ -45,20 +44,12 @@ class _FakeProfileRepository extends ProfileRepository {
   @override
   Future<void> editAdvancedProfile({
     String? highestQualification,
-    String? fatherName,
-    String? fatherPhone,
-    String? currentAddress,
     List<String>? preferredCities,
-    String? notes,
   }) async {
     editAdvancedProfileCalled = true;
     captured = {
       'highestQualification': highestQualification,
-      'fatherName': fatherName,
-      'fatherPhone': fatherPhone,
-      'currentAddress': currentAddress,
       'preferredCities': preferredCities,
-      'notes': notes,
     };
   }
 }
@@ -111,14 +102,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Current Address'), '456 New Street');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(Qualification.displayNames[Qualification.rnBelow2Years]!).last);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.editAdvancedProfileCalled, isTrue);
-    expect(fakeRepo.captured['currentAddress'], '456 New Street');
-    expect(fakeRepo.captured['highestQualification'], isNull);
-    expect(fakeRepo.captured['fatherName'], isNull);
+    expect(fakeRepo.captured['highestQualification'], Qualification.rnBelow2Years);
     expect(fakeRepo.captured['preferredCities'], isNull);
   });
 

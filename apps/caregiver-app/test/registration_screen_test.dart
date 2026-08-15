@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/core/storage/local_storage.dart';
@@ -24,6 +25,8 @@ class _FakeAuthRepository extends AuthRepository {
     required int age,
     required List<String> languages,
     required String code,
+    required String religion,
+    List<String>? preferredCities,
   }) async {
     registerCalled = true;
     capturedCode = code;
@@ -82,6 +85,24 @@ void main() {
     expect(authRepo.registerCalled, isFalse);
   });
 
+  testWidgets('blocks submission without religion selected, without calling register', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
+    await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+    await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
+    await tester.tap(find.text('Hindi'));
+    await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
+    await tester.pump();
+
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+
+    expect(find.text('Select your religion'), findsOneWidget);
+    expect(authRepo.registerCalled, isFalse);
+  });
+
   testWidgets('blocks submission without a selfie, without calling register', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
@@ -92,6 +113,10 @@ void main() {
     await tester.tap(find.text('Hindi'));
     await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
     await tester.pump();
+    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(Religion.displayNames[Religion.hindu]!).last);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump();

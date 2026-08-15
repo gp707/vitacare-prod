@@ -26,8 +26,10 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Email:** Nodemailer + Gmail SMTP (vitacasahealthindia@gmail.com). Plain text only in V1.
 - **No OTP:** Phone login has no OTP. Phone verified via office call.
 - **Caregiver login:** Phone + 4-digit code, always. The code is set at registration (not deferred to advanced details) and is required for every login from the first session onward. There is no phone-only login endpoint.
-- **Profile edits don't auto-reset status**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends an `available`/`unavailable` caregiver back to `pending_verification` (not from `in_process`/`assigned` — see transition matrix). Every other edit (gender, age, languages, login code/PIN, qualification, religion, parents' info, address, city, notes, selfie/profile picture, qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched.
-- **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows a narrower version of the same rule: it's caregiver-settable during Advanced Details submission and rejected-resubmission (`PUT /caregiver/profile/advanced`), but once set it's locked from the separate self-edit endpoint (`PATCH /caregiver/profile/advanced`) — only admins can change it from that point on. Every other basic/advanced field remains caregiver-editable via self-edit.
+- **Religion and preferred cities are collected once at registration** (`POST /auth/register`), not during Advanced Details. Religion is required at registration; preferred cities is optional there and remains editable afterward via the advanced-details self-edit endpoint.
+- **father_name, father_phone, current_address, and notes have been removed from the product entirely** — no longer collected, stored, or displayed anywhere (caregiver-app, admin-web, or the database).
+- **Profile edits don't auto-reset status**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends an `available`/`unavailable` caregiver back to `pending_verification` (not from `in_process`/`assigned` — see transition matrix). Every other edit (gender, age, languages, login code/PIN, qualification, city, selfie/profile picture, qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched.
+- **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile/advanced`) — only admins can change it from that point on. Every other basic/advanced field remains caregiver-editable via self-edit.
 
 ## Naming Conventions (STRICT)
 
@@ -135,7 +137,7 @@ companion_care, bedside_care, critical_care
 bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon
 
 ### Qualifications
-bsc_gnm_completed, anm_completed, bsc_gnm_anm_backlog, bsc_gnm_anm_student, non_nursing
+rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_years ("Registered Nurse below 2 years experience"), registered_recently ("Registered Recently"), bsc_gnm_unregistered ("BSC / GNM Completed - Unregistered"), anm_student_backlog ("ANM/Nursing Student/ Backlog"), gda_non_nursing ("GDA / Non Nursing")
 
 ### Gender
 male, female, other

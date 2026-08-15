@@ -150,26 +150,29 @@ class City {
 }
 
 class Qualification {
-  static const bscGnmCompleted = 'bsc_gnm_completed';
-  static const anmCompleted = 'anm_completed';
-  static const bscGnmAnmBacklog = 'bsc_gnm_anm_backlog';
-  static const bscGnmAnmStudent = 'bsc_gnm_anm_student';
-  static const nonNursing = 'non_nursing';
+  static const rnAbove2Years = 'rn_above_2_years';
+  static const rnBelow2Years = 'rn_below_2_years';
+  static const registeredRecently = 'registered_recently';
+  static const bscGnmUnregistered = 'bsc_gnm_unregistered';
+  static const anmStudentBacklog = 'anm_student_backlog';
+  static const gdaNonNursing = 'gda_non_nursing';
 
   static const all = [
-    bscGnmCompleted,
-    anmCompleted,
-    bscGnmAnmBacklog,
-    bscGnmAnmStudent,
-    nonNursing,
+    rnAbove2Years,
+    rnBelow2Years,
+    registeredRecently,
+    bscGnmUnregistered,
+    anmStudentBacklog,
+    gdaNonNursing,
   ];
 
   static const displayNames = {
-    bscGnmCompleted: 'BSc/GNM Completed',
-    anmCompleted: 'ANM Completed',
-    bscGnmAnmBacklog: 'BSc/GNM/ANM (Backlog)',
-    bscGnmAnmStudent: 'BSc/GNM/ANM (Student)',
-    nonNursing: 'Non-Nursing',
+    rnAbove2Years: 'Registered Nurse above 2 years of experience',
+    rnBelow2Years: 'Registered Nurse below 2 years experience',
+    registeredRecently: 'Registered Recently',
+    bscGnmUnregistered: 'BSC / GNM Completed - Unregistered',
+    anmStudentBacklog: 'ANM/Nursing Student/ Backlog',
+    gdaNonNursing: 'GDA / Non Nursing',
   };
 }
 

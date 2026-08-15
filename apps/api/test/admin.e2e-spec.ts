@@ -59,6 +59,7 @@ describe('Admin (e2e)', () => {
         gender: 'male',
         age: 29,
         languages: ['hindi'],
+        religion: 'hindu',
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string };
@@ -127,6 +128,7 @@ describe('Admin (e2e)', () => {
           gender: 'male',
           age: 30,
           languages: ['hindi'],
+          religion: 'hindu',
           code: '1234',
         });
       const res = await request(app.getHttpServer())

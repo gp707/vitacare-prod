@@ -134,16 +134,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           children: [
             _Field('Qualification', Qualification.displayNames[profile.highestQualification] ?? '—'),
             _Field('Religion', Religion.displayNames[profile.religion] ?? '—'),
-            _Field("Father's Name", profile.fatherName ?? '—'),
-            _Field("Father's Phone", profile.fatherPhone ?? '—'),
-            _Field('Address', profile.currentAddress ?? '—'),
             _Field(
               'Preferred City',
               profile.preferredCities.isEmpty
                   ? '—'
                   : profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', '),
             ),
-            _Field('Notes', profile.notes ?? '—'),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),

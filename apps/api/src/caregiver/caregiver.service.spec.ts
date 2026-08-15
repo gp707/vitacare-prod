@@ -34,11 +34,7 @@ describe('CaregiverService', () => {
     aadhaar_document_url: null,
     other_document_urls: [],
     religion: null,
-    father_name: null,
-    father_phone: null,
-    current_address: null,
     salary: null,
-    notes: null,
     terms_accepted: false,
     rejection_message: null,
     has_pending_edits: false,
@@ -214,11 +210,7 @@ describe('CaregiverService', () => {
 
   describe('submitAdvancedDetails', () => {
     const validDto = {
-      highest_qualification: 'bsc_gnm_completed' as any,
-      religion: 'hindu' as any,
-      father_name: 'Suresh Kumar',
-      father_phone: '+919876500001',
-      current_address: '123 MG Road',
+      highest_qualification: 'rn_above_2_years' as any,
       terms_accepted: true,
     };
 
@@ -255,64 +247,6 @@ describe('CaregiverService', () => {
       });
       const result = await service.submitAdvancedDetails('user-1', validDto);
       expect(result.verification_status).toBe('pending_verification');
-    });
-
-    it('replaces preferred_cities with whatever was submitted, defaulting to empty when omitted', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-        selfie_photo_url: 'p/selfie.jpg',
-        aadhaar_document_url: 'p/a.jpg',
-      });
-      await service.submitAdvancedDetails('user-1', {
-        ...validDto,
-        preferred_cities: ['bangalore', 'pune'] as any,
-      });
-      expect(preferredCitiesRepo.replaceForProfile).toHaveBeenCalledWith('profile-1', [
-        'bangalore',
-        'pune',
-      ]);
-
-      preferredCitiesRepo.replaceForProfile.mockClear();
-      await service.submitAdvancedDetails('user-1', validDto);
-      expect(preferredCitiesRepo.replaceForProfile).toHaveBeenCalledWith('profile-1', []);
-    });
-
-    it("succeeds without father's name or phone — they are optional", async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-        selfie_photo_url: 'p/selfie.jpg',
-        qualification_document_url: 'p/q.jpg',
-        aadhaar_document_url: 'p/a.jpg',
-      });
-      const { father_name, father_phone, ...dtoWithoutParents } = validDto;
-      const result = await service.submitAdvancedDetails('user-1', dtoWithoutParents as any);
-      expect(result.verification_status).toBe('pending_verification');
-      expect(profilesRepo.updateAdvanced).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          father_name: null,
-          father_phone: null,
-        }),
-      );
-    });
-
-    it('succeeds when current_address is omitted', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.CALL_VERIFIED,
-        selfie_photo_url: 'p/selfie.jpg',
-        qualification_document_url: 'p/q.jpg',
-        aadhaar_document_url: 'p/a.jpg',
-      });
-      const { current_address, ...dtoWithoutAddress } = validDto;
-      const result = await service.submitAdvancedDetails('user-1', dtoWithoutAddress as any);
-      expect(result.verification_status).toBe('pending_verification');
-      expect(profilesRepo.updateAdvanced).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ current_address: null }),
-      );
     });
 
     it('succeeds for a rejected caregiver resubmitting, transitions to pending_verification', async () => {
@@ -511,7 +445,7 @@ describe('CaregiverService', () => {
         advanced_details_completed: false,
       });
       await expect(
-        service.editAdvancedProfile('user-1', { current_address: '456 New St' }),
+        service.editAdvancedProfile('user-1', { highest_qualification: 'anm_student_backlog' as any }),
       ).rejects.toMatchObject({ code: 'PROFILE_025' });
     });
 
@@ -519,16 +453,14 @@ describe('CaregiverService', () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
         advanced_details_completed: true,
-        current_address: '123 Old St',
+        highest_qualification: 'non_nursing',
         verification_status: VerificationStatus.AVAILABLE,
       });
-      const result = await service.editAdvancedProfile('user-1', { current_address: '456 New St' });
+      const result = await service.editAdvancedProfile('user-1', {
+        highest_qualification: 'anm_student_backlog' as any,
+      });
       expect(profilesRepo.editAdvancedFields).toHaveBeenCalledWith('profile-1', {
-        highest_qualification: undefined,
-        father_name: undefined,
-        father_phone: undefined,
-        current_address: '456 New St',
-        notes: undefined,
+        highest_qualification: 'anm_student_backlog',
       });
       expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
       expect(result).toEqual({ message: 'Profile updated', has_pending_edits: true });
@@ -538,9 +470,9 @@ describe('CaregiverService', () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
         advanced_details_completed: true,
-        current_address: '123 Same St',
+        highest_qualification: 'anm_student_backlog',
       });
-      await service.editAdvancedProfile('user-1', { current_address: '123 Same St' });
+      await service.editAdvancedProfile('user-1', { highest_qualification: 'anm_student_backlog' as any });
       expect(profilesRepo.editAdvancedFields).not.toHaveBeenCalled();
       expect(emailService.sendToAdmin).not.toHaveBeenCalled();
       expect(auditService.log).not.toHaveBeenCalled();
