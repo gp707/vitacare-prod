@@ -1,12 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import {
-  Qualification,
-  ServiceMode,
-  Validation,
-  VerificationStatus,
-  WorkType,
-} from '@vitacare/shared-constants';
+import { Qualification, Validation, VerificationStatus } from '@vitacare/shared-constants';
 
 export class ListCaregiversQueryDto {
   @IsOptional()
@@ -46,14 +40,6 @@ export class ListCaregiversQueryDto {
   @IsOptional()
   @IsString()
   language?: string;
-
-  @IsOptional()
-  @IsIn(Object.values(ServiceMode), { message: 'GEN_005' })
-  service_mode?: ServiceMode;
-
-  @IsOptional()
-  @IsIn(Object.values(WorkType), { message: 'GEN_005' })
-  work_type?: WorkType;
 
   @IsOptional()
   @IsDateString({}, { message: 'GEN_005' })

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Gender, Qualification, Religion, ServiceMode, VerificationStatus, WorkType } from '@vitacare/shared-constants';
+import { Gender, Qualification, Religion, VerificationStatus } from '@vitacare/shared-constants';
 import { DatabaseService } from '../database.service';
 
 export interface DashboardStats {
@@ -22,8 +22,6 @@ export interface AdminCaregiverListItem {
   gender: Gender;
   age: number;
   highest_qualification: Qualification | null;
-  service_modes: ServiceMode[];
-  work_types: WorkType[];
   verification_status: VerificationStatus;
   created_at: Date;
 }
@@ -33,8 +31,6 @@ export interface AdminCaregiverListFilters {
   status?: VerificationStatus;
   qualification?: Qualification;
   languages?: string[];
-  serviceMode?: ServiceMode;
-  workType?: WorkType;
   fromDate?: string;
   toDate?: string;
 }
@@ -60,7 +56,6 @@ export interface AdminCaregiverDetail {
   aadhaar_document_url: string | null;
   other_document_urls: string[];
   religion: Religion | null;
-  salary: string | null;
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
@@ -95,18 +90,6 @@ function buildWhereClause(filters: AdminCaregiverListFilters): { clause: string;
     params.push(filters.languages);
     conditions.push(
       `EXISTS (SELECT 1 FROM caregiver_languages cl WHERE cl.profile_id = cp.id AND cl.language = ANY($${params.length}))`,
-    );
-  }
-  if (filters.serviceMode) {
-    params.push(filters.serviceMode);
-    conditions.push(
-      `EXISTS (SELECT 1 FROM caregiver_service_modes csm WHERE csm.profile_id = cp.id AND csm.service_mode = $${params.length})`,
-    );
-  }
-  if (filters.workType) {
-    params.push(filters.workType);
-    conditions.push(
-      `EXISTS (SELECT 1 FROM caregiver_work_types cwt WHERE cwt.profile_id = cp.id AND cwt.work_type = $${params.length})`,
     );
   }
   if (filters.fromDate) {
@@ -164,19 +147,9 @@ export class AdminCaregiversRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminCaregiverListItem>(
         `SELECT cp.id AS profile_id, cp.user_id, u.full_name, u.phone, cp.gender, cp.age,
-                cp.highest_qualification, cp.verification_status, cp.created_at,
-                COALESCE(sm.service_modes, ARRAY[]::text[]) AS service_modes,
-                COALESCE(wt.work_types, ARRAY[]::text[]) AS work_types
+                cp.highest_qualification, cp.verification_status, cp.created_at
          FROM caregiver_profiles cp
          JOIN users u ON u.id = cp.user_id
-         LEFT JOIN (
-           SELECT profile_id, array_agg(service_mode) AS service_modes
-           FROM caregiver_service_modes GROUP BY profile_id
-         ) sm ON sm.profile_id = cp.id
-         LEFT JOIN (
-           SELECT profile_id, array_agg(work_type) AS work_types
-           FROM caregiver_work_types GROUP BY profile_id
-         ) wt ON wt.profile_id = cp.id
          ${clause}
          ORDER BY ${sortColumn} ${orderDirection}
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
@@ -195,7 +168,7 @@ export class AdminCaregiversRepository {
     const result = await this.db.query<AdminCaregiverDetail>(
       `SELECT cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
               cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
-              cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
+              cp.aadhaar_document_url, cp.other_document_urls, cp.religion,
               cp.terms_accepted,
               cp.verification_status, cp.rejection_message,
               cp.has_pending_edits, cp.created_at, cp.verified_at

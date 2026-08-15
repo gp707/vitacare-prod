@@ -28,9 +28,6 @@ import { UpdateCaregiverStatusDto } from './dto/update-caregiver-status.dto';
 import { UpsertAdminNotesDto } from './dto/upsert-admin-notes.dto';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
-import { AssignWorkTypesDto } from './dto/assign-work-types.dto';
-import { AssignServiceModesDto } from './dto/assign-service-modes.dto';
-import { UpdateSalaryDto } from './dto/update-salary.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
 @Controller('admin')
@@ -92,39 +89,6 @@ export class AdminController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminService.editProfile(id, user.sub, dto, ip);
-  }
-
-  @Put('caregivers/:id/work-types')
-  @HttpCode(HttpStatus.OK)
-  assignWorkTypes(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: AssignWorkTypesDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.adminService.assignWorkTypes(id, user.sub, dto, ip);
-  }
-
-  @Put('caregivers/:id/service-modes')
-  @HttpCode(HttpStatus.OK)
-  assignServiceModes(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: AssignServiceModesDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.adminService.assignServiceModes(id, user.sub, dto, ip);
-  }
-
-  @Patch('caregivers/:id/salary')
-  @HttpCode(HttpStatus.OK)
-  updateSalary(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: UpdateSalaryDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.adminService.updateSalary(id, user.sub, dto, ip);
   }
 
   @Post('caregivers/:id/selfie')

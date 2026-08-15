@@ -125,7 +125,6 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.data.profile_id).toBe(profileId);
       expect(res.body.data.languages).toEqual(['hindi', 'english']);
       expect(res.body.data.selfie_photo_url).toBeNull();
-      expect(res.body.data.service_modes).toEqual([]);
       expect(res.body.data.verification_status).toBe('pending_call');
       expect(res.body.data.highest_qualification).toBe('rn_above_2_years');
       expect(res.body.data.terms_accepted).toBe(true);

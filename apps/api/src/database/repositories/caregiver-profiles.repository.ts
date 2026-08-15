@@ -25,7 +25,6 @@ export interface CaregiverProfileFullRecord {
   aadhaar_document_url: string | null;
   other_document_urls: string[];
   religion: Religion | null;
-  salary: string | null;
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;
@@ -65,7 +64,7 @@ export interface EditProfileInput {
 const FULL_PROFILE_COLUMNS = `
   cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
   cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
-  cp.aadhaar_document_url, cp.other_document_urls, cp.religion, cp.salary,
+  cp.aadhaar_document_url, cp.other_document_urls, cp.religion,
   cp.terms_accepted,
   cp.verification_status, cp.rejection_message,
   cp.has_pending_edits, cp.verified_at, cp.created_at
@@ -177,14 +176,6 @@ export class CaregiverProfilesRepository {
            updated_at = NOW()
        WHERE id = $1`,
       [profileId],
-    );
-  }
-
-  async updateSalary(profileId: string, salary: number, client?: PoolClient): Promise<void> {
-    const runner: QueryRunner = client ?? this.db;
-    await runner.query(
-      'UPDATE caregiver_profiles SET salary = $2, updated_at = NOW() WHERE id = $1',
-      [profileId, salary],
     );
   }
 

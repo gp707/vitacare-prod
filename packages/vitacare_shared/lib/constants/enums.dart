@@ -176,14 +176,12 @@ class AuditAction {
   static const profileUpdated = 'profile_updated';
   static const statusChanged = 'status_changed';
   static const codeChanged = 'code_changed';
-  static const serviceModeAssigned = 'service_mode_assigned';
   static const adminEditProfile = 'admin_edit_profile';
   static const adminNoteAdded = 'admin_note_added';
   static const adminCreated = 'admin_created';
   static const adminDeactivated = 'admin_deactivated';
   static const phoneChanged = 'phone_changed';
   static const editsAcknowledged = 'edits_acknowledged';
-  static const workTypeAssigned = 'work_type_assigned';
   static const jobPosted = 'job_posted';
   static const jobClosed = 'job_closed';
   static const jobResponse = 'job_response';
@@ -198,14 +196,12 @@ class AuditAction {
     profileUpdated,
     statusChanged,
     codeChanged,
-    serviceModeAssigned,
     adminEditProfile,
     adminNoteAdded,
     adminCreated,
     adminDeactivated,
     phoneChanged,
     editsAcknowledged,
-    workTypeAssigned,
     jobPosted,
     jobClosed,
     jobResponse,

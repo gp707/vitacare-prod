@@ -7,8 +7,6 @@ import {
   CaregiverProfileFullRecord,
 } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
-import { CaregiverServiceModesRepository } from '../database/repositories/caregiver-service-modes.repository';
-import { CaregiverWorkTypesRepository } from '../database/repositories/caregiver-work-types.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { DatabaseService } from '../database/database.service';
@@ -35,8 +33,6 @@ export class CaregiverService {
     private readonly usersRepo: UsersRepository,
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly languagesRepo: CaregiverLanguagesRepository,
-    private readonly serviceModesRepo: CaregiverServiceModesRepository,
-    private readonly workTypesRepo: CaregiverWorkTypesRepository,
     private readonly preferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly uploadService: UploadService,
     private readonly emailService: EmailService,
@@ -45,10 +41,8 @@ export class CaregiverService {
 
   async getProfile(userId: string) {
     const profile = await this.requireFullProfile(userId);
-    const [languages, serviceModes, workTypes, preferredCities] = await Promise.all([
+    const [languages, preferredCities] = await Promise.all([
       this.languagesRepo.findByProfileId(profile.id),
-      this.serviceModesRepo.findByProfileId(profile.id),
-      this.workTypesRepo.findByProfileId(profile.id),
       this.preferredCitiesRepo.findByProfileId(profile.id),
     ]);
 
@@ -76,9 +70,6 @@ export class CaregiverService {
       age: profile.age,
       selfie_photo_url: selfieUrl,
       languages,
-      service_modes: serviceModes,
-      work_types: workTypes,
-      salary: profile.salary === null ? null : Number(profile.salary),
       highest_qualification: profile.highest_qualification,
       qualification_document_url: qualificationUrl,
       aadhaar_document_url: aadhaarUrl,

@@ -43,22 +43,17 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   String? _uploadingDocType;
 
   final _internalNotesController = TextEditingController();
-  final _rate24Controller = TextEditingController();
-  final _rate12Controller = TextEditingController();
   final _remarksController = TextEditingController();
 
   bool _editMode = false;
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
   final _ageController = TextEditingController();
-  final _salaryController = TextEditingController();
   String? _editGender;
   String? _editQualification;
   String? _editReligion;
   List<String> _editPreferredCities = [];
   List<String> _editLanguages = [];
-  List<String> _editWorkTypes = [];
-  List<String> _editServiceModes = [];
 
   // Admin status override — unrestricted, any status from any status
   // (see PATCH /admin/caregivers/:id/status; no transition-matrix check).
@@ -74,12 +69,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   @override
   void dispose() {
     _internalNotesController.dispose();
-    _rate24Controller.dispose();
-    _rate12Controller.dispose();
     _remarksController.dispose();
     _fullNameController.dispose();
     _ageController.dispose();
-    _salaryController.dispose();
     _overrideRejectionController.dispose();
     super.dispose();
   }
@@ -95,8 +87,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       setState(() {
         _detail = detail;
         _internalNotesController.text = detail.adminNotes.internalNotes ?? '';
-        _rate24Controller.text = detail.adminNotes.rate24hrsLiveIn?.toString() ?? '';
-        _rate12Controller.text = detail.adminNotes.rate12hrsPg?.toString() ?? '';
         _remarksController.text = detail.adminNotes.availabilityRemarks ?? '';
       });
       unawaited(_loadAuditHistory(detail.userId));
@@ -144,8 +134,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             internalNotes: _internalNotesController.text.trim().isEmpty
                 ? null
                 : _internalNotesController.text.trim(),
-            rate24hrsLiveIn: num.tryParse(_rate24Controller.text.trim()),
-            rate12hrsPg: num.tryParse(_rate12Controller.text.trim()),
             availabilityRemarks:
                 _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
           );
@@ -160,15 +148,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   void _enterEditMode(AdminCaregiverDetail detail) {
     _fullNameController.text = detail.fullName;
     _ageController.text = detail.age.toString();
-    _salaryController.text = detail.salary?.toString() ?? '';
     setState(() {
       _editGender = detail.gender;
       _editQualification = detail.highestQualification;
       _editReligion = detail.religion;
       _editPreferredCities = List.from(detail.preferredCities);
       _editLanguages = List.from(detail.languages);
-      _editWorkTypes = List.from(detail.workTypes);
-      _editServiceModes = List.from(detail.serviceModes);
       _editMode = true;
     });
   }
@@ -198,25 +183,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
       if (fields.isNotEmpty) {
         await ref.read(adminCaregiversRepositoryProvider).editProfile(widget.profileId, fields);
-      }
-
-      final sortedNewWorkTypes = [..._editWorkTypes]..sort();
-      final sortedOldWorkTypes = [...detail.workTypes]..sort();
-      if (_editWorkTypes.isNotEmpty && sortedNewWorkTypes.join(',') != sortedOldWorkTypes.join(',')) {
-        await ref.read(adminCaregiversRepositoryProvider).assignWorkTypes(widget.profileId, _editWorkTypes);
-      }
-
-      final sortedNewModes = [..._editServiceModes]..sort();
-      final sortedOldModes = [...detail.serviceModes]..sort();
-      if (_editServiceModes.isNotEmpty && sortedNewModes.join(',') != sortedOldModes.join(',')) {
-        await ref
-            .read(adminCaregiversRepositoryProvider)
-            .assignServiceModes(widget.profileId, _editServiceModes);
-      }
-
-      final salary = num.tryParse(_salaryController.text.trim());
-      if (salary != null && salary != detail.salary) {
-        await ref.read(adminCaregiversRepositoryProvider).updateSalary(widget.profileId, salary);
       }
 
       if (mounted) {
@@ -489,9 +455,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         _field('Languages', detail.languages.join(', ')),
         _field('Qualification', Qualification.displayNames[detail.highestQualification] ?? detail.highestQualification ?? '-'),
         _field('Religion', detail.religion ?? '-'),
-        _field('Service Modes (admin-assigned)', detail.serviceModes.join(', ')),
-        _field('Work Types (admin-assigned)', detail.workTypes.join(', ')),
-        _field('Salary (admin-assigned)', detail.salary?.toString() ?? '-'),
         _field('Preferred City', detail.preferredCities.isEmpty ? '-' : detail.preferredCities.join(', ')),
         _field('Terms Accepted', detail.termsAccepted ? 'Yes' : 'No'),
         _field('Has Pending Edits', detail.hasPendingEdits ? 'Yes' : 'No'),
@@ -585,40 +548,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Divider(),
-        const SizedBox(height: AppSpacing.sm),
-        const Text('Admin Assignment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: AppSpacing.sm),
-        const Text('Work Types', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: AppSpacing.xs),
-        VitaMultiSelectChips(
-          options: WorkType.all,
-          labels: WorkType.displayNames,
-          selected: _editWorkTypes,
-          onChanged: (next) => setState(() => _editWorkTypes = next),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        const Text('Service Modes', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: AppSpacing.xs),
-        VitaMultiSelectChips(
-          options: ServiceMode.all,
-          labels: ServiceMode.displayNames,
-          selected: _editServiceModes,
-          onChanged: (next) => setState(() => _editServiceModes = next),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          width: 240,
-          child: TextField(
-            controller: _salaryController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Salary (INR/month)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
         ElevatedButton(
           onPressed: _savingEdits ? null : () => _saveProfileEdits(detail),
           child: _savingEdits
@@ -709,32 +638,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             controller: _internalNotesController,
             maxLines: 4,
             decoration: const InputDecoration(labelText: 'Internal Notes', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _rate24Controller,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Rate — 24Hrs Live-In (INR/month)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: _rate12Controller,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Rate — 12Hrs PG (INR/month)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-            ],
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(

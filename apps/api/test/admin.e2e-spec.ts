@@ -201,8 +201,6 @@ describe('Admin (e2e)', () => {
       expect(detail.body.data.full_name).toBe('Dashboard Subject');
       expect(detail.body.data.admin_notes).toEqual({
         internal_notes: null,
-        rate_24hrs_live_in: null,
-        rate_12hrs_pg: null,
         availability_remarks: null,
       });
     });
@@ -231,7 +229,7 @@ describe('Admin (e2e)', () => {
       const notes = await request(app.getHttpServer())
         .post(`/v1/admin/caregivers/${profileId}/notes`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ internal_notes: 'Looks good', rate_24hrs_live_in: 25000, rate_12hrs_pg: 15000 })
+        .send({ internal_notes: 'Looks good' })
         .expect(200);
       expect(notes.body.data.message).toBe('Notes saved');
 
@@ -248,7 +246,7 @@ describe('Admin (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(detail.body.data.verified_at).not.toBeNull();
-      expect(detail.body.data.admin_notes.rate_24hrs_live_in).toBe(25000);
+      expect(detail.body.data.admin_notes.internal_notes).toBe('Looks good');
     });
 
     it('admin override: allows jumping directly from pending_call to available, no transition-matrix restriction', async () => {
@@ -637,81 +635,38 @@ describe('Admin (e2e)', () => {
     });
   });
 
-  describe('PUT /v1/admin/caregivers/:id/work-types', () => {
-    it('replaces work types and rejects an empty array (PROFILE_022)', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0013', 'Work Type Subject');
+  describe('Removed work-type/service-mode/salary assignment endpoints', () => {
+    it('work-types, service-modes, and salary endpoints no longer exist (404)', async () => {
+      const { profile_id: profileId } = await registerCaregiver('0013', 'Removed Endpoints Subject');
 
-      const empty = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .put(`/v1/admin/caregivers/${profileId}/work-types`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ work_types: [] })
-        .expect(400);
-      expect(empty.body.error.code).toBe('PROFILE_022');
+        .send({ work_types: ['companion_care'] })
+        .expect(404);
 
-      const res = await request(app.getHttpServer())
-        .put(`/v1/admin/caregivers/${profileId}/work-types`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ work_types: ['companion_care', 'bedside_care'] })
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Work types assigned',
-        work_types: ['companion_care', 'bedside_care'],
-      });
-
-      const detail = await request(app.getHttpServer())
-        .get(`/v1/admin/caregivers/${profileId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      expect(detail.body.data.work_types.sort()).toEqual(['bedside_care', 'companion_care']);
-    });
-  });
-
-  describe('PUT /v1/admin/caregivers/:id/service-modes', () => {
-    it('replaces service modes and rejects an invalid value (PROFILE_013)', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0014', 'Service Mode Subject');
-
-      const invalid = await request(app.getHttpServer())
-        .put(`/v1/admin/caregivers/${profileId}/service-modes`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ service_modes: ['overnight'] })
-        .expect(400);
-      expect(invalid.body.error.code).toBe('PROFILE_013');
-
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .put(`/v1/admin/caregivers/${profileId}/service-modes`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({ service_modes: ['24hrs_live_in'] })
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Service modes assigned',
-        service_modes: ['24hrs_live_in'],
-      });
-    });
-  });
+        .expect(404);
 
-  describe('PATCH /v1/admin/caregivers/:id/salary', () => {
-    it('sets the salary and rejects a negative value (PROFILE_024)', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0015', 'Salary Subject');
-
-      const invalid = await request(app.getHttpServer())
-        .patch(`/v1/admin/caregivers/${profileId}/salary`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ salary: -100 })
-        .expect(400);
-      expect(invalid.body.error.code).toBe('PROFILE_024');
-
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/salary`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({ salary: 27000 })
-        .expect(200);
-      expect(res.body.data).toEqual({ message: 'Salary updated', salary: 27000 });
+        .expect(404);
+    });
 
+    it('caregiver detail no longer includes service_modes/work_types/salary fields', async () => {
+      const { profile_id: profileId } = await registerCaregiver('0014', 'No Assignment Fields Subject');
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/caregivers/${profileId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(detail.body.data.salary).toBe(27000);
+      expect(detail.body.data.service_modes).toBeUndefined();
+      expect(detail.body.data.work_types).toBeUndefined();
+      expect(detail.body.data.salary).toBeUndefined();
     });
   });
 

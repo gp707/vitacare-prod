@@ -133,25 +133,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             _Field('Other Documents', '${profile.otherDocumentUrls.length} uploaded'),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
-        _Section(
-          title: 'Work Details (admin-assigned)',
-          onEdit: null,
-          children: [
-            _Field(
-              'Work Types',
-              profile.workTypes.map((w) => WorkType.displayNames[w] ?? w).join(', ').isEmpty
-                  ? '—'
-                  : profile.workTypes.map((w) => WorkType.displayNames[w] ?? w).join(', '),
-            ),
-            _Field(
-              'Service Modes',
-              profile.serviceModes.map((s) => ServiceMode.displayNames[s] ?? s).join(', ').isEmpty
-                  ? '—'
-                  : profile.serviceModes.map((s) => ServiceMode.displayNames[s] ?? s).join(', '),
-            ),
-          ],
-        ),
       ],
     );
   }

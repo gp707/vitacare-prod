@@ -6,8 +6,6 @@ import { AdminCaregiversRepository } from '../database/repositories/admin-caregi
 import { AdminNotesRepository } from '../database/repositories/admin-notes.repository';
 import { AuditLogsRepository } from '../database/repositories/audit-logs.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
-import { CaregiverServiceModesRepository } from '../database/repositories/caregiver-service-modes.repository';
-import { CaregiverWorkTypesRepository } from '../database/repositories/caregiver-work-types.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -20,9 +18,6 @@ import { UpdateCaregiverStatusDto } from './dto/update-caregiver-status.dto';
 import { UpsertAdminNotesDto } from './dto/upsert-admin-notes.dto';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
-import { AssignWorkTypesDto } from './dto/assign-work-types.dto';
-import { AssignServiceModesDto } from './dto/assign-service-modes.dto';
-import { UpdateSalaryDto } from './dto/update-salary.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
 @Injectable()
@@ -32,8 +27,6 @@ export class AdminService {
     private readonly notesRepo: AdminNotesRepository,
     private readonly auditLogsRepo: AuditLogsRepository,
     private readonly languagesRepo: CaregiverLanguagesRepository,
-    private readonly serviceModesRepo: CaregiverServiceModesRepository,
-    private readonly workTypesRepo: CaregiverWorkTypesRepository,
     private readonly preferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly uploadService: UploadService,
     private readonly auditService: AuditService,
@@ -58,8 +51,6 @@ export class AdminService {
         status: query.status,
         qualification: query.qualification,
         languages,
-        serviceMode: query.service_mode,
-        workType: query.work_type,
         fromDate: query.from_date,
         toDate: query.to_date,
       },
@@ -74,8 +65,6 @@ export class AdminService {
       gender: item.gender,
       age: item.age,
       highest_qualification: item.highest_qualification,
-      service_modes: item.service_modes,
-      work_types: item.work_types,
       verification_status: item.verification_status,
       created_at: item.created_at,
     }));
@@ -94,11 +83,9 @@ export class AdminService {
     const profile = await this.caregiversRepo.getDetailById(profileId);
     if (!profile) throw new AppException('PROFILE_019');
 
-    const [languages, serviceModes, workTypes, preferredCities, notes, selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] =
+    const [languages, preferredCities, notes, selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] =
       await Promise.all([
         this.languagesRepo.findByProfileId(profile.id),
-        this.serviceModesRepo.findByProfileId(profile.id),
-        this.workTypesRepo.findByProfileId(profile.id),
         this.preferredCitiesRepo.findByProfileId(profile.id),
         this.notesRepo.findByProfileId(profile.id),
         this.uploadService.getSignedUrlOrNull(Config.STORAGE_BUCKET, profile.selfie_photo_url),
@@ -124,9 +111,6 @@ export class AdminService {
       age: profile.age,
       selfie_photo_url: selfieUrl,
       languages,
-      service_modes: serviceModes,
-      work_types: workTypes,
-      salary: profile.salary === null ? null : Number(profile.salary),
       highest_qualification: profile.highest_qualification,
       religion: profile.religion,
       qualification_document_url: qualificationUrl,
@@ -139,12 +123,6 @@ export class AdminService {
       preferred_cities: preferredCities,
       admin_notes: {
         internal_notes: notes?.internal_notes ?? null,
-        rate_24hrs_live_in: notes?.rate_24hrs_live_in === undefined || notes?.rate_24hrs_live_in === null
-          ? null
-          : Number(notes.rate_24hrs_live_in),
-        rate_12hrs_pg: notes?.rate_12hrs_pg === undefined || notes?.rate_12hrs_pg === null
-          ? null
-          : Number(notes.rate_12hrs_pg),
         availability_remarks: notes?.availability_remarks ?? null,
       },
       created_at: profile.created_at,
@@ -269,9 +247,8 @@ export class AdminService {
   }
 
   /** Generic admin override for any subset of caregiver profile fields.
-   *  Does NOT include service_modes/work_types/salary (dedicated endpoints
-   *  below) and does NOT change verification_status — admin edits are
-   *  trusted, unlike caregiver self-edits which flag has_pending_edits. */
+   *  Does NOT change verification_status — admin edits are trusted, unlike
+   *  caregiver self-edits which flag has_pending_edits. */
   async editProfile(
     profileId: string,
     adminId: string,
@@ -350,84 +327,6 @@ export class AdminService {
     }
 
     return { message: 'Profile updated' };
-  }
-
-  async assignWorkTypes(
-    profileId: string,
-    adminId: string,
-    dto: AssignWorkTypesDto,
-    ipAddress: string | null = null,
-  ) {
-    const profile = await this.caregiversRepo.getDetailById(profileId);
-    if (!profile) throw new AppException('PROFILE_019');
-
-    const previous = await this.workTypesRepo.findByProfileId(profileId);
-    await this.workTypesRepo.replaceForProfile(profileId, dto.work_types, adminId);
-
-    await this.auditService.log({
-      userId: adminId,
-      targetUserId: profile.user_id,
-      action: AuditAction.WORK_TYPE_ASSIGNED,
-      entityType: 'caregiver_work_types',
-      entityId: profileId,
-      beforeValue: { work_types: [...previous].sort() },
-      afterValue: { work_types: [...dto.work_types].sort() },
-      ipAddress,
-    });
-
-    return { message: 'Work types assigned', work_types: dto.work_types };
-  }
-
-  async assignServiceModes(
-    profileId: string,
-    adminId: string,
-    dto: AssignServiceModesDto,
-    ipAddress: string | null = null,
-  ) {
-    const profile = await this.caregiversRepo.getDetailById(profileId);
-    if (!profile) throw new AppException('PROFILE_019');
-
-    const previous = await this.serviceModesRepo.findByProfileId(profileId);
-    await this.serviceModesRepo.replaceForProfile(profileId, dto.service_modes);
-
-    await this.auditService.log({
-      userId: adminId,
-      targetUserId: profile.user_id,
-      action: AuditAction.SERVICE_MODE_ASSIGNED,
-      entityType: 'caregiver_service_modes',
-      entityId: profileId,
-      beforeValue: { service_modes: [...previous].sort() },
-      afterValue: { service_modes: [...dto.service_modes].sort() },
-      ipAddress,
-    });
-
-    return { message: 'Service modes assigned', service_modes: dto.service_modes };
-  }
-
-  async updateSalary(
-    profileId: string,
-    adminId: string,
-    dto: UpdateSalaryDto,
-    ipAddress: string | null = null,
-  ) {
-    const profile = await this.caregiversRepo.getDetailById(profileId);
-    if (!profile) throw new AppException('PROFILE_019');
-
-    const previousSalary = profile.salary === null ? null : Number(profile.salary);
-    await this.profilesRepo.updateSalary(profileId, dto.salary);
-
-    await this.auditService.log({
-      userId: adminId,
-      targetUserId: profile.user_id,
-      action: AuditAction.ADMIN_EDIT_PROFILE,
-      entityType: 'caregiver_profiles',
-      entityId: profileId,
-      beforeValue: { salary: previousSalary },
-      afterValue: { salary: dto.salary },
-      ipAddress,
-    });
-
-    return { message: 'Salary updated', salary: dto.salary };
   }
 
   /** Admin upload/replace of a caregiver's selfie. Overwrites any existing

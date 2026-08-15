@@ -28,6 +28,7 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Caregiver login:** Phone + 4-digit code, always. The code is set at registration and is required for every login from the first session onward. There is no phone-only login endpoint.
 - **There is no separate "Advanced Details" step.** Everything is collected in one registration (`POST /auth/register`): basic info, religion, highest qualification, and terms acceptance, plus documents uploaded via their own endpoints immediately after (selfie and Aadhaar are mandatory; qualification document and up to 3 "other" documents are optional). Religion is required at registration and locked from self-edit afterward; highest_qualification, preferred_cities (optional at registration), and documents all remain editable afterward via the single self-edit endpoint (`PATCH /caregiver/profile`) or document re-upload endpoints.
 - **father_name, father_phone, current_address, and notes have been removed from the product entirely** — no longer collected, stored, or displayed anywhere (caregiver-app, admin-web, or the database).
+- **Admin-assigned work types, service modes, and salary have been removed from the product entirely**, along with the two admin-notes rate fields (Rate — 24Hrs Live-In, Rate — 12Hrs PG) — no longer collected, stored, or displayed anywhere. `WorkType` and `ServiceMode` remain valid enums (see below) but are now purely attributes of a Job posting (`work_type`, `duty_timings`), not something assigned to a caregiver's profile. `admin_notes` still has `internal_notes` and `availability_remarks`.
 - **Profile edits don't auto-reset status for `available`/`unavailable` caregivers**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends them back to `pending_call` (see transition matrix). Every other edit (age, languages, highest_qualification, preferred_cities, login code/PIN, selfie/qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched. **For a `rejected` caregiver, this is different: any edit at all — not just identity-sensitive ones — automatically resubmits them** (sends status back to `pending_call`). There's no separate "resubmit" action; editing the flagged field(s) normally is the resubmission.
 - **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile`) — only admins can change it from that point on. Every other field remains caregiver-editable via self-edit.
 
@@ -66,7 +67,7 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - Do NOT return raw database errors to clients.
 - Do NOT include stack traces in production responses.
 - Do NOT store Aadhaar numbers as text. Only store file paths.
-- Do NOT expose admin notes or rates to caregiver-facing endpoints.
+- Do NOT expose admin notes to caregiver-facing endpoints.
 - Do NOT hardcode env values. Always use ConfigService.
 - Do NOT store refresh tokens or codes in plain text. Store bcrypt hash.
 - Do NOT validate file MIME types. Accept any file type, enforce 10MB max only.
@@ -74,7 +75,6 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - Do NOT auto-reset verification status on profile edit — EXCEPT changing phone or re-uploading Aadhaar (resets `available`/`unavailable` back to `pending_call`), and EXCEPT any edit at all while `rejected` (also resets to `pending_call` — auto-resubmit).
 - Do NOT allow status transitions not in the transition matrix — EXCEPT via the admin status-override endpoint (`PATCH /admin/caregivers/:id/status`), which is deliberately unrestricted: admin can set any caregiver to any status from any current status. Caregiver-initiated and system-triggered transitions (phone/Aadhaar change, edit-while-rejected) still must follow the matrix below.
 - Do NOT return more than 100 items per page.
-- Do NOT allow caregivers to modify work types or salary. Both are admin-assigned, read-only for caregivers.
 
 ### Flutter (Both Apps)
 - Do NOT import Flutter in `packages/vitacare_shared`. Pure Dart only.
@@ -84,7 +84,6 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - Do NOT queue offline writes. All mutations require internet.
 - Show bottom navigation at all times after registration. Caregivers can browse jobs even before approval (motivates onboarding).
 - There is no "Advanced Details" screen. All fields (including documents) are collected on the Registration screen itself; the caregiver's own profile is always reachable and editable at any status via one Edit Profile screen (`/profile/edit`) — a rejected caregiver edits the same way as anyone else, and the backend auto-resubmits them.
-- Do NOT allow caregivers to modify service_modes. Admin-assigned, read-only for caregivers.
 
 ### General
 - Do NOT add features beyond V1 scope (no booking, payments, messaging, AI).
@@ -127,7 +126,7 @@ hindi, english, kannada, tamil, telugu, malayalam, bengali, gujarati, marathi
 ### Religion
 hindu, muslim, christian, others
 
-### Work Types (admin-assigned, caregiver read-only)
+### Work Types (job-posting attribute only — see note below)
 companion_care, bedside_care, critical_care
 
 ### Cities (preferred city for availability)

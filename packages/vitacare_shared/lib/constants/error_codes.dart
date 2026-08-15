@@ -21,16 +21,11 @@ class ErrorCodes {
     'PROFILE_007': 'Invalid phone number format',
     'PROFILE_009': 'Terms and conditions must be accepted',
     'PROFILE_010': 'Invalid religion value',
-    'PROFILE_012': 'At least one service mode is required',
-    'PROFILE_013': 'Invalid service mode',
     'PROFILE_016': 'Code must be exactly 4 digits',
     'PROFILE_018': 'Invalid qualification value',
     'PROFILE_019': 'Caregiver profile not found',
     'PROFILE_020': 'Name must contain only alphabetic characters and spaces',
     'PROFILE_021': 'FCM token is required',
-    'PROFILE_022': 'At least one work type is required',
-    'PROFILE_023': 'Invalid work type',
-    'PROFILE_024': 'Salary must be zero or greater',
 
     // Upload
     'UPLOAD_001': 'File is required',

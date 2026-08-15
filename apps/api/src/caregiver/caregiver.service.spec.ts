@@ -7,8 +7,6 @@ describe('CaregiverService', () => {
   let usersRepo: any;
   let profilesRepo: any;
   let languagesRepo: any;
-  let serviceModesRepo: any;
-  let workTypesRepo: any;
   let preferredCitiesRepo: any;
   let uploadService: any;
   let emailService: any;
@@ -29,7 +27,6 @@ describe('CaregiverService', () => {
     aadhaar_document_url: null,
     other_document_urls: [],
     religion: null,
-    salary: null,
     terms_accepted: true,
     rejection_message: null,
     has_pending_edits: false,
@@ -60,8 +57,6 @@ describe('CaregiverService', () => {
       appendOtherDocumentUrl: jest.fn(),
     };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
-    serviceModesRepo = { findByProfileId: jest.fn().mockResolvedValue([]) };
-    workTypesRepo = { findByProfileId: jest.fn().mockResolvedValue([]) };
     preferredCitiesRepo = {
       findByProfileId: jest.fn().mockResolvedValue([]),
       replaceForProfile: jest.fn(),
@@ -80,8 +75,6 @@ describe('CaregiverService', () => {
       usersRepo,
       profilesRepo,
       languagesRepo,
-      serviceModesRepo,
-      workTypesRepo,
       preferredCitiesRepo,
       uploadService,
       emailService,
@@ -107,15 +100,8 @@ describe('CaregiverService', () => {
       const result = await service.getProfile('user-1');
       expect(result.selfie_photo_url).toBe('https://signed/selfie');
       expect(result.languages).toEqual(['hindi', 'english']);
-      expect(result.service_modes).toEqual([]);
       expect(result.preferred_cities).toEqual(['bangalore', 'mumbai']);
       expect(result.verification_status).toBe('pending_call');
-    });
-
-    it('converts salary from numeric string to number', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({ ...fullProfile, salary: '28000.00' });
-      const result = await service.getProfile('user-1');
-      expect(result.salary).toBe(28000);
     });
   });
 

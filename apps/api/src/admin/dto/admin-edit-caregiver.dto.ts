@@ -3,10 +3,7 @@ import { City, Gender, Language, Qualification, Religion, Validation } from '@vi
 
 /**
  * Admin override — any subset of these fields (SPEC.md: "Edit caregiver
- * profile (admin override)"). Does NOT include service_modes, work_types,
- * or salary — those are admin-assigned via their own dedicated endpoints
- * (CLAUDE.md: read-only for caregivers, assigned through a single tracked
- * channel), not this generic profile edit.
+ * profile (admin override)").
  */
 export class AdminEditCaregiverDto {
   @IsOptional()

@@ -414,14 +414,12 @@ export const AuditAction = {
   PROFILE_UPDATED: 'profile_updated',
   STATUS_CHANGED: 'status_changed',
   CODE_CHANGED: 'code_changed',
-  SERVICE_MODE_ASSIGNED: 'service_mode_assigned',
   ADMIN_EDIT_PROFILE: 'admin_edit_profile',
   ADMIN_NOTE_ADDED: 'admin_note_added',
   ADMIN_CREATED: 'admin_created',
   ADMIN_DEACTIVATED: 'admin_deactivated',
   PHONE_CHANGED: 'phone_changed',
   EDITS_ACKNOWLEDGED: 'edits_acknowledged',
-  WORK_TYPE_ASSIGNED: 'work_type_assigned',
   JOB_POSTED: 'job_posted',
   JOB_CLOSED: 'job_closed',
   JOB_RESPONSE: 'job_response',
@@ -846,7 +844,6 @@ CREATE TABLE caregiver_profiles (
   aadhaar_document_url TEXT,
   religion VARCHAR(20) CHECK (religion IN ('hindu', 'muslim', 'christian', 'others')),  -- Set once at registration
   other_document_urls JSONB DEFAULT '[]',
-  salary DECIMAL(10, 2) CHECK (salary >= 0),  -- Admin-assigned, visible to caregiver
   terms_accepted BOOLEAN DEFAULT false,
   verification_status VARCHAR(30) DEFAULT 'pending_call'
     CHECK (verification_status IN (
@@ -897,31 +894,12 @@ CREATE TABLE caregiver_preferred_cities (
 
 CREATE INDEX idx_caregiver_preferred_cities_profile ON caregiver_preferred_cities(profile_id);
 
--- ============================================
--- CAREGIVER SERVICE MODES TABLE
--- ============================================
-CREATE TABLE caregiver_service_modes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
-  service_mode VARCHAR(20) NOT NULL CHECK (service_mode IN ('24hrs_live_in', '12hrs_pg')),
-  UNIQUE(profile_id, service_mode)
-);
-
-CREATE INDEX idx_caregiver_service_modes_profile ON caregiver_service_modes(profile_id);
-
--- ============================================
--- CAREGIVER WORK TYPES TABLE (admin-assigned)
--- ============================================
-CREATE TABLE caregiver_work_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
-  work_type VARCHAR(30) NOT NULL CHECK (work_type IN ('companion_care', 'bedside_care', 'critical_care')),
-  assigned_by UUID NOT NULL REFERENCES users(id),
-  assigned_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(profile_id, work_type)
-);
-
-CREATE INDEX idx_caregiver_work_types_profile ON caregiver_work_types(profile_id);
+-- Admin-assigned work types, service modes, and salary (formerly
+-- caregiver_service_modes / caregiver_work_types tables + a caregiver_
+-- profiles.salary column) have been removed from the product entirely —
+-- WorkType/ServiceMode remain valid enums but are now purely Job-posting
+-- attributes (see the jobs table below), not something assigned to a
+-- caregiver's own profile.
 
 -- ============================================
 -- ADMIN NOTES TABLE
@@ -931,8 +909,6 @@ CREATE TABLE admin_notes (
   profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
   admin_id UUID NOT NULL REFERENCES users(id),
   internal_notes TEXT,
-  rate_24hrs_live_in DECIMAL(10, 2) CHECK (rate_24hrs_live_in >= 0),
-  rate_12hrs_pg DECIMAL(10, 2) CHECK (rate_12hrs_pg >= 0),
   availability_remarks TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

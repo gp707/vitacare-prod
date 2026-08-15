@@ -10,9 +10,6 @@ class CaregiverProfileModel {
   final int age;
   final String? selfiePhotoUrl;
   final List<String> languages;
-  final List<String> serviceModes;
-  final List<String> workTypes;
-  final num? salary;
   final String? highestQualification;
   final String? qualificationDocumentUrl;
   final String? aadhaarDocumentUrl;
@@ -34,9 +31,6 @@ class CaregiverProfileModel {
     required this.age,
     this.selfiePhotoUrl,
     required this.languages,
-    required this.serviceModes,
-    required this.workTypes,
-    this.salary,
     this.highestQualification,
     this.qualificationDocumentUrl,
     this.aadhaarDocumentUrl,
@@ -60,9 +54,6 @@ class CaregiverProfileModel {
       age: json['age'] as int,
       selfiePhotoUrl: json['selfie_photo_url'] as String?,
       languages: List<String>.from(json['languages'] as List? ?? const []),
-      serviceModes: List<String>.from(json['service_modes'] as List? ?? const []),
-      workTypes: List<String>.from(json['work_types'] as List? ?? const []),
-      salary: json['salary'] as num?,
       highestQualification: json['highest_qualification'] as String?,
       qualificationDocumentUrl: json['qualification_document_url'] as String?,
       aadhaarDocumentUrl: json['aadhaar_document_url'] as String?,

@@ -6,8 +6,6 @@ describe('AdminService', () => {
   let caregiversRepo: any;
   let notesRepo: any;
   let languagesRepo: any;
-  let serviceModesRepo: any;
-  let workTypesRepo: any;
   let preferredCitiesRepo: any;
   let uploadService: any;
   let auditLogsRepo: any;
@@ -31,7 +29,6 @@ describe('AdminService', () => {
     aadhaar_document_url: null,
     other_document_urls: [],
     religion: null,
-    salary: null,
     terms_accepted: false,
     verification_status: VerificationStatus.PENDING_CALL,
     rejection_message: null,
@@ -49,8 +46,6 @@ describe('AdminService', () => {
     };
     notesRepo = { findByProfileId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
-    serviceModesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
-    workTypesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
     preferredCitiesRepo = {
       findByProfileId: jest.fn().mockResolvedValue([]),
       replaceForProfile: jest.fn(),
@@ -66,7 +61,6 @@ describe('AdminService', () => {
     fcmService = { sendToUser: jest.fn() };
     profilesRepo = {
       adminUpdate: jest.fn(),
-      updateSalary: jest.fn(),
       setSelfieUrl: jest.fn(),
       setQualificationDocumentUrl: jest.fn(),
       setAadhaarDocumentUrl: jest.fn(),
@@ -81,8 +75,6 @@ describe('AdminService', () => {
       notesRepo,
       auditLogsRepo,
       languagesRepo,
-      serviceModesRepo,
-      workTypesRepo,
       preferredCitiesRepo,
       uploadService,
       auditService,
@@ -126,23 +118,8 @@ describe('AdminService', () => {
       const result = await service.getCaregiverDetail('profile-1');
       expect(result.admin_notes).toEqual({
         internal_notes: null,
-        rate_24hrs_live_in: null,
-        rate_12hrs_pg: null,
         availability_remarks: null,
       });
-    });
-
-    it('converts numeric-string rates to numbers', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(detail);
-      notesRepo.findByProfileId.mockResolvedValue({
-        internal_notes: 'Good candidate',
-        rate_24hrs_live_in: '25000.00',
-        rate_12hrs_pg: '15000.00',
-        availability_remarks: null,
-      });
-      const result = await service.getCaregiverDetail('profile-1');
-      expect(result.admin_notes.rate_24hrs_live_in).toBe(25000);
-      expect(result.admin_notes.rate_12hrs_pg).toBe(15000);
     });
 
     it('includes preferred_cities from the junction table', async () => {
@@ -398,105 +375,6 @@ describe('AdminService', () => {
         expect.anything(),
       );
       expect(auditService.log).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('assignWorkTypes', () => {
-    it('throws PROFILE_019 when the profile does not exist', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(null);
-      await expect(
-        service.assignWorkTypes('missing', 'admin-1', { work_types: ['companion_care'] } as any),
-      ).rejects.toMatchObject({ code: 'PROFILE_019' });
-    });
-
-    it('replaces work types and logs before/after', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(detail);
-      workTypesRepo.findByProfileId.mockResolvedValue(['companion_care']);
-
-      const result = await service.assignWorkTypes('profile-1', 'admin-1', {
-        work_types: ['bedside_care', 'critical_care'],
-      } as any);
-
-      expect(workTypesRepo.replaceForProfile).toHaveBeenCalledWith(
-        'profile-1',
-        ['bedside_care', 'critical_care'],
-        'admin-1',
-      );
-      expect(result).toEqual({
-        message: 'Work types assigned',
-        work_types: ['bedside_care', 'critical_care'],
-      });
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          targetUserId: 'user-1',
-          action: 'work_type_assigned',
-          entityType: 'caregiver_work_types',
-          beforeValue: { work_types: ['companion_care'] },
-          afterValue: { work_types: ['bedside_care', 'critical_care'] },
-        }),
-      );
-    });
-  });
-
-  describe('assignServiceModes', () => {
-    it('throws PROFILE_019 when the profile does not exist', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(null);
-      await expect(
-        service.assignServiceModes('missing', 'admin-1', { service_modes: ['12hrs_pg'] } as any),
-      ).rejects.toMatchObject({ code: 'PROFILE_019' });
-    });
-
-    it('replaces service modes and logs before/after', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(detail);
-      serviceModesRepo.findByProfileId.mockResolvedValue([]);
-
-      const result = await service.assignServiceModes('profile-1', 'admin-1', {
-        service_modes: ['24hrs_live_in', '12hrs_pg'],
-      } as any);
-
-      expect(serviceModesRepo.replaceForProfile).toHaveBeenCalledWith('profile-1', [
-        '24hrs_live_in',
-        '12hrs_pg',
-      ]);
-      expect(result).toEqual({
-        message: 'Service modes assigned',
-        service_modes: ['24hrs_live_in', '12hrs_pg'],
-      });
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'service_mode_assigned',
-          entityType: 'caregiver_service_modes',
-        }),
-      );
-    });
-  });
-
-  describe('updateSalary', () => {
-    it('throws PROFILE_019 when the profile does not exist', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue(null);
-      await expect(
-        service.updateSalary('missing', 'admin-1', { salary: 25000 } as any),
-      ).rejects.toMatchObject({ code: 'PROFILE_019' });
-    });
-
-    it('updates salary and logs before/after', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue({ ...detail, salary: '20000.00' });
-
-      const result = await service.updateSalary('profile-1', 'admin-1', { salary: 25000 } as any);
-
-      expect(profilesRepo.updateSalary).toHaveBeenCalledWith('profile-1', 25000);
-      expect(result).toEqual({ message: 'Salary updated', salary: 25000 });
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          targetUserId: 'user-1',
-          action: 'admin_edit_profile',
-          entityType: 'caregiver_profiles',
-          beforeValue: { salary: 20000 },
-          afterValue: { salary: 25000 },
-        }),
-      );
     });
   });
 

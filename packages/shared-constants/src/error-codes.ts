@@ -23,8 +23,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   PROFILE_007: { status: 400, message: 'Invalid phone number format' },
   PROFILE_009: { status: 400, message: 'Terms and conditions must be accepted' },
   PROFILE_010: { status: 400, message: 'Invalid religion value' },
-  PROFILE_012: { status: 400, message: 'At least one service mode is required' },
-  PROFILE_013: { status: 400, message: 'Invalid service mode' },
   PROFILE_016: { status: 400, message: 'Code must be exactly 4 digits' },
   PROFILE_018: { status: 400, message: 'Invalid qualification value' },
   PROFILE_019: { status: 404, message: 'Caregiver profile not found' },
@@ -33,9 +31,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
     message: 'Name must contain only alphabetic characters and spaces',
   },
   PROFILE_021: { status: 400, message: 'FCM token is required' },
-  PROFILE_022: { status: 400, message: 'At least one work type is required' },
-  PROFILE_023: { status: 400, message: 'Invalid work type' },
-  PROFILE_024: { status: 400, message: 'Salary must be zero or greater' },
 
   // Upload errors
   UPLOAD_001: { status: 400, message: 'File is required' },
