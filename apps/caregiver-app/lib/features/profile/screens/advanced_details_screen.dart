@@ -215,7 +215,7 @@ class _AdvancedDetailsScreenState extends ConsumerState<AdvancedDetailsScreen> {
                         border: OutlineInputBorder()),
                     items: Qualification.all
                         .map((q) => DropdownMenuItem(
-                            value: q, child: Text(q.replaceAll('_', ' '))))
+                            value: q, child: Text(Qualification.displayNames[q] ?? q)))
                         .toList(),
                     onChanged: (value) =>
                         setState(() => _qualification = value),

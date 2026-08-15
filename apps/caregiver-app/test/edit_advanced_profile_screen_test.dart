@@ -26,7 +26,7 @@ CaregiverProfileModel _profile({String status = 'available'}) {
     'created_at': '2026-08-01T10:00:00Z',
     'selfie_photo_url': 'https://signed/selfie',
     'aadhaar_document_url': 'https://signed/aadhaar',
-    'highest_qualification': 'bsc_gnm_completed',
+    'highest_qualification': 'rn_above_2_years',
     'religion': 'hindu',
     'current_address': '123 Old Street',
   });

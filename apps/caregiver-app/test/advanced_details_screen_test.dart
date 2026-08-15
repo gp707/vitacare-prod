@@ -66,7 +66,7 @@ Future<void> _fillRequiredNonDocFields(WidgetTester tester) async {
   await tester.enterText(find.widgetWithText(TextField, 'Current Address (optional)'), '123 MG Road');
   await tester.tap(find.byType(DropdownButtonFormField<String>).at(0));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(Qualification.all.first.replaceAll('_', ' ')).last);
+  await tester.tap(find.text(Qualification.displayNames[Qualification.all.first]!).last);
   await tester.pumpAndSettle();
   await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
   await tester.pumpAndSettle();
@@ -143,7 +143,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Current Address (optional)'), '123 MG Road');
     await tester.tap(find.byType(DropdownButtonFormField<String>).at(0));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(Qualification.all.first.replaceAll('_', ' ')).last);
+    await tester.tap(find.text(Qualification.displayNames[Qualification.all.first]!).last);
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
     await tester.pumpAndSettle();
@@ -212,7 +212,7 @@ void main() {
       'selfie_photo_url': 'https://signed/selfie',
       'qualification_document_url': 'https://signed/qual',
       'aadhaar_document_url': 'https://signed/aadhaar',
-      'highest_qualification': 'bsc_gnm_completed',
+      'highest_qualification': 'rn_above_2_years',
       'religion': 'hindu',
       'father_name': 'Suresh Kumar',
       'father_phone': '+919876500001',
@@ -229,7 +229,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('bsc gnm completed'), findsOneWidget); // qualification dropdown, prefilled
+    expect(find.text(Qualification.displayNames[Qualification.rnAbove2Years]!),
+        findsOneWidget); // qualification dropdown, prefilled
     expect(find.widgetWithText(TextField, "Father's Name (optional)"), findsOneWidget);
     expect(find.text('Suresh Kumar'), findsOneWidget);
     expect(find.text('123 Previously Submitted Address'), findsOneWidget);

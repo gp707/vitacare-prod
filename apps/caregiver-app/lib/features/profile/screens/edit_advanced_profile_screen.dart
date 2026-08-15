@@ -189,7 +189,7 @@ class _EditAdvancedProfileScreenState extends ConsumerState<EditAdvancedProfileS
                     initialValue: _qualification,
                     decoration: const InputDecoration(labelText: 'Highest Qualification', border: OutlineInputBorder()),
                     items: Qualification.all
-                        .map((q) => DropdownMenuItem(value: q, child: Text(q.replaceAll('_', ' '))))
+                        .map((q) => DropdownMenuItem(value: q, child: Text(Qualification.displayNames[q] ?? q)))
                         .toList(),
                     onChanged: (value) => setState(() => _qualification = value),
                   ),

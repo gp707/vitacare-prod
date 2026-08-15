@@ -88,7 +88,7 @@ void main() {
 
     await expectLater(
       profileRepo.submitAdvanced(
-        highestQualification: 'bsc_gnm_completed',
+        highestQualification: 'rn_above_2_years',
         religion: 'hindu',
         fatherName: 'Suresh Kumar',
         fatherPhone: '+919876500001',
