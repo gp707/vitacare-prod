@@ -141,7 +141,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                 const InputDecoration(labelText: 'Qualification', border: OutlineInputBorder(), isDense: true),
             items: [
               const DropdownMenuItem<String?>(value: null, child: Text('All qualifications')),
-              ...Qualification.all.map((q) => DropdownMenuItem<String?>(value: q, child: Text(q))),
+              ...Qualification.all.map(
+                  (q) => DropdownMenuItem<String?>(value: q, child: Text(Qualification.displayNames[q] ?? q))),
             ],
             onChanged: (value) => setState(() => _qualification = value),
           ),
@@ -179,7 +180,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                     DataCell(Text(item.phone)),
                     DataCell(Text(item.gender)),
                     DataCell(Text('${item.age}')),
-                    DataCell(Text(item.highestQualification ?? '-')),
+                    DataCell(Text(Qualification.displayNames[item.highestQualification] ?? item.highestQualification ?? '-')),
                     DataCell(Text(item.serviceModes.join(', '))),
                     DataCell(VitaStatusBadge(status: item.verificationStatus)),
                     DataCell(Text(item.createdAt.split('T').first)),

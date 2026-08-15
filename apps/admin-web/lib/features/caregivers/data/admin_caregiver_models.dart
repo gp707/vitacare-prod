@@ -78,19 +78,15 @@ class AdminCaregiverDetail {
   final num? salary;
   final String? highestQualification;
   final String? religion;
-  final String? fatherName;
-  final String? fatherPhone;
   final String? qualificationDocumentUrl;
   final String? aadhaarDocumentUrl;
   final List<String> otherDocumentUrls;
-  final String? currentAddress;
   final bool termsAccepted;
   final String verificationStatus;
   final String? rejectionMessage;
   final bool advancedDetailsCompleted;
   final bool hasPendingEdits;
   final List<String> preferredCities;
-  final String? notes;
   final AdminNotes adminNotes;
   final String createdAt;
   final String? submittedAt;
@@ -111,19 +107,15 @@ class AdminCaregiverDetail {
     this.salary,
     this.highestQualification,
     this.religion,
-    this.fatherName,
-    this.fatherPhone,
     this.qualificationDocumentUrl,
     this.aadhaarDocumentUrl,
     required this.otherDocumentUrls,
-    this.currentAddress,
     required this.termsAccepted,
     required this.verificationStatus,
     this.rejectionMessage,
     required this.advancedDetailsCompleted,
     required this.hasPendingEdits,
     required this.preferredCities,
-    this.notes,
     required this.adminNotes,
     required this.createdAt,
     this.submittedAt,
@@ -145,19 +137,15 @@ class AdminCaregiverDetail {
         salary: json['salary'] as num?,
         highestQualification: json['highest_qualification'] as String?,
         religion: json['religion'] as String?,
-        fatherName: json['father_name'] as String?,
-        fatherPhone: json['father_phone'] as String?,
         qualificationDocumentUrl: json['qualification_document_url'] as String?,
         aadhaarDocumentUrl: json['aadhaar_document_url'] as String?,
         otherDocumentUrls: List<String>.from(json['other_document_urls'] as List? ?? const []),
-        currentAddress: json['current_address'] as String?,
         termsAccepted: json['terms_accepted'] as bool? ?? false,
         verificationStatus: json['verification_status'] as String,
         rejectionMessage: json['rejection_message'] as String?,
         advancedDetailsCompleted: json['advanced_details_completed'] as bool? ?? false,
         hasPendingEdits: json['has_pending_edits'] as bool? ?? false,
         preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
-        notes: json['notes'] as String?,
         adminNotes: AdminNotes.fromJson(json['admin_notes'] as Map<String, dynamic>? ?? const {}),
         createdAt: json['created_at'] as String,
         submittedAt: json['submitted_at'] as String?,

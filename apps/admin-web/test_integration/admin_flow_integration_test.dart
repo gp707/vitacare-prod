@@ -83,6 +83,7 @@ void main() {
       'gender': 'male',
       'age': 29,
       'languages': ['hindi'],
+      'religion': 'hindu',
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;
@@ -128,6 +129,7 @@ void main() {
       'gender': 'male',
       'age': 28,
       'languages': ['hindi'],
+      'religion': 'hindu',
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;
@@ -135,12 +137,12 @@ void main() {
     await caregiversRepo.editProfile(profileId, {
       'full_name': 'Edited By Admin',
       'age': 31,
-      'current_address': '456 Admin St',
+      'religion': 'muslim',
     });
     final editedDetail = await caregiversRepo.getDetail(profileId);
     expect(editedDetail.fullName, 'Edited By Admin');
     expect(editedDetail.age, 31);
-    expect(editedDetail.currentAddress, '456 Admin St');
+    expect(editedDetail.religion, 'muslim');
     expect(editedDetail.verificationStatus, 'pending_call');
 
     final workTypes = await caregiversRepo.assignWorkTypes(profileId, ['companion_care', 'bedside_care']);
@@ -168,6 +170,7 @@ void main() {
       'gender': 'female',
       'age': 27,
       'languages': ['hindi'],
+      'religion': 'hindu',
       'code': '1234',
     });
     final profileId = registerRes.data['data']['profile_id'] as String;

@@ -52,10 +52,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
   final _ageController = TextEditingController();
-  final _fatherNameController = TextEditingController();
-  final _fatherPhoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _caregiverNotesController = TextEditingController();
   final _salaryController = TextEditingController();
   String? _editGender;
   String? _editQualification;
@@ -84,10 +80,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     _remarksController.dispose();
     _fullNameController.dispose();
     _ageController.dispose();
-    _fatherNameController.dispose();
-    _fatherPhoneController.dispose();
-    _addressController.dispose();
-    _caregiverNotesController.dispose();
     _salaryController.dispose();
     _overrideRejectionController.dispose();
     super.dispose();
@@ -181,10 +173,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   void _enterEditMode(AdminCaregiverDetail detail) {
     _fullNameController.text = detail.fullName;
     _ageController.text = detail.age.toString();
-    _fatherNameController.text = detail.fatherName ?? '';
-    _fatherPhoneController.text = (detail.fatherPhone ?? '').replaceFirst('+91', '');
-    _addressController.text = detail.currentAddress ?? '';
-    _caregiverNotesController.text = detail.notes ?? '';
     _salaryController.text = detail.salary?.toString() ?? '';
     setState(() {
       _editGender = detail.gender;
@@ -212,18 +200,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         fields['highest_qualification'] = _editQualification;
       }
       if (_editReligion != detail.religion) fields['religion'] = _editReligion;
-      final fatherName = _fatherNameController.text.trim();
-      if (fatherName.isNotEmpty && fatherName != detail.fatherName) fields['father_name'] = fatherName;
-      final fatherPhoneDigits = _fatherPhoneController.text.trim();
-      if (fatherPhoneDigits.isNotEmpty && '+91$fatherPhoneDigits' != detail.fatherPhone) {
-        fields['father_phone'] = '+91$fatherPhoneDigits';
-      }
-      final address = _addressController.text.trim();
-      if (address.isNotEmpty && address != detail.currentAddress) fields['current_address'] = address;
-      final caregiverNotes = _caregiverNotesController.text.trim();
-      if (caregiverNotes != (detail.notes ?? '')) {
-        fields['notes'] = caregiverNotes.isEmpty ? null : caregiverNotes;
-      }
       final sortedNewLangs = [..._editLanguages]..sort();
       final sortedOldLangs = [...detail.languages]..sort();
       if (sortedNewLangs.join(',') != sortedOldLangs.join(',')) fields['languages'] = _editLanguages;
@@ -535,15 +511,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         _field('Gender', detail.gender),
         _field('Age', '${detail.age}'),
         _field('Languages', detail.languages.join(', ')),
-        _field('Qualification', detail.highestQualification ?? '-'),
+        _field('Qualification', Qualification.displayNames[detail.highestQualification] ?? detail.highestQualification ?? '-'),
         _field('Religion', detail.religion ?? '-'),
-        _field('Father', '${detail.fatherName ?? '-'} (${detail.fatherPhone ?? '-'})'),
-        _field('Address', detail.currentAddress ?? '-'),
         _field('Service Modes (admin-assigned)', detail.serviceModes.join(', ')),
         _field('Work Types (admin-assigned)', detail.workTypes.join(', ')),
         _field('Salary (admin-assigned)', detail.salary?.toString() ?? '-'),
         _field('Preferred City', detail.preferredCities.isEmpty ? '-' : detail.preferredCities.join(', ')),
-        _field('Caregiver Notes', detail.notes ?? '-'),
         _field('Terms Accepted', detail.termsAccepted ? 'Yes' : 'No'),
         _field('Has Pending Edits', detail.hasPendingEdits ? 'Yes' : 'No'),
         if (detail.rejectionMessage != null) _field('Rejection Message', detail.rejectionMessage!),
@@ -616,7 +589,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                 decoration:
                     const InputDecoration(labelText: 'Qualification', border: OutlineInputBorder()),
                 items: Qualification.all
-                    .map((q) => DropdownMenuItem<String?>(value: q, child: Text(q.replaceAll('_', ' '))))
+                    .map((q) => DropdownMenuItem<String?>(value: q, child: Text(Qualification.displayNames[q] ?? q)))
                     .toList(),
                 onChanged: (value) => setState(() => _editQualification = value),
               ),
@@ -634,40 +607,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _fatherNameController,
-                decoration: const InputDecoration(labelText: "Father's Name", border: OutlineInputBorder()),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: TextField(
-                controller: _fatherPhoneController,
-                decoration: const InputDecoration(
-                  prefixText: '+91 ',
-                  labelText: "Father's Phone",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _addressController,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Current Address', border: OutlineInputBorder()),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          controller: _caregiverNotesController,
-          maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Caregiver Notes', border: OutlineInputBorder()),
         ),
         const SizedBox(height: AppSpacing.lg),
         const Divider(),
