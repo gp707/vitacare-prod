@@ -146,7 +146,7 @@ export class CaregiverService {
     }
     if (changeLines.length === 0) return;
 
-    await this.emailService.sendToAdmin(
+    void this.emailService.sendToAdmin(
       'Caregiver profile updated (pending review)',
       `${previous.full_name} updated their profile:\n${changeLines.join('\n')}`,
     );
@@ -176,7 +176,7 @@ export class CaregiverService {
     await this.usersRepo.updatePhone(userId, dto.phone);
     const wasReReviewed = await this.triggerReReviewIfEligible(profile);
 
-    await this.emailService.sendToAdmin(
+    void this.emailService.sendToAdmin(
       'Caregiver phone number changed',
       `${profile.full_name} changed their phone number from ${profile.phone} to ${dto.phone}.` +
         (wasReReviewed ? ' Their profile has been sent back for re-review.' : ''),
@@ -263,7 +263,7 @@ export class CaregiverService {
     }
 
     if (Object.keys(after).length > 0) {
-      await this.emailService.sendToAdmin(
+      void this.emailService.sendToAdmin(
         'Caregiver profile updated (pending review)',
         `${profile.full_name} updated their profile:\n` +
           Object.keys(after)
@@ -317,7 +317,7 @@ export class CaregiverService {
       highest_qualification: dto.highest_qualification,
     });
 
-    await this.emailService.sendToAdmin(
+    void this.emailService.sendToAdmin(
       'Advanced details submitted — pending document review',
       `${profile.full_name} (${profile.phone}) submitted advanced details and is ready for document review.`,
     );

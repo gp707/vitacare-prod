@@ -66,7 +66,7 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user);
 
-    await this.emailService.sendToAdmin(
+    void this.emailService.sendToAdmin(
       'New caregiver registration',
       `${dto.full_name} (${dto.phone}) just registered and is pending office call verification.`,
     );

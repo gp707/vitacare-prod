@@ -5,7 +5,10 @@ import * as nodemailer from 'nodemailer';
 /**
  * Plain-text only in V1 (CLAUDE.md: no HTML emails). Send failures are
  * logged, never thrown — a notification failing must not fail the
- * underlying registration/verification/profile-update request.
+ * underlying registration/verification/profile-update request. Callers
+ * must fire these calls without awaiting (`void this.emailService...`),
+ * not `await` them — a slow SMTP handshake would otherwise hold the HTTP
+ * response hostage even though the request itself already succeeded.
  */
 @Injectable()
 export class EmailService implements OnModuleInit {
@@ -25,6 +28,12 @@ export class EmailService implements OnModuleInit {
         user: this.fromAddress,
         pass: this.configService.getOrThrow<string>('SMTP_PASSWORD'),
       },
+      // Without these, a slow/unreachable SMTP server hangs indefinitely —
+      // callers never await this (see send()/sendToAdmin() below), but an
+      // unbounded connection can still pile up and exhaust resources.
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000,
     });
   }
 
