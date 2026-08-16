@@ -99,6 +99,7 @@ export const MedicalCondition = {
   DIABETES: 'diabetes',
   COLOSTOMY: 'colostomy',
   PARALYSIS: 'paralysis',
+  TB: 'tb',
   OTHER: 'other',
 } as const;
 export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];
@@ -108,7 +109,8 @@ export const ToiletAssistance = {
   USES_BED_PAN: 'uses_bed_pan',
   USES_CATHETER: 'uses_catheter',
   COMPLETE_ASSISTANCE: 'complete_toileting_assistance',
-  NONE: 'none',
+  OTHERS: 'others',
+  INDEPENDENT: 'independent',
 } as const;
 export type ToiletAssistance = (typeof ToiletAssistance)[keyof typeof ToiletAssistance];
 

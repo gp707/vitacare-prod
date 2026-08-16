@@ -174,10 +174,10 @@ class MedicalAssistance {
 
   static const displayNames = {
     medicationReminders: 'Medication reminders',
-    medicationAdministration: 'Medication administration',
+    medicationAdministration: 'Oral Medication Administration',
     insulinAdministration: 'Insulin administration',
     otherInjections: 'Other injections',
-    other: 'Other',
+    other: 'Others/Cannula/Tube',
   };
 }
 
@@ -192,6 +192,7 @@ class MedicalCondition {
   static const diabetes = 'diabetes';
   static const colostomy = 'colostomy';
   static const paralysis = 'paralysis';
+  static const tb = 'tb';
   static const other = 'other';
 
   static const all = [
@@ -205,6 +206,7 @@ class MedicalCondition {
     diabetes,
     colostomy,
     paralysis,
+    tb,
     other,
   ];
 
@@ -219,6 +221,7 @@ class MedicalCondition {
     diabetes: 'Diabetes',
     colostomy: 'Colostomy',
     paralysis: 'Paralysis',
+    tb: 'TB',
     other: 'Other',
   };
 }
@@ -228,16 +231,25 @@ class ToiletAssistance {
   static const usesBedPan = 'uses_bed_pan';
   static const usesCatheter = 'uses_catheter';
   static const completeAssistance = 'complete_toileting_assistance';
-  static const none = 'none';
+  static const others = 'others';
+  static const independent = 'independent';
 
-  static const all = [usesDiapers, usesBedPan, usesCatheter, completeAssistance, none];
+  static const all = [
+    usesDiapers,
+    usesBedPan,
+    usesCatheter,
+    completeAssistance,
+    others,
+    independent,
+  ];
 
   static const displayNames = {
     usesDiapers: 'Uses diapers',
     usesBedPan: 'Uses bed pan',
     usesCatheter: 'Uses catheter',
     completeAssistance: 'Complete toileting assistance',
-    none: 'None',
+    others: 'Others',
+    independent: 'Independent',
   };
 }
 

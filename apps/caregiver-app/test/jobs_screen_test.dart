@@ -36,7 +36,7 @@ JobModel _job({String? myApplicationStatus, String? postedAt}) {
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
       'medical_info': 'Needs help twice daily',
-      'toilet_assistance': 'uses_diapers',
+      'toilet_assistance': ['uses_diapers', 'uses_catheter'],
       'requires_vital_monitoring': true,
       'vital_monitoring_types': ['blood_pressure', 'blood_sugar'],
     },
@@ -109,6 +109,7 @@ void main() {
     expect(find.text('About Patient Condition'), findsOneWidget);
     expect(find.text('Medication reminders'), findsOneWidget);
     expect(find.text('Toilet: Uses diapers'), findsOneWidget);
+    expect(find.text('Toilet: Uses catheter'), findsOneWidget);
     expect(find.text('Diabetes'), findsOneWidget);
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);

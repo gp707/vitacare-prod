@@ -14,7 +14,7 @@ class CareReceiverInput {
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
   final String? medicalInfo;
-  final String toiletAssistance;
+  final List<String> toiletAssistance;
   final bool requiresVitalMonitoring;
   final List<String>? vitalMonitoringTypes;
 

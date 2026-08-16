@@ -258,7 +258,8 @@ class _JobCard extends StatelessWidget {
               children: [
                 for (final m in job.careReceiver!.medicalAssistance)
                   _Tag(MedicalAssistance.displayNames[m] ?? m),
-                _Tag('Toilet: ${ToiletAssistance.displayNames[job.careReceiver!.toiletAssistance] ?? job.careReceiver!.toiletAssistance}'),
+                for (final t in job.careReceiver!.toiletAssistance)
+                  _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
                 if (job.careReceiver!.hasMedicalCondition)
                   for (final c in job.careReceiver!.medicalConditions)
                     _Tag(MedicalCondition.displayNames[c] ?? c),

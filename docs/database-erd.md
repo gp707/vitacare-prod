@@ -109,7 +109,7 @@ job postings are no longer built around a "work type" category; see
 │ has_medical_condition│
 │ medical_conditions   │  ◄── JSONB array
 │ medical_info         │
-│ toilet_assistance    │  ◄── single-select
+│ toilet_assistance    │  ◄── JSONB array (multi-select)
 │ requires_vital_      │
 │   monitoring         │
 │ vital_monitoring_    │  ◄── JSONB array

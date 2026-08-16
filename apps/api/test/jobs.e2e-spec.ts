@@ -74,7 +74,7 @@ describe('Jobs (e2e)', () => {
     feeding_type: 'oral_independent',
     medical_assistance: [],
     has_medical_condition: false,
-    toilet_assistance: 'none',
+    toilet_assistance: ['others'],
     requires_vital_monitoring: false,
   };
 
@@ -176,7 +176,7 @@ describe('Jobs (e2e)', () => {
       expect(careReceiver.rows[0].age).toBe(72);
       expect(careReceiver.rows[0].gender).toBe('female');
       expect(careReceiver.rows[0].weight_kg).toBe(58);
-      expect(careReceiver.rows[0].toilet_assistance).toBe('none');
+      expect(careReceiver.rows[0].toilet_assistance).toEqual(['others']);
       expect(careReceiver.rows[0].requires_vital_monitoring).toBe(false);
       expect(careReceiver.rows[0].vital_monitoring_types).toEqual([]);
     });
@@ -229,7 +229,7 @@ describe('Jobs (e2e)', () => {
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          care_receiver: { ...defaultCareReceiver, toilet_assistance: 'not_a_real_value' },
+          care_receiver: { ...defaultCareReceiver, toilet_assistance: ['not_a_real_value'] },
           city: 'bangalore',
           description: `${jobDescriptionPrefix} toilet assistance validation test`,
           duty_type: 'live_in',
@@ -238,6 +238,33 @@ describe('Jobs (e2e)', () => {
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects an empty toilet_assistance array (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, toilet_assistance: [] },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} empty toilet assistance validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('accepts multiple toilet assistance options — admin can select more than one', async () => {
+      const job = await createJob({
+        care_receiver: { toilet_assistance: ['uses_diapers', 'uses_catheter'] },
+      });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers', 'uses_catheter']);
     });
 
     it('rejects "other_non_verbal" as a communication value — dropped, only 3 options remain (GEN_001)', async () => {
@@ -491,7 +518,7 @@ describe('Jobs (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: 'uses_diapers' } }))
+        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: ['uses_diapers'] } }))
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
       expect(res.body.data.area).toBe('Koramangala');
@@ -506,7 +533,7 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(detail.body.data.care_receiver_id).toBe(job.care_receiver_id);
       expect(detail.body.data.care_receiver.age).toBe(80);
-      expect(detail.body.data.care_receiver.toilet_assistance).toBe('uses_diapers');
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers']);
       expect(detail.body.data.languages).toEqual(['hindi', 'english']);
 
       const audit = await db.query(
@@ -720,7 +747,7 @@ describe('Jobs (e2e)', () => {
         care_receiver: {
           age: 81,
           mobility: 'uses_wheelchair',
-          toilet_assistance: 'uses_catheter',
+          toilet_assistance: ['uses_catheter'],
           requires_vital_monitoring: true,
           vital_monitoring_types: ['blood_pressure'],
         },
@@ -734,7 +761,7 @@ describe('Jobs (e2e)', () => {
       expect(listed.care_receiver).toBeDefined();
       expect(listed.care_receiver.age).toBe(81);
       expect(listed.care_receiver.mobility).toBe('uses_wheelchair');
-      expect(listed.care_receiver.toilet_assistance).toBe('uses_catheter');
+      expect(listed.care_receiver.toilet_assistance).toEqual(['uses_catheter']);
       expect(listed.care_receiver.requires_vital_monitoring).toBe(true);
       expect(listed.care_receiver.vital_monitoring_types).toEqual(['blood_pressure']);
     });

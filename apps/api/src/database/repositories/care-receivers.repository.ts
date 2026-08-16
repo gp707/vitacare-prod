@@ -25,7 +25,7 @@ export interface CareReceiverRecord {
   has_medical_condition: boolean;
   medical_conditions: MedicalCondition[];
   medical_info: string | null;
-  toilet_assistance: ToiletAssistance;
+  toilet_assistance: ToiletAssistance[];
   requires_vital_monitoring: boolean;
   vital_monitoring_types: VitalMonitoringType[];
   created_at: Date;
@@ -44,7 +44,7 @@ export interface CreateCareReceiverInput {
   has_medical_condition: boolean;
   medical_conditions?: MedicalCondition[];
   medical_info?: string | null;
-  toilet_assistance: ToiletAssistance;
+  toilet_assistance: ToiletAssistance[];
   requires_vital_monitoring: boolean;
   vital_monitoring_types?: VitalMonitoringType[];
 }
@@ -74,7 +74,7 @@ export class CareReceiversRepository {
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
         input.medical_info ?? null,
-        input.toilet_assistance,
+        JSON.stringify(input.toilet_assistance),
         input.requires_vital_monitoring,
         JSON.stringify(input.vital_monitoring_types ?? []),
       ],
@@ -117,7 +117,7 @@ export class CareReceiversRepository {
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
         input.medical_info ?? null,
-        input.toilet_assistance,
+        JSON.stringify(input.toilet_assistance),
         input.requires_vital_monitoring,
         JSON.stringify(input.vital_monitoring_types ?? []),
         id,

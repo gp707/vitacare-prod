@@ -291,7 +291,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   List<String> _medicalAssistance = [];
   bool _hasMedicalCondition = false;
   List<String> _medicalConditions = [];
-  String? _toiletAssistance;
+  List<String> _toiletAssistance = [];
   bool _requiresVitalMonitoring = false;
   List<String> _vitalMonitoringTypes = [];
 
@@ -335,7 +335,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _hasMedicalCondition = cr.hasMedicalCondition;
       _medicalConditions = List.of(cr.medicalConditions);
       _medicalInfoController.text = cr.medicalInfo ?? '';
-      _toiletAssistance = cr.toiletAssistance;
+      _toiletAssistance = List.of(cr.toiletAssistance);
       _requiresVitalMonitoring = cr.requiresVitalMonitoring;
       _vitalMonitoringTypes = List.of(cr.vitalMonitoringTypes);
     }
@@ -374,7 +374,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _feedingType != null &&
       (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
       (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
-      _toiletAssistance != null &&
+      _toiletAssistance.isNotEmpty &&
       (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
       _dutyType != null &&
       _languages.isNotEmpty &&
@@ -413,7 +413,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
         medicalInfo:
             _medicalInfoController.text.trim().isEmpty ? null : _medicalInfoController.text.trim(),
-        toiletAssistance: _toiletAssistance!,
+        toiletAssistance: _toiletAssistance,
         requiresVitalMonitoring: _requiresVitalMonitoring,
         vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
       );
@@ -598,18 +598,15 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               const SizedBox(height: AppSpacing.sm),
               const Text('Toilet Assistance', style: TextStyle(fontWeight: FontWeight.w600)),
               const Text(
-                'What assistance is required? Select the one which applies.',
+                'What assistance is required? Select all that apply.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _toiletAssistance,
-                decoration: const InputDecoration(labelText: 'Toilet Assistance'),
-                items: ToiletAssistance.all
-                    .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
-                    .toList(),
-                onChanged: (value) => setState(() => _toiletAssistance = value),
+              const SizedBox(height: AppSpacing.xs),
+              VitaMultiSelectChips(
+                options: ToiletAssistance.all,
+                labels: ToiletAssistance.displayNames,
+                selected: _toiletAssistance,
+                onChanged: (next) => setState(() => _toiletAssistance = next),
               ),
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile(

@@ -136,6 +136,10 @@ components:
 
     MedicalAssistance:
       type: string
+      description: >
+        medication_administration = "Oral Medication Administration",
+        other = "Others/Cannula/Tube" (frontend display labels only, values
+        unchanged).
       enum: [medication_reminders, medication_administration, insulin_administration, other_injections, other]
 
     MedicalCondition:
@@ -151,6 +155,7 @@ components:
         - diabetes
         - colostomy
         - paralysis
+        - tb
         - other
 
     JobApplicationStatus:
@@ -159,8 +164,8 @@ components:
 
     ToiletAssistance:
       type: string
-      description: Single-select — "what assistance is required, select the one which applies."
-      enum: [uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, none]
+      description: Multi-select — "what assistance is required, select all that apply."
+      enum: [uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, others, independent]
 
     VitalMonitoringType:
       type: string
@@ -237,7 +242,10 @@ components:
           type: string
           nullable: true
         toilet_assistance:
-          $ref: "#/components/schemas/ToiletAssistance"
+          type: array
+          items:
+            $ref: "#/components/schemas/ToiletAssistance"
+          description: Multi-select — admin can pick more than one.
         requires_vital_monitoring:
           type: boolean
         vital_monitoring_types:
@@ -258,7 +266,7 @@ components:
         has_medical_condition: true
         medical_conditions: ["diabetes"]
         medical_info: "Needs help twice daily, post hip surgery"
-        toilet_assistance: "uses_diapers"
+        toilet_assistance: ["uses_diapers"]
         requires_vital_monitoring: true
         vital_monitoring_types: ["blood_pressure", "blood_sugar"]
 
@@ -3276,7 +3284,10 @@ paths:
                       type: string
                       description: "Free text — important information for the caregiver."
                     toilet_assistance:
-                      $ref: "#/components/schemas/ToiletAssistance"
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/ToiletAssistance"
+                      description: "Required non-empty array — multi-select, admin can pick more than one."
                     requires_vital_monitoring:
                       type: boolean
                     vital_monitoring_types:
@@ -3338,7 +3349,7 @@ paths:
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
                 medical_info: "Needs help twice daily, post hip surgery"
-                toilet_assistance: "uses_diapers"
+                toilet_assistance: ["uses_diapers"]
                 requires_vital_monitoring: true
                 vital_monitoring_types: ["blood_pressure", "blood_sugar"]
               city: "bangalore"
@@ -3539,7 +3550,10 @@ paths:
                       type: string
                       description: "Free text — important information for the caregiver."
                     toilet_assistance:
-                      $ref: "#/components/schemas/ToiletAssistance"
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/ToiletAssistance"
+                      description: "Required non-empty array — multi-select, admin can pick more than one."
                     requires_vital_monitoring:
                       type: boolean
                     vital_monitoring_types:
@@ -3601,7 +3615,7 @@ paths:
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
                 medical_info: "Needs help twice daily, post hip surgery"
-                toilet_assistance: "uses_diapers"
+                toilet_assistance: ["uses_diapers"]
                 requires_vital_monitoring: true
                 vital_monitoring_types: ["blood_pressure", "blood_sugar"]
               city: "bangalore"

@@ -79,8 +79,10 @@ export class CareReceiverDto {
   @IsString()
   medical_info?: string;
 
-  @IsIn(Object.values(ToiletAssistance), { message: 'GEN_001' })
-  toilet_assistance!: ToiletAssistance;
+  @IsArray({ message: 'GEN_001' })
+  @ArrayNotEmpty({ message: 'GEN_001' })
+  @IsIn(Object.values(ToiletAssistance), { each: true, message: 'GEN_001' })
+  toilet_assistance!: ToiletAssistance[];
 
   @IsBoolean({ message: 'GEN_001' })
   requires_vital_monitoring!: boolean;

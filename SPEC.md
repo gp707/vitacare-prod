@@ -418,6 +418,7 @@ export const MedicalCondition = {
   DIABETES: 'diabetes',
   COLOSTOMY: 'colostomy',
   PARALYSIS: 'paralysis',
+  TB: 'tb',
   OTHER: 'other',
 } as const;
 
@@ -426,7 +427,8 @@ export const ToiletAssistance = {
   USES_BED_PAN: 'uses_bed_pan',
   USES_CATHETER: 'uses_catheter',
   COMPLETE_ASSISTANCE: 'complete_toileting_assistance',
-  NONE: 'none',
+  OTHERS: 'others',
+  INDEPENDENT: 'independent',
 } as const;
 
 export const VitalMonitoringType = {
@@ -647,6 +649,7 @@ class MedicalCondition {
   static const diabetes = 'diabetes';
   static const colostomy = 'colostomy';
   static const paralysis = 'paralysis';
+  static const tb = 'tb';
   static const other = 'other';
 
   static const all = [
@@ -660,6 +663,7 @@ class MedicalCondition {
     diabetes,
     colostomy,
     paralysis,
+    tb,
     other,
   ];
 }
@@ -669,9 +673,17 @@ class ToiletAssistance {
   static const usesBedPan = 'uses_bed_pan';
   static const usesCatheter = 'uses_catheter';
   static const completeAssistance = 'complete_toileting_assistance';
-  static const none = 'none';
+  static const others = 'others';
+  static const independent = 'independent';
 
-  static const all = [usesDiapers, usesBedPan, usesCatheter, completeAssistance, none];
+  static const all = [
+    usesDiapers,
+    usesBedPan,
+    usesCatheter,
+    completeAssistance,
+    others,
+    independent,
+  ];
 }
 
 class VitalMonitoringType {
@@ -1070,9 +1082,7 @@ CREATE TABLE care_receivers (
   has_medical_condition BOOLEAN NOT NULL DEFAULT false,
   medical_conditions JSONB NOT NULL DEFAULT '[]',  -- only populated when has_medical_condition
   medical_info TEXT,                      -- free text, "important information for the caregiver"
-  toilet_assistance VARCHAR(30) NOT NULL CHECK (toilet_assistance IN (
-    'uses_diapers', 'uses_bed_pan', 'uses_catheter', 'complete_toileting_assistance', 'none'
-  )),
+  toilet_assistance JSONB NOT NULL DEFAULT '[]',  -- multi-select: uses_diapers/uses_bed_pan/uses_catheter/complete_toileting_assistance/others/independent
   requires_vital_monitoring BOOLEAN NOT NULL DEFAULT false,
   vital_monitoring_types JSONB NOT NULL DEFAULT '[]',  -- only populated when requires_vital_monitoring
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -2022,7 +2032,7 @@ notification to ALL caregivers.
     "has_medical_condition": true,
     "medical_conditions": ["diabetes"],
     "medical_info": "Needs help twice daily, post hip surgery",
-    "toilet_assistance": "uses_diapers",
+    "toilet_assistance": ["uses_diapers"],
     "requires_vital_monitoring": true,
     "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
   },
@@ -2046,7 +2056,7 @@ notification to ALL caregivers.
 - `care_receiver.has_medical_condition`: Required boolean.
 - `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.
 - `care_receiver.medical_info`: Optional free text.
-- `care_receiver.toilet_assistance`: Required, valid enum value — single-select ("select the one which applies").
+- `care_receiver.toilet_assistance`: Required non-empty array, each item a valid enum value — multi-select ("select all that apply").
 - `care_receiver.requires_vital_monitoring`: Required boolean. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
 - `city`: Required, must be valid city enum. `area`: Optional free text.
 - `description`: Required, free text. UI label: "More details you want to share about patient or requirement which can help caregiver to decide."
@@ -2146,7 +2156,7 @@ Get job detail with the care receiver and every application.
       "has_medical_condition": true,
       "medical_conditions": ["diabetes"],
       "medical_info": "Needs help twice daily, post hip surgery",
-      "toilet_assistance": "uses_diapers",
+      "toilet_assistance": ["uses_diapers"],
       "requires_vital_monitoring": true,
       "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
     },
@@ -2299,7 +2309,7 @@ remaining — purely informational, never blocks applying).
         "has_medical_condition": true,
         "medical_conditions": ["diabetes"],
         "medical_info": "Needs help twice daily, post hip surgery",
-        "toilet_assistance": "uses_diapers",
+        "toilet_assistance": ["uses_diapers"],
         "requires_vital_monitoring": true,
         "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
       }

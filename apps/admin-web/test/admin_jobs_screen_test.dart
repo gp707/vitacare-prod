@@ -58,7 +58,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
       'medical_assistance': [],
       'has_medical_condition': false,
       'medical_conditions': [],
-      'toilet_assistance': 'none',
+      'toilet_assistance': ['others'],
       'requires_vital_monitoring': false,
       'vital_monitoring_types': [],
     },
@@ -217,7 +217,7 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await _selectDropdown(tester, 'Mobility', 'Walks independently');
   await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
   await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
-  await _selectDropdown(tester, 'Toilet Assistance', 'None');
+  await _tapChip(tester, 'Others');
 }
 
 Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
@@ -370,7 +370,7 @@ void main() {
     await _selectDropdown(tester, 'Mobility', 'Walks independently');
     await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
-    await _selectDropdown(tester, 'Toilet Assistance', 'None');
+    await _tapChip(tester, 'Others');
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
