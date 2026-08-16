@@ -13,12 +13,12 @@ export const JobStatus = {
 } as const;
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 
-export const JobResponse = {
-  ACCEPTED: 'accepted',
+export const JobApplicationStatus = {
+  APPLIED: 'applied',
   REJECTED: 'rejected',
-  MORE_DETAILS: 'more_details',
+  ACCEPTED: 'accepted',
 } as const;
-export type JobResponse = (typeof JobResponse)[keyof typeof JobResponse];
+export type JobApplicationStatus = (typeof JobApplicationStatus)[keyof typeof JobApplicationStatus];
 
 export const Gender = {
   MALE: 'male',
@@ -40,12 +40,6 @@ export const Language = {
 } as const;
 export type Language = (typeof Language)[keyof typeof Language];
 
-export const ServiceMode = {
-  TWENTY_FOUR_HRS_LIVE_IN: '24hrs_live_in',
-  TWELVE_HRS_PG: '12hrs_pg',
-} as const;
-export type ServiceMode = (typeof ServiceMode)[keyof typeof ServiceMode];
-
 export const Religion = {
   HINDU: 'hindu',
   MUSLIM: 'muslim',
@@ -54,18 +48,62 @@ export const Religion = {
 } as const;
 export type Religion = (typeof Religion)[keyof typeof Religion];
 
-export const WorkType = {
-  COMPANION_CARE: 'companion_care',
-  BEDSIDE_CARE: 'bedside_care',
-  CRITICAL_CARE: 'critical_care',
+export const DutyType = {
+  DAY_DUTY: 'day_duty',
+  NIGHT_DUTY: 'night_duty',
+  LIVE_IN: 'live_in',
+  OTHER: 'other',
 } as const;
-export type WorkType = (typeof WorkType)[keyof typeof WorkType];
+export type DutyType = (typeof DutyType)[keyof typeof DutyType];
 
-export const SalaryRanges = {
-  COMPANION_CARE: { min: 25000, max: 30000 },
-  BEDSIDE_CARE: { min: 28000, max: 35000 },
-  CRITICAL_CARE: { min: 30000, max: 45000 },
+export const Mobility = {
+  WALKS_INDEPENDENTLY: 'walks_independently',
+  WALKS_WITH_ASSISTANCE: 'walks_with_assistance',
+  USES_WALKER: 'uses_walker',
+  USES_WHEELCHAIR: 'uses_wheelchair',
+  BEDRIDDEN: 'bedridden',
 } as const;
+export type Mobility = (typeof Mobility)[keyof typeof Mobility];
+
+export const Communication = {
+  VERBAL: 'verbal',
+  DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
+  SIGN_LANGUAGE: 'sign_language',
+  OTHER_NON_VERBAL: 'other_non_verbal',
+} as const;
+export type Communication = (typeof Communication)[keyof typeof Communication];
+
+export const FeedingType = {
+  ORAL_INDEPENDENT: 'oral_independent',
+  ORAL_NEEDS_ASSISTANCE: 'oral_needs_assistance',
+  TUBE_FEEDING: 'tube_feeding',
+  ORAL_AND_TUBE: 'oral_and_tube',
+} as const;
+export type FeedingType = (typeof FeedingType)[keyof typeof FeedingType];
+
+export const MedicalAssistance = {
+  MEDICATION_REMINDERS: 'medication_reminders',
+  MEDICATION_ADMINISTRATION: 'medication_administration',
+  INSULIN_ADMINISTRATION: 'insulin_administration',
+  OTHER_INJECTIONS: 'other_injections',
+  OTHER: 'other',
+} as const;
+export type MedicalAssistance = (typeof MedicalAssistance)[keyof typeof MedicalAssistance];
+
+export const MedicalCondition = {
+  CANCER: 'cancer',
+  STROKE: 'stroke',
+  BRAIN_INJURY: 'brain_injury',
+  DEMENTIA_ALZHEIMERS: 'dementia_alzheimers',
+  PARKINSONS: 'parkinsons',
+  HEART_CONDITION: 'heart_condition',
+  KIDNEY_DISEASE_DIALYSIS: 'kidney_disease_dialysis',
+  DIABETES: 'diabetes',
+  COLOSTOMY: 'colostomy',
+  PARALYSIS: 'paralysis',
+  OTHER: 'other',
+} as const;
+export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];
 
 export const City = {
   BANGALORE: 'bangalore',
@@ -103,6 +141,7 @@ export const AuditAction = {
   JOB_POSTED: 'job_posted',
   JOB_CLOSED: 'job_closed',
   JOB_RESPONSE: 'job_response',
+  JOB_APPLICATION_DECIDED: 'job_application_decided',
   ADMIN_DOCUMENT_UPLOADED: 'admin_document_uploaded',
   ADMIN_ROLE_CHANGED: 'admin_role_changed',
   ADMIN_ACTIVATED: 'admin_activated',

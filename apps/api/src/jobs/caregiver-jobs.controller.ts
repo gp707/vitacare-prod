@@ -8,7 +8,7 @@ import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { JobsService } from './jobs.service';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
-import { RespondJobDto } from './dto/respond-job.dto';
+import { ApplyJobDto } from './dto/apply-job.dto';
 
 @Controller('caregiver/jobs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -16,21 +16,21 @@ import { RespondJobDto } from './dto/respond-job.dto';
 export class CaregiverJobsController {
   constructor(private readonly jobsService: JobsService) {}
 
-  // Viewable at any verification status — SPEC.md 12: "browsing motivates
-  // onboarding." Only responding is gated (see respond()).
+  // Viewable at any verification status — browsing motivates onboarding.
+  // Only applying is gated (see apply()).
   @Get()
   list(@CurrentUser() user: JwtPayload, @Query() query: ListCaregiverJobsQueryDto) {
     return this.jobsService.listActiveJobsForCaregiver(user.sub, query);
   }
 
-  @Post(':id/respond')
+  @Post(':id/apply')
   @HttpCode(HttpStatus.OK)
-  respond(
+  apply(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: RespondJobDto,
+    @Body() dto: ApplyJobDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.jobsService.respondToJob(user.sub, id, dto, ip);
+    return this.jobsService.applyToJob(user.sub, id, dto, ip);
   }
 }

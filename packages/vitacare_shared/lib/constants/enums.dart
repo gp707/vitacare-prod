@@ -21,12 +21,12 @@ class JobStatus {
   static const all = [active, closed];
 }
 
-class JobResponseType {
-  static const accepted = 'accepted';
+class JobApplicationStatus {
+  static const applied = 'applied';
   static const rejected = 'rejected';
-  static const moreDetails = 'more_details';
+  static const accepted = 'accepted';
 
-  static const all = [accepted, rejected, moreDetails];
+  static const all = [applied, rejected, accepted];
 }
 
 class Gender {
@@ -73,18 +73,6 @@ class Language {
   };
 }
 
-class ServiceMode {
-  static const twentyFourHrsLiveIn = '24hrs_live_in';
-  static const twelveHrsPg = '12hrs_pg';
-
-  static const all = [twentyFourHrsLiveIn, twelveHrsPg];
-
-  static const displayNames = {
-    twentyFourHrsLiveIn: '24Hrs (Live-In)',
-    twelveHrsPg: '12Hrs (Nearby PG)',
-  };
-}
-
 class Religion {
   static const hindu = 'hindu';
   static const muslim = 'muslim';
@@ -101,24 +89,142 @@ class Religion {
   };
 }
 
-class WorkType {
-  static const companionCare = 'companion_care';
-  static const bedsideCare = 'bedside_care';
-  static const criticalCare = 'critical_care';
+class DutyType {
+  static const dayDuty = 'day_duty';
+  static const nightDuty = 'night_duty';
+  static const liveIn = 'live_in';
+  static const other = 'other';
 
-  static const all = [companionCare, bedsideCare, criticalCare];
+  static const all = [dayDuty, nightDuty, liveIn, other];
 
   static const displayNames = {
-    companionCare: 'Companion Care',
-    bedsideCare: 'Bedside Care (includes diaper change)',
-    criticalCare: 'Critical Care',
+    dayDuty: 'Day Duty',
+    nightDuty: 'Night Duty',
+    liveIn: 'Live-In',
+    other: 'Other',
   };
 }
 
-class SalaryRanges {
-  static const companionCare = (min: 25000, max: 30000);
-  static const bedsideCare = (min: 28000, max: 35000);
-  static const criticalCare = (min: 30000, max: 45000);
+class Mobility {
+  static const walksIndependently = 'walks_independently';
+  static const walksWithAssistance = 'walks_with_assistance';
+  static const usesWalker = 'uses_walker';
+  static const usesWheelchair = 'uses_wheelchair';
+  static const bedridden = 'bedridden';
+
+  static const all = [
+    walksIndependently,
+    walksWithAssistance,
+    usesWalker,
+    usesWheelchair,
+    bedridden,
+  ];
+
+  static const displayNames = {
+    walksIndependently: 'Walks independently',
+    walksWithAssistance: 'Walks with assistance',
+    usesWalker: 'Uses walker',
+    usesWheelchair: 'Uses wheelchair',
+    bedridden: 'Bedridden',
+  };
+}
+
+class Communication {
+  static const verbal = 'verbal';
+  static const difficultyCommunicating = 'difficulty_communicating';
+  static const signLanguage = 'sign_language';
+  static const otherNonVerbal = 'other_non_verbal';
+
+  static const all = [verbal, difficultyCommunicating, signLanguage, otherNonVerbal];
+
+  static const displayNames = {
+    verbal: 'Speaks / communicates verbally',
+    difficultyCommunicating: 'Has difficulty communicating',
+    signLanguage: 'Sign language',
+    otherNonVerbal: 'Other / non-verbal communication',
+  };
+}
+
+class FeedingType {
+  static const oralIndependent = 'oral_independent';
+  static const oralNeedsAssistance = 'oral_needs_assistance';
+  static const tubeFeeding = 'tube_feeding';
+  static const oralAndTube = 'oral_and_tube';
+
+  static const all = [oralIndependent, oralNeedsAssistance, tubeFeeding, oralAndTube];
+
+  static const displayNames = {
+    oralIndependent: 'Oral feeding – independent',
+    oralNeedsAssistance: 'Oral feeding – needs assistance',
+    tubeFeeding: 'Tube feeding',
+    oralAndTube: 'Both oral and tube feeding',
+  };
+}
+
+class MedicalAssistance {
+  static const medicationReminders = 'medication_reminders';
+  static const medicationAdministration = 'medication_administration';
+  static const insulinAdministration = 'insulin_administration';
+  static const otherInjections = 'other_injections';
+  static const other = 'other';
+
+  static const all = [
+    medicationReminders,
+    medicationAdministration,
+    insulinAdministration,
+    otherInjections,
+    other,
+  ];
+
+  static const displayNames = {
+    medicationReminders: 'Medication reminders',
+    medicationAdministration: 'Medication administration',
+    insulinAdministration: 'Insulin administration',
+    otherInjections: 'Other injections',
+    other: 'Other',
+  };
+}
+
+class MedicalCondition {
+  static const cancer = 'cancer';
+  static const stroke = 'stroke';
+  static const brainInjury = 'brain_injury';
+  static const dementiaAlzheimers = 'dementia_alzheimers';
+  static const parkinsons = 'parkinsons';
+  static const heartCondition = 'heart_condition';
+  static const kidneyDiseaseDialysis = 'kidney_disease_dialysis';
+  static const diabetes = 'diabetes';
+  static const colostomy = 'colostomy';
+  static const paralysis = 'paralysis';
+  static const other = 'other';
+
+  static const all = [
+    cancer,
+    stroke,
+    brainInjury,
+    dementiaAlzheimers,
+    parkinsons,
+    heartCondition,
+    kidneyDiseaseDialysis,
+    diabetes,
+    colostomy,
+    paralysis,
+    other,
+  ];
+
+  static const displayNames = {
+    cancer: 'Cancer',
+    stroke: 'Stroke',
+    brainInjury: 'Brain injury',
+    dementiaAlzheimers: "Dementia / Alzheimer's",
+    parkinsons: "Parkinson's",
+    heartCondition: 'Heart condition / Cardiac condition',
+    kidneyDiseaseDialysis: 'Kidney disease / Dialysis',
+    diabetes: 'Diabetes',
+    colostomy: 'Colostomy',
+    paralysis: 'Paralysis',
+    other: 'Other',
+  };
 }
 
 class City {
@@ -185,6 +291,7 @@ class AuditAction {
   static const jobPosted = 'job_posted';
   static const jobClosed = 'job_closed';
   static const jobResponse = 'job_response';
+  static const jobApplicationDecided = 'job_application_decided';
   static const adminDocumentUploaded = 'admin_document_uploaded';
   static const adminRoleChanged = 'admin_role_changed';
   static const adminActivated = 'admin_activated';
@@ -205,6 +312,7 @@ class AuditAction {
     jobPosted,
     jobClosed,
     jobResponse,
+    jobApplicationDecided,
     adminDocumentUploaded,
     adminRoleChanged,
     adminActivated,

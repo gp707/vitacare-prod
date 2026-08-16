@@ -213,8 +213,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            _SalaryRangesCard(),
-            const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _fullNameController,
               decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
@@ -410,31 +408,3 @@ class _DocumentPicker extends StatelessWidget {
   }
 }
 
-class _SalaryRangesCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.primaryLight,
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Monthly salary ranges', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Companion Care: ₹${SalaryRanges.companionCare.min} – ₹${SalaryRanges.companionCare.max}',
-          ),
-          Text(
-            'Bedside Care: ₹${SalaryRanges.bedsideCare.min} – ₹${SalaryRanges.bedsideCare.max}',
-          ),
-          Text(
-            'Critical Care: ₹${SalaryRanges.criticalCare.min} – ₹${SalaryRanges.criticalCare.max}',
-          ),
-        ],
-      ),
-    );
-  }
-}

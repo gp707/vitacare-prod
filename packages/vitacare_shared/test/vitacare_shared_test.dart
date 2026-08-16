@@ -89,9 +89,6 @@ void main() {
         'age': 32,
         'selfie_photo_url': null,
         'languages': ['hindi', 'english'],
-        'service_modes': [],
-        'work_types': [],
-        'salary': null,
         'highest_qualification': null,
         'qualification_document_url': null,
         'aadhaar_document_url': null,
@@ -105,7 +102,6 @@ void main() {
       });
 
       expect(model.languages, ['hindi', 'english']);
-      expect(model.serviceModes, isEmpty);
       expect(model.preferredCities, isEmpty);
       expect(model.hasRequiredDocuments, isFalse);
     });
@@ -119,8 +115,6 @@ void main() {
         'gender': 'male',
         'age': 32,
         'languages': ['hindi'],
-        'service_modes': [],
-        'work_types': [],
         'other_document_urls': [],
         'terms_accepted': false,
         'verification_status': 'pending_call',

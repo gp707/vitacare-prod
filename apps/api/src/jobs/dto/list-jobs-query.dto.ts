@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { City, JobStatus, Validation, WorkType } from '@vitacare/shared-constants';
+import { City, JobStatus, Validation } from '@vitacare/shared-constants';
 
 export class ListJobsQueryDto {
   @IsOptional()
@@ -19,10 +19,6 @@ export class ListJobsQueryDto {
   @IsOptional()
   @IsIn(Object.values(JobStatus), { message: 'GEN_005' })
   status?: JobStatus;
-
-  @IsOptional()
-  @IsIn(Object.values(WorkType), { message: 'GEN_005' })
-  work_type?: WorkType;
 
   @IsOptional()
   @IsIn(Object.values(City), { message: 'GEN_005' })

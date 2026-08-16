@@ -9,7 +9,8 @@ import { AdminCaregiversRepository } from './repositories/admin-caregivers.repos
 import { AdminNotesRepository } from './repositories/admin-notes.repository';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { JobsRepository } from './repositories/jobs.repository';
-import { JobResponsesRepository } from './repositories/job-responses.repository';
+import { JobApplicationsRepository } from './repositories/job-applications.repository';
+import { CareReceiversRepository } from './repositories/care-receivers.repository';
 
 const repositories = [
   UsersRepository,
@@ -21,7 +22,8 @@ const repositories = [
   AdminNotesRepository,
   AuditLogsRepository,
   JobsRepository,
-  JobResponsesRepository,
+  JobApplicationsRepository,
+  CareReceiversRepository,
 ];
 
 @Global()

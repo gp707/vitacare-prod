@@ -88,9 +88,78 @@ Admin-assigned work types, service modes, and salary (formerly
 `caregiver_work_types` / `caregiver_service_modes` tables plus a
 `caregiver_profiles.salary` column) have been removed from the product
 entirely, along with `admin_notes.rate_24hrs_live_in` /
-`rate_12hrs_pg`. `WorkType`/`ServiceMode` remain valid enums but are now
-purely attributes of a `jobs` row (see below), not something assigned to
-a caregiver's own profile.
+`rate_12hrs_pg`. `WorkType`/`ServiceMode`/`SalaryRanges` are gone entirely —
+job postings are no longer built around a "work type" category; see
+`care_receivers` and the redesigned `jobs` below.
+
+```
+┌──────────────────────┐
+│    care_receivers    │
+│──────────────────────│
+│ id (PK)              │
+│ mobility             │
+│ communication        │
+│ feeding_type         │
+│ tube_feeding_needs_  │
+│   assistance         │
+│ medical_assistance   │  ◄── JSONB array
+│ has_medical_condition│
+│ medical_conditions   │  ◄── JSONB array
+│ medical_info         │
+│ created_at           │
+│ updated_at           │
+└──────────┬───────────┘
+           │ 1
+           │
+           │ 1
+           ▼
+┌──────────────────────┐
+│         jobs          │
+│──────────────────────│
+│ id (PK)              │
+│ care_receiver_id     │
+│   (FK→care_receivers)│
+│ city                 │
+│ area                 │  ◄── free text, optional
+│ description          │
+│ duty_type            │
+│ start_time           │
+│ end_time             │
+│ start_date           │
+│ language             │
+│ preferred_gender     │  ◄── NULL = no preference
+│ preferred_religion   │  ◄── NULL = no preference
+│ status               │  ◄── active | closed
+│ posted_by (FK→users) │
+│ created_at           │
+│ updated_at           │
+└──────────┬───────────┘
+           │
+           │ 1
+           │
+           │ N
+           ▼
+┌──────────────────────┐
+│   job_applications    │
+│──────────────────────│
+│ id (PK)              │
+│ job_id (FK→jobs)     │
+│ profile_id           │
+│   (FK→profiles)      │
+│ status               │  ◄── applied | rejected | accepted
+│ decided_by (FK→users)│  ◄── admin who accepted/rejected
+│ created_at           │
+│ updated_at           │
+└──────────────────────┘
+```
+
+`care_receivers` is 1:1 with a `jobs` row today (created together, no
+independent reuse/search screen) — structured as its own table rather than
+embedded columns on `jobs` to leave a clean seam for a future "Patient" app
+to supply real care-receiver identity data. Accepting a `job_applications`
+row (admin action) closes the job and sets the caregiver's
+`verification_status` to `assigned`; rejecting a previously-accepted
+application reopens the job and returns the caregiver to `available`.
 
 ## Relationships
 
@@ -106,8 +175,10 @@ a caregiver's own profile.
 | caregiver_profiles | caregiver_preferred_cities | 1:N | caregiver_preferred_cities.profile_id | A profile has 0+ preferred cities (multi-select) |
 | caregiver_profiles | admin_notes | 1:1 | admin_notes.profile_id | One notes record per profile (upserted) |
 | users | jobs (posted_by) | 1:N | jobs.posted_by | Admin who posted the job |
-| jobs | job_responses | 1:N | job_responses.job_id | Caregiver responses to a job |
-| caregiver_profiles | job_responses | 1:N | job_responses.profile_id | A caregiver's responses across jobs |
+| care_receivers | jobs | 1:1 | jobs.care_receiver_id | Each job describes exactly one care receiver's needs |
+| jobs | job_applications | 1:N | job_applications.job_id | Caregiver applications to a job |
+| caregiver_profiles | job_applications | 1:N | job_applications.profile_id | A caregiver's applications across jobs |
+| users | job_applications (decided_by) | 1:N | job_applications.decided_by | Admin who accepted/rejected the application |
 
 ## Table Descriptions
 
@@ -118,6 +189,7 @@ a caregiver's own profile.
 | **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
-| **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Contains work type, city, description, duty timings, language, gender, religion requirements. |
-| **job_responses** | Caregiver responses (accept/reject/more_details) to job postings. One response per caregiver per job. |
+| **care_receivers** | Care-needs description (mobility, communication, feeding, medical assistance/conditions) for the person a job is posted for. 1:1 with a job; no patient PII yet — a future "Patient" app is expected to eventually supply real care-receiver identity data. |
+| **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type/timings, language, and gender/religion *preferences* (not eligibility filters). |
+| **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
 | **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. |

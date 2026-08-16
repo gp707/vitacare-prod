@@ -1,39 +1,33 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction, City, JobResponse, SalaryRanges, ServiceMode, VerificationStatus, WorkType } from '@vitacare/shared-constants';
+import { AuditAction, City, DutyType, JobApplicationStatus, VerificationStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
+import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
-import { JobResponsesRepository } from '../database/repositories/job-responses.repository';
+import { JobApplicationsRepository } from '../database/repositories/job-applications.repository';
+import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
+import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
-import { RespondJobDto } from './dto/respond-job.dto';
+import { ApplyJobDto } from './dto/apply-job.dto';
+import { DecideApplicationDto } from './dto/decide-application.dto';
 
-// Only these two can respond to a job — same rule as availability itself:
-// unavailable caregivers must toggle back to available first (SPEC.md 6.6).
-const RESPOND_ELIGIBLE_STATUSES: VerificationStatus[] = [
+// Only these two can apply to a job — same rule as availability itself:
+// unavailable caregivers must toggle back to available first.
+const APPLY_ELIGIBLE_STATUSES: VerificationStatus[] = [
   VerificationStatus.AVAILABLE,
   VerificationStatus.ASSIGNED,
 ];
 
-const WORK_TYPE_LABELS: Record<WorkType, string> = {
-  [WorkType.COMPANION_CARE]: 'Companion Care',
-  [WorkType.BEDSIDE_CARE]: 'Bedside Care',
-  [WorkType.CRITICAL_CARE]: 'Critical Care',
-};
-
-const WORK_TYPE_SALARY: Record<WorkType, { min: number; max: number }> = {
-  [WorkType.COMPANION_CARE]: SalaryRanges.COMPANION_CARE,
-  [WorkType.BEDSIDE_CARE]: SalaryRanges.BEDSIDE_CARE,
-  [WorkType.CRITICAL_CARE]: SalaryRanges.CRITICAL_CARE,
-};
-
-const DUTY_TIMINGS_LABELS: Record<ServiceMode, string> = {
-  [ServiceMode.TWENTY_FOUR_HRS_LIVE_IN]: '24Hrs (Live-In)',
-  [ServiceMode.TWELVE_HRS_PG]: '12Hrs (Nearby PG)',
+const DUTY_TYPE_LABELS: Record<DutyType, string> = {
+  [DutyType.DAY_DUTY]: 'Day Duty',
+  [DutyType.NIGHT_DUTY]: 'Night Duty',
+  [DutyType.LIVE_IN]: 'Live-In Care',
+  [DutyType.OTHER]: 'Care',
 };
 
 const CITY_LABELS: Record<City, string> = {
@@ -49,32 +43,41 @@ const CITY_LABELS: Record<City, string> = {
 @Injectable()
 export class JobsService {
   constructor(
+    private readonly db: DatabaseService,
     private readonly jobsRepo: JobsRepository,
-    private readonly jobResponsesRepo: JobResponsesRepository,
+    private readonly jobApplicationsRepo: JobApplicationsRepository,
+    private readonly careReceiversRepo: CareReceiversRepository,
     private readonly profilesRepo: CaregiverProfilesRepository,
+    private readonly adminCaregiversRepo: AdminCaregiversRepository,
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
   ) {}
 
   async createJob(adminId: string, dto: CreateJobDto, ipAddress: string | null) {
-    const job = await this.jobsRepo.create({
-      work_type: dto.work_type,
-      city: dto.city,
-      description: dto.description,
-      duty_timings: dto.duty_timings,
-      language: dto.language,
-      gender_needed: dto.gender_needed,
-      religion: dto.religion,
-      posted_by: adminId,
+    const job = await this.db.withTransaction(async (client) => {
+      const careReceiver = await this.careReceiversRepo.create(dto.care_receiver, client);
+      return this.jobsRepo.create(
+        {
+          care_receiver_id: careReceiver.id,
+          city: dto.city,
+          area: dto.area,
+          description: dto.description,
+          duty_type: dto.duty_type,
+          start_time: dto.start_time,
+          end_time: dto.end_time,
+          start_date: dto.start_date,
+          language: dto.language,
+          preferred_gender: dto.preferred_gender,
+          preferred_religion: dto.preferred_religion,
+          posted_by: adminId,
+        },
+        client,
+      );
     });
 
-    // Title/body format is exact per SPEC.md 6.7's notification table —
-    // matched precisely (including the "|"-joined body and the CTA
-    // suffix), not just approximated.
-    const { min, max } = WORK_TYPE_SALARY[dto.work_type];
     await this.fcmService.sendToAllCaregivers(
-      `New Job: ${WORK_TYPE_LABELS[dto.work_type]} - ₹${min.toLocaleString('en-IN')}–₹${max.toLocaleString('en-IN')}`,
-      `${CITY_LABELS[dto.city]} | ${DUTY_TIMINGS_LABELS[dto.duty_timings]} | IMMEDIATELY APPLY`,
+      `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
+      `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
     );
 
     await this.auditService.log({
@@ -82,7 +85,7 @@ export class JobsService {
       action: AuditAction.JOB_POSTED,
       entityType: 'jobs',
       entityId: job.id,
-      afterValue: { work_type: job.work_type, city: job.city, status: job.status },
+      afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
       ipAddress,
     });
 
@@ -91,7 +94,7 @@ export class JobsService {
 
   async listJobsForAdmin(query: ListJobsQueryDto) {
     const { items, total } = await this.jobsRepo.listForAdmin(
-      { status: query.status, work_type: query.work_type, city: query.city },
+      { status: query.status, city: query.city },
       { page: query.page, limit: query.limit },
     );
     const meta: PaginationMeta = {
@@ -106,8 +109,11 @@ export class JobsService {
   async getJobDetailForAdmin(jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
-    const responses = await this.jobResponsesRepo.findByJobId(jobId);
-    return { ...job, responses };
+    const [careReceiver, applications] = await Promise.all([
+      this.careReceiversRepo.findById(job.care_receiver_id),
+      this.jobApplicationsRepo.findByJobId(jobId),
+    ]);
+    return { ...job, care_receiver: careReceiver, applications };
   }
 
   async closeJob(adminId: string, jobId: string, ipAddress: string | null) {
@@ -134,10 +140,9 @@ export class JobsService {
     if (!job) throw new AppException('GEN_002');
     if (job.status !== 'active') throw new AppException('JOB_005');
 
-    const { min, max } = WORK_TYPE_SALARY[job.work_type];
     await this.fcmService.sendToAllCaregivers(
-      `Reminder: ${WORK_TYPE_LABELS[job.work_type]} - ₹${min.toLocaleString('en-IN')}–₹${max.toLocaleString('en-IN')}`,
-      `${CITY_LABELS[job.city]} | ${DUTY_TIMINGS_LABELS[job.duty_timings]} | APPLY NOW BEFORE IT'S FILLED`,
+      `Reminder: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
+      `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | APPLY NOW BEFORE IT'S FILLED`,
     );
 
     await this.auditService.log({
@@ -145,7 +150,7 @@ export class JobsService {
       action: AuditAction.JOB_REMINDER_SENT,
       entityType: 'jobs',
       entityId: jobId,
-      afterValue: { work_type: job.work_type, city: job.city },
+      afterValue: { duty_type: job.duty_type, city: job.city },
       ipAddress,
     });
 
@@ -169,10 +174,10 @@ export class JobsService {
     return { data: items, meta };
   }
 
-  async respondToJob(userId: string, jobId: string, dto: RespondJobDto, ipAddress: string | null) {
+  async applyToJob(userId: string, jobId: string, dto: ApplyJobDto, ipAddress: string | null) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
-    if (!RESPOND_ELIGIBLE_STATUSES.includes(profile.verification_status)) {
+    if (!APPLY_ELIGIBLE_STATUSES.includes(profile.verification_status)) {
       throw new AppException('JOB_001');
     }
 
@@ -180,22 +185,91 @@ export class JobsService {
     if (!job) throw new AppException('GEN_002');
     if (job.status !== 'active') throw new AppException('JOB_002');
 
-    const response = await this.jobResponsesRepo.upsert(
-      jobId,
-      profile.id,
-      dto.response,
-      dto.response === JobResponse.MORE_DETAILS ? (dto.message ?? null) : null,
-    );
+    const application = await this.jobApplicationsRepo.upsert(jobId, profile.id, dto.status);
 
     await this.auditService.log({
       userId,
       action: AuditAction.JOB_RESPONSE,
-      entityType: 'job_responses',
-      entityId: response.id,
-      afterValue: { job_id: jobId, response: dto.response },
+      entityType: 'job_applications',
+      entityId: application.id,
+      afterValue: { job_id: jobId, status: dto.status },
       ipAddress,
     });
 
-    return { message: 'Response recorded', response: response.response };
+    return { message: 'Application recorded', status: application.status };
+  }
+
+  /** Admin decision on a specific applicant. `accepted` closes the job and
+   *  moves the caregiver to `assigned` (this IS the offer confirmation —
+   *  admin has already agreed terms with the caregiver outside the app).
+   *  `rejected` on a previously-`accepted` application reopens the job and
+   *  moves the caregiver back to `available`; `rejected` on a still-
+   *  `applied` application just declines it, no side effects. Only
+   *  `applied` -> accepted/rejected and `accepted` -> rejected are valid
+   *  transitions — anything else (double-accept, re-deciding an already-
+   *  rejected application) is JOB_007. */
+  async decideApplication(
+    adminId: string,
+    jobId: string,
+    applicationId: string,
+    dto: DecideApplicationDto,
+    ipAddress: string | null,
+  ) {
+    const application = await this.jobApplicationsRepo.findById(applicationId);
+    if (!application || application.job_id !== jobId) throw new AppException('JOB_006');
+
+    const isAcceptFromApplied =
+      dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.APPLIED;
+    const isUndoAccept =
+      dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.ACCEPTED;
+    const isRejectFromApplied =
+      dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.APPLIED;
+
+    if (!isAcceptFromApplied && !isUndoAccept && !isRejectFromApplied) {
+      throw new AppException('JOB_007');
+    }
+
+    const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
+    if (!caregiverDetail) throw new AppException('PROFILE_019');
+
+    await this.db.withTransaction(async (client) => {
+      await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client);
+      if (isAcceptFromApplied) {
+        await this.jobsRepo.close(jobId, client);
+        await this.adminCaregiversRepo.updateStatus(
+          application.profile_id,
+          VerificationStatus.ASSIGNED,
+          null,
+          adminId,
+          client,
+        );
+      } else if (isUndoAccept) {
+        await this.jobsRepo.reopen(jobId, client);
+        await this.adminCaregiversRepo.updateStatus(
+          application.profile_id,
+          VerificationStatus.AVAILABLE,
+          null,
+          adminId,
+          client,
+        );
+      }
+    });
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId: caregiverDetail.user_id,
+      action: AuditAction.JOB_APPLICATION_DECIDED,
+      entityType: 'job_applications',
+      entityId: applicationId,
+      beforeValue: { status: application.status },
+      afterValue: {
+        status: dto.status,
+        ...(isAcceptFromApplied ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
+        ...(isUndoAccept ? { job_status: 'active', caregiver_status: 'available' } : {}),
+      },
+      ipAddress,
+    });
+
+    return { message: 'Application updated', status: dto.status };
   }
 }

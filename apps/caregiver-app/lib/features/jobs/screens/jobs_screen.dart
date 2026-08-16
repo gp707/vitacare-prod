@@ -7,12 +7,11 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 
-/// SPEC.md 12.3 "Jobs Dashboard" — list of active job postings, viewable at
-/// any verification status (browsing motivates onboarding). Responding is
-/// gated server-side (JOB_001) to available/assigned caregivers only; a
-/// caregiver in any other status sees the server's rejection message when
-/// they try, rather than the buttons being hidden entirely — SPEC.md 12
-/// says "view jobs; respond only if available/assigned", not "hide jobs".
+/// List of active job postings, viewable at any verification status
+/// (browsing motivates onboarding). Applying is gated server-side
+/// (JOB_001) to available/assigned caregivers only; a caregiver in any
+/// other status sees the server's rejection message when they try, rather
+/// than the buttons being hidden entirely.
 class JobsScreen extends ConsumerStatefulWidget {
   const JobsScreen({super.key});
 
@@ -24,7 +23,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   List<JobModel> _jobs = [];
   bool _loading = true;
   String? _errorMessage;
-  final Set<String> _respondingJobId = {};
+  final Set<String> _applyingJobId = {};
 
   @override
   void initState() {
@@ -47,46 +46,18 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
-  Future<void> _respond(JobModel job, String response, {String? message}) async {
-    setState(() => _respondingJobId.add(job.id));
+  Future<void> _apply(JobModel job, String status) async {
+    setState(() => _applyingJobId.add(job.id));
     try {
-      await ref.read(jobsRepositoryProvider).respondToJob(job.id, response, message: message);
+      await ref.read(jobsRepositoryProvider).applyToJob(job.id, status);
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
-      if (mounted) setState(() => _respondingJobId.remove(job.id));
+      if (mounted) setState(() => _applyingJobId.remove(job.id));
     }
-  }
-
-  Future<void> _askForMoreDetails(JobModel job) async {
-    final controller = TextEditingController();
-    final message = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Ask for More Details'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: const InputDecoration(hintText: 'What would you like to know?'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    if (message == null || message.isEmpty || !mounted) return;
-    await _respond(job, JobResponseType.moreDetails, message: message);
   }
 
   @override
@@ -130,10 +101,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                     for (final job in _jobs) ...[
                       _JobCard(
                         job: job,
-                        isResponding: _respondingJobId.contains(job.id),
-                        onAccept: () => _respond(job, JobResponseType.accepted),
-                        onReject: () => _respond(job, JobResponseType.rejected),
-                        onAskForMoreDetails: () => _askForMoreDetails(job),
+                        isApplying: _applyingJobId.contains(job.id),
+                        onApply: () => _apply(job, JobApplicationStatus.applied),
+                        onReject: () => _apply(job, JobApplicationStatus.rejected),
                       ),
                       const SizedBox(height: AppSpacing.md),
                     ],
@@ -147,22 +117,19 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
 class _JobCard extends StatelessWidget {
   final JobModel job;
-  final bool isResponding;
-  final VoidCallback onAccept;
+  final bool isApplying;
+  final VoidCallback onApply;
   final VoidCallback onReject;
-  final VoidCallback onAskForMoreDetails;
 
   const _JobCard({
     required this.job,
-    required this.isResponding,
-    required this.onAccept,
+    required this.isApplying,
+    required this.onApply,
     required this.onReject,
-    required this.onAskForMoreDetails,
   });
 
   @override
   Widget build(BuildContext context) {
-    final salary = _salaryRangeFor(job.workType);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -173,44 +140,40 @@ class _JobCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            WorkType.displayNames[job.workType] ?? job.workType,
+            '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
+            '${City.displayNames[job.city] ?? job.city}',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          if (salary != null)
-            Text('₹${salary.min} – ₹${salary.max}', style: const TextStyle(color: AppColors.primary)),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             children: [
-              _Tag(City.displayNames[job.city] ?? job.city),
-              _Tag(ServiceMode.displayNames[job.dutyTimings] ?? job.dutyTimings),
+              if (job.area != null && job.area!.isNotEmpty) _Tag(job.area!),
               _Tag(Language.displayNames[job.language] ?? job.language),
-              _Tag(job.genderNeeded[0].toUpperCase() + job.genderNeeded.substring(1)),
-              _Tag(Religion.displayNames[job.religion] ?? job.religion),
+              if (job.preferredGender != null)
+                _Tag(job.preferredGender![0].toUpperCase() + job.preferredGender!.substring(1)),
+              if (job.preferredReligion != null)
+                _Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(job.description),
           const SizedBox(height: AppSpacing.md),
-          if (isResponding)
+          if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (job.myResponse != null)
+          else if (job.myApplicationStatus != null)
             Text(
-              'You responded: ${_responseLabel(job.myResponse!)}',
+              _statusLabel(job.myApplicationStatus!),
               style: const TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
             )
           else
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(onPressed: onAccept, child: const Text('Accept')),
+                  child: ElevatedButton(onPressed: onApply, child: const Text('Apply')),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton(onPressed: onReject, child: const Text('Reject')),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: TextButton(onPressed: onAskForMoreDetails, child: const Text('More Info')),
                 ),
               ],
             ),
@@ -219,29 +182,16 @@ class _JobCard extends StatelessWidget {
     );
   }
 
-  String _responseLabel(String response) {
-    switch (response) {
-      case JobResponseType.accepted:
-        return 'Accepted';
-      case JobResponseType.rejected:
-        return 'Rejected';
-      case JobResponseType.moreDetails:
-        return 'Asked for more details';
+  String _statusLabel(String status) {
+    switch (status) {
+      case JobApplicationStatus.applied:
+        return 'You applied';
+      case JobApplicationStatus.accepted:
+        return 'You were accepted';
+      case JobApplicationStatus.rejected:
+        return 'You declined';
       default:
-        return response;
-    }
-  }
-
-  ({int min, int max})? _salaryRangeFor(String workType) {
-    switch (workType) {
-      case WorkType.companionCare:
-        return SalaryRanges.companionCare;
-      case WorkType.bedsideCare:
-        return SalaryRanges.bedsideCare;
-      case WorkType.criticalCare:
-        return SalaryRanges.criticalCare;
-      default:
-        return null;
+        return status;
     }
   }
 }

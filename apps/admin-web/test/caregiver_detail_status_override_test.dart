@@ -22,8 +22,6 @@ AdminCaregiverDetail _detail({String status = 'pending_call'}) {
     gender: 'female',
     age: 28,
     languages: const ['hindi'],
-    serviceModes: const [],
-    workTypes: const [],
     preferredCities: const [],
     otherDocumentUrls: const [],
     termsAccepted: false,

@@ -119,7 +119,7 @@ void main() {
     expect(auditResult.items.first.afterValue, {'verification_status': 'available'});
   });
 
-  test('admin can edit profile fields, assign work types/service modes, and set salary', () async {
+  test('admin can edit profile fields', () async {
     await loginAsSuperAdmin();
 
     final apiClient = ApiClient(localStorage);
@@ -146,20 +146,6 @@ void main() {
     expect(editedDetail.age, 31);
     expect(editedDetail.religion, 'muslim');
     expect(editedDetail.verificationStatus, 'pending_call');
-
-    final workTypes = await caregiversRepo.assignWorkTypes(profileId, ['companion_care', 'bedside_care']);
-    expect(workTypes, ['companion_care', 'bedside_care']);
-
-    final serviceModes = await caregiversRepo.assignServiceModes(profileId, ['24hrs_live_in']);
-    expect(serviceModes, ['24hrs_live_in']);
-
-    final salary = await caregiversRepo.updateSalary(profileId, 26000);
-    expect(salary, 26000);
-
-    final finalDetail = await caregiversRepo.getDetail(profileId);
-    expect(finalDetail.workTypes.toSet(), {'companion_care', 'bedside_care'});
-    expect(finalDetail.serviceModes, ['24hrs_live_in']);
-    expect(finalDetail.salary, 26000);
   });
 
   test('admin can upload/replace a caregiver selfie and documents', () async {

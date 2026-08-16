@@ -341,10 +341,10 @@ export const JobStatus = {
   CLOSED: 'closed',
 } as const;
 
-export const JobResponse = {
-  ACCEPTED: 'accepted',
+export const JobApplicationStatus = {
+  APPLIED: 'applied',
   REJECTED: 'rejected',
-  MORE_DETAILS: 'more_details',
+  ACCEPTED: 'accepted',
 } as const;
 
 export const Gender = {
@@ -365,11 +365,6 @@ export const Language = {
   MARATHI: 'marathi',
 } as const;
 
-export const ServiceMode = {
-  TWENTY_FOUR_HRS_LIVE_IN: '24hrs_live_in',
-  TWELVE_HRS_PG: '12hrs_pg',
-} as const;
-
 export const Religion = {
   HINDU: 'hindu',
   MUSLIM: 'muslim',
@@ -377,16 +372,55 @@ export const Religion = {
   OTHERS: 'others',
 } as const;
 
-export const WorkType = {
-  COMPANION_CARE: 'companion_care',
-  BEDSIDE_CARE: 'bedside_care',
-  CRITICAL_CARE: 'critical_care',
+export const DutyType = {
+  DAY_DUTY: 'day_duty',
+  NIGHT_DUTY: 'night_duty',
+  LIVE_IN: 'live_in',
+  OTHER: 'other',
 } as const;
 
-export const SalaryRanges = {
-  COMPANION_CARE: { min: 25000, max: 30000 },
-  BEDSIDE_CARE: { min: 28000, max: 35000 },
-  CRITICAL_CARE: { min: 30000, max: 45000 },
+export const Mobility = {
+  WALKS_INDEPENDENTLY: 'walks_independently',
+  WALKS_WITH_ASSISTANCE: 'walks_with_assistance',
+  USES_WALKER: 'uses_walker',
+  USES_WHEELCHAIR: 'uses_wheelchair',
+  BEDRIDDEN: 'bedridden',
+} as const;
+
+export const Communication = {
+  VERBAL: 'verbal',
+  DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
+  SIGN_LANGUAGE: 'sign_language',
+  OTHER_NON_VERBAL: 'other_non_verbal',
+} as const;
+
+export const FeedingType = {
+  ORAL_INDEPENDENT: 'oral_independent',
+  ORAL_NEEDS_ASSISTANCE: 'oral_needs_assistance',
+  TUBE_FEEDING: 'tube_feeding',
+  ORAL_AND_TUBE: 'oral_and_tube',
+} as const;
+
+export const MedicalAssistance = {
+  MEDICATION_REMINDERS: 'medication_reminders',
+  MEDICATION_ADMINISTRATION: 'medication_administration',
+  INSULIN_ADMINISTRATION: 'insulin_administration',
+  OTHER_INJECTIONS: 'other_injections',
+  OTHER: 'other',
+} as const;
+
+export const MedicalCondition = {
+  CANCER: 'cancer',
+  STROKE: 'stroke',
+  BRAIN_INJURY: 'brain_injury',
+  DEMENTIA_ALZHEIMERS: 'dementia_alzheimers',
+  PARKINSONS: 'parkinsons',
+  HEART_CONDITION: 'heart_condition',
+  KIDNEY_DISEASE_DIALYSIS: 'kidney_disease_dialysis',
+  DIABETES: 'diabetes',
+  COLOSTOMY: 'colostomy',
+  PARALYSIS: 'paralysis',
+  OTHER: 'other',
 } as const;
 
 export const City = {
@@ -423,6 +457,7 @@ export const AuditAction = {
   JOB_POSTED: 'job_posted',
   JOB_CLOSED: 'job_closed',
   JOB_RESPONSE: 'job_response',
+  JOB_APPLICATION_DECIDED: 'job_application_decided',
 } as const;
 
 export const UserRole = {
@@ -469,12 +504,12 @@ class JobStatus {
   static const all = [active, closed];
 }
 
-class JobResponseType {
-  static const accepted = 'accepted';
+class JobApplicationStatus {
+  static const applied = 'applied';
   static const rejected = 'rejected';
-  static const moreDetails = 'more_details';
+  static const accepted = 'accepted';
 
-  static const all = [accepted, rejected, moreDetails];
+  static const all = [applied, rejected, accepted];
 }
 
 class Gender {
@@ -512,18 +547,6 @@ class Language {
   };
 }
 
-class ServiceMode {
-  static const twentyFourHrsLiveIn = '24hrs_live_in';
-  static const twelveHrsPg = '12hrs_pg';
-
-  static const all = [twentyFourHrsLiveIn, twelveHrsPg];
-
-  static const displayNames = {
-    twentyFourHrsLiveIn: '24Hrs (Live-In)',
-    twelveHrsPg: '12Hrs (Nearby PG)',
-  };
-}
-
 class Religion {
   static const hindu = 'hindu';
   static const muslim = 'muslim';
@@ -540,18 +563,92 @@ class Religion {
   };
 }
 
-class WorkType {
-  static const companionCare = 'companion_care';
-  static const bedsideCare = 'bedside_care';
-  static const criticalCare = 'critical_care';
+class DutyType {
+  static const dayDuty = 'day_duty';
+  static const nightDuty = 'night_duty';
+  static const liveIn = 'live_in';
+  static const other = 'other';
 
-  static const all = [companionCare, bedsideCare, criticalCare];
+  static const all = [dayDuty, nightDuty, liveIn, other];
 
   static const displayNames = {
-    companionCare: 'Companion Care',
-    bedsideCare: 'Bedside Care (includes diaper change)',
-    criticalCare: 'Critical Care',
+    dayDuty: 'Day Duty',
+    nightDuty: 'Night Duty',
+    liveIn: 'Live-In',
+    other: 'Other',
   };
+}
+
+class Mobility {
+  static const walksIndependently = 'walks_independently';
+  static const walksWithAssistance = 'walks_with_assistance';
+  static const usesWalker = 'uses_walker';
+  static const usesWheelchair = 'uses_wheelchair';
+  static const bedridden = 'bedridden';
+
+  static const all = [walksIndependently, walksWithAssistance, usesWalker, usesWheelchair, bedridden];
+}
+
+class Communication {
+  static const verbal = 'verbal';
+  static const difficultyCommunicating = 'difficulty_communicating';
+  static const signLanguage = 'sign_language';
+  static const otherNonVerbal = 'other_non_verbal';
+
+  static const all = [verbal, difficultyCommunicating, signLanguage, otherNonVerbal];
+}
+
+class FeedingType {
+  static const oralIndependent = 'oral_independent';
+  static const oralNeedsAssistance = 'oral_needs_assistance';
+  static const tubeFeeding = 'tube_feeding';
+  static const oralAndTube = 'oral_and_tube';
+
+  static const all = [oralIndependent, oralNeedsAssistance, tubeFeeding, oralAndTube];
+}
+
+class MedicalAssistance {
+  static const medicationReminders = 'medication_reminders';
+  static const medicationAdministration = 'medication_administration';
+  static const insulinAdministration = 'insulin_administration';
+  static const otherInjections = 'other_injections';
+  static const other = 'other';
+
+  static const all = [
+    medicationReminders,
+    medicationAdministration,
+    insulinAdministration,
+    otherInjections,
+    other,
+  ];
+}
+
+class MedicalCondition {
+  static const cancer = 'cancer';
+  static const stroke = 'stroke';
+  static const brainInjury = 'brain_injury';
+  static const dementiaAlzheimers = 'dementia_alzheimers';
+  static const parkinsons = 'parkinsons';
+  static const heartCondition = 'heart_condition';
+  static const kidneyDiseaseDialysis = 'kidney_disease_dialysis';
+  static const diabetes = 'diabetes';
+  static const colostomy = 'colostomy';
+  static const paralysis = 'paralysis';
+  static const other = 'other';
+
+  static const all = [
+    cancer,
+    stroke,
+    brainInjury,
+    dementiaAlzheimers,
+    parkinsons,
+    heartCondition,
+    kidneyDiseaseDialysis,
+    diabetes,
+    colostomy,
+    paralysis,
+    other,
+  ];
 }
 
 class City {
@@ -896,10 +993,10 @@ CREATE INDEX idx_caregiver_preferred_cities_profile ON caregiver_preferred_citie
 
 -- Admin-assigned work types, service modes, and salary (formerly
 -- caregiver_service_modes / caregiver_work_types tables + a caregiver_
--- profiles.salary column) have been removed from the product entirely —
--- WorkType/ServiceMode remain valid enums but are now purely Job-posting
--- attributes (see the jobs table below), not something assigned to a
--- caregiver's own profile.
+-- profiles.salary column) have been removed from the product entirely.
+-- WorkType/ServiceMode/SalaryRanges are gone too — a job posting is no
+-- longer built around a single "work type" category (see the jobs/
+-- care_receivers/job_applications tables below).
 
 -- ============================================
 -- ADMIN NOTES TABLE
@@ -916,17 +1013,46 @@ CREATE TABLE admin_notes (
 );
 
 -- ============================================
+-- CARE RECEIVERS TABLE (1:1 with a job — see "Job/Application Flow" in
+-- CLAUDE.md. Not an independently reusable/searchable entity yet; a future
+-- "Patient" app will eventually supply real care-receiver identity data.)
+-- ============================================
+CREATE TABLE care_receivers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  mobility VARCHAR(30) NOT NULL CHECK (mobility IN (
+    'walks_independently', 'walks_with_assistance', 'uses_walker', 'uses_wheelchair', 'bedridden'
+  )),
+  communication VARCHAR(30) NOT NULL CHECK (communication IN (
+    'verbal', 'difficulty_communicating', 'sign_language', 'other_non_verbal'
+  )),
+  feeding_type VARCHAR(30) NOT NULL CHECK (feeding_type IN (
+    'oral_independent', 'oral_needs_assistance', 'tube_feeding', 'oral_and_tube'
+  )),
+  tube_feeding_needs_assistance BOOLEAN,  -- only meaningful when feeding_type involves tube feeding
+  medical_assistance JSONB NOT NULL DEFAULT '[]',
+  has_medical_condition BOOLEAN NOT NULL DEFAULT false,
+  medical_conditions JSONB NOT NULL DEFAULT '[]',  -- only populated when has_medical_condition
+  medical_info TEXT,                      -- free text, "important information for the caregiver"
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
 -- JOBS TABLE (admin-posted job listings)
 -- ============================================
 CREATE TABLE jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  work_type VARCHAR(30) NOT NULL CHECK (work_type IN ('companion_care', 'bedside_care', 'critical_care')),
+  care_receiver_id UUID NOT NULL REFERENCES care_receivers(id),
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
+  area TEXT,                              -- free text, optional
   description TEXT NOT NULL,
-  duty_timings VARCHAR(20) NOT NULL CHECK (duty_timings IN ('24hrs_live_in', '12hrs_pg')),
+  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in', 'other')),
+  start_time TIME,                        -- nullable; not required for live_in
+  end_time TIME,
+  start_date DATE,
   language VARCHAR(50) NOT NULL CHECK (language IN ('hindi', 'english', 'kannada', 'tamil', 'telugu', 'malayalam', 'bengali', 'gujarati', 'marathi')),
-  gender_needed VARCHAR(10) NOT NULL CHECK (gender_needed IN ('male', 'female')),
-  religion VARCHAR(20) NOT NULL CHECK (religion IN ('hindu', 'muslim', 'christian', 'others')),
+  preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
+  preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian', 'others')),  -- NULL = no preference
   status VARCHAR(10) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
   posted_by UUID NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -935,23 +1061,24 @@ CREATE TABLE jobs (
 
 CREATE INDEX idx_jobs_status ON jobs(status);
 CREATE INDEX idx_jobs_created_at ON jobs(created_at);
+CREATE INDEX idx_jobs_care_receiver ON jobs(care_receiver_id);
 
 -- ============================================
--- JOB RESPONSES TABLE (caregiver responses to jobs)
+-- JOB APPLICATIONS TABLE (caregiver applications to jobs)
 -- ============================================
-CREATE TABLE job_responses (
+CREATE TABLE job_applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
-  response VARCHAR(20) NOT NULL CHECK (response IN ('accepted', 'rejected', 'more_details')),
-  message TEXT,                           -- Question text when response is 'more_details'
+  status VARCHAR(20) NOT NULL CHECK (status IN ('applied', 'rejected', 'accepted')),
+  decided_by UUID REFERENCES users(id),   -- admin who accepted/rejected; NULL while status = 'applied'
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(job_id, profile_id)
 );
 
-CREATE INDEX idx_job_responses_job ON job_responses(job_id);
-CREATE INDEX idx_job_responses_profile ON job_responses(profile_id);
+CREATE INDEX idx_job_applications_job ON job_applications(job_id);
+CREATE INDEX idx_job_applications_profile ON job_applications(profile_id);
 
 -- ============================================
 -- AUDIT LOGS TABLE
@@ -974,7 +1101,8 @@ CREATE TABLE audit_logs (
     'edits_acknowledged',
     'job_posted',
     'job_closed',
-    'job_response'
+    'job_response',
+    'job_application_decided'
   )),
   entity_type VARCHAR(50) NOT NULL,
   entity_id UUID,
@@ -1821,51 +1949,75 @@ Mark an assigned caregiver back as available (assignment completed).
 
 ---
 
-### 6.6 Job Posting Endpoints
+### 6.6 Job / Application Endpoints
+
+Admin posts a job built around the care receiver's needs (not a single
+"work type" category); caregivers apply/reject; admin accepts one applicant
+(closing the job and assigning that caregiver) or, later, rejects an
+acceptance (reopening the job). See CLAUDE.md's "Job/Application Flow" for
+the full narrative.
 
 #### POST `/admin/jobs`
 
-Create a new job posting. Sends push notification to ALL caregivers.
+Create a new job posting (and its 1:1 care receiver). Sends push
+notification to ALL caregivers.
 
 **Request:**
 ```json
 {
-  "work_type": "bedside_care",
+  "care_receiver": {
+    "mobility": "walks_with_assistance",
+    "communication": "verbal",
+    "feeding_type": "oral_needs_assistance",
+    "medical_assistance": ["medication_reminders"],
+    "has_medical_condition": true,
+    "medical_conditions": ["diabetes"],
+    "medical_info": "Needs help twice daily, post hip surgery"
+  },
   "city": "bangalore",
-  "description": "Elderly patient, 72 years, post hip surgery. Needs assistance with mobility, feeding, and medication reminders.",
-  "duty_timings": "24hrs_live_in",
+  "area": "Indiranagar",
+  "description": "Elderly patient, 72 years, post hip surgery.",
+  "duty_type": "live_in",
+  "start_date": "2026-08-10",
   "language": "kannada",
-  "gender_needed": "female",
-  "religion": "hindu"
+  "preferred_gender": "female",
+  "preferred_religion": "hindu"
 }
 ```
 
 **Validation:**
-- `work_type`: Required, must be one of: `companion_care`, `bedside_care`, `critical_care`.
-- `city`: Required, must be valid city enum.
-- `description`: Required, free text (about patient and scope of work).
-- `duty_timings`: Required, must be `24hrs_live_in` or `12hrs_pg`.
-- `language`: Required, must be valid language enum.
-- `gender_needed`: Required, must be `male` or `female`.
-- `religion`: Required, must be valid religion enum.
+- `care_receiver.mobility`/`communication`/`feeding_type`: Required, valid enum values.
+- `care_receiver.tube_feeding_needs_assistance`: Required boolean if `feeding_type` is `tube_feeding` or `oral_and_tube`; not validated otherwise.
+- `care_receiver.medical_assistance`: Required array (may be empty), each item a valid enum value.
+- `care_receiver.has_medical_condition`: Required boolean.
+- `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.
+- `care_receiver.medical_info`: Optional free text.
+- `city`: Required, must be valid city enum. `area`: Optional free text.
+- `description`: Required, free text.
+- `duty_type`: Required, must be one of `day_duty`, `night_duty`, `live_in`, `other`.
+- `start_time`/`end_time`: Optional (`HH:mm`). `start_date`: Optional (ISO date).
+- `language`: Required, must be valid language enum — a preference, shown to caregivers as informational.
+- `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
+- `preferred_religion`: Optional, valid religion enum — omitted means no preference. Never used as a filter.
 
 **Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "job_id": "uuid",
-    "message": "Job posted and notifications sent"
+    "id": "uuid",
+    "care_receiver_id": "uuid",
+    "status": "active"
   }
 }
 ```
 
 **Side effects:**
-- Job stored in `jobs` table with status `active`.
+- `care_receivers` row created, then `jobs` row referencing it (status `active`).
 - Push notification sent to ALL caregivers (background notification — works even if app is closed).
-- Notification title: "New Job: Bedside Care - ₹28,000–₹35,000"
-- Notification body: "Bangalore | 24Hrs Live-In | IMMEDIATELY APPLY"
-- Audit log entry created.
+- Notification title: "New Job: Live-In Care in Bangalore"
+- Notification body: "Indiranagar, Bangalore | IMMEDIATELY APPLY"
+- Audit log entry created (`job_posted`).
 
 ---
 
@@ -1876,7 +2028,6 @@ List all job postings (paginated).
 **Query Parameters:**
 - `page`, `limit`, `sort`, `order` (standard pagination)
 - `status` (filter: `active`, `closed`)
-- `work_type` (filter)
 - `city` (filter)
 
 **Response (200):**
@@ -1885,16 +2036,16 @@ List all job postings (paginated).
   "success": true,
   "data": [
     {
-      "job_id": "uuid",
-      "work_type": "bedside_care",
+      "id": "uuid",
+      "care_receiver_id": "uuid",
       "city": "bangalore",
+      "area": "Indiranagar",
       "description": "Elderly patient...",
-      "duty_timings": "24hrs_live_in",
+      "duty_type": "live_in",
       "language": "kannada",
-      "gender_needed": "female",
-      "religion": "hindu",
+      "preferred_gender": "female",
+      "preferred_religion": "hindu",
       "status": "active",
-      "responses_count": { "accepted": 5, "rejected": 2, "more_details": 3 },
       "created_at": "2026-08-03T10:00:00Z"
     }
   ],
@@ -1906,40 +2057,40 @@ List all job postings (paginated).
 
 #### GET `/admin/jobs/:id`
 
-Get job detail with all caregiver responses.
+Get job detail with the care receiver and every application.
 
 **Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "job_id": "uuid",
-    "work_type": "bedside_care",
+    "id": "uuid",
     "city": "bangalore",
+    "area": "Indiranagar",
     "description": "Elderly patient...",
-    "duty_timings": "24hrs_live_in",
-    "language": "kannada",
-    "gender_needed": "female",
-    "religion": "hindu",
+    "duty_type": "live_in",
     "status": "active",
-    "posted_by": "Admin One",
+    "posted_by": "uuid",
     "created_at": "2026-08-03T10:00:00Z",
-    "responses": [
+    "care_receiver": {
+      "id": "uuid",
+      "mobility": "walks_with_assistance",
+      "communication": "verbal",
+      "feeding_type": "oral_needs_assistance",
+      "medical_assistance": ["medication_reminders"],
+      "has_medical_condition": true,
+      "medical_conditions": ["diabetes"],
+      "medical_info": "Needs help twice daily, post hip surgery"
+    },
+    "applications": [
       {
+        "id": "uuid",
         "profile_id": "uuid",
         "full_name": "Ramesh Kumar",
         "phone": "+919876543210",
-        "response": "accepted",
-        "message": null,
-        "responded_at": "2026-08-03T11:00:00Z"
-      },
-      {
-        "profile_id": "uuid",
-        "full_name": "Priya Singh",
-        "phone": "+919876500000",
-        "response": "more_details",
-        "message": "What are the patient's mobility limitations?",
-        "responded_at": "2026-08-03T11:30:00Z"
+        "status": "applied",
+        "decided_by": null,
+        "updated_at": "2026-08-03T11:00:00Z"
       }
     ]
   }
@@ -1950,7 +2101,7 @@ Get job detail with all caregiver responses.
 
 #### PATCH `/admin/jobs/:id/close`
 
-Close a job posting (no more responses accepted).
+Close a job posting manually (no more applications accepted).
 
 **Response (200):**
 ```json
@@ -1965,9 +2116,50 @@ Close a job posting (no more responses accepted).
 
 ---
 
+#### POST `/admin/jobs/:id/remind`
+
+Re-broadcast a push reminder to all caregivers for an active job. `JOB_005` if the job is already closed.
+
+**Response (200):**
+```json
+{ "success": true, "data": { "message": "Reminder sent" } }
+```
+
+---
+
+#### PATCH `/admin/jobs/:jobId/applications/:applicationId`
+
+Admin decision on one applicant. **This is the offer confirmation** — admin
+has already contacted the caregiver outside the app before calling this;
+there's no separate in-app caregiver "accept offer" step.
+
+**Request:**
+```json
+{ "status": "accepted" }
+```
+
+**Validation:**
+- `status`: Required, `accepted` or `rejected` (never `applied` — that's caregiver-only).
+- Only two transitions are valid: `applied` → `accepted`/`rejected`, and `accepted` → `rejected` (admin reversing a prior acceptance). Anything else (double-accept, re-deciding an already-rejected application) is `JOB_007`.
+- `JOB_006` if the application doesn't exist or doesn't belong to `:jobId`.
+
+**Response (200):**
+```json
+{ "success": true, "data": { "message": "Application updated", "status": "accepted" } }
+```
+
+**Side effects:**
+- `applied` → `accepted`: this application's `status`/`decided_by` update; `jobs.status` → `closed` (no further applications accepted); the caregiver's `verification_status` → `assigned`.
+- `accepted` → `rejected`: this application's `status`/`decided_by` update; `jobs.status` → `active` again (reopened); the caregiver's `verification_status` → `available`.
+- `applied` → `rejected`: just declines that one application — no effect on the job or the caregiver's status.
+- Other still-`applied` applications on the same job are left untouched either way.
+- Audit log entry created (`job_application_decided`).
+
+---
+
 #### GET `/caregiver/jobs`
 
-List active job postings for caregiver to view and respond.
+List active job postings for caregiver to view and apply.
 
 **Response (200):**
 ```json
@@ -1975,54 +2167,48 @@ List active job postings for caregiver to view and respond.
   "success": true,
   "data": [
     {
-      "job_id": "uuid",
-      "work_type": "bedside_care",
-      "salary_range": { "min": 28000, "max": 35000 },
+      "id": "uuid",
       "city": "bangalore",
+      "area": "Indiranagar",
       "description": "Elderly patient...",
-      "duty_timings": "24hrs_live_in",
+      "duty_type": "live_in",
       "language": "kannada",
-      "gender_needed": "female",
-      "religion": "hindu",
+      "preferred_gender": "female",
+      "preferred_religion": "hindu",
       "created_at": "2026-08-03T10:00:00Z",
-      "my_response": null
+      "my_application_status": null
     }
   ]
 }
 ```
 
 **Notes:**
-- `salary_range` is derived from work_type (static ranges).
-- `my_response` is `null` if not yet responded, or `"accepted"` / `"rejected"` / `"more_details"`.
+- `my_application_status` is `null` if the caregiver hasn't applied yet, or `"applied"` / `"rejected"` / `"accepted"`.
+- Viewable at any verification status — browsing motivates onboarding. Only applying is gated.
 
 ---
 
-#### POST `/caregiver/jobs/:id/respond`
+#### POST `/caregiver/jobs/:id/apply`
 
-Respond to a job posting. Caregiver can respond multiple times (update their response — e.g., ask for details first, then accept/reject later).
+Apply to (or reject) a job posting. Caregiver can call this multiple times — the same application row is updated in place, not duplicated.
 
 **Request:**
 ```json
-{
-  "response": "more_details",
-  "message": "What are the patient's mobility limitations?"
-}
+{ "status": "applied" }
 ```
 
 **Validation:**
-- `response`: Required, must be one of: `accepted`, `rejected`, `more_details`.
-- `message`: Required if response is `more_details` (the question for admin). Optional otherwise.
-- Job must be `active` (cannot respond to closed jobs).
-- Caregiver must have status `available` or `assigned` to respond. `unavailable` caregivers cannot respond (they must toggle back to `available` first). Others get error JOB_001.
-- If caregiver already responded, their response is updated (not duplicated).
+- `status`: Required, must be `applied` or `rejected` (`accepted` is admin-only — see the decide-application endpoint above).
+- Job must be `active` (`JOB_002` otherwise).
+- Caregiver must have status `available` or `assigned` to apply. `unavailable`/`pending_call`/`rejected` caregivers cannot (`JOB_001`) — they must toggle back to `available` first.
 
 **Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "message": "Response recorded",
-    "response": "accepted"
+    "message": "Application recorded",
+    "status": "applied"
   }
 }
 ```
@@ -2200,10 +2386,12 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 
 | Code | HTTP Status | Message | When |
 |------|-------------|---------|------|
-| JOB_001 | 403 | Cannot respond to jobs until your profile is verified | Non-available/assigned caregiver trying to respond |
-| JOB_002 | 400 | Job is closed and no longer accepting responses | Responding to a closed job |
-| JOB_003 | 400 | Message is required when asking for more details | response=more_details without message |
-| JOB_004 | 400 | Invalid response value | response not in enum |
+| JOB_001 | 403 | Cannot apply to jobs until your profile is verified | Non-available/assigned caregiver trying to apply |
+| JOB_002 | 400 | Job is closed and no longer accepting applications | Applying to a closed job |
+| JOB_004 | 400 | Invalid application status value | status not in enum, or caregiver sending `accepted` |
+| JOB_005 | 400 | Cannot send a reminder for a closed job | POST .../remind on a closed job |
+| JOB_006 | 404 | Application not found | decide-application on a missing/mismatched application id |
+| JOB_007 | 400 | Application has already been decided | double-accept, or re-deciding an already-rejected application |
 
 ### 7.6 General Errors (GEN_xxx)
 
@@ -2234,7 +2422,8 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 |-------|-----------|-------|------|
 | Status: Available | Caregiver | Profile Approved | Congratulations! Your profile has been verified. You are now available for work assignments. |
 | Status: Rejected | Caregiver | Profile Update Required | Your profile needs updates. Please check the app for details. |
-| New Job Posted | All Caregivers | New Job: {work_type_display} - ₹{min}–₹{max} | {city} \| {duty_timings_display} \| IMMEDIATELY APPLY |
+| New Job Posted | All Caregivers | New Job: {duty_type_display} in {city_display} | {area, }{city_display} \| IMMEDIATELY APPLY |
+| Job Reminder | All Caregivers | Reminder: {duty_type_display} in {city_display} | {area, }{city_display} \| APPLY NOW BEFORE IT'S FILLED |
 | Daily Availability Reminder | Verified caregivers (available/unavailable) | Update Your Availability | Are you available for work today? Open app to confirm. |
 
 **Payload Structure:**
@@ -2526,14 +2715,14 @@ Route by verification_status:
 - **Green verified icon** displayed prominently (indicates verified status).
 - Quick stats/info:
   - Status badge (Available / Assigned) with green icon for verified.
-- Jobs section: List of active job postings with Accept / Reject / Ask More Details buttons.
+- Jobs section: List of active job postings with Apply / Reject buttons.
 - Navigation to: Profile, Jobs, Settings.
 
 #### Jobs Dashboard (`/jobs`)
 - List of all active job postings.
-- Each job card shows: Work Type (with salary range), City, Duty Timings, Language, Gender, Religion, Description.
-- Action buttons per job: **Accept**, **Reject**, **Ask for More Details**.
-- Already-responded jobs show the response status (greyed out actions).
+- Each job card shows: Duty Type + City, Area, Language/Gender/Religion preference tags, Description.
+- Action buttons per job: **Apply**, **Reject**.
+- Already-applied jobs show the application status ("You applied" / "You declined" / "You were accepted") instead of buttons.
 - Pull-to-refresh for new jobs.
 
 #### Profile View (`/profile`)

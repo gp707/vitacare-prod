@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { PoolClient } from 'pg';
 import { Gender, Qualification, Religion, VerificationStatus } from '@vitacare/shared-constants';
-import { DatabaseService } from '../database.service';
+import { DatabaseService, QueryRunner } from '../database.service';
 
 export interface DashboardStats {
   total_caregivers: number;
@@ -192,9 +193,11 @@ export class AdminCaregiversRepository {
     status: VerificationStatus,
     rejectionMessage: string | null,
     adminId: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
     if (status === 'available') {
-      await this.db.query(
+      await runner.query(
         `UPDATE caregiver_profiles
          SET verification_status = $2, verified_at = NOW(), verified_by = $3, rejection_message = NULL,
              updated_at = NOW()
@@ -202,14 +205,14 @@ export class AdminCaregiversRepository {
         [profileId, status, adminId],
       );
     } else if (status === 'rejected') {
-      await this.db.query(
+      await runner.query(
         `UPDATE caregiver_profiles
          SET verification_status = $2, rejection_message = $3, updated_at = NOW()
          WHERE id = $1`,
         [profileId, status, rejectionMessage],
       );
     } else {
-      await this.db.query(
+      await runner.query(
         `UPDATE caregiver_profiles
          SET verification_status = $2, rejection_message = NULL, updated_at = NOW()
          WHERE id = $1`,

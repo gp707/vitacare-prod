@@ -8,27 +8,25 @@ import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/jobs_screen.dart';
 
-JobModel _job({String? myResponse}) {
+JobModel _job({String? myApplicationStatus}) {
   return JobModel.fromJson({
     'id': 'job-1',
-    'work_type': 'bedside_care',
     'city': 'bangalore',
-    'description': 'Need a bedside caregiver for an elderly patient',
-    'duty_timings': '24hrs_live_in',
+    'area': 'Indiranagar',
+    'description': 'Need a caregiver for an elderly patient',
+    'duty_type': 'live_in',
     'language': 'hindi',
-    'gender_needed': 'female',
-    'religion': 'hindu',
+    'preferred_gender': 'female',
     'status': 'active',
     'posted_by': 'admin-1',
     'created_at': '2026-08-01T10:00:00Z',
-    'my_response': myResponse,
+    'my_application_status': myApplicationStatus,
   });
 }
 
 class _FakeJobsRepository extends JobsRepository {
   List<JobModel> jobs;
-  String? respondedWith;
-  String? respondedMessage;
+  String? appliedWith;
 
   _FakeJobsRepository(this.jobs) : super(Dio());
 
@@ -36,11 +34,10 @@ class _FakeJobsRepository extends JobsRepository {
   Future<List<JobModel>> listActiveJobs() async => jobs;
 
   @override
-  Future<String> respondToJob(String jobId, String response, {String? message}) async {
-    respondedWith = response;
-    respondedMessage = message;
-    jobs = [_job(myResponse: response)];
-    return response;
+  Future<String> applyToJob(String jobId, String status) async {
+    appliedWith = status;
+    jobs = [_job(myApplicationStatus: status)];
+    return status;
   }
 }
 
@@ -51,7 +48,7 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  testWidgets('shows job details: work type, salary range, tags, description', (tester) async {
+  testWidgets('shows job details: duty type, city, area, description', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pumpTall(
       tester,
@@ -62,13 +59,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Bedside Care (includes diaper change)'), findsOneWidget);
-    expect(find.text('₹28000 – ₹35000'), findsOneWidget);
-    expect(find.text('Bangalore'), findsOneWidget);
-    expect(find.text('Need a bedside caregiver for an elderly patient'), findsOneWidget);
+    expect(find.text('Live-In in Bangalore'), findsOneWidget);
+    expect(find.text('Indiranagar'), findsOneWidget);
+    expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });
 
-  testWidgets('shows Accept/Reject/More Info when the caregiver has not responded yet', (tester) async {
+  testWidgets('shows Apply/Reject when the caregiver has not applied yet', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pumpTall(
       tester,
@@ -79,13 +75,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(ElevatedButton, 'Accept'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Apply'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Reject'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'More Info'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'More Info'), findsNothing);
   });
 
-  testWidgets('shows the response status instead of buttons once already responded', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_job(myResponse: 'accepted')]);
+  testWidgets('shows the application status instead of buttons once already applied', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job(myApplicationStatus: 'applied')]);
     await _pumpTall(
       tester,
       ProviderScope(
@@ -95,11 +91,25 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('You responded: Accepted'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Accept'), findsNothing);
+    expect(find.text('You applied'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Apply'), findsNothing);
   });
 
-  testWidgets('tapping Accept calls respondToJob with accepted, no message', (tester) async {
+  testWidgets('shows a declined label when rejected', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job(myApplicationStatus: 'rejected')]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('You declined'), findsOneWidget);
+  });
+
+  testWidgets('tapping Apply calls applyToJob with applied', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pumpTall(
       tester,
@@ -110,11 +120,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Accept'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply'));
     await tester.pumpAndSettle();
 
-    expect(fakeRepo.respondedWith, 'accepted');
-    expect(fakeRepo.respondedMessage, isNull);
+    expect(fakeRepo.appliedWith, 'applied');
+  });
+
+  testWidgets('tapping Reject calls applyToJob with rejected', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.appliedWith, 'rejected');
   });
 
   testWidgets('shows an empty state when there are no active jobs', (tester) async {
@@ -129,26 +155,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No jobs posted right now'), findsOneWidget);
-  });
-
-  testWidgets('asking for more details prompts for a message and sends it', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_job()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: JobsScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextButton, 'More Info'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'What are the exact hours?');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Send'));
-    await tester.pumpAndSettle();
-
-    expect(fakeRepo.respondedWith, 'more_details');
-    expect(fakeRepo.respondedMessage, 'What are the exact hours?');
   });
 }

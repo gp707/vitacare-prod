@@ -9,6 +9,7 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
+import { DecideApplicationDto } from './dto/decide-application.dto';
 
 @Controller('admin/jobs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -41,5 +42,17 @@ export class AdminJobsController {
   @HttpCode(HttpStatus.OK)
   remind(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
     return this.jobsService.sendReminder(user.sub, id, ip);
+  }
+
+  @Patch(':jobId/applications/:applicationId')
+  @HttpCode(HttpStatus.OK)
+  decideApplication(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: DecideApplicationDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.decideApplication(user.sub, jobId, applicationId, dto, ip);
   }
 }

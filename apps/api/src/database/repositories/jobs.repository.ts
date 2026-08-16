@@ -1,40 +1,48 @@
 import { Injectable } from '@nestjs/common';
-import { City, Gender, JobStatus, Language, Religion, ServiceMode, WorkType } from '@vitacare/shared-constants';
-import { DatabaseService } from '../database.service';
+import { City, DutyType, JobStatus, Language } from '@vitacare/shared-constants';
+import { PoolClient } from 'pg';
+import { DatabaseService, QueryRunner } from '../database.service';
 
 export interface JobRecord {
   id: string;
-  work_type: WorkType;
+  care_receiver_id: string;
   city: City;
+  area: string | null;
   description: string;
-  duty_timings: ServiceMode;
+  duty_type: DutyType;
+  start_time: string | null;
+  end_time: string | null;
+  start_date: string | null;
   language: Language;
-  gender_needed: Gender;
-  religion: Religion;
+  preferred_gender: string | null;
+  preferred_religion: string | null;
   status: JobStatus;
   posted_by: string;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface JobWithMyResponse extends JobRecord {
-  my_response: string | null;
+export interface JobWithMyApplication extends JobRecord {
+  my_application_status: string | null;
 }
 
 export interface CreateJobInput {
-  work_type: WorkType;
+  care_receiver_id: string;
   city: City;
+  area?: string | null;
   description: string;
-  duty_timings: ServiceMode;
+  duty_type: DutyType;
+  start_time?: string | null;
+  end_time?: string | null;
+  start_date?: string | null;
   language: Language;
-  gender_needed: Gender;
-  religion: Religion;
+  preferred_gender?: string | null;
+  preferred_religion?: string | null;
   posted_by: string;
 }
 
 export interface ListJobsFilters {
   status?: JobStatus;
-  work_type?: WorkType;
   city?: City;
 }
 
@@ -50,10 +58,6 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
     params.push(filters.status);
     conditions.push(`status = $${params.length}`);
   }
-  if (filters.work_type) {
-    params.push(filters.work_type);
-    conditions.push(`work_type = $${params.length}`);
-  }
   if (filters.city) {
     params.push(filters.city);
     conditions.push(`city = $${params.length}`);
@@ -65,19 +69,26 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
 export class JobsRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  async create(input: CreateJobInput): Promise<JobRecord> {
-    const result = await this.db.query<JobRecord>(
-      `INSERT INTO jobs (work_type, city, description, duty_timings, language, gender_needed, religion, posted_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  async create(input: CreateJobInput, client?: PoolClient): Promise<JobRecord> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<JobRecord>(
+      `INSERT INTO jobs
+         (care_receiver_id, city, area, description, duty_type, start_time, end_time,
+          start_date, language, preferred_gender, preferred_religion, posted_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
-        input.work_type,
+        input.care_receiver_id,
         input.city,
+        input.area ?? null,
         input.description,
-        input.duty_timings,
+        input.duty_type,
+        input.start_time ?? null,
+        input.end_time ?? null,
+        input.start_date ?? null,
         input.language,
-        input.gender_needed,
-        input.religion,
+        input.preferred_gender ?? null,
+        input.preferred_religion ?? null,
         input.posted_by,
       ],
     );
@@ -111,19 +122,19 @@ export class JobsRepository {
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
 
-  /** Active jobs only, with the caregiver's own response (if any) attached
-   *  — lets the caregiver-app show "already responded" state without a
-   *  second round trip. */
+  /** Active jobs only, with the caregiver's own application status (if any)
+   *  attached — lets the caregiver-app show "already applied" state without
+   *  a second round trip. */
   async listActiveForCaregiver(
     profileId: string,
     page: ListPage,
-  ): Promise<{ items: JobWithMyResponse[]; total: number }> {
+  ): Promise<{ items: JobWithMyApplication[]; total: number }> {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
-      this.db.query<JobWithMyResponse>(
-        `SELECT j.*, jr.response AS my_response
+      this.db.query<JobWithMyApplication>(
+        `SELECT j.*, ja.status AS my_application_status
          FROM jobs j
-         LEFT JOIN job_responses jr ON jr.job_id = j.id AND jr.profile_id = $1
+         LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1
          WHERE j.status = 'active'
          ORDER BY j.created_at DESC
          LIMIT $2 OFFSET $3`,
@@ -134,7 +145,13 @@ export class JobsRepository {
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
 
-  async close(id: string): Promise<void> {
-    await this.db.query(`UPDATE jobs SET status = 'closed', updated_at = NOW() WHERE id = $1`, [id]);
+  async close(id: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(`UPDATE jobs SET status = 'closed', updated_at = NOW() WHERE id = $1`, [id]);
+  }
+
+  async reopen(id: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(`UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1`, [id]);
   }
 }

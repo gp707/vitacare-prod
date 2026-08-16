@@ -60,11 +60,12 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   ADMIN_013: { status: 400, message: 'Cannot demote the last super admin' },
 
   // Job errors
-  JOB_001: { status: 403, message: 'Cannot respond to jobs until your profile is verified' },
-  JOB_002: { status: 400, message: 'Job is closed and no longer accepting responses' },
-  JOB_003: { status: 400, message: 'Message is required when asking for more details' },
-  JOB_004: { status: 400, message: 'Invalid response value' },
+  JOB_001: { status: 403, message: 'Cannot apply to jobs until your profile is verified' },
+  JOB_002: { status: 400, message: 'Job is closed and no longer accepting applications' },
+  JOB_004: { status: 400, message: 'Invalid application status value' },
   JOB_005: { status: 400, message: 'Cannot send a reminder for a closed job' },
+  JOB_006: { status: 404, message: 'Application not found' },
+  JOB_007: { status: 400, message: 'Application has already been decided' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

@@ -27,10 +27,19 @@ describe('Jobs (e2e)', () => {
 
   async function cleanup() {
     await db.query(
-      `DELETE FROM job_responses WHERE job_id IN (SELECT id FROM jobs WHERE description LIKE $1)`,
+      `DELETE FROM job_applications WHERE job_id IN (SELECT id FROM jobs WHERE description LIKE $1)`,
+      [`${jobDescriptionPrefix}%`],
+    );
+    const orphanedCareReceivers = await db.query(
+      `SELECT care_receiver_id FROM jobs WHERE description LIKE $1`,
       [`${jobDescriptionPrefix}%`],
     );
     await db.query(`DELETE FROM jobs WHERE description LIKE $1`, [`${jobDescriptionPrefix}%`]);
+    if (orphanedCareReceivers.rows.length > 0) {
+      await db.query(`DELETE FROM care_receivers WHERE id = ANY($1)`, [
+        orphanedCareReceivers.rows.map((r) => r.care_receiver_id),
+      ]);
+    }
     await db.query(
       `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700002%')
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700002%')`,
@@ -56,22 +65,30 @@ describe('Jobs (e2e)', () => {
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
   }
 
+  const defaultCareReceiver = {
+    mobility: 'walks_independently',
+    communication: 'verbal',
+    feeding_type: 'oral_independent',
+    medical_assistance: [],
+    has_medical_condition: false,
+  };
+
   async function createJob(overrides: Record<string, unknown> = {}) {
+    const { care_receiver, ...jobOverrides } = overrides as { care_receiver?: Record<string, unknown> };
     const res = await request(app.getHttpServer())
       .post('/v1/admin/jobs')
       .set('Authorization', `Bearer ${superAdminToken}`)
       .send({
-        work_type: 'bedside_care',
+        care_receiver: { ...defaultCareReceiver, ...care_receiver },
         city: 'bangalore',
-        description: `${jobDescriptionPrefix} Need a bedside caregiver`,
-        duty_timings: '24hrs_live_in',
+        description: `${jobDescriptionPrefix} Need a caregiver`,
+        duty_type: 'live_in',
         language: 'hindi',
-        gender_needed: 'female',
-        religion: 'hindu',
-        ...overrides,
+        preferred_gender: 'female',
+        ...jobOverrides,
       })
       .expect(201);
-    return res.body.data as { id: string; status: string };
+    return res.body.data as { id: string; status: string; care_receiver_id: string };
   }
 
   beforeAll(async () => {
@@ -124,13 +141,13 @@ describe('Jobs (e2e)', () => {
   });
 
   describe('POST /v1/admin/jobs', () => {
-    it('creates a job, broadcasts a push to all caregivers, and audit-logs it', async () => {
+    it('creates the care receiver + job, broadcasts a push to all caregivers, and audit-logs it', async () => {
       fcmService.sendToAllCaregivers.mockClear();
       const job = await createJob();
       expect(job.status).toBe('active');
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
-        'New Job: Bedside Care - ₹28,000–₹35,000',
-        'Bangalore | 24Hrs (Live-In) | IMMEDIATELY APPLY',
+        'New Job: Live-In Care in Bangalore',
+        'Bangalore | IMMEDIATELY APPLY',
       );
 
       const audit = await db.query(
@@ -138,6 +155,11 @@ describe('Jobs (e2e)', () => {
         [job.id],
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_posted');
+
+      const careReceiver = await db.query('SELECT * FROM care_receivers WHERE id = $1', [
+        job.care_receiver_id,
+      ]);
+      expect(careReceiver.rows[0].mobility).toBe('walks_independently');
     });
 
     it('rejects a caregiver token (AUTH_007)', async () => {
@@ -146,33 +168,62 @@ describe('Jobs (e2e)', () => {
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .send({
-          work_type: 'bedside_care',
+          care_receiver: defaultCareReceiver,
           city: 'bangalore',
           description: 'x',
-          duty_timings: '24hrs_live_in',
+          duty_type: 'live_in',
           language: 'hindi',
-          gender_needed: 'female',
-          religion: 'hindu',
         })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
     });
 
-    it('rejects gender_needed = other (GEN_001, jobs table only allows male/female)', async () => {
+    it('requires tube_feeding_needs_assistance when feeding_type is tube feeding (GEN_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          work_type: 'bedside_care',
+          care_receiver: { ...defaultCareReceiver, feeding_type: 'tube_feeding' },
           city: 'bangalore',
-          description: `${jobDescriptionPrefix} invalid gender test`,
-          duty_timings: '24hrs_live_in',
+          description: `${jobDescriptionPrefix} tube feeding validation test`,
+          duty_type: 'live_in',
           language: 'hindi',
-          gender_needed: 'other',
-          religion: 'hindu',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('requires medical_conditions when has_medical_condition is true (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, has_medical_condition: true },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} medical condition validation test`,
+          duty_type: 'live_in',
+          language: 'hindi',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('accepts a full care-needs payload including medical conditions', async () => {
+      const job = await createJob({
+        care_receiver: {
+          feeding_type: 'tube_feeding',
+          tube_feeding_needs_assistance: true,
+          has_medical_condition: true,
+          medical_conditions: ['diabetes', 'stroke'],
+          medical_info: 'Needs help twice daily',
+        },
+      });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver.medical_conditions).toEqual(['diabetes', 'stroke']);
+      expect(detail.body.data.care_receiver.tube_feeding_needs_assistance).toBe(true);
     });
   });
 
@@ -183,20 +234,19 @@ describe('Jobs (e2e)', () => {
         .get('/v1/admin/jobs?limit=5')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(res.body.meta).toEqual(
-        expect.objectContaining({ page: 1, limit: 5 }),
-      );
+      expect(res.body.meta).toEqual(expect.objectContaining({ page: 1, limit: 5 }));
       expect(res.body.data.length).toBeGreaterThan(0);
     });
 
-    it('returns job detail with an empty responses array before anyone responds', async () => {
+    it('returns job detail with the care receiver and an empty applications array before anyone applies', async () => {
       const job = await createJob();
       const res = await request(app.getHttpServer())
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
-      expect(res.body.data.responses).toEqual([]);
+      expect(res.body.data.applications).toEqual([]);
+      expect(res.body.data.care_receiver).toEqual(expect.objectContaining({ mobility: 'walks_independently' }));
     });
 
     it('returns GEN_002 for a non-existent job', async () => {
@@ -236,8 +286,8 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(res.body.data).toEqual({ message: 'Reminder sent' });
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
-        'Reminder: Bedside Care - ₹28,000–₹35,000',
-        "Bangalore | 24Hrs (Live-In) | APPLY NOW BEFORE IT'S FILLED",
+        'Reminder: Live-In Care in Bangalore',
+        "Bangalore | APPLY NOW BEFORE IT'S FILLED",
       );
 
       const audit = await db.query(
@@ -299,51 +349,39 @@ describe('Jobs (e2e)', () => {
       const ids = res.body.data.map((j: { id: string }) => j.id);
       expect(ids).toContain(activeJob.id);
       expect(ids).not.toContain(closedJob.id);
-      expect(res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_response).toBeNull();
+      expect(
+        res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_application_status,
+      ).toBeNull();
     });
   });
 
-  describe('POST /v1/caregiver/jobs/:id/respond', () => {
+  describe('POST /v1/caregiver/jobs/:id/apply', () => {
     it('rejects a non-available/assigned caregiver (JOB_001)', async () => {
       const caregiver = await registerCaregiver('0003'); // pending_call
       const job = await createJob();
       const res = await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'accepted' })
+        .send({ status: 'applied' })
         .expect(403);
       expect(res.body.error.code).toBe('JOB_001');
     });
 
-    it('rejects an invalid response value (JOB_004)', async () => {
+    it('rejects an invalid status value (JOB_004)', async () => {
       const caregiver = await registerCaregiver('0004');
       await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
         caregiver.user_id,
       ]);
       const job = await createJob();
       const res = await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'maybe' })
+        .send({ status: 'accepted' }) // admin-only value, not valid from the caregiver endpoint
         .expect(400);
       expect(res.body.error.code).toBe('JOB_004');
     });
 
-    it('rejects more_details without a message (JOB_003)', async () => {
-      const caregiver = await registerCaregiver('0005');
-      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
-        caregiver.user_id,
-      ]);
-      const job = await createJob();
-      const res = await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
-        .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'more_details' })
-        .expect(400);
-      expect(res.body.error.code).toBe('JOB_003');
-    });
-
-    it('rejects responding to a closed job (JOB_002)', async () => {
+    it('rejects applying to a closed job (JOB_002)', async () => {
       const caregiver = await registerCaregiver('0006');
       await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
         caregiver.user_id,
@@ -355,14 +393,14 @@ describe('Jobs (e2e)', () => {
         .expect(200);
 
       const res = await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'accepted' })
+        .send({ status: 'applied' })
         .expect(400);
       expect(res.body.error.code).toBe('JOB_002');
     });
 
-    it('records the response, updates in place on re-respond, and shows up in admin job detail', async () => {
+    it('records the application, updates in place on re-apply, and shows up in admin job detail', async () => {
       const caregiver = await registerCaregiver('0007');
       await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
         caregiver.user_id,
@@ -370,55 +408,216 @@ describe('Jobs (e2e)', () => {
       const job = await createJob();
 
       await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'more_details', message: 'What are the exact duty hours?' })
+        .send({ status: 'applied' })
         .expect(200);
 
       const myJobs = await request(app.getHttpServer())
         .get('/v1/caregiver/jobs')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
-      expect(myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_response).toBe(
-        'more_details',
-      );
+      expect(
+        myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application_status,
+      ).toBe('applied');
 
-      // Re-responding updates the same row rather than creating a duplicate.
+      // Re-applying (rejecting) updates the same row rather than creating a duplicate.
       await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'accepted' })
+        .send({ status: 'rejected' })
         .expect(200);
 
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(detail.body.data.responses).toHaveLength(1);
-      expect(detail.body.data.responses[0]).toEqual(
-        expect.objectContaining({ response: 'accepted', full_name: 'Jobs Test Subject' }),
+      expect(detail.body.data.applications).toHaveLength(1);
+      expect(detail.body.data.applications[0]).toEqual(
+        expect.objectContaining({ status: 'rejected', full_name: 'Jobs Test Subject' }),
       );
     });
 
-    it('allows an assigned caregiver to respond too', async () => {
+    it('allows an assigned caregiver to apply too', async () => {
       const caregiver = await registerCaregiver('0008');
       await db.query("UPDATE caregiver_profiles SET verification_status = 'assigned' WHERE user_id = $1", [
         caregiver.user_id,
       ]);
       const job = await createJob();
       await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
-        .send({ response: 'rejected' })
+        .send({ status: 'applied' })
         .expect(200);
     });
 
     it('rejects a plain admin token (AUTH_007) — caregiver-jobs routes are caregiver-only', async () => {
       const job = await createJob();
       const res = await request(app.getHttpServer())
-        .post(`/v1/caregiver/jobs/${job.id}/respond`)
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({ response: 'accepted' })
+        .send({ status: 'applied' })
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+  });
+
+  describe('PATCH /v1/admin/jobs/:jobId/applications/:applicationId', () => {
+    async function applyAsAvailableCaregiver(phoneSuffix: string, jobId: string) {
+      const caregiver = await registerCaregiver(phoneSuffix);
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      return caregiver;
+    }
+
+    it('full flow: accepting one applicant closes the job and assigns the caregiver; a second applicant stays untouched; rejecting the acceptance reopens the job and un-assigns the caregiver', async () => {
+      const job = await createJob();
+      const caregiverA = await applyAsAvailableCaregiver('0010', job.id);
+      const caregiverB = await applyAsAvailableCaregiver('0011', job.id);
+
+      const detailBefore = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const applicationA = detailBefore.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiverA.profile_id,
+      );
+      const applicationB = detailBefore.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiverB.profile_id,
+      );
+
+      const accept = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${applicationA.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      expect(accept.body.data).toEqual({ message: 'Application updated', status: 'accepted' });
+
+      const jobAfterAccept = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(jobAfterAccept.body.data.status).toBe('closed');
+
+      const caregiverAStatus = await db.query(
+        'SELECT verification_status FROM caregiver_profiles WHERE id = $1',
+        [caregiverA.profile_id],
+      );
+      expect(caregiverAStatus.rows[0].verification_status).toBe('assigned');
+
+      // Second applicant's application is untouched.
+      const applicationBAfter = jobAfterAccept.body.data.applications.find(
+        (a: { id: string }) => a.id === applicationB.id,
+      );
+      expect(applicationBAfter.status).toBe('applied');
+
+      const audit = await db.query(
+        `SELECT action FROM audit_logs WHERE entity_type = 'job_applications' AND entity_id = $1`,
+        [applicationA.id],
+      );
+      expect(audit.rows.map((r) => r.action)).toContain('job_application_decided');
+
+      // Admin reverses the acceptance.
+      const reject = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${applicationA.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'rejected' })
+        .expect(200);
+      expect(reject.body.data).toEqual({ message: 'Application updated', status: 'rejected' });
+
+      const jobAfterReject = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(jobAfterReject.body.data.status).toBe('active');
+
+      const caregiverAStatusAfter = await db.query(
+        'SELECT verification_status FROM caregiver_profiles WHERE id = $1',
+        [caregiverA.profile_id],
+      );
+      expect(caregiverAStatusAfter.rows[0].verification_status).toBe('available');
+    });
+
+    it('rejects a still-applied application with no side effects on the job', async () => {
+      const job = await createJob();
+      const caregiver = await applyAsAvailableCaregiver('0012', job.id);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'rejected' })
+        .expect(200);
+
+      const jobAfter = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(jobAfter.body.data.status).toBe('active');
+    });
+
+    it('returns JOB_006 for a non-existent application', async () => {
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/00000000-0000-0000-0000-000000000000`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(404);
+      expect(res.body.error.code).toBe('JOB_006');
+    });
+
+    it('returns JOB_007 when accepting an already-accepted application', async () => {
+      const job = await createJob();
+      const caregiver = await applyAsAvailableCaregiver('0013', job.id);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_007');
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const job = await createJob();
+      const caregiver = await applyAsAvailableCaregiver('0014', job.id);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'accepted' })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
     });

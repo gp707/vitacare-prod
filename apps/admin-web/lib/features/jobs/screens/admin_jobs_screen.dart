@@ -5,11 +5,12 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../data/admin_jobs_repository.dart';
 
-/// SPEC.md 6.6 — admin posts a job, it's broadcast to all caregivers via
-/// push, and caregivers respond accept/reject/more_details. This screen
-/// covers post/list/close/view-responses; caregiver-facing browsing lives
-/// in apps/caregiver-app's Jobs tab.
+/// Admin posts a job built around the care receiver's needs, it's
+/// broadcast to all caregivers via push, and caregivers apply/reject. This
+/// screen covers post/list/close/view-applicants/accept-or-reject;
+/// caregiver-facing browsing lives in apps/caregiver-app's Jobs tab.
 class AdminJobsScreen extends ConsumerStatefulWidget {
   const AdminJobsScreen({super.key});
 
@@ -75,11 +76,12 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     }
   }
 
-  Future<void> _viewResponses(JobModel job) async {
+  Future<void> _viewApplications(JobModel job) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _JobResponsesDialog(job: job),
+      builder: (dialogContext) => _JobApplicationsDialog(job: job),
     );
+    await _load();
   }
 
   @override
@@ -121,7 +123,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         job: job,
                         onClose: job.status == JobStatus.active ? () => _close(job) : null,
                         onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
-                        onViewResponses: () => _viewResponses(job),
+                        onViewApplications: () => _viewApplications(job),
                       );
                     },
                   ),
@@ -138,13 +140,13 @@ class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
-  final VoidCallback onViewResponses;
+  final VoidCallback onViewApplications;
 
   const _JobRow({
     required this.job,
     required this.onClose,
     required this.onRemind,
-    required this.onViewResponses,
+    required this.onViewApplications,
   });
 
   @override
@@ -165,7 +167,8 @@ class _JobRow extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        WorkType.displayNames[job.workType] ?? job.workType,
+                        '${DutyType.displayNames[job.dutyType] ?? job.dutyType} · '
+                        '${City.displayNames[job.city] ?? job.city}',
                         style: const TextStyle(fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -176,9 +179,10 @@ class _JobRow extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  '${City.displayNames[job.city] ?? job.city} • '
-                  '${ServiceMode.displayNames[job.dutyTimings] ?? job.dutyTimings} • '
-                  '${Language.displayNames[job.language] ?? job.language}',
+                  [
+                    if (job.area != null && job.area!.isNotEmpty) job.area,
+                    Language.displayNames[job.language] ?? job.language,
+                  ].join(' • '),
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -186,7 +190,7 @@ class _JobRow extends StatelessWidget {
               ],
             ),
           ),
-          TextButton(onPressed: onViewResponses, child: const Text('Responses')),
+          TextButton(onPressed: onViewApplications, child: const Text('Applicants')),
           if (onRemind != null) TextButton(onPressed: onRemind, child: const Text('Remind')),
           if (onClose != null) TextButton(onPressed: onClose, child: const Text('Close')),
         ],
@@ -204,30 +208,85 @@ class _CreateJobDialog extends ConsumerStatefulWidget {
 
 class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
   final _descriptionController = TextEditingController();
-  String? _workType;
+  final _areaController = TextEditingController();
+  final _medicalInfoController = TextEditingController();
+
+  // Job Location
   String? _city;
-  String? _dutyTimings;
+
+  // Care Receiver
+  String? _mobility;
+  String? _communication;
+  String? _feedingType;
+  bool? _tubeFeedingNeedsAssistance;
+  List<String> _medicalAssistance = [];
+  bool _hasMedicalCondition = false;
+  List<String> _medicalConditions = [];
+
+  // Duty
+  String? _dutyType;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  DateTime? _startDate;
+
   String? _language;
-  String? _genderNeeded;
-  String? _religion;
+  String? _preferredGender; // null = no preference
+  String? _preferredReligion; // null = no preference
+
   bool _submitting = false;
   String? _errorMessage;
 
   @override
   void dispose() {
     _descriptionController.dispose();
+    _areaController.dispose();
+    _medicalInfoController.dispose();
     super.dispose();
   }
 
+  bool get _needsTubeFeedingAnswer =>
+      _feedingType == FeedingType.tubeFeeding || _feedingType == FeedingType.oralAndTube;
+
   bool get _canSubmit =>
       !_submitting &&
-      _workType != null &&
       _city != null &&
-      _dutyTimings != null &&
+      _mobility != null &&
+      _communication != null &&
+      _feedingType != null &&
+      (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
+      (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
+      _dutyType != null &&
       _language != null &&
-      _genderNeeded != null &&
-      _religion != null &&
       _descriptionController.text.trim().isNotEmpty;
+
+  String _formatTimeOfDay(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: (isStart ? _startTime : _endTime) ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isStart) {
+        _startTime = picked;
+      } else {
+        _endTime = picked;
+      }
+    });
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
 
   Future<void> _submit() async {
     setState(() {
@@ -236,13 +295,32 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
     });
     try {
       await ref.read(adminJobsRepositoryProvider).create(
-            workType: _workType!,
+            careReceiver: CareReceiverInput(
+              mobility: _mobility!,
+              communication: _communication!,
+              feedingType: _feedingType!,
+              tubeFeedingNeedsAssistance: _needsTubeFeedingAnswer ? _tubeFeedingNeedsAssistance : null,
+              medicalAssistance: _medicalAssistance,
+              hasMedicalCondition: _hasMedicalCondition,
+              medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
+              medicalInfo: _medicalInfoController.text.trim().isEmpty
+                  ? null
+                  : _medicalInfoController.text.trim(),
+            ),
             city: _city!,
+            area: _areaController.text.trim(),
             description: _descriptionController.text.trim(),
-            dutyTimings: _dutyTimings!,
+            dutyType: _dutyType!,
+            startTime: _startTime == null ? null : _formatTimeOfDay(_startTime!),
+            endTime: _endTime == null ? null : _formatTimeOfDay(_endTime!),
+            startDate: _startDate == null
+                ? null
+                : '${_startDate!.year.toString().padLeft(4, '0')}-'
+                    '${_startDate!.month.toString().padLeft(2, '0')}-'
+                    '${_startDate!.day.toString().padLeft(2, '0')}',
             language: _language!,
-            genderNeeded: _genderNeeded!,
-            religion: _religion!,
+            preferredGender: _preferredGender,
+            preferredReligion: _preferredReligion,
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -257,21 +335,13 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
     return AlertDialog(
       title: const Text('Post New Job'),
       content: SizedBox(
-        width: 420,
+        width: 480,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _workType,
-                decoration: const InputDecoration(labelText: 'Work Type'),
-                items: WorkType.all
-                    .map((w) => DropdownMenuItem(value: w, child: Text(WorkType.displayNames[w] ?? w)))
-                    .toList(),
-                onChanged: (value) => setState(() => _workType = value),
-              ),
+              const Text('Job Location', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
                 isExpanded: true,
@@ -282,48 +352,167 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                     .toList(),
                 onChanged: (value) => setState(() => _city = value),
               ),
+              if (_city != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _areaController,
+                  decoration: InputDecoration(labelText: 'Area in ${City.displayNames[_city] ?? _city}'),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              const Text('Care Receiver', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: _dutyTimings,
-                decoration: const InputDecoration(labelText: 'Duty Timings'),
-                items: ServiceMode.all
-                    .map((s) => DropdownMenuItem(value: s, child: Text(ServiceMode.displayNames[s] ?? s)))
+                initialValue: _mobility,
+                decoration: const InputDecoration(labelText: 'Mobility'),
+                items: Mobility.all
+                    .map((m) => DropdownMenuItem(value: m, child: Text(Mobility.displayNames[m] ?? m)))
                     .toList(),
-                onChanged: (value) => setState(() => _dutyTimings = value),
+                onChanged: (value) => setState(() => _mobility = value),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
                 isExpanded: true,
+                initialValue: _communication,
+                decoration: const InputDecoration(labelText: 'Communication'),
+                items: Communication.all
+                    .map((c) => DropdownMenuItem(value: c, child: Text(Communication.displayNames[c] ?? c)))
+                    .toList(),
+                onChanged: (value) => setState(() => _communication = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _feedingType,
+                decoration: const InputDecoration(labelText: 'Feeding'),
+                items: FeedingType.all
+                    .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _feedingType = value;
+                  _tubeFeedingNeedsAssistance = null;
+                }),
+              ),
+              if (_needsTubeFeedingAnswer)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('Needs caregiver assistance with tube feeding'),
+                  value: _tubeFeedingNeedsAssistance ?? false,
+                  onChanged: (value) => setState(() => _tubeFeedingNeedsAssistance = value),
+                ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text('Medical Assistance Required', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.xs),
+              VitaMultiSelectChips(
+                options: MedicalAssistance.all,
+                labels: MedicalAssistance.displayNames,
+                selected: _medicalAssistance,
+                onChanged: (next) => setState(() => _medicalAssistance = next),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Has a medical condition the caregiver should know about?'),
+                value: _hasMedicalCondition,
+                onChanged: (value) => setState(() {
+                  _hasMedicalCondition = value;
+                  if (!value) _medicalConditions = [];
+                }),
+              ),
+              if (_hasMedicalCondition) ...[
+                const Text('Condition(s)', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: AppSpacing.xs),
+                VitaMultiSelectChips(
+                  options: MedicalCondition.all,
+                  labels: MedicalCondition.displayNames,
+                  selected: _medicalConditions,
+                  onChanged: (next) => setState(() => _medicalConditions = next),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _medicalInfoController,
+                  maxLines: 2,
+                  decoration:
+                      const InputDecoration(labelText: 'Important information for the caregiver'),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              const Text('Duty', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _dutyType,
+                decoration: const InputDecoration(labelText: 'Duty Type'),
+                items: DutyType.all
+                    .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
+                    .toList(),
+                onChanged: (value) => setState(() => _dutyType = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pickTime(isStart: true),
+                      child: Text(_startTime == null ? 'Start Time' : _formatTimeOfDay(_startTime!)),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pickTime(isStart: false),
+                      child: Text(_endTime == null ? 'End Time' : _formatTimeOfDay(_endTime!)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton(
+                onPressed: _pickStartDate,
+                child: Text(
+                  _startDate == null
+                      ? 'Start Date'
+                      : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: _language,
-                decoration: const InputDecoration(labelText: 'Language'),
+                decoration: const InputDecoration(labelText: 'Language Preference'),
                 items: Language.all
                     .map((l) => DropdownMenuItem(value: l, child: Text(Language.displayNames[l] ?? l)))
                     .toList(),
                 onChanged: (value) => setState(() => _language = value),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String?>(
                 isExpanded: true,
-                initialValue: _genderNeeded,
-                decoration: const InputDecoration(labelText: 'Gender Needed'),
+                initialValue: _preferredGender,
+                decoration: const InputDecoration(labelText: 'Preferred Caregiver Gender'),
                 items: const [
-                  DropdownMenuItem(value: Gender.male, child: Text('Male')),
-                  DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                  DropdownMenuItem<String?>(value: null, child: Text('No preference')),
+                  DropdownMenuItem<String?>(value: Gender.male, child: Text('Male')),
+                  DropdownMenuItem<String?>(value: Gender.female, child: Text('Female')),
                 ],
-                onChanged: (value) => setState(() => _genderNeeded = value),
+                onChanged: (value) => setState(() => _preferredGender = value),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String?>(
                 isExpanded: true,
-                initialValue: _religion,
-                decoration: const InputDecoration(labelText: 'Religion'),
-                items: Religion.all
-                    .map((r) => DropdownMenuItem(value: r, child: Text(Religion.displayNames[r] ?? r)))
-                    .toList(),
-                onChanged: (value) => setState(() => _religion = value),
+                initialValue: _preferredReligion,
+                decoration: const InputDecoration(labelText: 'Preferred Caregiver Religion'),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('No preference')),
+                  ...Religion.all.map(
+                    (r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r)),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _preferredReligion = value),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: _descriptionController,
                 maxLines: 3,
@@ -355,18 +544,19 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
   }
 }
 
-class _JobResponsesDialog extends ConsumerStatefulWidget {
+class _JobApplicationsDialog extends ConsumerStatefulWidget {
   final JobModel job;
 
-  const _JobResponsesDialog({required this.job});
+  const _JobApplicationsDialog({required this.job});
 
   @override
-  ConsumerState<_JobResponsesDialog> createState() => _JobResponsesDialogState();
+  ConsumerState<_JobApplicationsDialog> createState() => _JobApplicationsDialogState();
 }
 
-class _JobResponsesDialogState extends ConsumerState<_JobResponsesDialog> {
-  List<JobResponseModel>? _responses;
+class _JobApplicationsDialogState extends ConsumerState<_JobApplicationsDialog> {
+  List<JobApplicationModel>? _applications;
   String? _errorMessage;
+  String? _decidingApplicationId;
 
   @override
   void initState() {
@@ -376,39 +566,94 @@ class _JobResponsesDialogState extends ConsumerState<_JobResponsesDialog> {
 
   Future<void> _load() async {
     try {
-      final (_, responses) = await ref.read(adminJobsRepositoryProvider).getDetail(widget.job.id);
-      if (mounted) setState(() => _responses = responses);
+      final (_, applications) = await ref.read(adminJobsRepositoryProvider).getDetail(widget.job.id);
+      if (mounted) setState(() => _applications = applications);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     }
   }
 
+  Future<void> _decide(JobApplicationModel application, String status) async {
+    setState(() => _decidingApplicationId = application.id);
+    try {
+      await ref
+          .read(adminJobsRepositoryProvider)
+          .decideApplication(widget.job.id, application.id, status);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _decidingApplicationId = null);
+    }
+  }
+
+  void _viewProfile(JobApplicationModel application) {
+    Navigator.of(context).pushNamed('/caregiver-detail', arguments: application.profileId);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Responses — ${WorkType.displayNames[widget.job.workType] ?? widget.job.workType}'),
+      title: Text(
+        'Applicants — ${DutyType.displayNames[widget.job.dutyType] ?? widget.job.dutyType} in '
+        '${City.displayNames[widget.job.city] ?? widget.job.city}',
+      ),
       content: SizedBox(
-        width: 420,
+        width: 480,
         child: _errorMessage != null
             ? Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-            : _responses == null
+            : _applications == null
                 ? const Center(child: VitaLoadingIndicator())
-                : _responses!.isEmpty
-                    ? const Text('No responses yet.', style: TextStyle(color: AppColors.textSecondary))
+                : _applications!.isEmpty
+                    ? const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
                     : SizedBox(
-                        height: 300,
+                        height: 340,
                         child: ListView.separated(
-                          itemCount: _responses!.length,
+                          itemCount: _applications!.length,
                           separatorBuilder: (_, __) => const Divider(),
                           itemBuilder: (context, index) {
-                            final r = _responses![index];
+                            final application = _applications![index];
+                            final isDeciding = _decidingApplicationId == application.id;
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text('${r.fullName} — ${r.response}'),
-                              subtitle: Text(
-                                [r.phone, if (r.message != null && r.message!.isNotEmpty) r.message]
-                                    .join(' • '),
-                              ),
+                              title: Text('${application.fullName} — ${application.status}'),
+                              subtitle: Text(application.phone),
+                              trailing: isDeciding
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: VitaLoadingIndicator(size: 20),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextButton(
+                                          onPressed: () => _viewProfile(application),
+                                          child: const Text('Profile'),
+                                        ),
+                                        if (application.status == JobApplicationStatus.applied) ...[
+                                          TextButton(
+                                            onPressed: () =>
+                                                _decide(application, JobApplicationStatus.accepted),
+                                            child: const Text('Accept'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                _decide(application, JobApplicationStatus.rejected),
+                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                            child: const Text('Reject'),
+                                          ),
+                                        ] else if (application.status == JobApplicationStatus.accepted)
+                                          TextButton(
+                                            onPressed: () =>
+                                                _decide(application, JobApplicationStatus.rejected),
+                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                            child: const Text('Reject'),
+                                          ),
+                                      ],
+                                    ),
                             );
                           },
                         ),

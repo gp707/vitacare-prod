@@ -1,29 +1,108 @@
-import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { City, Gender, Language, Religion, ServiceMode, WorkType } from '@vitacare/shared-constants';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+import {
+  City,
+  Communication,
+  DutyType,
+  FeedingType,
+  Gender,
+  Language,
+  MedicalAssistance,
+  MedicalCondition,
+  Mobility,
+  Religion,
+} from '@vitacare/shared-constants';
+
+export class CareReceiverDto {
+  @IsIn(Object.values(Mobility), { message: 'GEN_001' })
+  mobility!: Mobility;
+
+  @IsIn(Object.values(Communication), { message: 'GEN_001' })
+  communication!: Communication;
+
+  @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
+  feeding_type!: FeedingType;
+
+  // Only meaningful when feeding_type involves tube feeding — validated as
+  // present-if-relevant, not required, since the UI only shows this
+  // question conditionally.
+  @ValidateIf(
+    (o: CareReceiverDto) =>
+      o.feeding_type === FeedingType.TUBE_FEEDING || o.feeding_type === FeedingType.ORAL_AND_TUBE,
+  )
+  @IsBoolean({ message: 'GEN_001' })
+  tube_feeding_needs_assistance?: boolean;
+
+  @IsArray({ message: 'GEN_001' })
+  @IsIn(Object.values(MedicalAssistance), { each: true, message: 'GEN_001' })
+  medical_assistance!: MedicalAssistance[];
+
+  @IsBoolean({ message: 'GEN_001' })
+  has_medical_condition!: boolean;
+
+  @ValidateIf((o: CareReceiverDto) => o.has_medical_condition)
+  @IsArray({ message: 'GEN_001' })
+  @IsIn(Object.values(MedicalCondition), { each: true, message: 'GEN_001' })
+  medical_conditions?: MedicalCondition[];
+
+  @IsOptional()
+  @IsString()
+  medical_info?: string;
+}
 
 export class CreateJobDto {
-  @IsIn(Object.values(WorkType), { message: 'GEN_001' })
-  work_type!: WorkType;
+  @ValidateNested()
+  @Type(() => CareReceiverDto)
+  care_receiver!: CareReceiverDto;
 
   @IsIn(Object.values(City), { message: 'GEN_001' })
   city!: City;
+
+  @IsOptional()
+  @IsString()
+  area?: string;
 
   @IsNotEmpty({ message: 'GEN_001' })
   @IsString()
   @MaxLength(2000, { message: 'GEN_001' })
   description!: string;
 
-  @IsIn(Object.values(ServiceMode), { message: 'GEN_001' })
-  duty_timings!: ServiceMode;
+  @IsIn(Object.values(DutyType), { message: 'GEN_001' })
+  duty_type!: DutyType;
+
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'GEN_001' })
+  start_time?: string;
+
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'GEN_001' })
+  end_time?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'GEN_001' })
+  start_date?: string;
 
   @IsIn(Object.values(Language), { message: 'GEN_001' })
   language!: Language;
 
-  // Jobs table CHECK constraint only allows male/female (not 'other') —
-  // matches SPEC.md's schema exactly.
+  // "No preference" is simply omitting the field — NOT a magic string.
+  @IsOptional()
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
-  gender_needed!: Gender;
+  preferred_gender?: Gender;
 
+  @IsOptional()
   @IsIn(Object.values(Religion), { message: 'GEN_001' })
-  religion!: Religion;
+  preferred_religion?: Religion;
 }

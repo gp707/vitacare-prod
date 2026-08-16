@@ -28,7 +28,8 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Caregiver login:** Phone + 4-digit code, always. The code is set at registration and is required for every login from the first session onward. There is no phone-only login endpoint.
 - **There is no separate "Advanced Details" step.** Everything is collected in one registration (`POST /auth/register`): basic info, religion, highest qualification, and terms acceptance, plus documents uploaded via their own endpoints immediately after (selfie and Aadhaar are mandatory; qualification document and up to 3 "other" documents are optional). Religion is required at registration and locked from self-edit afterward; highest_qualification, preferred_cities (optional at registration), and documents all remain editable afterward via the single self-edit endpoint (`PATCH /caregiver/profile`) or document re-upload endpoints.
 - **father_name, father_phone, current_address, and notes have been removed from the product entirely** — no longer collected, stored, or displayed anywhere (caregiver-app, admin-web, or the database).
-- **Admin-assigned work types, service modes, and salary have been removed from the product entirely**, along with the two admin-notes rate fields (Rate — 24Hrs Live-In, Rate — 12Hrs PG) — no longer collected, stored, or displayed anywhere. `WorkType` and `ServiceMode` remain valid enums (see below) but are now purely attributes of a Job posting (`work_type`, `duty_timings`), not something assigned to a caregiver's profile. `admin_notes` still has `internal_notes` and `availability_remarks`.
+- **Admin-assigned work types, service modes, and salary have been removed from the product entirely**, along with the two admin-notes rate fields (Rate — 24Hrs Live-In, Rate — 12Hrs PG) — no longer collected, stored, or displayed anywhere. `admin_notes` still has `internal_notes` and `availability_remarks`. `WorkType`/`ServiceMode`/`SalaryRanges` are gone too — a job posting is no longer built around a single "work type" category (see "Job/Application Flow" below).
+- **Job/Application Flow:** Admin posts a job describing the care receiver's needs (mobility, communication, feeding, medical assistance/conditions) plus duty details (city, area, duty type, times, start date) and soft caregiver preferences (language, gender, religion — all just informational tags, never used as a filter). A `care_receivers` row is created 1:1 with each job (not an independently reusable/searchable entity yet — a future "Patient" app will eventually supply real care-receiver identity data; this only captures the care-needs description). Caregivers **apply** or **reject** (`POST /caregiver/jobs/:id/apply`) — there's no "ask for more details" option. Admin reviews applicants, contacts them outside the app, then **accepts** one via `PATCH /admin/jobs/:jobId/applications/:applicationId` — this is the offer confirmation, not a separate in-app caregiver acceptance step. Accepting closes the job (`status = 'closed'`, no more applications) and sets that caregiver's `verification_status` to `assigned`. Admin can later reject that same accepted application to reopen the job and set the caregiver back to `available`. Other still-`applied` applications on a job are left untouched when one gets accepted — not auto-rejected.
 - **Profile edits don't auto-reset status for `available`/`unavailable` caregivers**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends them back to `pending_call` (see transition matrix). Every other edit (age, languages, highest_qualification, preferred_cities, login code/PIN, selfie/qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched. **For a `rejected` caregiver, this is different: any edit at all — not just identity-sensitive ones — automatically resubmits them** (sends status back to `pending_call`). There's no separate "resubmit" action; editing the flagged field(s) normally is the resubmission.
 - **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile`) — only admins can change it from that point on. Every other field remains caregiver-editable via self-edit.
 
@@ -120,14 +121,8 @@ rejected → pending_call                           (system: any caregiver edit 
 ### Languages
 hindi, english, kannada, tamil, telugu, malayalam, bengali, gujarati, marathi
 
-### Service Modes
-24hrs_live_in, 12hrs_pg
-
 ### Religion
 hindu, muslim, christian, others
-
-### Work Types (job-posting attribute only — see note below)
-companion_care, bedside_care, critical_care
 
 ### Cities (preferred city for availability)
 bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon
@@ -144,8 +139,26 @@ super_admin, admin, caregiver
 ### Job Status
 active, closed
 
-### Job Response
-accepted, rejected, more_details
+### Job Application Status
+applied, rejected, accepted — `accepted` is admin-only (see "Job/Application Flow" below); a caregiver can only ever set `applied`/`rejected` on their own application.
+
+### Duty Type
+day_duty, night_duty, live_in, other
+
+### Mobility
+walks_independently, walks_with_assistance, uses_walker, uses_wheelchair, bedridden
+
+### Communication
+verbal, difficulty_communicating, sign_language, other_non_verbal
+
+### Feeding Type
+oral_independent, oral_needs_assistance, tube_feeding, oral_and_tube
+
+### Medical Assistance (multi-select)
+medication_reminders, medication_administration, insulin_administration, other_injections, other
+
+### Medical Condition (multi-select)
+cancer, stroke, brain_injury, dementia_alzheimers, parkinsons, heart_condition, kidney_disease_dialysis, diabetes, colostomy, paralysis, other
 
 ## File References
 

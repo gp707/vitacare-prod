@@ -7,8 +7,8 @@ class JobsRepository {
 
   JobsRepository(this._dio);
 
-  /// Viewable at any verification status (SPEC.md 12 — browsing motivates
-  /// onboarding); only respond() is gated server-side.
+  /// Viewable at any verification status — browsing motivates onboarding;
+  /// only applyToJob() is gated server-side.
   Future<List<JobModel>> listActiveJobs() async {
     try {
       final res = await _dio.get(ApiRoutes.caregiverJobs, queryParameters: {'limit': 50});
@@ -19,13 +19,10 @@ class JobsRepository {
     }
   }
 
-  Future<String> respondToJob(String jobId, String response, {String? message}) async {
+  Future<String> applyToJob(String jobId, String status) async {
     try {
-      final res = await _dio.post('/caregiver/jobs/$jobId/respond', data: {
-        'response': response,
-        if (message != null) 'message': message,
-      });
-      return res.data['data']['response'] as String;
+      final res = await _dio.post('/caregiver/jobs/$jobId/apply', data: {'status': status});
+      return res.data['data']['status'] as String;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

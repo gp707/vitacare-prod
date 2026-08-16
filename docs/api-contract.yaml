@@ -104,17 +104,48 @@ components:
       type: string
       enum: [hindi, english, kannada, tamil, telugu, malayalam, bengali, gujarati, marathi]
 
-    ServiceMode:
-      type: string
-      enum: [24hrs_live_in, 12hrs_pg]
-
     Religion:
       type: string
       enum: [hindu, muslim, christian, others]
 
-    WorkType:
+    DutyType:
       type: string
-      enum: [companion_care, bedside_care, critical_care]
+      enum: [day_duty, night_duty, live_in, other]
+
+    Mobility:
+      type: string
+      enum: [walks_independently, walks_with_assistance, uses_walker, uses_wheelchair, bedridden]
+
+    Communication:
+      type: string
+      enum: [verbal, difficulty_communicating, sign_language, other_non_verbal]
+
+    FeedingType:
+      type: string
+      enum: [oral_independent, oral_needs_assistance, tube_feeding, oral_and_tube]
+
+    MedicalAssistance:
+      type: string
+      enum: [medication_reminders, medication_administration, insulin_administration, other_injections, other]
+
+    MedicalCondition:
+      type: string
+      enum:
+        - cancer
+        - stroke
+        - brain_injury
+        - dementia_alzheimers
+        - parkinsons
+        - heart_condition
+        - kidney_disease_dialysis
+        - diabetes
+        - colostomy
+        - paralysis
+        - other
+
+    JobApplicationStatus:
+      type: string
+      enum: [applied, rejected, accepted]
 
     City:
       type: string
@@ -143,27 +174,87 @@ components:
       type: string
       enum: [qualification, aadhaar, other]
 
+    CareReceiver:
+      type: object
+      description: 1:1 with a job, created together with it — not an independently reusable/searchable entity yet.
+      properties:
+        id:
+          type: string
+          format: uuid
+        mobility:
+          $ref: "#/components/schemas/Mobility"
+        communication:
+          $ref: "#/components/schemas/Communication"
+        feeding_type:
+          $ref: "#/components/schemas/FeedingType"
+        tube_feeding_needs_assistance:
+          type: boolean
+          nullable: true
+          description: Only meaningful when feeding_type involves tube feeding.
+        medical_assistance:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicalAssistance"
+        has_medical_condition:
+          type: boolean
+        medical_conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicalCondition"
+        medical_info:
+          type: string
+          nullable: true
+      example:
+        id: "d3e4f5a6-b7c8-9012-def0-345678901234"
+        mobility: "walks_with_assistance"
+        communication: "verbal"
+        feeding_type: "oral_needs_assistance"
+        tube_feeding_needs_assistance: null
+        medical_assistance: ["medication_reminders"]
+        has_medical_condition: true
+        medical_conditions: ["diabetes"]
+        medical_info: "Needs help twice daily, post hip surgery"
+
     Job:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        work_type:
-          $ref: "#/components/schemas/WorkType"
+        care_receiver_id:
+          type: string
+          format: uuid
         city:
           $ref: "#/components/schemas/City"
+        area:
+          type: string
+          nullable: true
         description:
           type: string
-        duty_timings:
-          $ref: "#/components/schemas/ServiceMode"
+        duty_type:
+          $ref: "#/components/schemas/DutyType"
+        start_time:
+          type: string
+          nullable: true
+          example: "09:00"
+        end_time:
+          type: string
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
         language:
           $ref: "#/components/schemas/Language"
-        gender_needed:
+        preferred_gender:
           type: string
-          enum: [male, female]
-        religion:
-          $ref: "#/components/schemas/Religion"
+          nullable: true
+          enum: [male, female, null]
+          description: Preference only, never used as a filter. Null = no preference.
+        preferred_religion:
+          type: string
+          nullable: true
+          description: Preference only, never used as a filter. Null = no preference.
         status:
           type: string
           enum: [active, closed]
@@ -178,19 +269,23 @@ components:
           format: date-time
       example:
         id: "c3d4e5f6-a7b8-9012-cdef-345678901234"
-        work_type: "bedside_care"
+        care_receiver_id: "d3e4f5a6-b7c8-9012-def0-345678901234"
         city: "bangalore"
-        description: "Need a bedside caregiver for an elderly patient, 24/7."
-        duty_timings: "24hrs_live_in"
+        area: "Indiranagar"
+        description: "Elderly patient, 72 years, post hip surgery."
+        duty_type: "live_in"
+        start_time: null
+        end_time: null
+        start_date: "2026-08-10"
         language: "hindi"
-        gender_needed: "female"
-        religion: "hindu"
+        preferred_gender: "female"
+        preferred_religion: "hindu"
         status: "active"
         posted_by: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         created_at: "2026-08-09T10:00:00Z"
         updated_at: "2026-08-09T10:00:00Z"
 
-    JobResponse:
+    JobApplication:
       type: object
       properties:
         id:
@@ -202,12 +297,13 @@ components:
         profile_id:
           type: string
           format: uuid
-        response:
+        status:
+          $ref: "#/components/schemas/JobApplicationStatus"
+        decided_by:
           type: string
-          enum: [accepted, rejected, more_details]
-        message:
-          type: string
+          format: uuid
           nullable: true
+          description: Admin who accepted/rejected; null while status is 'applied'.
         full_name:
           type: string
         phone:
@@ -1441,9 +1537,8 @@ paths:
       summary: List active job postings
       description: |
         Viewable at ANY verification status — browsing motivates completing
-        onboarding (CLAUDE.md/SPEC.md 12.1). Only responding is gated.
-        Each item includes `my_response` (null if this caregiver hasn't
-        responded yet).
+        onboarding. Only applying is gated. Each item includes
+        `my_application_status` (null if this caregiver hasn't applied yet).
       operationId: listCaregiverJobs
       security:
         - BearerAuth: []
@@ -1470,10 +1565,10 @@ paths:
                         - $ref: "#/components/schemas/Job"
                         - type: object
                           properties:
-                            my_response:
+                            my_application_status:
                               type: string
                               nullable: true
-                              enum: [accepted, rejected, more_details, null]
+                              enum: [applied, rejected, accepted, null]
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
         "401":
@@ -1481,15 +1576,17 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /caregiver/jobs/{id}/respond:
+  /caregiver/jobs/{id}/apply:
     post:
       tags: [Caregiver Jobs]
-      summary: Respond to a job posting
+      summary: Apply to (or reject) a job posting
       description: |
-        Only `available`/`assigned` caregivers can respond (`unavailable`
+        Only `available`/`assigned` caregivers can apply (`unavailable`
         must toggle back to available first) — JOB_001 otherwise.
-        Re-responding updates the existing response rather than duplicating it.
-      operationId: respondToJob
+        Re-applying updates the existing application rather than
+        duplicating it. `accepted` is admin-only — see
+        `PATCH /admin/jobs/{jobId}/applications/{applicationId}`.
+      operationId: applyToJob
       security:
         - BearerAuth: []
       parameters:
@@ -1503,20 +1600,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [response]
+              required: [status]
               properties:
-                response:
+                status:
                   type: string
-                  enum: [accepted, rejected, more_details]
-                message:
-                  type: string
-                  description: "Required if response is more_details."
+                  enum: [applied, rejected]
             example:
-              response: "more_details"
-              message: "What are the exact duty hours?"
+              status: "applied"
       responses:
         "200":
-          description: Response recorded
+          description: Application recorded
           content:
             application/json:
               schema:
@@ -1527,10 +1620,10 @@ paths:
                     type: object
                     properties:
                       message: { type: string }
-                      response: { type: string }
+                      status: { type: string }
               example:
                 success: true
-                data: { message: "Response recorded", response: "accepted" }
+                data: { message: "Application recorded", status: "applied" }
         "400":
           description: Validation error or job closed
           content:
@@ -1542,17 +1635,12 @@ paths:
                   summary: Job is closed
                   value:
                     success: false
-                    error: { code: "JOB_002", message: "Job is closed and no longer accepting responses" }
-                missing_message:
-                  summary: more_details without a message
+                    error: { code: "JOB_002", message: "Job is closed and no longer accepting applications" }
+                invalid_status:
+                  summary: Invalid status value (e.g. caregiver sending 'accepted')
                   value:
                     success: false
-                    error: { code: "JOB_003", message: "Message is required when asking for more details" }
-                invalid_response:
-                  summary: Invalid response value
-                  value:
-                    success: false
-                    error: { code: "JOB_004", message: "Invalid response value" }
+                    error: { code: "JOB_004", message: "Invalid application status value" }
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -1563,7 +1651,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
-                error: { code: "JOB_001", message: "Cannot respond to jobs until your profile is verified" }
+                error: { code: "JOB_001", message: "Cannot apply to jobs until your profile is verified" }
         "404":
           description: Job not found
           content:
@@ -2939,6 +3027,7 @@ paths:
               - job_posted
               - job_closed
               - job_response
+              - job_application_decided
               - admin_edit_profile
               - admin_note_added
               - admin_created
@@ -3036,32 +3125,77 @@ paths:
           application/json:
             schema:
               type: object
-              required: [work_type, city, description, duty_timings, language, gender_needed, religion]
+              required: [care_receiver, city, description, duty_type, language]
               properties:
-                work_type:
-                  $ref: "#/components/schemas/WorkType"
+                care_receiver:
+                  type: object
+                  required: [mobility, communication, feeding_type, medical_assistance, has_medical_condition]
+                  properties:
+                    mobility:
+                      $ref: "#/components/schemas/Mobility"
+                    communication:
+                      $ref: "#/components/schemas/Communication"
+                    feeding_type:
+                      $ref: "#/components/schemas/FeedingType"
+                    tube_feeding_needs_assistance:
+                      type: boolean
+                      description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
+                    medical_assistance:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/MedicalAssistance"
+                    has_medical_condition:
+                      type: boolean
+                    medical_conditions:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/MedicalCondition"
+                      description: "Required if has_medical_condition is true; not validated otherwise."
+                    medical_info:
+                      type: string
+                      description: "Free text — important information for the caregiver."
                 city:
                   $ref: "#/components/schemas/City"
+                area:
+                  type: string
+                  description: "Free text, optional."
                 description:
                   type: string
-                duty_timings:
-                  $ref: "#/components/schemas/ServiceMode"
+                duty_type:
+                  $ref: "#/components/schemas/DutyType"
+                start_time:
+                  type: string
+                  description: "HH:mm, optional."
+                end_time:
+                  type: string
+                start_date:
+                  type: string
+                  format: date
                 language:
                   $ref: "#/components/schemas/Language"
-                gender_needed:
+                preferred_gender:
                   type: string
                   enum: [male, female]
-                  description: "Jobs table only allows male/female, unlike the general Gender enum."
-                religion:
+                  description: "Optional — omitted means no preference. Never used as a filter."
+                preferred_religion:
                   $ref: "#/components/schemas/Religion"
             example:
-              work_type: "bedside_care"
+              care_receiver:
+                mobility: "walks_with_assistance"
+                communication: "verbal"
+                feeding_type: "oral_needs_assistance"
+                medical_assistance: ["medication_reminders"]
+                has_medical_condition: true
+                medical_conditions: ["diabetes"]
+                medical_info: "Needs help twice daily, post hip surgery"
               city: "bangalore"
-              description: "Need a bedside caregiver for an elderly patient, 24/7."
-              duty_timings: "24hrs_live_in"
+              area: "Indiranagar"
+              description: "Elderly patient, 72 years, post hip surgery."
+              duty_type: "live_in"
+              start_date: "2026-08-10"
               language: "hindi"
-              gender_needed: "female"
-              religion: "hindu"
+              preferred_gender: "female"
+              preferred_religion: "hindu"
       responses:
         "201":
           description: Job created
@@ -3098,10 +3232,6 @@ paths:
         - name: status
           in: query
           schema: { type: string, enum: [active, closed] }
-        - name: work_type
-          in: query
-          schema:
-            $ref: "#/components/schemas/WorkType"
         - name: city
           in: query
           schema:
@@ -3131,7 +3261,7 @@ paths:
   /admin/jobs/{id}:
     get:
       tags: [Admin - Jobs]
-      summary: Get job detail with all caregiver responses
+      summary: Get job detail with the care receiver and all applications
       operationId: getJobDetail
       security:
         - BearerAuth: []
@@ -3154,10 +3284,12 @@ paths:
                       - $ref: "#/components/schemas/Job"
                       - type: object
                         properties:
-                          responses:
+                          care_receiver:
+                            $ref: "#/components/schemas/CareReceiver"
+                          applications:
                             type: array
                             items:
-                              $ref: "#/components/schemas/JobResponse"
+                              $ref: "#/components/schemas/JobApplication"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -3178,7 +3310,7 @@ paths:
     patch:
       tags: [Admin - Jobs]
       summary: Close a job posting
-      description: Sets status to `closed` — closed jobs no longer accept caregiver responses (JOB_002).
+      description: Sets status to `closed` — closed jobs no longer accept caregiver applications (JOB_002).
       operationId: closeJob
       security:
         - BearerAuth: []
@@ -3275,5 +3407,104 @@ paths:
               example:
                 success: false
                 error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/jobs/{jobId}/applications/{applicationId}:
+    patch:
+      tags: [Admin - Jobs]
+      summary: Accept or reject a specific applicant
+      description: |
+        This IS the offer confirmation — admin has already contacted the
+        caregiver outside the app before calling this; there is no separate
+        in-app caregiver "accept offer" step. Only two transitions are
+        valid: `applied` -> `accepted`/`rejected`, and `accepted` ->
+        `rejected` (admin reversing a prior acceptance). Anything else
+        (double-accept, re-deciding an already-rejected application) is
+        JOB_007.
+
+        Side effects:
+        - `applied` -> `accepted`: this application updates; the job closes
+          (`status = 'closed'`, no further applications accepted); the
+          caregiver's `verification_status` becomes `assigned`.
+        - `accepted` -> `rejected`: this application updates; the job
+          reopens (`status = 'active'`); the caregiver's
+          `verification_status` becomes `available`.
+        - `applied` -> `rejected`: just declines this one application — no
+          effect on the job or the caregiver's status.
+        - Other still-`applied` applications on the same job are left
+          untouched either way.
+      operationId: decideApplication
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+            example:
+              status: "accepted"
+      responses:
+        "200":
+          description: Application updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string }
+              example:
+                success: true
+                data: { message: "Application updated", status: "accepted" }
+        "400":
+          description: Invalid status value or application already decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_status:
+                  summary: Invalid status value
+                  value:
+                    success: false
+                    error: { code: "JOB_004", message: "Invalid application status value" }
+                already_decided:
+                  summary: Application already decided
+                  value:
+                    success: false
+                    error: { code: "JOB_007", message: "Application has already been decided" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Application not found, or doesn't belong to this job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_006", message: "Application not found" }
         "500":
           $ref: "#/components/responses/InternalError"

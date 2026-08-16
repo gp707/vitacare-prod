@@ -49,11 +49,12 @@ class ErrorCodes {
     'ADMIN_013': 'Cannot demote the last super admin',
 
     // Jobs
-    'JOB_001': 'Cannot respond to jobs until your profile is verified',
-    'JOB_002': 'Job is closed and no longer accepting responses',
-    'JOB_003': 'Message is required when asking for more details',
-    'JOB_004': 'Invalid response value',
+    'JOB_001': 'Cannot apply to jobs until your profile is verified',
+    'JOB_002': 'Job is closed and no longer accepting applications',
+    'JOB_004': 'Invalid application status value',
     'JOB_005': 'Cannot send a reminder for a closed job',
+    'JOB_006': 'Application not found',
+    'JOB_007': 'Application has already been decided',
 
     // General
     'GEN_001': 'Invalid request body',

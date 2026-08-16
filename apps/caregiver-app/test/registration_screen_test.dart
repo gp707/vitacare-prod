@@ -161,11 +161,4 @@ void main() {
     expect(find.text('Enter a valid full name (letters and spaces only)'), findsOneWidget);
     expect(authRepo.registerCalled, isFalse);
   });
-
-  testWidgets('displays the informational salary ranges', (tester) async {
-    await _pumpRegistration(tester, _FakeAuthRepository());
-
-    expect(find.textContaining('Companion Care'), findsOneWidget);
-    expect(find.textContaining('₹25000'), findsOneWidget);
-  });
 }
