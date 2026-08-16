@@ -376,7 +376,6 @@ export const DutyType = {
   DAY_DUTY: 'day_duty',
   NIGHT_DUTY: 'night_duty',
   LIVE_IN: 'live_in',
-  OTHER: 'other',
 } as const;
 
 export const Mobility = {
@@ -567,15 +566,13 @@ class DutyType {
   static const dayDuty = 'day_duty';
   static const nightDuty = 'night_duty';
   static const liveIn = 'live_in';
-  static const other = 'other';
 
-  static const all = [dayDuty, nightDuty, liveIn, other];
+  static const all = [liveIn, dayDuty, nightDuty];
 
   static const displayNames = {
-    dayDuty: 'Day Duty',
-    nightDuty: 'Night Duty',
-    liveIn: 'Live-In',
-    other: 'Other',
+    liveIn: '24Hrs - Live In',
+    dayDuty: '12Hrs Day Shift (8am to 8pm)',
+    nightDuty: '12Hrs Night Shift (8pm to 8am)',
   };
 }
 
@@ -1046,13 +1043,13 @@ CREATE TABLE jobs (
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
   area TEXT,                              -- free text, optional
   description TEXT NOT NULL,
-  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in', 'other')),
-  start_time TIME,                        -- nullable; not required for live_in
+  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in')),  -- 3 fixed shifts only
+  start_time TIME,                        -- derived from duty_type, not admin-entered; NULL for live_in
   end_time TIME,
   start_date DATE,
-  language VARCHAR(50) NOT NULL CHECK (language IN ('hindi', 'english', 'kannada', 'tamil', 'telugu', 'malayalam', 'bengali', 'gujarati', 'marathi')),
+  languages JSONB NOT NULL DEFAULT '[]',  -- multi-select language preference, non-empty array
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
-  preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian', 'others')),  -- NULL = no preference
+  preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian')),  -- NULL = no preference; 'others' excluded (valid for a caregiver's own religion, not offered as a job preference)
   status VARCHAR(10) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
   posted_by UUID NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1979,7 +1976,7 @@ notification to ALL caregivers.
   "description": "Elderly patient, 72 years, post hip surgery.",
   "duty_type": "live_in",
   "start_date": "2026-08-10",
-  "language": "kannada",
+  "languages": ["kannada", "english"],
   "preferred_gender": "female",
   "preferred_religion": "hindu"
 }
@@ -1994,11 +1991,10 @@ notification to ALL caregivers.
 - `care_receiver.medical_info`: Optional free text.
 - `city`: Required, must be valid city enum. `area`: Optional free text.
 - `description`: Required, free text.
-- `duty_type`: Required, must be one of `day_duty`, `night_duty`, `live_in`, `other`.
-- `start_time`/`end_time`: Optional (`HH:mm`). `start_date`: Optional (ISO date).
-- `language`: Required, must be valid language enum — a preference, shown to caregivers as informational.
+- `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. `start_date`: Optional (ISO date).
+- `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
-- `preferred_religion`: Optional, valid religion enum — omitted means no preference. Never used as a filter.
+- `preferred_religion`: Optional, `hindu`/`muslim`/`christian` only (`others` excluded — valid for a caregiver's own religion at registration, not offered as a job preference) — omitted means no preference. Never used as a filter.
 
 **Response (201):**
 ```json
@@ -2042,7 +2038,7 @@ List all job postings (paginated).
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
-      "language": "kannada",
+      "languages": ["kannada", "english"],
       "preferred_gender": "female",
       "preferred_religion": "hindu",
       "status": "active",
@@ -2172,7 +2168,7 @@ List active job postings for caregiver to view and apply.
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
-      "language": "kannada",
+      "languages": ["kannada", "english"],
       "preferred_gender": "female",
       "preferred_religion": "hindu",
       "created_at": "2026-08-03T10:00:00Z",

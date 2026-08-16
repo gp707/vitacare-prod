@@ -122,13 +122,13 @@ job postings are no longer built around a "work type" category; see
 │ city                 │
 │ area                 │  ◄── free text, optional
 │ description          │
-│ duty_type            │
-│ start_time           │
-│ end_time             │
+│ duty_type            │  ◄── 3 fixed shifts only, no "other"
+│ start_time           │  ◄── derived from duty_type
+│ end_time             │  ◄── derived from duty_type
 │ start_date           │
-│ language             │
+│ languages            │  ◄── JSONB array, multi-select
 │ preferred_gender     │  ◄── NULL = no preference
-│ preferred_religion   │  ◄── NULL = no preference
+│ preferred_religion   │  ◄── NULL = no pref; "others" excluded
 │ status               │  ◄── active | closed
 │ posted_by (FK→users) │
 │ created_at           │
@@ -190,6 +190,6 @@ application reopens the job and returns the caregiver to `available`.
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
 | **care_receivers** | Care-needs description (mobility, communication, feeding, medical assistance/conditions) for the person a job is posted for. 1:1 with a job; no patient PII yet — a future "Patient" app is expected to eventually supply real care-receiver identity data. |
-| **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type/timings, language, and gender/religion *preferences* (not eligibility filters). |
+| **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). |
 | **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
 | **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. |

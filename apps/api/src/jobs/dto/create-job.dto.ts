@@ -99,7 +99,9 @@ export class CreateJobDto {
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
   preferred_gender?: Gender;
 
+  // "Others" is excluded here — it's a valid caregiver's own religion at
+  // registration, but not offered as a job's stated preference.
   @IsOptional()
-  @IsIn(Object.values(Religion), { message: 'GEN_001' })
+  @IsIn([Religion.HINDU, Religion.MUSLIM, Religion.CHRISTIAN], { message: 'GEN_001' })
   preferred_religion?: Religion;
 }

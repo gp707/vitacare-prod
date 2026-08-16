@@ -271,6 +271,22 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
+    it('rejects "others" as a preferred_religion (GEN_001) — valid for a caregiver\'s own religion, not a job preference', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} others religion validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+          preferred_religion: 'others',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
     it('accepts a full care-needs payload including medical conditions', async () => {
       const job = await createJob({
         care_receiver: {

@@ -110,7 +110,13 @@ components:
 
     DutyType:
       type: string
-      enum: [day_duty, night_duty, live_in, other]
+      description: >
+        Exactly 3 fixed shifts, no "other". The shift's timing is implied by
+        which one is picked — start_time/end_time are derived and stored by
+        the backend, never admin-entered: live_in = "24Hrs - Live In" (no
+        fixed time), day_duty = "12Hrs Day Shift (8am to 8pm)", night_duty =
+        "12Hrs Night Shift (8pm to 8am)".
+      enum: [day_duty, night_duty, live_in]
 
     Mobility:
       type: string
@@ -236,16 +242,22 @@ components:
         start_time:
           type: string
           nullable: true
-          example: "09:00"
+          example: "08:00"
+          description: Derived from duty_type by the backend, not admin-entered. Null for live_in.
         end_time:
           type: string
           nullable: true
+          description: Derived from duty_type by the backend, not admin-entered. Null for live_in.
         start_date:
           type: string
           format: date
           nullable: true
-        language:
-          $ref: "#/components/schemas/Language"
+        languages:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Language"
+          description: Multi-select language preference — informational only, never used as a filter.
         preferred_gender:
           type: string
           nullable: true
@@ -254,7 +266,11 @@ components:
         preferred_religion:
           type: string
           nullable: true
-          description: Preference only, never used as a filter. Null = no preference.
+          enum: [hindu, muslim, christian, null]
+          description: >
+            Preference only, never used as a filter. Null = no preference.
+            "others" is excluded — valid for a caregiver's own religion at
+            registration, not offered as a job preference.
         status:
           type: string
           enum: [active, closed]
@@ -277,7 +293,7 @@ components:
         start_time: null
         end_time: null
         start_date: "2026-08-10"
-        language: "hindi"
+        languages: ["hindi", "english"]
         preferred_gender: "female"
         preferred_religion: "hindu"
         status: "active"
@@ -3125,7 +3141,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, description, duty_type, language]
+              required: [care_receiver, city, description, duty_type, languages]
               properties:
                 care_receiver:
                   type: object
@@ -3163,22 +3179,31 @@ paths:
                   type: string
                 duty_type:
                   $ref: "#/components/schemas/DutyType"
-                start_time:
-                  type: string
-                  description: "HH:mm, optional."
-                end_time:
-                  type: string
+                  description: >
+                    One of exactly 3 fixed shifts — no separate start_time/
+                    end_time input; the backend derives and stores those
+                    from duty_type.
                 start_date:
                   type: string
                   format: date
-                language:
-                  $ref: "#/components/schemas/Language"
+                languages:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Language"
+                  description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
                 preferred_gender:
                   type: string
                   enum: [male, female]
                   description: "Optional — omitted means no preference. Never used as a filter."
                 preferred_religion:
-                  $ref: "#/components/schemas/Religion"
+                  type: string
+                  enum: [hindu, muslim, christian]
+                  description: >
+                    Optional — omitted means no preference. Never used as a
+                    filter. "others" is excluded (valid for a caregiver's
+                    own religion at registration, not offered as a job
+                    preference).
             example:
               care_receiver:
                 mobility: "walks_with_assistance"
@@ -3193,7 +3218,7 @@ paths:
               description: "Elderly patient, 72 years, post hip surgery."
               duty_type: "live_in"
               start_date: "2026-08-10"
-              language: "hindi"
+              languages: ["hindi", "english"]
               preferred_gender: "female"
               preferred_religion: "hindu"
       responses:

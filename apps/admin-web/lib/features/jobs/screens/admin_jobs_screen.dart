@@ -465,9 +465,11 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                 decoration: const InputDecoration(labelText: 'Preferred Caregiver Religion'),
                 items: [
                   const DropdownMenuItem<String?>(value: null, child: Text('No preference')),
-                  ...Religion.all.map(
-                    (r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r)),
-                  ),
+                  // "Others" is excluded — a valid caregiver's own religion
+                  // at registration, but not offered as a job preference.
+                  ...Religion.all.where((r) => r != Religion.others).map(
+                        (r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r)),
+                      ),
                 ],
                 onChanged: (value) => setState(() => _preferredReligion = value),
               ),
