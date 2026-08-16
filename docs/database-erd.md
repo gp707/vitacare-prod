@@ -129,12 +129,13 @@ job postings are no longer built around a "work type" category; see
 │ care_receiver_id     │
 │   (FK→care_receivers)│
 │ city                 │
-│ area                 │  ◄── free text, optional
+│ area                 │  ◄── free text, required via API (was optional)
 │ description          │
-│ duty_type            │  ◄── 3 fixed shifts only, no "other"
+│ duty_type            │  ◄── 3 fixed shifts only; UI label "Hours Care Needed"
+│ frequency_of_care    │  ◄── daily/monthly
 │ start_time           │  ◄── derived from duty_type
 │ end_time             │  ◄── derived from duty_type
-│ start_date           │
+│ start_date           │  ◄── UI label "Preferred Start Date"
 │ languages            │  ◄── JSONB array, multi-select
 │ salary_monthly       │  ◄── ₹/month, highlighted for caregivers
 │ preferred_gender     │  ◄── NULL = no preference

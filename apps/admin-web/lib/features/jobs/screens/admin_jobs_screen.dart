@@ -297,6 +297,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   // Duty
   String? _dutyType;
+  String? _frequencyOfCare;
   DateTime? _startDate;
 
   List<String> _languages = [];
@@ -318,6 +319,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _areaController.text = job.area ?? '';
       _descriptionController.text = job.description;
       _dutyType = job.dutyType;
+      _frequencyOfCare = job.frequencyOfCare;
       _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
       _languages = List.of(job.languages);
       _salaryController.text = job.salaryMonthly?.toString() ?? '';
@@ -362,6 +364,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _canSubmit =>
       !_submitting &&
       _city != null &&
+      _areaController.text.trim().isNotEmpty &&
       _age != null &&
       _age! >= 1 &&
       _age! <= 120 &&
@@ -369,14 +372,11 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _weightKg != null &&
       _weightKg! >= 1 &&
       _weightKg! <= 300 &&
-      _mobility != null &&
-      _communication != null &&
-      _feedingType != null &&
       (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
       (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
-      _toiletAssistance.isNotEmpty &&
       (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
       _dutyType != null &&
+      _frequencyOfCare != null &&
       _languages.isNotEmpty &&
       _salaryMonthly != null &&
       _salaryMonthly! >= 1 &&
@@ -404,9 +404,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         age: _age!,
         gender: _gender!,
         weightKg: _weightKg!,
-        mobility: _mobility!,
-        communication: _communication!,
-        feedingType: _feedingType!,
+        mobility: _mobility,
+        communication: _communication,
+        feedingType: _feedingType,
         tubeFeedingNeedsAssistance: _needsTubeFeedingAnswer ? _tubeFeedingNeedsAssistance : null,
         medicalAssistance: _medicalAssistance,
         hasMedicalCondition: _hasMedicalCondition,
@@ -431,6 +431,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               area: _areaController.text.trim(),
               description: _descriptionController.text.trim(),
               dutyType: _dutyType!,
+              frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
               languages: _languages,
               salaryMonthly: _salaryMonthly!,
@@ -444,6 +445,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               area: _areaController.text.trim(),
               description: _descriptionController.text.trim(),
               dutyType: _dutyType!,
+              frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
               languages: _languages,
               salaryMonthly: _salaryMonthly!,
@@ -486,6 +488,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 TextField(
                   controller: _areaController,
                   decoration: InputDecoration(labelText: 'Area in ${City.displayNames[_city] ?? _city}'),
+                  onChanged: (_) => setState(() {}),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -641,18 +644,28 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 initialValue: _dutyType,
-                decoration: const InputDecoration(labelText: 'Duty Type'),
+                decoration: const InputDecoration(labelText: 'Hours Care Needed'),
                 items: DutyType.all
                     .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
                     .toList(),
                 onChanged: (value) => setState(() => _dutyType = value),
               ),
               const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _frequencyOfCare,
+                decoration: const InputDecoration(labelText: 'Frequency of Care'),
+                items: FrequencyOfCare.all
+                    .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
+                    .toList(),
+                onChanged: (value) => setState(() => _frequencyOfCare = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
                 onPressed: _pickStartDate,
                 child: Text(
                   _startDate == null
-                      ? 'Start Date'
+                      ? 'Preferred Start Date'
                       : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
                 ),
               ),

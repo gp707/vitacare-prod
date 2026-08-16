@@ -378,6 +378,11 @@ export const DutyType = {
   LIVE_IN: 'live_in',
 } as const;
 
+export const FrequencyOfCare = {
+  DAILY: 'daily',
+  MONTHLY: 'monthly',
+} as const;
+
 export const Mobility = {
   WALKS_INDEPENDENTLY: 'walks_independently',
   WALKS_WITH_ASSISTANCE: 'walks_with_assistance',
@@ -592,6 +597,18 @@ class DutyType {
     liveIn: '24Hrs - Live In',
     dayDuty: '12Hrs Day Shift (8am to 8pm)',
     nightDuty: '12Hrs Night Shift (8pm to 8am)',
+  };
+}
+
+class FrequencyOfCare {
+  static const daily = 'daily';
+  static const monthly = 'monthly';
+
+  static const all = [daily, monthly];
+
+  static const displayNames = {
+    daily: 'Daily',
+    monthly: 'Monthly',
   };
 }
 
@@ -1097,12 +1114,13 @@ CREATE TABLE jobs (
   job_number SERIAL UNIQUE,               -- short sequential id shown as "Job #<n>" to everyone; distinct from id (UUID)
   care_receiver_id UUID NOT NULL REFERENCES care_receivers(id),
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
-  area TEXT,                              -- free text, optional
+  area TEXT,                              -- free text; required via API (DTO), nullable at DB level only for rows that predate this being required
   description TEXT NOT NULL,
-  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in')),  -- 3 fixed shifts only
+  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in')),  -- 3 fixed shifts only; UI label "Hours Care Needed"
+  frequency_of_care VARCHAR(10) NOT NULL CHECK (frequency_of_care IN ('daily', 'monthly')),
   start_time TIME,                        -- derived from duty_type, not admin-entered; NULL for live_in
   end_time TIME,
-  start_date DATE,
+  start_date DATE,                        -- UI label "Preferred Start Date"
   languages JSONB NOT NULL DEFAULT '[]',  -- multi-select language preference, non-empty array
   salary_monthly INTEGER CHECK (salary_monthly > 0),  -- ₹/month; required via API for every create/edit, nullable at DB level only for rows that predate this field
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
@@ -2040,6 +2058,7 @@ notification to ALL caregivers.
   "area": "Indiranagar",
   "description": "Elderly patient, 72 years, post hip surgery.",
   "duty_type": "live_in",
+  "frequency_of_care": "daily",
   "start_date": "2026-08-10",
   "languages": ["kannada", "english"],
   "salary_monthly": 30000,
@@ -2049,18 +2068,20 @@ notification to ALL caregivers.
 ```
 
 **Validation:**
-- `care_receiver.age`: Required integer, 1-120. `care_receiver.gender`: Required, valid gender enum (`male`/`female`/`other` — the patient's actual gender, not a preference). `care_receiver.weight_kg`: Required integer, 1-300.
-- `care_receiver.mobility`/`communication`/`feeding_type`: Required, valid enum values.
+- `care_receiver.age`: Required integer, 1-120. `care_receiver.gender`: Required, valid gender enum (`male`/`female`/`other` — the patient's actual gender, not a preference). `care_receiver.weight_kg`: Required integer, 1-300. These three are the only hard-required care-receiver fields.
+- `care_receiver.mobility`/`communication`/`feeding_type`: Optional, valid enum value if provided. If omitted, the backend defaults them to `walks_independently`/`verbal`/`oral_independent` respectively (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`) — the persisted/returned value is always a real selection, never null.
 - `care_receiver.tube_feeding_needs_assistance`: Required boolean if `feeding_type` is `tube_feeding` or `oral_and_tube`; not validated otherwise.
-- `care_receiver.medical_assistance`: Required array (may be empty), each item a valid enum value.
-- `care_receiver.has_medical_condition`: Required boolean.
+- `care_receiver.medical_assistance`: Optional array, each item a valid enum value. An omitted or empty array defaults to `[medication_reminders]`.
+- `care_receiver.has_medical_condition`: Optional boolean, defaults to `false` when omitted.
 - `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.
 - `care_receiver.medical_info`: Optional free text.
-- `care_receiver.toilet_assistance`: Required non-empty array, each item a valid enum value — multi-select ("select all that apply").
-- `care_receiver.requires_vital_monitoring`: Required boolean. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
-- `city`: Required, must be valid city enum. `area`: Optional free text.
+- `care_receiver.toilet_assistance`: Optional array, each item a valid enum value — multi-select ("select all that apply"). An omitted or empty array defaults to `[independent]`.
+- `care_receiver.requires_vital_monitoring`: Optional boolean, defaults to `false` when omitted. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
+- `city`: Required, must be valid city enum. `area`: Required free text (previously optional).
 - `description`: Required, free text. UI label: "More details you want to share about patient or requirement which can help caregiver to decide."
-- `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. `start_date`: Optional (ISO date).
+- `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. UI label: "Hours Care Needed".
+- `frequency_of_care`: Required, valid enum value — `daily` ("Daily") or `monthly` ("Monthly").
+- `start_date`: Optional (ISO date). UI label: "Preferred Start Date".
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
 - `salary_monthly`: Required integer, 1-1,000,000 (₹/month). Shown highlighted at the top of the job card in caregiver-app.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
@@ -2112,6 +2133,7 @@ List all job postings (paginated).
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
+      "frequency_of_care": "daily",
       "languages": ["kannada", "english"],
       "salary_monthly": 30000,
       "preferred_gender": "female",
@@ -2141,6 +2163,7 @@ Get job detail with the care receiver and every application.
     "area": "Indiranagar",
     "description": "Elderly patient...",
     "duty_type": "live_in",
+    "frequency_of_care": "daily",
     "status": "active",
     "posted_by": "uuid",
     "created_at": "2026-08-03T10:00:00Z",
@@ -2290,6 +2313,7 @@ remaining — purely informational, never blocks applying).
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
+      "frequency_of_care": "daily",
       "languages": ["kannada", "english"],
       "salary_monthly": 30000,
       "preferred_gender": "female",

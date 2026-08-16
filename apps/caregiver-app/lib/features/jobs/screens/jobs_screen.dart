@@ -284,6 +284,7 @@ class _JobCard extends StatelessWidget {
           Wrap(
             children: [
               _Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
+              _Tag(FrequencyOfCare.displayNames[job.frequencyOfCare] ?? job.frequencyOfCare),
               if (job.area != null && job.area!.isNotEmpty) _Tag(job.area!),
               for (final lang in job.languages) _Tag(Language.displayNames[lang] ?? lang),
               if (job.preferredGender != null) _Tag(_capitalize(job.preferredGender!)),

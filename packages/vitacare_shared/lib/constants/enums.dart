@@ -103,6 +103,18 @@ class DutyType {
   };
 }
 
+class FrequencyOfCare {
+  static const daily = 'daily';
+  static const monthly = 'monthly';
+
+  static const all = [daily, monthly];
+
+  static const displayNames = {
+    daily: 'Daily',
+    monthly: 'Monthly',
+  };
+}
+
 class Mobility {
   static const walksIndependently = 'walks_independently';
   static const walksWithAssistance = 'walks_with_assistance';

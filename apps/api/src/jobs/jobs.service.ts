@@ -2,9 +2,14 @@ import { Injectable } from '@nestjs/common';
 import {
   AuditAction,
   City,
+  Communication,
   DutyType,
+  FeedingType,
   JobApplicationStatus,
   JobStatus,
+  MedicalAssistance,
+  Mobility,
+  ToiletAssistance,
   VerificationStatus,
 } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
@@ -12,12 +17,15 @@ import { PaginationMeta } from '../common/dto/pagination.dto';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
 import { JobApplicationsRepository } from '../database/repositories/job-applications.repository';
-import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
+import {
+  CareReceiversRepository,
+  CreateCareReceiverInput,
+} from '../database/repositories/care-receivers.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
-import { CreateJobDto } from './dto/create-job.dto';
+import { CareReceiverDto, CreateJobDto } from './dto/create-job.dto';
 import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
@@ -54,6 +62,43 @@ const CITY_LABELS: Record<City, string> = {
   [City.GURGAON]: 'Gurgaon',
 };
 
+// Only age/gender/weight are hard-required on a care receiver — every other
+// field is optional on the form and, if left unselected, is defaulted here
+// so the persisted (and later admin-edited / caregiver-visible) value is
+// always a real, explicit selection rather than null/empty.
+const CARE_RECEIVER_DEFAULTS = {
+  mobility: Mobility.WALKS_INDEPENDENTLY,
+  communication: Communication.VERBAL,
+  feeding_type: FeedingType.ORAL_INDEPENDENT,
+  medical_assistance: [MedicalAssistance.MEDICATION_REMINDERS],
+  toilet_assistance: [ToiletAssistance.INDEPENDENT],
+} as const;
+
+function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
+  return {
+    age: dto.age,
+    gender: dto.gender,
+    weight_kg: dto.weight_kg,
+    mobility: dto.mobility ?? CARE_RECEIVER_DEFAULTS.mobility,
+    communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
+    feeding_type: dto.feeding_type ?? CARE_RECEIVER_DEFAULTS.feeding_type,
+    tube_feeding_needs_assistance: dto.tube_feeding_needs_assistance ?? null,
+    medical_assistance:
+      dto.medical_assistance && dto.medical_assistance.length > 0
+        ? dto.medical_assistance
+        : [...CARE_RECEIVER_DEFAULTS.medical_assistance],
+    has_medical_condition: dto.has_medical_condition ?? false,
+    medical_conditions: dto.medical_conditions ?? [],
+    medical_info: dto.medical_info ?? null,
+    toilet_assistance:
+      dto.toilet_assistance && dto.toilet_assistance.length > 0
+        ? dto.toilet_assistance
+        : [...CARE_RECEIVER_DEFAULTS.toilet_assistance],
+    requires_vital_monitoring: dto.requires_vital_monitoring ?? false,
+    vital_monitoring_types: dto.vital_monitoring_types ?? [],
+  };
+}
+
 @Injectable()
 export class JobsService {
   constructor(
@@ -69,7 +114,10 @@ export class JobsService {
 
   async createJob(adminId: string, dto: CreateJobDto, ipAddress: string | null) {
     const job = await this.db.withTransaction(async (client) => {
-      const careReceiver = await this.careReceiversRepo.create(dto.care_receiver, client);
+      const careReceiver = await this.careReceiversRepo.create(
+        applyCareReceiverDefaults(dto.care_receiver),
+        client,
+      );
       const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
       return this.jobsRepo.create(
         {
@@ -78,6 +126,7 @@ export class JobsService {
           area: dto.area,
           description: dto.description,
           duty_type: dto.duty_type,
+          frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
           start_date: dto.start_date,
@@ -146,7 +195,11 @@ export class JobsService {
     const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
 
     const job = await this.db.withTransaction(async (client) => {
-      await this.careReceiversRepo.update(existing.care_receiver_id, dto.care_receiver, client);
+      await this.careReceiversRepo.update(
+        existing.care_receiver_id,
+        applyCareReceiverDefaults(dto.care_receiver),
+        client,
+      );
       return this.jobsRepo.update(
         jobId,
         {
@@ -154,6 +207,7 @@ export class JobsService {
           area: dto.area,
           description: dto.description,
           duty_type: dto.duty_type,
+          frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
           start_date: dto.start_date,

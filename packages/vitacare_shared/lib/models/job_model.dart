@@ -13,6 +13,7 @@ class JobModel {
   final String? area;
   final String description;
   final String dutyType;
+  final String frequencyOfCare;
   final String? startTime;
   final String? endTime;
   final String? startDate;
@@ -34,6 +35,7 @@ class JobModel {
     this.area,
     required this.description,
     required this.dutyType,
+    required this.frequencyOfCare,
     this.startTime,
     this.endTime,
     this.startDate,
@@ -56,6 +58,7 @@ class JobModel {
         area: json['area'] as String?,
         description: json['description'] as String,
         dutyType: json['duty_type'] as String,
+        frequencyOfCare: json['frequency_of_care'] as String,
         startTime: json['start_time'] as String?,
         endTime: json['end_time'] as String?,
         startDate: json['start_date'] as String?,

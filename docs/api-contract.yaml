@@ -115,8 +115,13 @@ components:
         which one is picked — start_time/end_time are derived and stored by
         the backend, never admin-entered: live_in = "24Hrs - Live In" (no
         fixed time), day_duty = "12Hrs Day Shift (8am to 8pm)", night_duty =
-        "12Hrs Night Shift (8pm to 8am)".
+        "12Hrs Night Shift (8pm to 8am)". UI label: "Hours Care Needed".
       enum: [day_duty, night_duty, live_in]
+
+    FrequencyOfCare:
+      type: string
+      description: How often care is needed, alongside Hours Care Needed.
+      enum: [daily, monthly]
 
     Mobility:
       type: string
@@ -293,6 +298,8 @@ components:
           type: string
         duty_type:
           $ref: "#/components/schemas/DutyType"
+        frequency_of_care:
+          $ref: "#/components/schemas/FrequencyOfCare"
         start_time:
           type: string
           nullable: true
@@ -306,6 +313,7 @@ components:
           type: string
           format: date
           nullable: true
+          description: UI label "Preferred Start Date".
         languages:
           type: array
           minItems: 1
@@ -362,6 +370,7 @@ components:
         area: "Indiranagar"
         description: "Elderly patient, 72 years, post hip surgery."
         duty_type: "live_in"
+        frequency_of_care: "daily"
         start_time: null
         end_time: null
         start_date: "2026-08-10"
@@ -3254,18 +3263,24 @@ paths:
                       type: integer
                       minimum: 1
                       maximum: 120
+                      description: "Required — one of only 3 hard-required care-receiver fields (with gender, weight_kg)."
                     gender:
                       $ref: "#/components/schemas/Gender"
+                      description: "Required."
                     weight_kg:
                       type: integer
                       minimum: 1
                       maximum: 300
+                      description: "Required."
                     mobility:
                       $ref: "#/components/schemas/Mobility"
+                      description: "Optional — defaults to walks_independently when omitted."
                     communication:
                       $ref: "#/components/schemas/Communication"
+                      description: "Optional — defaults to verbal when omitted."
                     feeding_type:
                       $ref: "#/components/schemas/FeedingType"
+                      description: "Optional — defaults to oral_independent when omitted."
                     tube_feeding_needs_assistance:
                       type: boolean
                       description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
@@ -3273,8 +3288,10 @@ paths:
                       type: array
                       items:
                         $ref: "#/components/schemas/MedicalAssistance"
+                      description: "Optional — an omitted or empty array defaults to [medication_reminders]."
                     has_medical_condition:
                       type: boolean
+                      description: "Optional — defaults to false when omitted."
                     medical_conditions:
                       type: array
                       items:
@@ -3287,9 +3304,10 @@ paths:
                       type: array
                       items:
                         $ref: "#/components/schemas/ToiletAssistance"
-                      description: "Required non-empty array — multi-select, admin can pick more than one."
+                      description: "Optional — multi-select, admin can pick more than one. An omitted or empty array defaults to [independent]."
                     requires_vital_monitoring:
                       type: boolean
+                      description: "Optional — defaults to false when omitted."
                     vital_monitoring_types:
                       type: array
                       items:
@@ -3299,7 +3317,7 @@ paths:
                   $ref: "#/components/schemas/City"
                 area:
                   type: string
-                  description: "Free text, optional."
+                  description: "Required free text (previously optional)."
                 description:
                   type: string
                   description: >
@@ -3310,10 +3328,14 @@ paths:
                   description: >
                     One of exactly 3 fixed shifts — no separate start_time/
                     end_time input; the backend derives and stores those
-                    from duty_type.
+                    from duty_type. UI label: "Hours Care Needed".
+                frequency_of_care:
+                  $ref: "#/components/schemas/FrequencyOfCare"
+                  description: "Required."
                 start_date:
                   type: string
                   format: date
+                  description: UI label "Preferred Start Date".
                 languages:
                   type: array
                   minItems: 1
@@ -3356,6 +3378,7 @@ paths:
               area: "Indiranagar"
               description: "Elderly patient, 72 years, post hip surgery."
               duty_type: "live_in"
+              frequency_of_care: "daily"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
               salary_monthly: 30000
@@ -3520,18 +3543,24 @@ paths:
                       type: integer
                       minimum: 1
                       maximum: 120
+                      description: "Required — one of only 3 hard-required care-receiver fields (with gender, weight_kg)."
                     gender:
                       $ref: "#/components/schemas/Gender"
+                      description: "Required."
                     weight_kg:
                       type: integer
                       minimum: 1
                       maximum: 300
+                      description: "Required."
                     mobility:
                       $ref: "#/components/schemas/Mobility"
+                      description: "Optional — defaults to walks_independently when omitted."
                     communication:
                       $ref: "#/components/schemas/Communication"
+                      description: "Optional — defaults to verbal when omitted."
                     feeding_type:
                       $ref: "#/components/schemas/FeedingType"
+                      description: "Optional — defaults to oral_independent when omitted."
                     tube_feeding_needs_assistance:
                       type: boolean
                       description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
@@ -3539,8 +3568,10 @@ paths:
                       type: array
                       items:
                         $ref: "#/components/schemas/MedicalAssistance"
+                      description: "Optional — an omitted or empty array defaults to [medication_reminders]."
                     has_medical_condition:
                       type: boolean
+                      description: "Optional — defaults to false when omitted."
                     medical_conditions:
                       type: array
                       items:
@@ -3553,9 +3584,10 @@ paths:
                       type: array
                       items:
                         $ref: "#/components/schemas/ToiletAssistance"
-                      description: "Required non-empty array — multi-select, admin can pick more than one."
+                      description: "Optional — multi-select, admin can pick more than one. An omitted or empty array defaults to [independent]."
                     requires_vital_monitoring:
                       type: boolean
+                      description: "Optional — defaults to false when omitted."
                     vital_monitoring_types:
                       type: array
                       items:
@@ -3565,7 +3597,7 @@ paths:
                   $ref: "#/components/schemas/City"
                 area:
                   type: string
-                  description: "Free text, optional."
+                  description: "Required free text (previously optional)."
                 description:
                   type: string
                   description: >
@@ -3576,10 +3608,14 @@ paths:
                   description: >
                     One of exactly 3 fixed shifts — no separate start_time/
                     end_time input; the backend derives and stores those
-                    from duty_type.
+                    from duty_type. UI label: "Hours Care Needed".
+                frequency_of_care:
+                  $ref: "#/components/schemas/FrequencyOfCare"
+                  description: "Required."
                 start_date:
                   type: string
                   format: date
+                  description: UI label "Preferred Start Date".
                 languages:
                   type: array
                   minItems: 1
@@ -3622,6 +3658,7 @@ paths:
               area: "Koramangala"
               description: "Updated: elderly patient now needs a wheelchair."
               duty_type: "day_duty"
+              frequency_of_care: "monthly"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
               salary_monthly: 30000

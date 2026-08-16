@@ -16,6 +16,7 @@ JobModel _job({String? myApplicationStatus, String? postedAt}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver for an elderly patient',
     'duty_type': 'live_in',
+    'frequency_of_care': 'daily',
     'languages': ['hindi'],
     'salary_monthly': 30000,
     'preferred_gender': 'female',
@@ -118,6 +119,7 @@ void main() {
     // About Nurse/Caregiver Requirement
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
     expect(find.text('24Hrs - Live In'), findsOneWidget);
+    expect(find.text('Daily'), findsOneWidget);
     expect(find.text('Hindi'), findsOneWidget);
   });
 

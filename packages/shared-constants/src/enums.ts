@@ -55,6 +55,12 @@ export const DutyType = {
 } as const;
 export type DutyType = (typeof DutyType)[keyof typeof DutyType];
 
+export const FrequencyOfCare = {
+  DAILY: 'daily',
+  MONTHLY: 'monthly',
+} as const;
+export type FrequencyOfCare = (typeof FrequencyOfCare)[keyof typeof FrequencyOfCare];
+
 export const Mobility = {
   WALKS_INDEPENDENTLY: 'walks_independently',
   WALKS_WITH_ASSISTANCE: 'walks_with_assistance',

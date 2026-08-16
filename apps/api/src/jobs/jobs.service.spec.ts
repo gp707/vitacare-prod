@@ -38,6 +38,7 @@ describe('JobsService', () => {
     area: 'Indiranagar',
     description: 'Need a caregiver',
     duty_type: 'live_in',
+    frequency_of_care: 'daily',
     start_time: null,
     end_time: null,
     start_date: null,
@@ -108,6 +109,7 @@ describe('JobsService', () => {
       area: 'Indiranagar',
       description: 'Need a caregiver',
       duty_type: 'live_in' as any,
+      frequency_of_care: 'daily' as any,
       languages: ['hindi'] as any,
       salary_monthly: 30000,
       preferred_gender: 'female' as any,
@@ -117,7 +119,15 @@ describe('JobsService', () => {
       const result = await service.createJob('admin-1', dto, '127.0.0.1');
       expect(result).toEqual(job);
       expect(db.withTransaction).toHaveBeenCalled();
-      expect(careReceiversRepo.create).toHaveBeenCalledWith(dto.care_receiver, expect.anything());
+      expect(careReceiversRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          age: 72,
+          mobility: 'walks_independently',
+          medical_assistance: ['medication_reminders'],
+          toilet_assistance: ['others'],
+        }),
+        expect.anything(),
+      );
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Live-In Care in Bangalore',
         'Indiranagar, Bangalore | IMMEDIATELY APPLY',
@@ -146,6 +156,33 @@ describe('JobsService', () => {
         expect.anything(),
       );
     });
+
+    it('defaults every optional care-receiver field to a real, explicit value when omitted', async () => {
+      const minimalDto = {
+        ...dto,
+        care_receiver: { age: 72, gender: 'female', weight_kg: 58 } as any,
+      };
+      await service.createJob('admin-1', minimalDto, null);
+      expect(careReceiversRepo.create).toHaveBeenCalledWith(
+        {
+          age: 72,
+          gender: 'female',
+          weight_kg: 58,
+          mobility: 'walks_independently',
+          communication: 'verbal',
+          feeding_type: 'oral_independent',
+          tube_feeding_needs_assistance: null,
+          medical_assistance: ['medication_reminders'],
+          has_medical_condition: false,
+          medical_conditions: [],
+          medical_info: null,
+          toilet_assistance: ['independent'],
+          requires_vital_monitoring: false,
+          vital_monitoring_types: [],
+        },
+        expect.anything(),
+      );
+    });
   });
 
   describe('updateJob', () => {
@@ -166,6 +203,7 @@ describe('JobsService', () => {
       area: 'Koramangala',
       description: 'Updated description',
       duty_type: 'day_duty' as any,
+      frequency_of_care: 'daily' as any,
       languages: ['hindi', 'english'] as any,
       salary_monthly: 35000,
       preferred_gender: 'female' as any,
@@ -185,7 +223,16 @@ describe('JobsService', () => {
       const result = await service.updateJob('admin-1', 'job-1', dto, '127.0.0.1');
 
       expect(db.withTransaction).toHaveBeenCalled();
-      expect(careReceiversRepo.update).toHaveBeenCalledWith('cr-1', dto.care_receiver, expect.anything());
+      expect(careReceiversRepo.update).toHaveBeenCalledWith(
+        'cr-1',
+        expect.objectContaining({
+          age: 73,
+          mobility: 'walks_independently',
+          medical_assistance: ['medication_reminders'],
+          toilet_assistance: ['others'],
+        }),
+        expect.anything(),
+      );
       expect(jobsRepo.update).toHaveBeenCalledWith(
         'job-1',
         expect.objectContaining({

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { City, DutyType, JobStatus, Language } from '@vitacare/shared-constants';
+import { City, DutyType, FrequencyOfCare, JobStatus, Language } from '@vitacare/shared-constants';
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { CareReceiverRecord } from './care-receivers.repository';
@@ -12,6 +12,7 @@ export interface JobRecord {
   area: string | null;
   description: string;
   duty_type: DutyType;
+  frequency_of_care: FrequencyOfCare;
   start_time: string | null;
   end_time: string | null;
   start_date: string | null;
@@ -43,6 +44,7 @@ export interface CreateJobInput {
   area?: string | null;
   description: string;
   duty_type: DutyType;
+  frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
   end_time?: string | null;
   start_date?: string | null;
@@ -58,6 +60,7 @@ export interface UpdateJobInput {
   area?: string | null;
   description: string;
   duty_type: DutyType;
+  frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
   end_time?: string | null;
   start_date?: string | null;
@@ -103,9 +106,9 @@ export class JobsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
-         (care_receiver_id, city, area, description, duty_type, start_time, end_time,
+         (care_receiver_id, city, area, description, duty_type, frequency_of_care, start_time, end_time,
           start_date, languages, salary_monthly, preferred_gender, preferred_religion, posted_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         input.care_receiver_id,
@@ -113,6 +116,7 @@ export class JobsRepository {
         input.area ?? null,
         input.description,
         input.duty_type,
+        input.frequency_of_care,
         input.start_time ?? null,
         input.end_time ?? null,
         input.start_date ?? null,
@@ -183,18 +187,19 @@ export class JobsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<JobRecord>(
       `UPDATE jobs SET
-         city = $1, area = $2, description = $3, duty_type = $4, start_time = $5, end_time = $6,
-         start_date = $7, languages = $8, salary_monthly = $9, preferred_gender = $10,
-         preferred_religion = $11, status = COALESCE($12, status),
-         posted_at = CASE WHEN $12::text IS NOT NULL THEN NOW() ELSE posted_at END,
+         city = $1, area = $2, description = $3, duty_type = $4, frequency_of_care = $5,
+         start_time = $6, end_time = $7, start_date = $8, languages = $9, salary_monthly = $10,
+         preferred_gender = $11, preferred_religion = $12, status = COALESCE($13, status),
+         posted_at = CASE WHEN $13::text IS NOT NULL THEN NOW() ELSE posted_at END,
          updated_at = NOW()
-       WHERE id = $13
+       WHERE id = $14
        RETURNING *`,
       [
         input.city,
         input.area ?? null,
         input.description,
         input.duty_type,
+        input.frequency_of_care,
         input.start_time ?? null,
         input.end_time ?? null,
         input.start_date ?? null,

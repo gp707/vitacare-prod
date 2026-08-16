@@ -20,6 +20,7 @@ import {
   Communication,
   DutyType,
   FeedingType,
+  FrequencyOfCare,
   Gender,
   Language,
   MedicalAssistance,
@@ -44,14 +45,21 @@ export class CareReceiverDto {
   @Max(300, { message: 'GEN_001' })
   weight_kg!: number;
 
+  // Not required — defaults to walks_independently when omitted (see
+  // CARE_RECEIVER_DEFAULTS in jobs.service.ts).
+  @IsOptional()
   @IsIn(Object.values(Mobility), { message: 'GEN_001' })
-  mobility!: Mobility;
+  mobility?: Mobility;
 
+  // Not required — defaults to verbal ("Can Speak/Communicate") when omitted.
+  @IsOptional()
   @IsIn(Object.values(Communication), { message: 'GEN_001' })
-  communication!: Communication;
+  communication?: Communication;
 
+  // Not required — defaults to oral_independent when omitted.
+  @IsOptional()
   @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
-  feeding_type!: FeedingType;
+  feeding_type?: FeedingType;
 
   // Only meaningful when feeding_type involves tube feeding — validated as
   // present-if-relevant, not required, since the UI only shows this
@@ -63,14 +71,19 @@ export class CareReceiverDto {
   @IsBoolean({ message: 'GEN_001' })
   tube_feeding_needs_assistance?: boolean;
 
+  // Not required — an empty/omitted selection defaults to
+  // [medication_reminders] when omitted.
+  @IsOptional()
   @IsArray({ message: 'GEN_001' })
   @IsIn(Object.values(MedicalAssistance), { each: true, message: 'GEN_001' })
-  medical_assistance!: MedicalAssistance[];
+  medical_assistance?: MedicalAssistance[];
 
+  // Not required — defaults to false ("no health conditions") when omitted.
+  @IsOptional()
   @IsBoolean({ message: 'GEN_001' })
-  has_medical_condition!: boolean;
+  has_medical_condition?: boolean;
 
-  @ValidateIf((o: CareReceiverDto) => o.has_medical_condition)
+  @ValidateIf((o: CareReceiverDto) => !!o.has_medical_condition)
   @IsArray({ message: 'GEN_001' })
   @IsIn(Object.values(MedicalCondition), { each: true, message: 'GEN_001' })
   medical_conditions?: MedicalCondition[];
@@ -79,15 +92,19 @@ export class CareReceiverDto {
   @IsString()
   medical_info?: string;
 
+  // Not required — an empty/omitted selection defaults to [independent]
+  // when omitted.
+  @IsOptional()
   @IsArray({ message: 'GEN_001' })
-  @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(ToiletAssistance), { each: true, message: 'GEN_001' })
-  toilet_assistance!: ToiletAssistance[];
+  toilet_assistance?: ToiletAssistance[];
 
+  // Not required — defaults to false ("monitoring not required") when omitted.
+  @IsOptional()
   @IsBoolean({ message: 'GEN_001' })
-  requires_vital_monitoring!: boolean;
+  requires_vital_monitoring?: boolean;
 
-  @ValidateIf((o: CareReceiverDto) => o.requires_vital_monitoring)
+  @ValidateIf((o: CareReceiverDto) => !!o.requires_vital_monitoring)
   @IsArray({ message: 'GEN_001' })
   @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(VitalMonitoringType), { each: true, message: 'GEN_001' })
@@ -102,9 +119,9 @@ export class CreateJobDto {
   @IsIn(Object.values(City), { message: 'GEN_001' })
   city!: City;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'GEN_001' })
   @IsString()
-  area?: string;
+  area!: string;
 
   @IsNotEmpty({ message: 'GEN_001' })
   @IsString()
@@ -116,6 +133,9 @@ export class CreateJobDto {
   // enter start/end times separately.
   @IsIn(Object.values(DutyType), { message: 'GEN_001' })
   duty_type!: DutyType;
+
+  @IsIn(Object.values(FrequencyOfCare), { message: 'GEN_001' })
+  frequency_of_care!: FrequencyOfCare;
 
   @IsOptional()
   @IsDateString({}, { message: 'GEN_001' })

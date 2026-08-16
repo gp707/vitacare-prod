@@ -86,8 +86,10 @@ describe('Jobs (e2e)', () => {
       .send({
         care_receiver: { ...defaultCareReceiver, ...care_receiver },
         city: 'bangalore',
+        area: 'Indiranagar',
         description: `${jobDescriptionPrefix} Need a caregiver`,
         duty_type: 'live_in',
+        frequency_of_care: 'daily',
         languages: ['hindi'],
         salary_monthly: 30000,
         preferred_gender: 'female',
@@ -160,7 +162,7 @@ describe('Jobs (e2e)', () => {
       expect(job.status).toBe('active');
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Live-In Care in Bangalore',
-        'Bangalore | IMMEDIATELY APPLY',
+        'Indiranagar, Bangalore | IMMEDIATELY APPLY',
       );
 
       const audit = await db.query(
@@ -199,13 +201,67 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: defaultCareReceiver,
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} salary validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 0,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects a missing area (GEN_001) — now a required field, not free text optional', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} missing area validation test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('creates a job with only the hard-required care-receiver fields (age/gender/weight), defaulting every optional field to a real, visible value', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { age: 65, gender: 'male', weight_kg: 70 },
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} minimal care receiver defaults test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(201);
+      const job = res.body.data;
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver).toMatchObject({
+        age: 65,
+        gender: 'male',
+        weight_kg: 70,
+        mobility: 'walks_independently',
+        communication: 'verbal',
+        feeding_type: 'oral_independent',
+        medical_assistance: ['medication_reminders'],
+        has_medical_condition: false,
+        toilet_assistance: ['independent'],
+        requires_vital_monitoring: false,
+      });
     });
 
     it('rejects an out-of-range age (GEN_001)', async () => {
@@ -215,8 +271,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, age: 0 },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} age validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -231,8 +289,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, toilet_assistance: ['not_a_real_value'] },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} toilet assistance validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -240,20 +300,12 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
-    it('rejects an empty toilet_assistance array (GEN_001)', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/admin/jobs')
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({
-          care_receiver: { ...defaultCareReceiver, toilet_assistance: [] },
-          city: 'bangalore',
-          description: `${jobDescriptionPrefix} empty toilet assistance validation test`,
-          duty_type: 'live_in',
-          languages: ['hindi'],
-          salary_monthly: 30000,
-        })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
+    it('defaults an empty toilet_assistance array to [independent] instead of rejecting it', async () => {
+      const job = await createJob({ care_receiver: { toilet_assistance: [] } });
+      const row = await db.query('SELECT toilet_assistance FROM care_receivers WHERE id = $1', [
+        job.care_receiver_id,
+      ]);
+      expect(row.rows[0].toilet_assistance).toEqual(['independent']);
     });
 
     it('accepts multiple toilet assistance options — admin can select more than one', async () => {
@@ -274,8 +326,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, communication: 'other_non_verbal' },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} communication validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -290,8 +344,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, requires_vital_monitoring: true },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} vital monitoring validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -345,13 +401,39 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: defaultCareReceiver,
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} bad duty type`,
           duty_type: 'other',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects a missing/invalid frequency_of_care (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} bad frequency of care`,
+          duty_type: 'live_in',
+          frequency_of_care: 'weekly',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('stores frequency_of_care and accepts "monthly"', async () => {
+      const job = await createJob({ frequency_of_care: 'monthly' });
+      const row = await db.query('SELECT frequency_of_care FROM jobs WHERE id = $1', [job.id]);
+      expect(row.rows[0].frequency_of_care).toBe('monthly');
     });
 
     it('rejects an empty languages array (GEN_001)', async () => {
@@ -361,8 +443,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: defaultCareReceiver,
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} empty languages`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: [],
           salary_monthly: 30000,
         })
@@ -387,8 +471,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: defaultCareReceiver,
           city: 'bangalore',
+          area: 'Indiranagar',
           description: 'x',
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -403,8 +489,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, feeding_type: 'tube_feeding' },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} tube feeding validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -419,8 +507,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: { ...defaultCareReceiver, has_medical_condition: true },
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} medical condition validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -435,8 +525,10 @@ describe('Jobs (e2e)', () => {
         .send({
           care_receiver: defaultCareReceiver,
           city: 'bangalore',
+          area: 'Indiranagar',
           description: `${jobDescriptionPrefix} others religion validation test`,
           duty_type: 'live_in',
+          frequency_of_care: 'daily',
           languages: ['hindi'],
           salary_monthly: 30000,
           preferred_religion: 'others',
@@ -504,6 +596,7 @@ describe('Jobs (e2e)', () => {
         area: 'Koramangala',
         description: `${jobDescriptionPrefix} Edited description`,
         duty_type: 'day_duty',
+        frequency_of_care: 'daily',
         languages: ['hindi', 'english'],
         salary_monthly: 32000,
         preferred_gender: 'female',
@@ -674,7 +767,7 @@ describe('Jobs (e2e)', () => {
       expect(res.body.data).toEqual({ message: 'Reminder sent' });
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'Reminder: Live-In Care in Bangalore',
-        "Bangalore | APPLY NOW BEFORE IT'S FILLED",
+        "Indiranagar, Bangalore | APPLY NOW BEFORE IT'S FILLED",
       );
 
       const audit = await db.query(

@@ -20,6 +20,7 @@ JobModel _job({String status = 'active', int? salaryMonthly = 30000}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
+    'frequency_of_care': 'daily',
     'languages': ['hindi'],
     'salary_monthly': salaryMonthly,
     'preferred_gender': 'female',
@@ -40,6 +41,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
+    'frequency_of_care': 'daily',
     'languages': ['hindi'],
     'salary_monthly': 30000,
     'preferred_gender': 'female',
@@ -105,6 +107,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
+    required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
     required int salaryMonthly,
@@ -123,6 +126,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
+    required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
     required int salaryMonthly,
@@ -201,6 +205,11 @@ const _descriptionLabel =
 /// tests can pick up from there.
 Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await _selectDropdown(tester, 'City', 'Bangalore');
+
+  final area = find.widgetWithText(TextField, 'Area in Bangalore');
+  await tester.ensureVisible(area);
+  await tester.enterText(area, 'Indiranagar');
+  await tester.pumpAndSettle();
 
   final age = find.widgetWithText(TextField, "Patient's Age");
   await tester.ensureVisible(age);
@@ -294,7 +303,8 @@ void main() {
 
     await _fillAboutPatientRequiredFields(tester);
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -310,6 +320,98 @@ void main() {
     expect(repo.createCalled, isTrue);
   });
 
+  testWidgets(
+      'only age/weight/gender/city/area are hard-required — mobility, communication, feeding, '
+      'toilet assistance and medical assistance can all be left unselected', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _selectDropdown(tester, 'City', 'Bangalore');
+
+    final area = find.widgetWithText(TextField, 'Area in Bangalore');
+    await tester.ensureVisible(area);
+    await tester.enterText(area, 'Indiranagar');
+    await tester.pumpAndSettle();
+
+    final age = find.widgetWithText(TextField, "Patient's Age");
+    await tester.ensureVisible(age);
+    await tester.enterText(age, '72');
+    await tester.pumpAndSettle();
+
+    await _selectDropdown(tester, "Patient's Gender", 'Female');
+
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    await tester.ensureVisible(weight);
+    await tester.enterText(weight, '58');
+    await tester.pumpAndSettle();
+
+    // Deliberately skip Mobility, Communication, Feeding, Toilet Assistance,
+    // and Medical Assistance — none of them should block submission.
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    expect(
+      tester.widget<ElevatedButton>(postButton).onPressed,
+      isNotNull,
+      reason: 'mobility/communication/feeding/toilet assistance/medical assistance are optional now',
+    );
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+  });
+
+  testWidgets(
+      'Area is required — leaving it blank blocks submission even with every other field filled',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _selectDropdown(tester, 'City', 'Bangalore');
+    // Area deliberately left blank.
+
+    final age = find.widgetWithText(TextField, "Patient's Age");
+    await tester.ensureVisible(age);
+    await tester.enterText(age, '72');
+    await tester.pumpAndSettle();
+
+    await _selectDropdown(tester, "Patient's Gender", 'Female');
+
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    await tester.ensureVisible(weight);
+    await tester.enterText(weight, '58');
+    await tester.pumpAndSettle();
+
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    expect(tester.widget<ElevatedButton>(postButton).onPressed, isNull);
+  });
+
   testWidgets('vital monitoring toggle reveals a required multi-select that blocks submit until answered',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -320,7 +422,8 @@ void main() {
 
     await _fillAboutPatientRequiredFields(tester);
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -355,6 +458,11 @@ void main() {
 
     await _selectDropdown(tester, 'City', 'Bangalore');
 
+    final area = find.widgetWithText(TextField, 'Area in Bangalore');
+    await tester.ensureVisible(area);
+    await tester.enterText(area, 'Indiranagar');
+    await tester.pumpAndSettle();
+
     final age = find.widgetWithText(TextField, "Patient's Age");
     await tester.ensureVisible(age);
     await tester.enterText(age, '72');
@@ -372,7 +480,8 @@ void main() {
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
     await _tapChip(tester, 'Others');
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);

@@ -2,13 +2,17 @@ import 'package:dio/dio.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import '../../../core/network/api_exception.dart';
 
+/// Only [age]/[gender]/[weightKg] are hard-required — every other field is
+/// optional and, if left unselected, is defaulted server-side to a real,
+/// explicit value (see CARE_RECEIVER_DEFAULTS in the backend's
+/// jobs.service.ts) so the persisted value is never silently null/empty.
 class CareReceiverInput {
   final int age;
   final String gender;
   final int weightKg;
-  final String mobility;
-  final String communication;
-  final String feedingType;
+  final String? mobility;
+  final String? communication;
+  final String? feedingType;
   final bool? tubeFeedingNeedsAssistance;
   final List<String> medicalAssistance;
   final bool hasMedicalCondition;
@@ -22,9 +26,9 @@ class CareReceiverInput {
     required this.age,
     required this.gender,
     required this.weightKg,
-    required this.mobility,
-    required this.communication,
-    required this.feedingType,
+    this.mobility,
+    this.communication,
+    this.feedingType,
     this.tubeFeedingNeedsAssistance,
     required this.medicalAssistance,
     required this.hasMedicalCondition,
@@ -39,9 +43,9 @@ class CareReceiverInput {
         'age': age,
         'gender': gender,
         'weight_kg': weightKg,
-        'mobility': mobility,
-        'communication': communication,
-        'feeding_type': feedingType,
+        if (mobility != null) 'mobility': mobility,
+        if (communication != null) 'communication': communication,
+        if (feedingType != null) 'feeding_type': feedingType,
         if (tubeFeedingNeedsAssistance != null)
           'tube_feeding_needs_assistance': tubeFeedingNeedsAssistance,
         'medical_assistance': medicalAssistance,
@@ -92,6 +96,7 @@ class AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
+    required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
     required int salaryMonthly,
@@ -104,6 +109,7 @@ class AdminJobsRepository {
         if (area != null && area.isNotEmpty) 'area': area,
         'description': description,
         'duty_type': dutyType,
+        'frequency_of_care': frequencyOfCare,
         if (startDate != null) 'start_date': startDate,
         'languages': languages,
         'salary_monthly': salaryMonthly,
@@ -117,6 +123,7 @@ class AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
+    required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
     required int salaryMonthly,
@@ -132,6 +139,7 @@ class AdminJobsRepository {
           area: area,
           description: description,
           dutyType: dutyType,
+          frequencyOfCare: frequencyOfCare,
           startDate: startDate,
           languages: languages,
           salaryMonthly: salaryMonthly,
@@ -154,6 +162,7 @@ class AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
+    required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
     required int salaryMonthly,
@@ -169,6 +178,7 @@ class AdminJobsRepository {
           area: area,
           description: description,
           dutyType: dutyType,
+          frequencyOfCare: frequencyOfCare,
           startDate: startDate,
           languages: languages,
           salaryMonthly: salaryMonthly,
