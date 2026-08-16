@@ -27,7 +27,14 @@ const DUTY_TYPE_LABELS: Record<DutyType, string> = {
   [DutyType.DAY_DUTY]: 'Day Duty',
   [DutyType.NIGHT_DUTY]: 'Night Duty',
   [DutyType.LIVE_IN]: 'Live-In Care',
-  [DutyType.OTHER]: 'Care',
+};
+
+// Duty Type is one of exactly 3 fixed shifts — the shift's start/end time
+// is implied by which one is picked, not entered separately by the admin.
+const DUTY_TYPE_TIMES: Record<DutyType, { start: string | null; end: string | null }> = {
+  [DutyType.DAY_DUTY]: { start: '08:00', end: '20:00' },
+  [DutyType.NIGHT_DUTY]: { start: '20:00', end: '08:00' },
+  [DutyType.LIVE_IN]: { start: null, end: null },
 };
 
 const CITY_LABELS: Record<City, string> = {
@@ -56,6 +63,7 @@ export class JobsService {
   async createJob(adminId: string, dto: CreateJobDto, ipAddress: string | null) {
     const job = await this.db.withTransaction(async (client) => {
       const careReceiver = await this.careReceiversRepo.create(dto.care_receiver, client);
+      const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
       return this.jobsRepo.create(
         {
           care_receiver_id: careReceiver.id,
@@ -63,10 +71,10 @@ export class JobsService {
           area: dto.area,
           description: dto.description,
           duty_type: dto.duty_type,
-          start_time: dto.start_time,
-          end_time: dto.end_time,
+          start_time: start,
+          end_time: end,
           start_date: dto.start_date,
-          language: dto.language,
+          languages: dto.languages,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
           posted_by: adminId,

@@ -34,7 +34,7 @@ describe('JobsService', () => {
     start_time: null,
     end_time: null,
     start_date: null,
-    language: 'hindi',
+    languages: ['hindi'],
     preferred_gender: 'female',
     preferred_religion: null,
     status: 'active',
@@ -92,7 +92,7 @@ describe('JobsService', () => {
       area: 'Indiranagar',
       description: 'Need a caregiver',
       duty_type: 'live_in' as any,
-      language: 'hindi' as any,
+      languages: ['hindi'] as any,
       preferred_gender: 'female' as any,
     };
 
@@ -107,6 +107,26 @@ describe('JobsService', () => {
       );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'admin-1', action: 'job_posted', entityId: 'job-1' }),
+      );
+    });
+
+    it('derives start/end time from duty_type instead of accepting them as input', async () => {
+      await service.createJob('admin-1', { ...dto, duty_type: 'day_duty' as any }, null);
+      expect(jobsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ start_time: '08:00', end_time: '20:00' }),
+        expect.anything(),
+      );
+
+      await service.createJob('admin-1', { ...dto, duty_type: 'night_duty' as any }, null);
+      expect(jobsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ start_time: '20:00', end_time: '08:00' }),
+        expect.anything(),
+      );
+
+      await service.createJob('admin-1', { ...dto, duty_type: 'live_in' as any }, null);
+      expect(jobsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ start_time: null, end_time: null }),
+        expect.anything(),
       );
     });
   });

@@ -93,15 +93,13 @@ class DutyType {
   static const dayDuty = 'day_duty';
   static const nightDuty = 'night_duty';
   static const liveIn = 'live_in';
-  static const other = 'other';
 
-  static const all = [dayDuty, nightDuty, liveIn, other];
+  static const all = [liveIn, dayDuty, nightDuty];
 
   static const displayNames = {
-    dayDuty: 'Day Duty',
-    nightDuty: 'Night Duty',
-    liveIn: 'Live-In',
-    other: 'Other',
+    liveIn: '24Hrs - Live In',
+    dayDuty: '12Hrs Day Shift (8am to 8pm)',
+    nightDuty: '12Hrs Night Shift (8pm to 8am)',
   };
 }
 

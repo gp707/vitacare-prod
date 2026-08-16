@@ -15,7 +15,7 @@ JobModel _job({String? myApplicationStatus}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver for an elderly patient',
     'duty_type': 'live_in',
-    'language': 'hindi',
+    'languages': ['hindi'],
     'preferred_gender': 'female',
     'status': 'active',
     'posted_by': 'admin-1',
@@ -59,7 +59,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Live-In in Bangalore'), findsOneWidget);
+    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
     expect(find.text('Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });

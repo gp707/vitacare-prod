@@ -74,10 +74,8 @@ class AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
-    String? startTime,
-    String? endTime,
     String? startDate,
-    required String language,
+    required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -88,10 +86,8 @@ class AdminJobsRepository {
         if (area != null && area.isNotEmpty) 'area': area,
         'description': description,
         'duty_type': dutyType,
-        if (startTime != null) 'start_time': startTime,
-        if (endTime != null) 'end_time': endTime,
         if (startDate != null) 'start_date': startDate,
-        'language': language,
+        'languages': languages,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
       });

@@ -13,7 +13,7 @@ export interface JobRecord {
   start_time: string | null;
   end_time: string | null;
   start_date: string | null;
-  language: Language;
+  languages: Language[];
   preferred_gender: string | null;
   preferred_religion: string | null;
   status: JobStatus;
@@ -35,7 +35,7 @@ export interface CreateJobInput {
   start_time?: string | null;
   end_time?: string | null;
   start_date?: string | null;
-  language: Language;
+  languages: Language[];
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   posted_by: string;
@@ -74,7 +74,7 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, start_time, end_time,
-          start_date, language, preferred_gender, preferred_religion, posted_by)
+          start_date, languages, preferred_gender, preferred_religion, posted_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
@@ -86,7 +86,7 @@ export class JobsRepository {
         input.start_time ?? null,
         input.end_time ?? null,
         input.start_date ?? null,
-        input.language,
+        JSON.stringify(input.languages),
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.posted_by,

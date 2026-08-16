@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -7,7 +8,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   ValidateIf,
   ValidateNested,
@@ -79,23 +79,20 @@ export class CreateJobDto {
   @MaxLength(2000, { message: 'GEN_001' })
   description!: string;
 
+  // Duty Type fully determines the shift's timing (see DUTY_TYPE_TIMES in
+  // jobs.service.ts) — admins pick one of the 3 fixed shifts, they don't
+  // enter start/end times separately.
   @IsIn(Object.values(DutyType), { message: 'GEN_001' })
   duty_type!: DutyType;
-
-  @IsOptional()
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'GEN_001' })
-  start_time?: string;
-
-  @IsOptional()
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'GEN_001' })
-  end_time?: string;
 
   @IsOptional()
   @IsDateString({}, { message: 'GEN_001' })
   start_date?: string;
 
-  @IsIn(Object.values(Language), { message: 'GEN_001' })
-  language!: Language;
+  @IsArray({ message: 'GEN_001' })
+  @ArrayNotEmpty({ message: 'GEN_001' })
+  @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })
+  languages!: Language[];
 
   // "No preference" is simply omitting the field — NOT a magic string.
   @IsOptional()

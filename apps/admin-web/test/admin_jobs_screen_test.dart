@@ -19,7 +19,7 @@ JobModel _job({String status = 'active'}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
-    'language': 'hindi',
+    'languages': ['hindi'],
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
@@ -65,10 +65,8 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     String? area,
     required String description,
     required String dutyType,
-    String? startTime,
-    String? endTime,
     String? startDate,
-    required String language,
+    required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -129,12 +127,19 @@ Future<void> _selectDropdown(WidgetTester tester, String fieldLabel, String opti
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
+  final chip = find.widgetWithText(FilterChip, chipLabel);
+  await tester.ensureVisible(chip);
+  await tester.tap(chip);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('lists posted jobs with duty type, city, and status', (tester) async {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
 
-    expect(find.text('Live-In · Bangalore'), findsOneWidget);
+    expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
     expect(find.text('active'), findsOneWidget);
   });
 
@@ -186,8 +191,8 @@ void main() {
     await _selectDropdown(tester, 'Mobility', 'Walks independently');
     await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
     await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
-    await _selectDropdown(tester, 'Duty Type', 'Day Duty');
-    await _selectDropdown(tester, 'Language Preference', 'Hindi');
+    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, 'Description');
     await tester.ensureVisible(description);
@@ -214,8 +219,8 @@ void main() {
     await _selectDropdown(tester, 'Mobility', 'Walks independently');
     await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
-    await _selectDropdown(tester, 'Duty Type', 'Day Duty');
-    await _selectDropdown(tester, 'Language Preference', 'Hindi');
+    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, 'Description');
     await tester.ensureVisible(description);

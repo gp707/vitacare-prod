@@ -52,7 +52,6 @@ export const DutyType = {
   DAY_DUTY: 'day_duty',
   NIGHT_DUTY: 'night_duty',
   LIVE_IN: 'live_in',
-  OTHER: 'other',
 } as const;
 export type DutyType = (typeof DutyType)[keyof typeof DutyType];
 

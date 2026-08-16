@@ -83,7 +83,7 @@ describe('Jobs (e2e)', () => {
         city: 'bangalore',
         description: `${jobDescriptionPrefix} Need a caregiver`,
         duty_type: 'live_in',
-        language: 'hindi',
+        languages: ['hindi'],
         preferred_gender: 'female',
         ...jobOverrides,
       })
@@ -162,6 +162,69 @@ describe('Jobs (e2e)', () => {
       expect(careReceiver.rows[0].mobility).toBe('walks_independently');
     });
 
+    it('derives start/end time from duty_type and stores languages as an array', async () => {
+      const dayJob = await createJob({ duty_type: 'day_duty' });
+      expect(dayJob.status).toBe('active');
+      const dayRow = await db.query('SELECT start_time, end_time, languages FROM jobs WHERE id = $1', [
+        dayJob.id,
+      ]);
+      expect(dayRow.rows[0].start_time).toBe('08:00:00');
+      expect(dayRow.rows[0].end_time).toBe('20:00:00');
+      expect(dayRow.rows[0].languages).toEqual(['hindi']);
+
+      const nightJob = await createJob({ duty_type: 'night_duty' });
+      const nightRow = await db.query('SELECT start_time, end_time FROM jobs WHERE id = $1', [
+        nightJob.id,
+      ]);
+      expect(nightRow.rows[0].start_time).toBe('20:00:00');
+      expect(nightRow.rows[0].end_time).toBe('08:00:00');
+
+      const liveInRow = await db.query('SELECT start_time, end_time FROM jobs WHERE id = $1', [
+        (await createJob({ duty_type: 'live_in' })).id,
+      ]);
+      expect(liveInRow.rows[0].start_time).toBeNull();
+      expect(liveInRow.rows[0].end_time).toBeNull();
+    });
+
+    it('rejects a duty_type outside the 3 fixed shifts (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} bad duty type`,
+          duty_type: 'other',
+          languages: ['hindi'],
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects an empty languages array (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} empty languages`,
+          duty_type: 'live_in',
+          languages: [],
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('accepts multiple language preferences', async () => {
+      const job = await createJob({ languages: ['hindi', 'english', 'kannada'] });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.languages).toEqual(['hindi', 'english', 'kannada']);
+    });
+
     it('rejects a caregiver token (AUTH_007)', async () => {
       const caregiver = await registerCaregiver('0001');
       const res = await request(app.getHttpServer())
@@ -172,7 +235,7 @@ describe('Jobs (e2e)', () => {
           city: 'bangalore',
           description: 'x',
           duty_type: 'live_in',
-          language: 'hindi',
+          languages: ['hindi'],
         })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
@@ -187,7 +250,7 @@ describe('Jobs (e2e)', () => {
           city: 'bangalore',
           description: `${jobDescriptionPrefix} tube feeding validation test`,
           duty_type: 'live_in',
-          language: 'hindi',
+          languages: ['hindi'],
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -202,7 +265,7 @@ describe('Jobs (e2e)', () => {
           city: 'bangalore',
           description: `${jobDescriptionPrefix} medical condition validation test`,
           duty_type: 'live_in',
-          language: 'hindi',
+          languages: ['hindi'],
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');

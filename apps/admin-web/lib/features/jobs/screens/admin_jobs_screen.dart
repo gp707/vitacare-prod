@@ -181,7 +181,7 @@ class _JobRow extends StatelessWidget {
                 Text(
                   [
                     if (job.area != null && job.area!.isNotEmpty) job.area,
-                    Language.displayNames[job.language] ?? job.language,
+                    job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
                   ].join(' • '),
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
@@ -225,11 +225,9 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
 
   // Duty
   String? _dutyType;
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
   DateTime? _startDate;
 
-  String? _language;
+  List<String> _languages = [];
   String? _preferredGender; // null = no preference
   String? _preferredReligion; // null = no preference
 
@@ -256,26 +254,8 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
       (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
       (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
       _dutyType != null &&
-      _language != null &&
+      _languages.isNotEmpty &&
       _descriptionController.text.trim().isNotEmpty;
-
-  String _formatTimeOfDay(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-  Future<void> _pickTime({required bool isStart}) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: (isStart ? _startTime : _endTime) ?? const TimeOfDay(hour: 9, minute: 0),
-    );
-    if (picked == null) return;
-    setState(() {
-      if (isStart) {
-        _startTime = picked;
-      } else {
-        _endTime = picked;
-      }
-    });
-  }
 
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
@@ -311,14 +291,12 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
             area: _areaController.text.trim(),
             description: _descriptionController.text.trim(),
             dutyType: _dutyType!,
-            startTime: _startTime == null ? null : _formatTimeOfDay(_startTime!),
-            endTime: _endTime == null ? null : _formatTimeOfDay(_endTime!),
             startDate: _startDate == null
                 ? null
                 : '${_startDate!.year.toString().padLeft(4, '0')}-'
                     '${_startDate!.month.toString().padLeft(2, '0')}-'
                     '${_startDate!.day.toString().padLeft(2, '0')}',
-            language: _language!,
+            languages: _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
           );
@@ -451,24 +429,6 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                 onChanged: (value) => setState(() => _dutyType = value),
               ),
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pickTime(isStart: true),
-                      child: Text(_startTime == null ? 'Start Time' : _formatTimeOfDay(_startTime!)),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _pickTime(isStart: false),
-                      child: Text(_endTime == null ? 'End Time' : _formatTimeOfDay(_endTime!)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
                 onPressed: _pickStartDate,
                 child: Text(
@@ -478,14 +438,13 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _language,
-                decoration: const InputDecoration(labelText: 'Language Preference'),
-                items: Language.all
-                    .map((l) => DropdownMenuItem(value: l, child: Text(Language.displayNames[l] ?? l)))
-                    .toList(),
-                onChanged: (value) => setState(() => _language = value),
+              const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.xs),
+              VitaMultiSelectChips(
+                options: Language.all,
+                labels: Language.displayNames,
+                selected: _languages,
+                onChanged: (next) => setState(() => _languages = next),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String?>(
