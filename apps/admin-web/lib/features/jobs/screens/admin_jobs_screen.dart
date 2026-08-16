@@ -47,9 +47,29 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   Future<void> _openCreateDialog() async {
     final created = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => const _CreateJobDialog(),
+      builder: (dialogContext) => const _JobFormDialog(),
     );
     if (created == true) await _load();
+  }
+
+  /// Opens the same form pre-filled with the job's full current details —
+  /// doubles as "view full details" (every field is shown) and "edit"
+  /// (fields are editable, Save Changes updates in place and reposts if
+  /// the job was closed).
+  Future<void> _openEditDialog(JobModel job) async {
+    try {
+      final (fullJob, _) = await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
+      if (!mounted) return;
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
+      );
+      if (saved == true) await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
   }
 
   Future<void> _close(JobModel job) async {
@@ -124,6 +144,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         onClose: job.status == JobStatus.active ? () => _close(job) : null,
                         onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
                         onViewApplications: () => _viewApplications(job),
+                        onEdit: () => _openEditDialog(job),
                       );
                     },
                   ),
@@ -141,12 +162,14 @@ class _JobRow extends StatelessWidget {
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
   final VoidCallback onViewApplications;
+  final VoidCallback onEdit;
 
   const _JobRow({
     required this.job,
     required this.onClose,
     required this.onRemind,
     required this.onViewApplications,
+    required this.onEdit,
   });
 
   @override
@@ -190,6 +213,7 @@ class _JobRow extends StatelessWidget {
               ],
             ),
           ),
+          TextButton(onPressed: onEdit, child: const Text('Edit')),
           TextButton(onPressed: onViewApplications, child: const Text('Applicants')),
           if (onRemind != null) TextButton(onPressed: onRemind, child: const Text('Remind')),
           if (onClose != null) TextButton(onPressed: onClose, child: const Text('Close')),
@@ -199,14 +223,21 @@ class _JobRow extends StatelessWidget {
   }
 }
 
-class _CreateJobDialog extends ConsumerStatefulWidget {
-  const _CreateJobDialog();
+/// Handles both posting a new job and editing an existing one. Pass [job] +
+/// [careReceiver] to open pre-filled in edit mode (same dialog doubles as
+/// the "view full details" surface, since every field is visible); leave
+/// both null to post a brand new job.
+class _JobFormDialog extends ConsumerStatefulWidget {
+  final JobModel? job;
+  final CareReceiverModel? careReceiver;
+
+  const _JobFormDialog({this.job, this.careReceiver});
 
   @override
-  ConsumerState<_CreateJobDialog> createState() => _CreateJobDialogState();
+  ConsumerState<_JobFormDialog> createState() => _JobFormDialogState();
 }
 
-class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
+class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _descriptionController = TextEditingController();
   final _areaController = TextEditingController();
   final _medicalInfoController = TextEditingController();
@@ -239,6 +270,40 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
 
   bool _submitting = false;
   String? _errorMessage;
+
+  bool get _isEditing => widget.job != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final job = widget.job;
+    final cr = widget.careReceiver;
+    if (job != null && cr != null) {
+      _city = job.city;
+      _areaController.text = job.area ?? '';
+      _descriptionController.text = job.description;
+      _dutyType = job.dutyType;
+      _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+      _languages = List.of(job.languages);
+      _preferredGender = job.preferredGender;
+      _preferredReligion = job.preferredReligion;
+
+      _ageController.text = cr.age.toString();
+      _gender = cr.gender;
+      _weightController.text = cr.weightKg.toString();
+      _mobility = cr.mobility;
+      _communication = cr.communication;
+      _feedingType = cr.feedingType;
+      _tubeFeedingNeedsAssistance = cr.tubeFeedingNeedsAssistance;
+      _medicalAssistance = List.of(cr.medicalAssistance);
+      _hasMedicalCondition = cr.hasMedicalCondition;
+      _medicalConditions = List.of(cr.medicalConditions);
+      _medicalInfoController.text = cr.medicalInfo ?? '';
+      _toiletAssistance = cr.toiletAssistance;
+      _requiresVitalMonitoring = cr.requiresVitalMonitoring;
+      _vitalMonitoringTypes = List.of(cr.vitalMonitoringTypes);
+    }
+  }
 
   @override
   void dispose() {
@@ -294,38 +359,55 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
       _errorMessage = null;
     });
     try {
-      await ref.read(adminJobsRepositoryProvider).create(
-            careReceiver: CareReceiverInput(
-              age: _age!,
-              gender: _gender!,
-              weightKg: _weightKg!,
-              mobility: _mobility!,
-              communication: _communication!,
-              feedingType: _feedingType!,
-              tubeFeedingNeedsAssistance: _needsTubeFeedingAnswer ? _tubeFeedingNeedsAssistance : null,
-              medicalAssistance: _medicalAssistance,
-              hasMedicalCondition: _hasMedicalCondition,
-              medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
-              medicalInfo: _medicalInfoController.text.trim().isEmpty
-                  ? null
-                  : _medicalInfoController.text.trim(),
-              toiletAssistance: _toiletAssistance!,
-              requiresVitalMonitoring: _requiresVitalMonitoring,
-              vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
-            ),
-            city: _city!,
-            area: _areaController.text.trim(),
-            description: _descriptionController.text.trim(),
-            dutyType: _dutyType!,
-            startDate: _startDate == null
-                ? null
-                : '${_startDate!.year.toString().padLeft(4, '0')}-'
-                    '${_startDate!.month.toString().padLeft(2, '0')}-'
-                    '${_startDate!.day.toString().padLeft(2, '0')}',
-            languages: _languages,
-            preferredGender: _preferredGender,
-            preferredReligion: _preferredReligion,
-          );
+      final careReceiver = CareReceiverInput(
+        age: _age!,
+        gender: _gender!,
+        weightKg: _weightKg!,
+        mobility: _mobility!,
+        communication: _communication!,
+        feedingType: _feedingType!,
+        tubeFeedingNeedsAssistance: _needsTubeFeedingAnswer ? _tubeFeedingNeedsAssistance : null,
+        medicalAssistance: _medicalAssistance,
+        hasMedicalCondition: _hasMedicalCondition,
+        medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
+        medicalInfo:
+            _medicalInfoController.text.trim().isEmpty ? null : _medicalInfoController.text.trim(),
+        toiletAssistance: _toiletAssistance!,
+        requiresVitalMonitoring: _requiresVitalMonitoring,
+        vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
+      );
+      final startDate = _startDate == null
+          ? null
+          : '${_startDate!.year.toString().padLeft(4, '0')}-'
+              '${_startDate!.month.toString().padLeft(2, '0')}-'
+              '${_startDate!.day.toString().padLeft(2, '0')}';
+
+      if (_isEditing) {
+        await ref.read(adminJobsRepositoryProvider).update(
+              widget.job!.id,
+              careReceiver: careReceiver,
+              city: _city!,
+              area: _areaController.text.trim(),
+              description: _descriptionController.text.trim(),
+              dutyType: _dutyType!,
+              startDate: startDate,
+              languages: _languages,
+              preferredGender: _preferredGender,
+              preferredReligion: _preferredReligion,
+            );
+      } else {
+        await ref.read(adminJobsRepositoryProvider).create(
+              careReceiver: careReceiver,
+              city: _city!,
+              area: _areaController.text.trim(),
+              description: _descriptionController.text.trim(),
+              dutyType: _dutyType!,
+              startDate: startDate,
+              languages: _languages,
+              preferredGender: _preferredGender,
+              preferredReligion: _preferredReligion,
+            );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -337,7 +419,7 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Post New Job'),
+      title: Text(_isEditing ? 'Edit Job' : 'Post New Job'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -591,7 +673,7 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                   width: 16,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
-              : const Text('Post'),
+              : Text(_isEditing ? 'Save Changes' : 'Post'),
         ),
       ],
     );

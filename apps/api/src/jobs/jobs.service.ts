@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction, City, DutyType, JobApplicationStatus, VerificationStatus } from '@vitacare/shared-constants';
+import {
+  AuditAction,
+  City,
+  DutyType,
+  JobApplicationStatus,
+  JobStatus,
+  VerificationStatus,
+} from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { DatabaseService } from '../database/database.service';
@@ -122,6 +129,60 @@ export class JobsService {
       this.jobApplicationsRepo.findByJobId(jobId),
     ]);
     return { ...job, care_receiver: careReceiver, applications };
+  }
+
+  /** Admin edits any field of an existing job (and its care receiver) in
+   *  place — same job id, existing applications untouched. If the job was
+   *  `closed`, saving the edit also reposts it: status flips back to
+   *  `active` and the "New Job" push re-broadcasts to all caregivers. An
+   *  edit to an already-`active` job does NOT resend the push, to avoid
+   *  spamming caregivers on every minor edit. */
+  async updateJob(adminId: string, jobId: string, dto: CreateJobDto, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing) throw new AppException('GEN_002');
+
+    const wasClosed = existing.status === 'closed';
+    const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
+
+    const job = await this.db.withTransaction(async (client) => {
+      await this.careReceiversRepo.update(existing.care_receiver_id, dto.care_receiver, client);
+      return this.jobsRepo.update(
+        jobId,
+        {
+          city: dto.city,
+          area: dto.area,
+          description: dto.description,
+          duty_type: dto.duty_type,
+          start_time: start,
+          end_time: end,
+          start_date: dto.start_date,
+          languages: dto.languages,
+          preferred_gender: dto.preferred_gender,
+          preferred_religion: dto.preferred_religion,
+          status: wasClosed ? JobStatus.ACTIVE : undefined,
+        },
+        client,
+      );
+    });
+
+    if (wasClosed) {
+      await this.fcmService.sendToAllCaregivers(
+        `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
+        `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
+      );
+    }
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: job.id,
+      beforeValue: { duty_type: existing.duty_type, city: existing.city, status: existing.status },
+      afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
+      ipAddress,
+    });
+
+    return job;
   }
 
   async closeJob(adminId: string, jobId: string, ipAddress: string | null) {

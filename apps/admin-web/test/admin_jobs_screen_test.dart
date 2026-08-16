@@ -27,6 +27,38 @@ JobModel _job({String status = 'active'}) {
   });
 }
 
+/// Full job detail — as returned by `GET /admin/jobs/:id` — with a nested
+/// care_receiver, used for the Edit dialog's pre-fill / "view full details".
+JobModel _jobWithCareReceiver({String status = 'active'}) {
+  return JobModel.fromJson({
+    'id': 'job-1',
+    'city': 'bangalore',
+    'area': 'Indiranagar',
+    'description': 'Need a caregiver',
+    'duty_type': 'live_in',
+    'languages': ['hindi'],
+    'preferred_gender': 'female',
+    'status': status,
+    'posted_by': 'admin-1',
+    'created_at': '2026-08-01T10:00:00Z',
+    'care_receiver': {
+      'id': 'cr-1',
+      'age': 72,
+      'gender': 'female',
+      'weight_kg': 58,
+      'mobility': 'walks_independently',
+      'communication': 'verbal',
+      'feeding_type': 'oral_independent',
+      'medical_assistance': [],
+      'has_medical_condition': false,
+      'medical_conditions': [],
+      'toilet_assistance': 'none',
+      'requires_vital_monitoring': false,
+      'vital_monitoring_types': [],
+    },
+  });
+}
+
 JobApplicationModel _application({String status = 'applied', String id = 'app-1'}) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -47,6 +79,8 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? remindedJobId;
   String? decidedApplicationId;
   String? decidedStatus;
+  String? updatedJobId;
+  String? updatedDescription;
 
   _FakeAdminJobsRepository(this.jobs, {this.applications = const []}) : super(Dio());
 
@@ -55,7 +89,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
 
   @override
   Future<(JobModel, List<JobApplicationModel>)> getDetail(String jobId) async {
-    return (jobs.first, applications);
+    return (_jobWithCareReceiver(status: jobs.first.status), applications);
   }
 
   @override
@@ -72,6 +106,23 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   }) async {
     createCalled = true;
     jobs = [...jobs, _job()];
+  }
+
+  @override
+  Future<void> update(
+    String jobId, {
+    required CareReceiverInput careReceiver,
+    required String city,
+    String? area,
+    required String description,
+    required String dutyType,
+    String? startDate,
+    required List<String> languages,
+    String? preferredGender,
+    String? preferredReligion,
+  }) async {
+    updatedJobId = jobId;
+    updatedDescription = description;
   }
 
   @override
@@ -316,6 +367,50 @@ void main() {
 
     final postButtonAfter = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
     expect(postButtonAfter.onPressed, isNotNull);
+  });
+
+  testWidgets('Edit opens the form pre-filled with the job\'s full details', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Job'), findsOneWidget);
+    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+    expect(find.widgetWithText(TextField, "Patient's Age"), findsOneWidget);
+    expect(find.text('72'), findsOneWidget, reason: 'age should be pre-filled from the care receiver');
+    expect(find.text('58'), findsOneWidget, reason: 'weight should be pre-filled from the care receiver');
+    expect(
+      find.widgetWithText(TextField, _descriptionLabel),
+      findsOneWidget,
+      reason: 'description field should be pre-filled with the existing job description',
+    );
+    final description = tester.widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
+    expect(description.controller!.text, 'Need a caregiver');
+  });
+
+  testWidgets('editing and saving calls repository.update() with the job id, not create()', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Updated details for the caregiver');
+    await tester.pumpAndSettle();
+
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.updatedJobId, 'job-1');
+    expect(repo.updatedDescription, 'Updated details for the caregiver');
+    expect(repo.createCalled, isFalse);
   });
 
   testWidgets('Applicants dialog shows Accept/Reject for an applied application; Accept calls decideApplication',

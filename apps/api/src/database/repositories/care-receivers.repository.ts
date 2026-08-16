@@ -89,4 +89,40 @@ export class CareReceiversRepository {
     );
     return result.rows[0] ?? null;
   }
+
+  async update(
+    id: string,
+    input: CreateCareReceiverInput,
+    client?: PoolClient,
+  ): Promise<CareReceiverRecord> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<CareReceiverRecord>(
+      `UPDATE care_receivers SET
+         age = $1, gender = $2, weight_kg = $3, mobility = $4, communication = $5,
+         feeding_type = $6, tube_feeding_needs_assistance = $7, medical_assistance = $8,
+         has_medical_condition = $9, medical_conditions = $10, medical_info = $11,
+         toilet_assistance = $12, requires_vital_monitoring = $13, vital_monitoring_types = $14,
+         updated_at = NOW()
+       WHERE id = $15
+       RETURNING *`,
+      [
+        input.age,
+        input.gender,
+        input.weight_kg,
+        input.mobility,
+        input.communication,
+        input.feeding_type,
+        input.tube_feeding_needs_assistance ?? null,
+        JSON.stringify(input.medical_assistance),
+        input.has_medical_condition,
+        JSON.stringify(input.medical_conditions ?? []),
+        input.medical_info ?? null,
+        input.toilet_assistance,
+        input.requires_vital_monitoring,
+        JSON.stringify(input.vital_monitoring_types ?? []),
+        id,
+      ],
+    );
+    return result.rows[0];
+  }
 }

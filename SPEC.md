@@ -474,6 +474,7 @@ export const AuditAction = {
   JOB_CLOSED: 'job_closed',
   JOB_RESPONSE: 'job_response',
   JOB_APPLICATION_DECIDED: 'job_application_decided',
+  JOB_UPDATED: 'job_updated',
 } as const;
 
 export const UserRole = {
@@ -1145,7 +1146,8 @@ CREATE TABLE audit_logs (
     'job_posted',
     'job_closed',
     'job_response',
-    'job_application_decided'
+    'job_application_decided',
+    'job_updated'
   )),
   entity_type VARCHAR(50) NOT NULL,
   entity_id UUID,
@@ -2153,6 +2155,29 @@ Get job detail with the care receiver and every application.
   }
 }
 ```
+
+---
+
+#### PATCH `/admin/jobs/:id`
+
+Full edit of an existing job and its care receiver — same request body shape
+and validation as `POST /admin/jobs`. Same job id and application history are
+preserved (edits never touch existing `job_applications` rows), and this is
+allowed regardless of the job's current status or applicant state (including
+one already `accepted`/assigned). If the job was `closed`, saving the edit
+also **reposts** it: `status` flips back to `active` and the "New Job" push
+re-broadcasts to all caregivers (same copy as `POST /admin/jobs`). Editing an
+already-`active` job does not resend that push, to avoid spamming caregivers
+on every minor edit. Doubles as the "view full job details" surface in
+admin-web — the edit form is pre-filled with every current field.
+
+**Request:** identical shape to `POST /admin/jobs`'s request body (see above).
+
+**Response (200):** the updated `Job` object (same shape as the create
+response's `data`).
+
+**Errors:** `GEN_002` if the job doesn't exist; same `GEN_001` validation as
+create for any invalid field.
 
 ---
 

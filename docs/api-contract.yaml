@@ -3081,6 +3081,7 @@ paths:
               - job_closed
               - job_response
               - job_application_decided
+              - job_updated
               - admin_edit_profile
               - admin_note_added
               - admin_created
@@ -3393,6 +3394,189 @@ paths:
                             type: array
                             items:
                               $ref: "#/components/schemas/JobApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [Admin - Jobs]
+      summary: Edit a job and its care receiver (full edit; reposts if closed)
+      description: >
+        Same request body shape and validation as POST /admin/jobs. Same job
+        id and application history preserved — allowed regardless of the
+        job's current status or applicant state. If the job was `closed`,
+        saving also reposts it: status flips back to `active` and the "New
+        Job" push re-broadcasts to all caregivers; editing an already-active
+        job does not resend that push. Doubles as the "view full job
+        details" surface in admin-web (the edit form is pre-filled with
+        every current field).
+      operationId: updateJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        description: Identical shape to POST /admin/jobs's request body.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [care_receiver, city, description, duty_type, languages]
+              properties:
+                care_receiver:
+                  type: object
+                  description: 'Labeled "About Patient" in the admin-web UI.'
+                  required:
+                    [
+                      age,
+                      gender,
+                      weight_kg,
+                      mobility,
+                      communication,
+                      feeding_type,
+                      medical_assistance,
+                      has_medical_condition,
+                      toilet_assistance,
+                      requires_vital_monitoring,
+                    ]
+                  properties:
+                    age:
+                      type: integer
+                      minimum: 1
+                      maximum: 120
+                    gender:
+                      $ref: "#/components/schemas/Gender"
+                    weight_kg:
+                      type: integer
+                      minimum: 1
+                      maximum: 300
+                    mobility:
+                      $ref: "#/components/schemas/Mobility"
+                    communication:
+                      $ref: "#/components/schemas/Communication"
+                    feeding_type:
+                      $ref: "#/components/schemas/FeedingType"
+                    tube_feeding_needs_assistance:
+                      type: boolean
+                      description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
+                    medical_assistance:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/MedicalAssistance"
+                    has_medical_condition:
+                      type: boolean
+                    medical_conditions:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/MedicalCondition"
+                      description: "Required if has_medical_condition is true; not validated otherwise."
+                    medical_info:
+                      type: string
+                      description: "Free text — important information for the caregiver."
+                    toilet_assistance:
+                      $ref: "#/components/schemas/ToiletAssistance"
+                    requires_vital_monitoring:
+                      type: boolean
+                    vital_monitoring_types:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/VitalMonitoringType"
+                      description: "Required non-empty if requires_vital_monitoring is true; not validated otherwise."
+                city:
+                  $ref: "#/components/schemas/City"
+                area:
+                  type: string
+                  description: "Free text, optional."
+                description:
+                  type: string
+                  description: >
+                    UI label: "More details you want to share about patient
+                    or requirement which can help caregiver to decide."
+                duty_type:
+                  $ref: "#/components/schemas/DutyType"
+                  description: >
+                    One of exactly 3 fixed shifts — no separate start_time/
+                    end_time input; the backend derives and stores those
+                    from duty_type.
+                start_date:
+                  type: string
+                  format: date
+                languages:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/Language"
+                  description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
+                preferred_gender:
+                  type: string
+                  enum: [male, female]
+                  description: "Optional — omitted means no preference. Never used as a filter."
+                preferred_religion:
+                  type: string
+                  enum: [hindu, muslim, christian]
+                  description: >
+                    Optional — omitted means no preference. Never used as a
+                    filter. "others" is excluded (valid for a caregiver's
+                    own religion at registration, not offered as a job
+                    preference).
+            example:
+              care_receiver:
+                age: 73
+                gender: "female"
+                weight_kg: 60
+                mobility: "walks_with_assistance"
+                communication: "verbal"
+                feeding_type: "oral_needs_assistance"
+                medical_assistance: ["medication_reminders"]
+                has_medical_condition: true
+                medical_conditions: ["diabetes"]
+                medical_info: "Needs help twice daily, post hip surgery"
+                toilet_assistance: "uses_diapers"
+                requires_vital_monitoring: true
+                vital_monitoring_types: ["blood_pressure", "blood_sugar"]
+              city: "bangalore"
+              area: "Koramangala"
+              description: "Updated: elderly patient now needs a wheelchair."
+              duty_type: "day_duty"
+              start_date: "2026-08-10"
+              languages: ["hindi", "english"]
+              preferred_gender: "female"
+              preferred_religion: "hindu"
+      responses:
+        "200":
+          description: Job updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/Job"
+        "400":
+          description: Validation error (same rules as POST /admin/jobs)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_001", message: "Validation failed" }
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":

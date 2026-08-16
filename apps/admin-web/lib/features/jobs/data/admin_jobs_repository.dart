@@ -86,6 +86,29 @@ class AdminJobsRepository {
     }
   }
 
+  Map<String, dynamic> _jobPayload({
+    required CareReceiverInput careReceiver,
+    required String city,
+    String? area,
+    required String description,
+    required String dutyType,
+    String? startDate,
+    required List<String> languages,
+    String? preferredGender,
+    String? preferredReligion,
+  }) =>
+      {
+        'care_receiver': careReceiver.toJson(),
+        'city': city,
+        if (area != null && area.isNotEmpty) 'area': area,
+        'description': description,
+        'duty_type': dutyType,
+        if (startDate != null) 'start_date': startDate,
+        'languages': languages,
+        if (preferredGender != null) 'preferred_gender': preferredGender,
+        if (preferredReligion != null) 'preferred_religion': preferredReligion,
+      };
+
   Future<void> create({
     required CareReceiverInput careReceiver,
     required String city,
@@ -98,17 +121,55 @@ class AdminJobsRepository {
     String? preferredReligion,
   }) async {
     try {
-      await _dio.post('/admin/jobs', data: {
-        'care_receiver': careReceiver.toJson(),
-        'city': city,
-        if (area != null && area.isNotEmpty) 'area': area,
-        'description': description,
-        'duty_type': dutyType,
-        if (startDate != null) 'start_date': startDate,
-        'languages': languages,
-        if (preferredGender != null) 'preferred_gender': preferredGender,
-        if (preferredReligion != null) 'preferred_religion': preferredReligion,
-      });
+      await _dio.post(
+        '/admin/jobs',
+        data: _jobPayload(
+          careReceiver: careReceiver,
+          city: city,
+          area: area,
+          description: description,
+          dutyType: dutyType,
+          startDate: startDate,
+          languages: languages,
+          preferredGender: preferredGender,
+          preferredReligion: preferredReligion,
+        ),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Full edit of an existing job (and its care receiver), same job id and
+  /// application history. If the job was `closed`, the backend also reposts
+  /// it (status flips back to `active`, "New Job" push re-broadcasts).
+  Future<void> update(
+    String jobId, {
+    required CareReceiverInput careReceiver,
+    required String city,
+    String? area,
+    required String description,
+    required String dutyType,
+    String? startDate,
+    required List<String> languages,
+    String? preferredGender,
+    String? preferredReligion,
+  }) async {
+    try {
+      await _dio.patch(
+        '/admin/jobs/$jobId',
+        data: _jobPayload(
+          careReceiver: careReceiver,
+          city: city,
+          area: area,
+          description: description,
+          dutyType: dutyType,
+          startDate: startDate,
+          languages: languages,
+          preferredGender: preferredGender,
+          preferredReligion: preferredReligion,
+        ),
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

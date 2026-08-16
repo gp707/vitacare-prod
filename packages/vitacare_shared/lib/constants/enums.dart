@@ -332,6 +332,7 @@ class AuditAction {
   static const adminRoleChanged = 'admin_role_changed';
   static const adminActivated = 'admin_activated';
   static const jobReminderSent = 'job_reminder_sent';
+  static const jobUpdated = 'job_updated';
 
   static const all = [
     registration,
@@ -353,6 +354,7 @@ class AuditAction {
     adminRoleChanged,
     adminActivated,
     jobReminderSent,
+    jobUpdated,
   ];
 }
 

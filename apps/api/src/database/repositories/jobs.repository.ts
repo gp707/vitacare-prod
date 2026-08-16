@@ -41,6 +41,22 @@ export interface CreateJobInput {
   posted_by: string;
 }
 
+export interface UpdateJobInput {
+  city: City;
+  area?: string | null;
+  description: string;
+  duty_type: DutyType;
+  start_time?: string | null;
+  end_time?: string | null;
+  start_date?: string | null;
+  languages: Language[];
+  preferred_gender?: string | null;
+  preferred_religion?: string | null;
+  /** Only set when the edit should also repost a closed job — omitted
+   *  leaves status untouched. */
+  status?: JobStatus;
+}
+
 export interface ListJobsFilters {
   status?: JobStatus;
   city?: City;
@@ -143,6 +159,33 @@ export class JobsRepository {
       this.db.query<{ count: string }>(`SELECT COUNT(*) FROM jobs WHERE status = 'active'`),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
+  }
+
+  async update(id: string, input: UpdateJobInput, client?: PoolClient): Promise<JobRecord> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<JobRecord>(
+      `UPDATE jobs SET
+         city = $1, area = $2, description = $3, duty_type = $4, start_time = $5, end_time = $6,
+         start_date = $7, languages = $8, preferred_gender = $9, preferred_religion = $10,
+         status = COALESCE($11, status), updated_at = NOW()
+       WHERE id = $12
+       RETURNING *`,
+      [
+        input.city,
+        input.area ?? null,
+        input.description,
+        input.duty_type,
+        input.start_time ?? null,
+        input.end_time ?? null,
+        input.start_date ?? null,
+        JSON.stringify(input.languages),
+        input.preferred_gender ?? null,
+        input.preferred_religion ?? null,
+        input.status ?? null,
+        id,
+      ],
+    );
+    return result.rows[0];
   }
 
   async close(id: string, client?: PoolClient): Promise<void> {

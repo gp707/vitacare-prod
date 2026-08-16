@@ -408,6 +408,131 @@ describe('Jobs (e2e)', () => {
     });
   });
 
+  describe('PATCH /v1/admin/jobs/:id (edit)', () => {
+    function editPayload(overrides: Record<string, unknown> = {}) {
+      const { care_receiver, ...jobOverrides } = overrides as { care_receiver?: Record<string, unknown> };
+      return {
+        care_receiver: { ...defaultCareReceiver, ...care_receiver },
+        city: 'bangalore',
+        area: 'Koramangala',
+        description: `${jobDescriptionPrefix} Edited description`,
+        duty_type: 'day_duty',
+        languages: ['hindi', 'english'],
+        preferred_gender: 'female',
+        ...jobOverrides,
+      };
+    }
+
+    it('updates the job and care receiver in place, same id, and audit-logs it', async () => {
+      const job = await createJob();
+      fcmService.sendToAllCaregivers.mockClear();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: 'uses_diapers' } }))
+        .expect(200);
+      expect(res.body.data.id).toBe(job.id);
+      expect(res.body.data.area).toBe('Koramangala');
+      expect(res.body.data.duty_type).toBe('day_duty');
+      expect(res.body.data.start_time).toBe('08:00:00');
+      // Job was already active — editing does not resend the broadcast push.
+      expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver_id).toBe(job.care_receiver_id);
+      expect(detail.body.data.care_receiver.age).toBe(80);
+      expect(detail.body.data.care_receiver.toilet_assistance).toBe('uses_diapers');
+      expect(detail.body.data.languages).toEqual(['hindi', 'english']);
+
+      const audit = await db.query(
+        `SELECT action FROM audit_logs WHERE entity_type = 'jobs' AND entity_id = $1`,
+        [job.id],
+      );
+      expect(audit.rows.map((r) => r.action)).toContain('job_updated');
+    });
+
+    it('reposts a closed job: reopens it and re-broadcasts the "New Job" push', async () => {
+      const job = await createJob();
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/close`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      fcmService.sendToAllCaregivers.mockClear();
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload())
+        .expect(200);
+      expect(res.body.data.status).toBe('active');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
+        'New Job: Day Duty in Bangalore',
+        'Koramangala, Bangalore | IMMEDIATELY APPLY',
+      );
+    });
+
+    it('leaves existing applications untouched when the job is edited', async () => {
+      const job = await createJob();
+      const caregiver = await registerCaregiver('0020');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload())
+        .expect(200);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.applications).toHaveLength(1);
+      expect(detail.body.data.applications[0].status).toBe('applied');
+      expect(detail.body.data.applications[0].profile_id).toBe(caregiver.profile_id);
+    });
+
+    it('returns GEN_002 for a non-existent job', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/v1/admin/jobs/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload())
+        .expect(404);
+      expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const job = await createJob();
+      const caregiver = await registerCaregiver('0021');
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send(editPayload())
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+
+    it('applies the same validation as create (GEN_001 for an invalid duty_type)', async () => {
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload({ duty_type: 'other' }))
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+  });
+
   describe('PATCH /v1/admin/jobs/:id/close', () => {
     it('closes an active job', async () => {
       const job = await createJob();

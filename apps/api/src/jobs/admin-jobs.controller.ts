@@ -32,6 +32,17 @@ export class AdminJobsController {
     return this.jobsService.getJobDetailForAdmin(id);
   }
 
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateJobDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.updateJob(user.sub, id, dto, ip);
+  }
+
   @Patch(':id/close')
   @HttpCode(HttpStatus.OK)
   close(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {

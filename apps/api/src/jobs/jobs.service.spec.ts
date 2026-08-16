@@ -53,6 +53,7 @@ describe('JobsService', () => {
     db = { withTransaction: jest.fn((fn: any) => fn({ query: jest.fn() })) };
     jobsRepo = {
       create: jest.fn().mockResolvedValue(job),
+      update: jest.fn().mockResolvedValue(job),
       findById: jest.fn(),
       listForAdmin: jest.fn(),
       listActiveForCaregiver: jest.fn(),
@@ -67,6 +68,7 @@ describe('JobsService', () => {
     };
     careReceiversRepo = {
       create: jest.fn().mockResolvedValue(careReceiver),
+      update: jest.fn().mockResolvedValue(careReceiver),
       findById: jest.fn().mockResolvedValue(careReceiver),
     };
     profilesRepo = { findByUserId: jest.fn() };
@@ -138,6 +140,80 @@ describe('JobsService', () => {
       expect(jobsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ start_time: null, end_time: null }),
         expect.anything(),
+      );
+    });
+  });
+
+  describe('updateJob', () => {
+    const dto = {
+      care_receiver: {
+        age: 73 as any,
+        gender: 'female' as any,
+        weight_kg: 60 as any,
+        mobility: 'walks_independently' as any,
+        communication: 'verbal' as any,
+        feeding_type: 'oral_independent' as any,
+        medical_assistance: [] as any,
+        has_medical_condition: false,
+        toilet_assistance: 'none' as any,
+        requires_vital_monitoring: false,
+      },
+      city: 'bangalore' as any,
+      area: 'Koramangala',
+      description: 'Updated description',
+      duty_type: 'day_duty' as any,
+      languages: ['hindi', 'english'] as any,
+      preferred_gender: 'female' as any,
+    };
+
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.updateJob('admin-1', 'missing', dto, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('updates the care receiver and job in one transaction, audit-logs it, and does NOT resend a push for an already-active job', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'active' });
+      jobsRepo.update.mockResolvedValue({ ...job, city: 'bangalore', duty_type: 'day_duty', area: 'Koramangala' });
+
+      const result = await service.updateJob('admin-1', 'job-1', dto, '127.0.0.1');
+
+      expect(db.withTransaction).toHaveBeenCalled();
+      expect(careReceiversRepo.update).toHaveBeenCalledWith('cr-1', dto.care_receiver, expect.anything());
+      expect(jobsRepo.update).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          city: 'bangalore',
+          area: 'Koramangala',
+          duty_type: 'day_duty',
+          start_time: '08:00',
+          end_time: '20:00',
+          status: undefined,
+        }),
+        expect.anything(),
+      );
+      expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'admin-1', action: 'job_updated', entityId: 'job-1' }),
+      );
+      expect(result.area).toBe('Koramangala');
+    });
+
+    it('reposts (reopens + re-broadcasts) a closed job on edit', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'closed' });
+      jobsRepo.update.mockResolvedValue({ ...job, status: 'active', duty_type: 'day_duty', area: 'Koramangala' });
+
+      await service.updateJob('admin-1', 'job-1', dto, null);
+
+      expect(jobsRepo.update).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ status: 'active' }),
+        expect.anything(),
+      );
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
+        'New Job: Day Duty in Bangalore',
+        'Koramangala, Bangalore | IMMEDIATELY APPLY',
       );
     });
   });

@@ -164,6 +164,7 @@ export const AuditAction = {
   ADMIN_ROLE_CHANGED: 'admin_role_changed',
   ADMIN_ACTIVATED: 'admin_activated',
   JOB_REMINDER_SENT: 'job_reminder_sent',
+  JOB_UPDATED: 'job_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
