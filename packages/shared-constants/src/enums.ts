@@ -68,7 +68,6 @@ export const Communication = {
   VERBAL: 'verbal',
   DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
   SIGN_LANGUAGE: 'sign_language',
-  OTHER_NON_VERBAL: 'other_non_verbal',
 } as const;
 export type Communication = (typeof Communication)[keyof typeof Communication];
 

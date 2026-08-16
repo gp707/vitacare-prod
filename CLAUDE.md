@@ -153,7 +153,10 @@ Exactly 3 fixed shifts — no "other", and no separately admin-entered start/end
 walks_independently, walks_with_assistance, uses_walker, uses_wheelchair, bedridden
 
 ### Communication
-verbal, difficulty_communicating, sign_language, other_non_verbal
+Exactly 3 options (`other_non_verbal` dropped):
+- `verbal` — "Can Speak/Communicate"
+- `difficulty_communicating` — "Can NOT Speak"
+- `sign_language` — "Communicate via Sign Languages"
 
 ### Feeding Type
 oral_independent, oral_needs_assistance, tube_feeding, oral_and_tube

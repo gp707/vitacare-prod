@@ -240,6 +240,22 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
+    it('rejects "other_non_verbal" as a communication value — dropped, only 3 options remain (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, communication: 'other_non_verbal' },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} communication validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
     it('requires vital_monitoring_types when requires_vital_monitoring is true (GEN_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')

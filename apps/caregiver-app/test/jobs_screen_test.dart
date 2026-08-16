@@ -102,7 +102,7 @@ void main() {
     expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
     expect(find.text('60 kg'), findsOneWidget);
     expect(find.text('Uses wheelchair'), findsOneWidget);
-    expect(find.text('Speaks / communicates verbally'), findsOneWidget);
+    expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
 
     // About Patient Condition

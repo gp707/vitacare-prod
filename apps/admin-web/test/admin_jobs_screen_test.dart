@@ -215,7 +215,7 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   await _selectDropdown(tester, 'Mobility', 'Walks independently');
-  await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
+  await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
   await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
   await _selectDropdown(tester, 'Toilet Assistance', 'None');
 }
@@ -368,7 +368,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _selectDropdown(tester, 'Mobility', 'Walks independently');
-    await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
+    await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
     await _selectDropdown(tester, 'Toilet Assistance', 'None');
     await _fillSalary(tester);

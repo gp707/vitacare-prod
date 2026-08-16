@@ -131,15 +131,13 @@ class Communication {
   static const verbal = 'verbal';
   static const difficultyCommunicating = 'difficulty_communicating';
   static const signLanguage = 'sign_language';
-  static const otherNonVerbal = 'other_non_verbal';
 
-  static const all = [verbal, difficultyCommunicating, signLanguage, otherNonVerbal];
+  static const all = [verbal, difficultyCommunicating, signLanguage];
 
   static const displayNames = {
-    verbal: 'Speaks / communicates verbally',
-    difficultyCommunicating: 'Has difficulty communicating',
-    signLanguage: 'Sign language',
-    otherNonVerbal: 'Other / non-verbal communication',
+    verbal: 'Can Speak/Communicate',
+    difficultyCommunicating: 'Can NOT Speak',
+    signLanguage: 'Communicate via Sign Languages',
   };
 }
 

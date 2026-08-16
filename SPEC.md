@@ -390,7 +390,6 @@ export const Communication = {
   VERBAL: 'verbal',
   DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
   SIGN_LANGUAGE: 'sign_language',
-  OTHER_NON_VERBAL: 'other_non_verbal',
 } as const;
 
 export const FeedingType = {
@@ -608,9 +607,8 @@ class Communication {
   static const verbal = 'verbal';
   static const difficultyCommunicating = 'difficulty_communicating';
   static const signLanguage = 'sign_language';
-  static const otherNonVerbal = 'other_non_verbal';
 
-  static const all = [verbal, difficultyCommunicating, signLanguage, otherNonVerbal];
+  static const all = [verbal, difficultyCommunicating, signLanguage];
 }
 
 class FeedingType {
@@ -1062,8 +1060,8 @@ CREATE TABLE care_receivers (
     'walks_independently', 'walks_with_assistance', 'uses_walker', 'uses_wheelchair', 'bedridden'
   )),
   communication VARCHAR(30) NOT NULL CHECK (communication IN (
-    'verbal', 'difficulty_communicating', 'sign_language', 'other_non_verbal'
-  )),
+    'verbal', 'difficulty_communicating', 'sign_language'
+  )),  -- "Can Speak/Communicate" / "Can NOT Speak" / "Communicate via Sign Languages"
   feeding_type VARCHAR(30) NOT NULL CHECK (feeding_type IN (
     'oral_independent', 'oral_needs_assistance', 'tube_feeding', 'oral_and_tube'
   )),
