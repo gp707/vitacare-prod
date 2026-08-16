@@ -132,6 +132,22 @@ Color _urgencyColor(int daysLeft) {
   return AppColors.success;
 }
 
+String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+    );
+  }
+}
+
 class _JobCard extends StatelessWidget {
   final JobModel job;
   final bool isApplying;
@@ -217,13 +233,59 @@ class _JobCard extends StatelessWidget {
             'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
+          if (job.careReceiver != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            const _SectionLabel('About Patient'),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              children: [
+                _Tag('${job.careReceiver!.age} yrs'),
+                _Tag(_capitalize(job.careReceiver!.gender)),
+                _Tag('${job.careReceiver!.weightKg} kg'),
+                _Tag(Mobility.displayNames[job.careReceiver!.mobility] ?? job.careReceiver!.mobility),
+                _Tag(Communication.displayNames[job.careReceiver!.communication] ??
+                    job.careReceiver!.communication),
+                _Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ??
+                    job.careReceiver!.feedingType),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _SectionLabel('About Patient Condition'),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              children: [
+                for (final m in job.careReceiver!.medicalAssistance)
+                  _Tag(MedicalAssistance.displayNames[m] ?? m),
+                _Tag('Toilet: ${ToiletAssistance.displayNames[job.careReceiver!.toiletAssistance] ?? job.careReceiver!.toiletAssistance}'),
+                if (job.careReceiver!.hasMedicalCondition)
+                  for (final c in job.careReceiver!.medicalConditions)
+                    _Tag(MedicalCondition.displayNames[c] ?? c),
+                if (job.careReceiver!.requiresVitalMonitoring)
+                  for (final v in job.careReceiver!.vitalMonitoringTypes)
+                    _Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+              ],
+            ),
+            if (job.careReceiver!.medicalInfo != null && job.careReceiver!.medicalInfo!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                job.careReceiver!.medicalInfo!,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ],
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
+          const _SectionLabel('About Nurse/Caregiver Requirement'),
+          const SizedBox(height: AppSpacing.xs),
           Wrap(
             children: [
+              _Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
               if (job.area != null && job.area!.isNotEmpty) _Tag(job.area!),
               for (final lang in job.languages) _Tag(Language.displayNames[lang] ?? lang),
-              if (job.preferredGender != null)
-                _Tag(job.preferredGender![0].toUpperCase() + job.preferredGender!.substring(1)),
+              if (job.preferredGender != null) _Tag(_capitalize(job.preferredGender!)),
               if (job.preferredReligion != null)
                 _Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
             ],

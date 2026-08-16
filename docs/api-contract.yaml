@@ -1651,6 +1651,17 @@ paths:
                               type: string
                               nullable: true
                               enum: [applied, rejected, accepted, null]
+                            care_receiver:
+                              allOf:
+                                - $ref: "#/components/schemas/CareReceiver"
+                              description: >
+                                Always present (joined via care_receiver_id,
+                                which is NOT NULL). Unlike GET /admin/jobs
+                                (the admin list, summary rows only), the
+                                caregiver list always includes the full
+                                care_receiver so About Patient / About
+                                Patient Condition details are visible
+                                directly on the jobs list.
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
         "401":

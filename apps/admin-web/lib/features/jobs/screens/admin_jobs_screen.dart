@@ -541,6 +541,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   value: _tubeFeedingNeedsAssistance ?? false,
                   onChanged: (value) => setState(() => _tubeFeedingNeedsAssistance = value),
                 ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text('About Patient Condition', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               const Text('Medical Assistance Required', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpacing.xs),
@@ -577,8 +579,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       const InputDecoration(labelText: 'Important information for the caregiver'),
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              const Text('Toilet Assistance', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.sm),
+              const Text('Toilet Assistance', style: TextStyle(fontWeight: FontWeight.w600)),
               const Text(
                 'What assistance is required? Select the one which applies.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
@@ -593,8 +595,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                     .toList(),
                 onChanged: (value) => setState(() => _toiletAssistance = value),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              const Text('Vital Monitoring', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -616,7 +616,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
-              const Text('Duty', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: _salaryController,
@@ -643,7 +643,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.sm),
               const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpacing.xs),
               VitaMultiSelectChips(

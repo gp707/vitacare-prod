@@ -2256,11 +2256,19 @@ there's no separate in-app caregiver "accept offer" step.
 
 #### GET `/caregiver/jobs`
 
-List active job postings for caregiver to view and apply. The caregiver-app
-shows `job_number` ("Job #<n>") and `salary_monthly` highlighted at the top
-of each card, plus a 3-day apply-by urgency message computed client-side
-from `posted_at` (`posted_at + 3 days`, shown as days remaining — purely
-informational, never blocks applying).
+List active job postings for caregiver to view and apply. Each item
+includes the full `care_receiver` (joined via `care_receiver_id`, not just
+on `GET /admin/jobs/:id`) — the caregiver-app renders it under the same
+three section labels as the admin form: **About Patient** (age, gender,
+weight, mobility, communication, feeding), **About Patient Condition**
+(medical assistance, medical condition(s) + info, toilet assistance, vital
+monitoring), and **About Nurse/Caregiver Requirement** (duty type, area,
+language/gender/religion preferences) — so every detail admin entered is
+visible directly on the jobs list, no separate detail screen. The
+caregiver-app also shows `job_number` ("Job #<n>") and `salary_monthly`
+highlighted at the top of each card, plus a 3-day apply-by urgency message
+computed client-side from `posted_at` (`posted_at + 3 days`, shown as days
+remaining — purely informational, never blocks applying).
 
 **Response (200):**
 ```json
@@ -2280,7 +2288,23 @@ informational, never blocks applying).
       "preferred_religion": "hindu",
       "posted_at": "2026-08-03T10:00:00Z",
       "created_at": "2026-08-03T10:00:00Z",
-      "my_application_status": null
+      "my_application_status": null,
+      "care_receiver": {
+        "id": "uuid",
+        "age": 72,
+        "gender": "female",
+        "weight_kg": 58,
+        "mobility": "walks_with_assistance",
+        "communication": "verbal",
+        "feeding_type": "oral_needs_assistance",
+        "medical_assistance": ["medication_reminders"],
+        "has_medical_condition": true,
+        "medical_conditions": ["diabetes"],
+        "medical_info": "Needs help twice daily, post hip surgery",
+        "toilet_assistance": "uses_diapers",
+        "requires_vital_monitoring": true,
+        "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
+      }
     }
   ]
 }
@@ -2289,6 +2313,7 @@ informational, never blocks applying).
 **Notes:**
 - `my_application_status` is `null` if the caregiver hasn't applied yet, or `"applied"` / `"rejected"` / `"accepted"`.
 - Viewable at any verification status — browsing motivates onboarding. Only applying is gated.
+- `care_receiver` is always present (every job has exactly one, `care_receiver_id` is `NOT NULL`) — unlike on `GET /admin/jobs` (list), which does NOT join it, matching the admin list view's summary-row style; admin gets full details via `GET /admin/jobs/:id` or the Edit dialog.
 
 ---
 

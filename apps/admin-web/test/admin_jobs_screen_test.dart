@@ -282,6 +282,8 @@ void main() {
 
     expect(find.text('Post New Job'), findsWidgets); // button label + dialog title
     expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('About Patient Condition'), findsOneWidget);
+    expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
 
     await _fillAboutPatientRequiredFields(tester);
     await _fillSalary(tester);

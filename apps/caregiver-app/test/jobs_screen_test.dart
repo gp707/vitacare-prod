@@ -24,6 +24,22 @@ JobModel _job({String? myApplicationStatus, String? postedAt}) {
     'posted_at': postedAt ?? DateTime.now().toUtc().toIso8601String(),
     'created_at': '2026-08-01T10:00:00Z',
     'my_application_status': myApplicationStatus,
+    'care_receiver': {
+      'id': 'cr-1',
+      'age': 78,
+      'gender': 'female',
+      'weight_kg': 60,
+      'mobility': 'uses_wheelchair',
+      'communication': 'verbal',
+      'feeding_type': 'oral_needs_assistance',
+      'medical_assistance': ['medication_reminders'],
+      'has_medical_condition': true,
+      'medical_conditions': ['diabetes'],
+      'medical_info': 'Needs help twice daily',
+      'toilet_assistance': 'uses_diapers',
+      'requires_vital_monitoring': true,
+      'vital_monitoring_types': ['blood_pressure', 'blood_sugar'],
+    },
   });
 }
 
@@ -65,6 +81,43 @@ void main() {
     expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
     expect(find.text('Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
+  });
+
+  testWidgets(
+      'groups patient identity, patient condition, and caregiver requirement details into clearly labeled sections',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // About Patient
+    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('78 yrs'), findsOneWidget);
+    expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
+    expect(find.text('60 kg'), findsOneWidget);
+    expect(find.text('Uses wheelchair'), findsOneWidget);
+    expect(find.text('Speaks / communicates verbally'), findsOneWidget);
+    expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
+
+    // About Patient Condition
+    expect(find.text('About Patient Condition'), findsOneWidget);
+    expect(find.text('Medication reminders'), findsOneWidget);
+    expect(find.text('Toilet: Uses diapers'), findsOneWidget);
+    expect(find.text('Diabetes'), findsOneWidget);
+    expect(find.text('Monitor: Blood pressure'), findsOneWidget);
+    expect(find.text('Monitor: Blood sugar'), findsOneWidget);
+    expect(find.text('Needs help twice daily'), findsOneWidget);
+
+    // About Nurse/Caregiver Requirement
+    expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
+    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    expect(find.text('Hindi'), findsOneWidget);
   });
 
   testWidgets('shows the job number and salary highlighted at the top', (tester) async {

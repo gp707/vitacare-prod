@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { City, DutyType, JobStatus, Language } from '@vitacare/shared-constants';
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
+import { CareReceiverRecord } from './care-receivers.repository';
 
 export interface JobRecord {
   id: string;
@@ -30,6 +31,10 @@ export interface JobRecord {
 
 export interface JobWithMyApplication extends JobRecord {
   my_application_status: string | null;
+  /** Full care-needs description, joined in so caregiver-app can show
+   *  About Patient / About Patient Condition details on the jobs list
+   *  itself, without a second per-job request. */
+  care_receiver: CareReceiverRecord;
 }
 
 export interface CreateJobInput {
@@ -149,8 +154,10 @@ export class JobsRepository {
   }
 
   /** Active jobs only, with the caregiver's own application status (if any)
-   *  attached — lets the caregiver-app show "already applied" state without
-   *  a second round trip. */
+   *  and the full care_receiver joined in — lets the caregiver-app show
+   *  "already applied" state and the About Patient / About Patient
+   *  Condition details directly on the jobs list, without a second
+   *  round trip per job. */
   async listActiveForCaregiver(
     profileId: string,
     page: ListPage,
@@ -158,8 +165,9 @@ export class JobsRepository {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobWithMyApplication>(
-        `SELECT j.*, ja.status AS my_application_status
+        `SELECT j.*, to_jsonb(cr) AS care_receiver, ja.status AS my_application_status
          FROM jobs j
+         JOIN care_receivers cr ON cr.id = j.care_receiver_id
          LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1
          WHERE j.status = 'active'
          ORDER BY j.created_at DESC

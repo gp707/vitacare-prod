@@ -697,6 +697,31 @@ describe('Jobs (e2e)', () => {
         res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_application_status,
       ).toBeNull();
     });
+
+    it('includes the full care_receiver (About Patient / Condition details) on every job, not just admin detail', async () => {
+      const caregiver = await registerCaregiver('0022');
+      const job = await createJob({
+        care_receiver: {
+          age: 81,
+          mobility: 'uses_wheelchair',
+          toilet_assistance: 'uses_catheter',
+          requires_vital_monitoring: true,
+          vital_monitoring_types: ['blood_pressure'],
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const listed = res.body.data.find((j: { id: string }) => j.id === job.id);
+      expect(listed.care_receiver).toBeDefined();
+      expect(listed.care_receiver.age).toBe(81);
+      expect(listed.care_receiver.mobility).toBe('uses_wheelchair');
+      expect(listed.care_receiver.toilet_assistance).toBe('uses_catheter');
+      expect(listed.care_receiver.requires_vital_monitoring).toBe(true);
+      expect(listed.care_receiver.vital_monitoring_types).toEqual(['blood_pressure']);
+    });
   });
 
   describe('POST /v1/caregiver/jobs/:id/apply', () => {
