@@ -134,6 +134,33 @@ Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
   await tester.pumpAndSettle();
 }
 
+const _descriptionLabel =
+    'More details you want to share about patient or requirement which can help caregiver to decide';
+
+/// Fills every required field up through (and including) Toilet Assistance —
+/// i.e. everything needed before Duty/Language/Description — so individual
+/// tests can pick up from there.
+Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
+  await _selectDropdown(tester, 'City', 'Bangalore');
+
+  final age = find.widgetWithText(TextField, "Patient's Age");
+  await tester.ensureVisible(age);
+  await tester.enterText(age, '72');
+  await tester.pumpAndSettle();
+
+  await _selectDropdown(tester, "Patient's Gender", 'Female');
+
+  final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+  await tester.ensureVisible(weight);
+  await tester.enterText(weight, '58');
+  await tester.pumpAndSettle();
+
+  await _selectDropdown(tester, 'Mobility', 'Walks independently');
+  await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
+  await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
+  await _selectDropdown(tester, 'Toilet Assistance', 'None');
+}
+
 void main() {
   testWidgets('lists posted jobs with duty type, city, and status', (tester) async {
     final repo = _FakeAdminJobsRepository([_job()]);
@@ -186,15 +213,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Post New Job'), findsWidgets); // button label + dialog title
+    expect(find.text('About Patient'), findsOneWidget);
 
-    await _selectDropdown(tester, 'City', 'Bangalore');
-    await _selectDropdown(tester, 'Mobility', 'Walks independently');
-    await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
-    await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
+    await _fillAboutPatientRequiredFields(tester);
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
 
-    final description = find.widgetWithText(TextField, 'Description');
+    final description = find.widgetWithText(TextField, _descriptionLabel);
     await tester.ensureVisible(description);
     await tester.enterText(description, 'Need a caregiver urgently');
     await tester.pumpAndSettle();
@@ -207,6 +232,40 @@ void main() {
     expect(repo.createCalled, isTrue);
   });
 
+  testWidgets('vital monitoring toggle reveals a required multi-select that blocks submit until answered',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _fillAboutPatientRequiredFields(tester);
+    await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButtonBefore = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
+    expect(postButtonBefore.onPressed, isNotNull, reason: 'vitals off — required fields already satisfied');
+
+    final vitalsSwitch = find.text('Is regular vital monitoring required?');
+    await tester.ensureVisible(vitalsSwitch);
+    await tester.tap(vitalsSwitch);
+    await tester.pumpAndSettle();
+
+    final postButtonVitalsOn = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
+    expect(postButtonVitalsOn.onPressed, isNull, reason: 'vitals on but no monitoring type selected yet');
+
+    await _tapChip(tester, 'Blood pressure');
+
+    final postButtonAfter = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
+    expect(postButtonAfter.onPressed, isNotNull);
+  });
+
   testWidgets('tube feeding reveals a required assistance checkbox that blocks submit until answered',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -216,13 +275,27 @@ void main() {
     await tester.pumpAndSettle();
 
     await _selectDropdown(tester, 'City', 'Bangalore');
+
+    final age = find.widgetWithText(TextField, "Patient's Age");
+    await tester.ensureVisible(age);
+    await tester.enterText(age, '72');
+    await tester.pumpAndSettle();
+
+    await _selectDropdown(tester, "Patient's Gender", 'Female');
+
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    await tester.ensureVisible(weight);
+    await tester.enterText(weight, '58');
+    await tester.pumpAndSettle();
+
     await _selectDropdown(tester, 'Mobility', 'Walks independently');
     await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
+    await _selectDropdown(tester, 'Toilet Assistance', 'None');
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
 
-    final description = find.widgetWithText(TextField, 'Description');
+    final description = find.widgetWithText(TextField, _descriptionLabel);
     await tester.ensureVisible(description);
     await tester.enterText(description, 'Need a caregiver urgently');
     await tester.pumpAndSettle();

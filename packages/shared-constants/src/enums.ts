@@ -104,6 +104,25 @@ export const MedicalCondition = {
 } as const;
 export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];
 
+export const ToiletAssistance = {
+  USES_DIAPERS: 'uses_diapers',
+  USES_BED_PAN: 'uses_bed_pan',
+  USES_CATHETER: 'uses_catheter',
+  COMPLETE_ASSISTANCE: 'complete_toileting_assistance',
+  NONE: 'none',
+} as const;
+export type ToiletAssistance = (typeof ToiletAssistance)[keyof typeof ToiletAssistance];
+
+export const VitalMonitoringType = {
+  BLOOD_PRESSURE: 'blood_pressure',
+  BLOOD_SUGAR: 'blood_sugar',
+  OXYGEN_SPO2: 'oxygen_spo2',
+  TEMPERATURE: 'temperature',
+  PULSE: 'pulse',
+  OTHER: 'other',
+} as const;
+export type VitalMonitoringType = (typeof VitalMonitoringType)[keyof typeof VitalMonitoringType];
+
 export const City = {
   BANGALORE: 'bangalore',
   MUMBAI: 'mumbai',

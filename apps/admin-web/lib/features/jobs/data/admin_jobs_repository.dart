@@ -3,6 +3,9 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import '../../../core/network/api_exception.dart';
 
 class CareReceiverInput {
+  final int age;
+  final String gender;
+  final int weightKg;
   final String mobility;
   final String communication;
   final String feedingType;
@@ -11,8 +14,14 @@ class CareReceiverInput {
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
   final String? medicalInfo;
+  final String toiletAssistance;
+  final bool requiresVitalMonitoring;
+  final List<String>? vitalMonitoringTypes;
 
   const CareReceiverInput({
+    required this.age,
+    required this.gender,
+    required this.weightKg,
     required this.mobility,
     required this.communication,
     required this.feedingType,
@@ -21,9 +30,15 @@ class CareReceiverInput {
     required this.hasMedicalCondition,
     this.medicalConditions,
     this.medicalInfo,
+    required this.toiletAssistance,
+    required this.requiresVitalMonitoring,
+    this.vitalMonitoringTypes,
   });
 
   Map<String, dynamic> toJson() => {
+        'age': age,
+        'gender': gender,
+        'weight_kg': weightKg,
         'mobility': mobility,
         'communication': communication,
         'feeding_type': feedingType,
@@ -33,6 +48,9 @@ class CareReceiverInput {
         'has_medical_condition': hasMedicalCondition,
         if (medicalConditions != null) 'medical_conditions': medicalConditions,
         if (medicalInfo != null && medicalInfo!.isNotEmpty) 'medical_info': medicalInfo,
+        'toilet_assistance': toiletAssistance,
+        'requires_vital_monitoring': requiresVitalMonitoring,
+        if (vitalMonitoringTypes != null) 'vital_monitoring_types': vitalMonitoringTypes,
       };
 }
 

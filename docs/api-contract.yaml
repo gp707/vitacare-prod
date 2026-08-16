@@ -153,6 +153,15 @@ components:
       type: string
       enum: [applied, rejected, accepted]
 
+    ToiletAssistance:
+      type: string
+      description: Single-select — "what assistance is required, select the one which applies."
+      enum: [uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, none]
+
+    VitalMonitoringType:
+      type: string
+      enum: [blood_pressure, blood_sugar, oxygen_spo2, temperature, pulse, other]
+
     City:
       type: string
       enum: [bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon]
@@ -182,11 +191,24 @@ components:
 
     CareReceiver:
       type: object
-      description: 1:1 with a job, created together with it — not an independently reusable/searchable entity yet.
+      description: >
+        1:1 with a job, created together with it — not an independently
+        reusable/searchable entity yet. Labeled "About Patient" in the
+        admin-web UI (underlying table/schema name unchanged).
       properties:
         id:
           type: string
           format: uuid
+        age:
+          type: integer
+          minimum: 1
+          maximum: 120
+        gender:
+          $ref: "#/components/schemas/Gender"
+        weight_kg:
+          type: integer
+          minimum: 1
+          maximum: 300
         mobility:
           $ref: "#/components/schemas/Mobility"
         communication:
@@ -210,8 +232,20 @@ components:
         medical_info:
           type: string
           nullable: true
+        toilet_assistance:
+          $ref: "#/components/schemas/ToiletAssistance"
+        requires_vital_monitoring:
+          type: boolean
+        vital_monitoring_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/VitalMonitoringType"
+          description: Only populated when requires_vital_monitoring is true.
       example:
         id: "d3e4f5a6-b7c8-9012-def0-345678901234"
+        age: 72
+        gender: "female"
+        weight_kg: 58
         mobility: "walks_with_assistance"
         communication: "verbal"
         feeding_type: "oral_needs_assistance"
@@ -220,6 +254,9 @@ components:
         has_medical_condition: true
         medical_conditions: ["diabetes"]
         medical_info: "Needs help twice daily, post hip surgery"
+        toilet_assistance: "uses_diapers"
+        requires_vital_monitoring: true
+        vital_monitoring_types: ["blood_pressure", "blood_sugar"]
 
     Job:
       type: object
@@ -3145,8 +3182,31 @@ paths:
               properties:
                 care_receiver:
                   type: object
-                  required: [mobility, communication, feeding_type, medical_assistance, has_medical_condition]
+                  description: 'Labeled "About Patient" in the admin-web UI.'
+                  required:
+                    [
+                      age,
+                      gender,
+                      weight_kg,
+                      mobility,
+                      communication,
+                      feeding_type,
+                      medical_assistance,
+                      has_medical_condition,
+                      toilet_assistance,
+                      requires_vital_monitoring,
+                    ]
                   properties:
+                    age:
+                      type: integer
+                      minimum: 1
+                      maximum: 120
+                    gender:
+                      $ref: "#/components/schemas/Gender"
+                    weight_kg:
+                      type: integer
+                      minimum: 1
+                      maximum: 300
                     mobility:
                       $ref: "#/components/schemas/Mobility"
                     communication:
@@ -3170,6 +3230,15 @@ paths:
                     medical_info:
                       type: string
                       description: "Free text — important information for the caregiver."
+                    toilet_assistance:
+                      $ref: "#/components/schemas/ToiletAssistance"
+                    requires_vital_monitoring:
+                      type: boolean
+                    vital_monitoring_types:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/VitalMonitoringType"
+                      description: "Required non-empty if requires_vital_monitoring is true; not validated otherwise."
                 city:
                   $ref: "#/components/schemas/City"
                 area:
@@ -3177,6 +3246,9 @@ paths:
                   description: "Free text, optional."
                 description:
                   type: string
+                  description: >
+                    UI label: "More details you want to share about patient
+                    or requirement which can help caregiver to decide."
                 duty_type:
                   $ref: "#/components/schemas/DutyType"
                   description: >
@@ -3206,6 +3278,9 @@ paths:
                     preference).
             example:
               care_receiver:
+                age: 72
+                gender: "female"
+                weight_kg: 58
                 mobility: "walks_with_assistance"
                 communication: "verbal"
                 feeding_type: "oral_needs_assistance"
@@ -3213,6 +3288,9 @@ paths:
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
                 medical_info: "Needs help twice daily, post hip surgery"
+                toilet_assistance: "uses_diapers"
+                requires_vital_monitoring: true
+                vital_monitoring_types: ["blood_pressure", "blood_sugar"]
               city: "bangalore"
               area: "Indiranagar"
               description: "Elderly patient, 72 years, post hip surgery."

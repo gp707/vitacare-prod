@@ -94,9 +94,12 @@ job postings are no longer built around a "work type" category; see
 
 ```
 ┌──────────────────────┐
-│    care_receivers    │
+│    care_receivers    │  ◄── "About Patient" in admin-web UI
 │──────────────────────│
 │ id (PK)              │
+│ age                  │
+│ gender               │
+│ weight_kg            │
 │ mobility             │
 │ communication        │
 │ feeding_type         │
@@ -106,6 +109,11 @@ job postings are no longer built around a "work type" category; see
 │ has_medical_condition│
 │ medical_conditions   │  ◄── JSONB array
 │ medical_info         │
+│ toilet_assistance    │  ◄── single-select
+│ requires_vital_      │
+│   monitoring         │
+│ vital_monitoring_    │  ◄── JSONB array
+│   types              │
 │ created_at           │
 │ updated_at           │
 └──────────┬───────────┘
@@ -189,7 +197,7 @@ application reopens the job and returns the caregiver to `available`.
 | **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
-| **care_receivers** | Care-needs description (mobility, communication, feeding, medical assistance/conditions) for the person a job is posted for. 1:1 with a job; no patient PII yet — a future "Patient" app is expected to eventually supply real care-receiver identity data. |
+| **care_receivers** | "About Patient" in the admin-web UI. Care-needs description (age, gender, weight, mobility, communication, feeding, toilet assistance, medical assistance/conditions, vital monitoring) for the person a job is posted for. 1:1 with a job; no full patient PII/identity record yet — a future "Patient" app is expected to eventually supply that. |
 | **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). |
 | **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
 | **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. |

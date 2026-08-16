@@ -5,10 +5,13 @@ import {
   IsBoolean,
   IsDateString,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -23,9 +26,24 @@ import {
   MedicalCondition,
   Mobility,
   Religion,
+  ToiletAssistance,
+  VitalMonitoringType,
 } from '@vitacare/shared-constants';
 
 export class CareReceiverDto {
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(120, { message: 'GEN_001' })
+  age!: number;
+
+  @IsIn(Object.values(Gender), { message: 'GEN_001' })
+  gender!: Gender;
+
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(300, { message: 'GEN_001' })
+  weight_kg!: number;
+
   @IsIn(Object.values(Mobility), { message: 'GEN_001' })
   mobility!: Mobility;
 
@@ -60,6 +78,18 @@ export class CareReceiverDto {
   @IsOptional()
   @IsString()
   medical_info?: string;
+
+  @IsIn(Object.values(ToiletAssistance), { message: 'GEN_001' })
+  toilet_assistance!: ToiletAssistance;
+
+  @IsBoolean({ message: 'GEN_001' })
+  requires_vital_monitoring!: boolean;
+
+  @ValidateIf((o: CareReceiverDto) => o.requires_vital_monitoring)
+  @IsArray({ message: 'GEN_001' })
+  @ArrayNotEmpty({ message: 'GEN_001' })
+  @IsIn(Object.values(VitalMonitoringType), { each: true, message: 'GEN_001' })
+  vital_monitoring_types?: VitalMonitoringType[];
 }
 
 export class CreateJobDto {

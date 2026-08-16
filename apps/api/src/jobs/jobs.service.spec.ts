@@ -14,6 +14,9 @@ describe('JobsService', () => {
 
   const careReceiver = {
     id: 'cr-1',
+    age: 72,
+    gender: 'female',
+    weight_kg: 58,
     mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
@@ -22,6 +25,9 @@ describe('JobsService', () => {
     has_medical_condition: false,
     medical_conditions: [],
     medical_info: null,
+    toilet_assistance: 'none',
+    requires_vital_monitoring: false,
+    vital_monitoring_types: [],
   };
 
   const job = {
@@ -82,11 +88,16 @@ describe('JobsService', () => {
   describe('createJob', () => {
     const dto = {
       care_receiver: {
+        age: 72 as any,
+        gender: 'female' as any,
+        weight_kg: 58 as any,
         mobility: 'walks_independently' as any,
         communication: 'verbal' as any,
         feeding_type: 'oral_independent' as any,
         medical_assistance: [] as any,
         has_medical_condition: false,
+        toilet_assistance: 'none' as any,
+        requires_vital_monitoring: false,
       },
       city: 'bangalore' as any,
       area: 'Indiranagar',

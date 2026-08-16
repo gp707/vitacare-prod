@@ -66,11 +66,16 @@ describe('Jobs (e2e)', () => {
   }
 
   const defaultCareReceiver = {
+    age: 72,
+    gender: 'female',
+    weight_kg: 58,
     mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
     medical_assistance: [],
     has_medical_condition: false,
+    toilet_assistance: 'none',
+    requires_vital_monitoring: false,
   };
 
   async function createJob(overrides: Record<string, unknown> = {}) {
@@ -160,6 +165,72 @@ describe('Jobs (e2e)', () => {
         job.care_receiver_id,
       ]);
       expect(careReceiver.rows[0].mobility).toBe('walks_independently');
+      expect(careReceiver.rows[0].age).toBe(72);
+      expect(careReceiver.rows[0].gender).toBe('female');
+      expect(careReceiver.rows[0].weight_kg).toBe(58);
+      expect(careReceiver.rows[0].toilet_assistance).toBe('none');
+      expect(careReceiver.rows[0].requires_vital_monitoring).toBe(false);
+      expect(careReceiver.rows[0].vital_monitoring_types).toEqual([]);
+    });
+
+    it('rejects an out-of-range age (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, age: 0 },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} age validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects an invalid toilet_assistance value (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, toilet_assistance: 'not_a_real_value' },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} toilet assistance validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('requires vital_monitoring_types when requires_vital_monitoring is true (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, requires_vital_monitoring: true },
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} vital monitoring validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('accepts vital monitoring types when requires_vital_monitoring is true', async () => {
+      const job = await createJob({
+        care_receiver: {
+          requires_vital_monitoring: true,
+          vital_monitoring_types: ['blood_pressure', 'oxygen_spo2'],
+        },
+      });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver.requires_vital_monitoring).toBe(true);
+      expect(detail.body.data.care_receiver.vital_monitoring_types).toEqual(['blood_pressure', 'oxygen_spo2']);
     });
 
     it('derives start/end time from duty_type and stores languages as an array', async () => {

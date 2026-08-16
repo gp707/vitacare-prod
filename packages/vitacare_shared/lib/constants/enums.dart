@@ -225,6 +225,44 @@ class MedicalCondition {
   };
 }
 
+class ToiletAssistance {
+  static const usesDiapers = 'uses_diapers';
+  static const usesBedPan = 'uses_bed_pan';
+  static const usesCatheter = 'uses_catheter';
+  static const completeAssistance = 'complete_toileting_assistance';
+  static const none = 'none';
+
+  static const all = [usesDiapers, usesBedPan, usesCatheter, completeAssistance, none];
+
+  static const displayNames = {
+    usesDiapers: 'Uses diapers',
+    usesBedPan: 'Uses bed pan',
+    usesCatheter: 'Uses catheter',
+    completeAssistance: 'Complete toileting assistance',
+    none: 'None',
+  };
+}
+
+class VitalMonitoringType {
+  static const bloodPressure = 'blood_pressure';
+  static const bloodSugar = 'blood_sugar';
+  static const oxygenSpo2 = 'oxygen_spo2';
+  static const temperature = 'temperature';
+  static const pulse = 'pulse';
+  static const other = 'other';
+
+  static const all = [bloodPressure, bloodSugar, oxygenSpo2, temperature, pulse, other];
+
+  static const displayNames = {
+    bloodPressure: 'Blood pressure',
+    bloodSugar: 'Blood sugar',
+    oxygenSpo2: 'Oxygen / SpO₂',
+    temperature: 'Temperature',
+    pulse: 'Pulse',
+    other: 'Other',
+  };
+}
+
 class City {
   static const bangalore = 'bangalore';
   static const mumbai = 'mumbai';

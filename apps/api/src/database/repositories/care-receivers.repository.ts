@@ -1,10 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { Communication, FeedingType, MedicalAssistance, MedicalCondition, Mobility } from '@vitacare/shared-constants';
+import {
+  Communication,
+  FeedingType,
+  Gender,
+  MedicalAssistance,
+  MedicalCondition,
+  Mobility,
+  ToiletAssistance,
+  VitalMonitoringType,
+} from '@vitacare/shared-constants';
 import { DatabaseService, QueryRunner } from '../database.service';
 
 export interface CareReceiverRecord {
   id: string;
+  age: number;
+  gender: Gender;
+  weight_kg: number;
   mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
@@ -13,11 +25,17 @@ export interface CareReceiverRecord {
   has_medical_condition: boolean;
   medical_conditions: MedicalCondition[];
   medical_info: string | null;
+  toilet_assistance: ToiletAssistance;
+  requires_vital_monitoring: boolean;
+  vital_monitoring_types: VitalMonitoringType[];
   created_at: Date;
   updated_at: Date;
 }
 
 export interface CreateCareReceiverInput {
+  age: number;
+  gender: Gender;
+  weight_kg: number;
   mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
@@ -26,6 +44,9 @@ export interface CreateCareReceiverInput {
   has_medical_condition: boolean;
   medical_conditions?: MedicalCondition[];
   medical_info?: string | null;
+  toilet_assistance: ToiletAssistance;
+  requires_vital_monitoring: boolean;
+  vital_monitoring_types?: VitalMonitoringType[];
 }
 
 @Injectable()
@@ -36,11 +57,15 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `INSERT INTO care_receivers
-         (mobility, communication, feeding_type, tube_feeding_needs_assistance,
-          medical_assistance, has_medical_condition, medical_conditions, medical_info)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (age, gender, weight_kg, mobility, communication, feeding_type, tube_feeding_needs_assistance,
+          medical_assistance, has_medical_condition, medical_conditions, medical_info,
+          toilet_assistance, requires_vital_monitoring, vital_monitoring_types)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
+        input.age,
+        input.gender,
+        input.weight_kg,
         input.mobility,
         input.communication,
         input.feeding_type,
@@ -49,6 +74,9 @@ export class CareReceiversRepository {
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
         input.medical_info ?? null,
+        input.toilet_assistance,
+        input.requires_vital_monitoring,
+        JSON.stringify(input.vital_monitoring_types ?? []),
       ],
     );
     return result.rows[0];

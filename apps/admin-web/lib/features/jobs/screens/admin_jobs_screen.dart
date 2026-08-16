@@ -210,11 +210,14 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
   final _descriptionController = TextEditingController();
   final _areaController = TextEditingController();
   final _medicalInfoController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _weightController = TextEditingController();
 
   // Job Location
   String? _city;
 
-  // Care Receiver
+  // About Patient
+  String? _gender;
   String? _mobility;
   String? _communication;
   String? _feedingType;
@@ -222,6 +225,9 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
   List<String> _medicalAssistance = [];
   bool _hasMedicalCondition = false;
   List<String> _medicalConditions = [];
+  String? _toiletAssistance;
+  bool _requiresVitalMonitoring = false;
+  List<String> _vitalMonitoringTypes = [];
 
   // Duty
   String? _dutyType;
@@ -239,20 +245,34 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
     _descriptionController.dispose();
     _areaController.dispose();
     _medicalInfoController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
   bool get _needsTubeFeedingAnswer =>
       _feedingType == FeedingType.tubeFeeding || _feedingType == FeedingType.oralAndTube;
 
+  int? get _age => int.tryParse(_ageController.text.trim());
+  int? get _weightKg => int.tryParse(_weightController.text.trim());
+
   bool get _canSubmit =>
       !_submitting &&
       _city != null &&
+      _age != null &&
+      _age! >= 1 &&
+      _age! <= 120 &&
+      _gender != null &&
+      _weightKg != null &&
+      _weightKg! >= 1 &&
+      _weightKg! <= 300 &&
       _mobility != null &&
       _communication != null &&
       _feedingType != null &&
       (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
       (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
+      _toiletAssistance != null &&
+      (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
       _dutyType != null &&
       _languages.isNotEmpty &&
       _descriptionController.text.trim().isNotEmpty;
@@ -276,6 +296,9 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
     try {
       await ref.read(adminJobsRepositoryProvider).create(
             careReceiver: CareReceiverInput(
+              age: _age!,
+              gender: _gender!,
+              weightKg: _weightKg!,
               mobility: _mobility!,
               communication: _communication!,
               feedingType: _feedingType!,
@@ -286,6 +309,9 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
               medicalInfo: _medicalInfoController.text.trim().isEmpty
                   ? null
                   : _medicalInfoController.text.trim(),
+              toiletAssistance: _toiletAssistance!,
+              requiresVitalMonitoring: _requiresVitalMonitoring,
+              vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
             ),
             city: _city!,
             area: _areaController.text.trim(),
@@ -338,7 +364,33 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
-              const Text('Care Receiver', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('About Patient', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Patient's Age"),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _gender,
+                decoration: const InputDecoration(labelText: "Patient's Gender"),
+                items: const [
+                  DropdownMenuItem(value: Gender.male, child: Text('Male')),
+                  DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                  DropdownMenuItem(value: Gender.other, child: Text('Other')),
+                ],
+                onChanged: (value) => setState(() => _gender = value),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _weightController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Patient's Weight (kg)"),
+                onChanged: (_) => setState(() {}),
+              ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
                 isExpanded: true,
@@ -417,6 +469,44 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
+              const Text('Toilet Assistance', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'What assistance is required? Select the one which applies.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _toiletAssistance,
+                decoration: const InputDecoration(labelText: 'Toilet Assistance'),
+                items: ToiletAssistance.all
+                    .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
+                    .toList(),
+                onChanged: (value) => setState(() => _toiletAssistance = value),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text('Vital Monitoring', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.sm),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Is regular vital monitoring required?'),
+                value: _requiresVitalMonitoring,
+                onChanged: (value) => setState(() {
+                  _requiresVitalMonitoring = value;
+                  if (!value) _vitalMonitoringTypes = [];
+                }),
+              ),
+              if (_requiresVitalMonitoring) ...[
+                const Text('Select what needs monitoring', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: AppSpacing.xs),
+                VitaMultiSelectChips(
+                  options: VitalMonitoringType.all,
+                  labels: VitalMonitoringType.displayNames,
+                  selected: _vitalMonitoringTypes,
+                  onChanged: (next) => setState(() => _vitalMonitoringTypes = next),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
               const Text('Duty', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
@@ -477,7 +567,10 @@ class _CreateJobDialogState extends ConsumerState<_CreateJobDialog> {
               TextField(
                 controller: _descriptionController,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'More details you want to share about patient or requirement which can help caregiver to decide',
+                  border: OutlineInputBorder(),
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               if (_errorMessage != null) ...[

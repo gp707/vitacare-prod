@@ -422,6 +422,23 @@ export const MedicalCondition = {
   OTHER: 'other',
 } as const;
 
+export const ToiletAssistance = {
+  USES_DIAPERS: 'uses_diapers',
+  USES_BED_PAN: 'uses_bed_pan',
+  USES_CATHETER: 'uses_catheter',
+  COMPLETE_ASSISTANCE: 'complete_toileting_assistance',
+  NONE: 'none',
+} as const;
+
+export const VitalMonitoringType = {
+  BLOOD_PRESSURE: 'blood_pressure',
+  BLOOD_SUGAR: 'blood_sugar',
+  OXYGEN_SPO2: 'oxygen_spo2',
+  TEMPERATURE: 'temperature',
+  PULSE: 'pulse',
+  OTHER: 'other',
+} as const;
+
 export const City = {
   BANGALORE: 'bangalore',
   MUMBAI: 'mumbai',
@@ -646,6 +663,27 @@ class MedicalCondition {
     paralysis,
     other,
   ];
+}
+
+class ToiletAssistance {
+  static const usesDiapers = 'uses_diapers';
+  static const usesBedPan = 'uses_bed_pan';
+  static const usesCatheter = 'uses_catheter';
+  static const completeAssistance = 'complete_toileting_assistance';
+  static const none = 'none';
+
+  static const all = [usesDiapers, usesBedPan, usesCatheter, completeAssistance, none];
+}
+
+class VitalMonitoringType {
+  static const bloodPressure = 'blood_pressure';
+  static const bloodSugar = 'blood_sugar';
+  static const oxygenSpo2 = 'oxygen_spo2';
+  static const temperature = 'temperature';
+  static const pulse = 'pulse';
+  static const other = 'other';
+
+  static const all = [bloodPressure, bloodSugar, oxygenSpo2, temperature, pulse, other];
 }
 
 class City {
@@ -1016,6 +1054,9 @@ CREATE TABLE admin_notes (
 -- ============================================
 CREATE TABLE care_receivers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  age INTEGER NOT NULL CHECK (age BETWEEN 1 AND 120),
+  gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female', 'other')),
+  weight_kg INTEGER NOT NULL CHECK (weight_kg BETWEEN 1 AND 300),
   mobility VARCHAR(30) NOT NULL CHECK (mobility IN (
     'walks_independently', 'walks_with_assistance', 'uses_walker', 'uses_wheelchair', 'bedridden'
   )),
@@ -1030,6 +1071,11 @@ CREATE TABLE care_receivers (
   has_medical_condition BOOLEAN NOT NULL DEFAULT false,
   medical_conditions JSONB NOT NULL DEFAULT '[]',  -- only populated when has_medical_condition
   medical_info TEXT,                      -- free text, "important information for the caregiver"
+  toilet_assistance VARCHAR(30) NOT NULL CHECK (toilet_assistance IN (
+    'uses_diapers', 'uses_bed_pan', 'uses_catheter', 'complete_toileting_assistance', 'none'
+  )),
+  requires_vital_monitoring BOOLEAN NOT NULL DEFAULT false,
+  vital_monitoring_types JSONB NOT NULL DEFAULT '[]',  -- only populated when requires_vital_monitoring
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1963,13 +2009,19 @@ notification to ALL caregivers.
 ```json
 {
   "care_receiver": {
+    "age": 72,
+    "gender": "female",
+    "weight_kg": 58,
     "mobility": "walks_with_assistance",
     "communication": "verbal",
     "feeding_type": "oral_needs_assistance",
     "medical_assistance": ["medication_reminders"],
     "has_medical_condition": true,
     "medical_conditions": ["diabetes"],
-    "medical_info": "Needs help twice daily, post hip surgery"
+    "medical_info": "Needs help twice daily, post hip surgery",
+    "toilet_assistance": "uses_diapers",
+    "requires_vital_monitoring": true,
+    "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
   },
   "city": "bangalore",
   "area": "Indiranagar",
@@ -1983,14 +2035,17 @@ notification to ALL caregivers.
 ```
 
 **Validation:**
+- `care_receiver.age`: Required integer, 1-120. `care_receiver.gender`: Required, valid gender enum (`male`/`female`/`other` — the patient's actual gender, not a preference). `care_receiver.weight_kg`: Required integer, 1-300.
 - `care_receiver.mobility`/`communication`/`feeding_type`: Required, valid enum values.
 - `care_receiver.tube_feeding_needs_assistance`: Required boolean if `feeding_type` is `tube_feeding` or `oral_and_tube`; not validated otherwise.
 - `care_receiver.medical_assistance`: Required array (may be empty), each item a valid enum value.
 - `care_receiver.has_medical_condition`: Required boolean.
 - `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.
 - `care_receiver.medical_info`: Optional free text.
+- `care_receiver.toilet_assistance`: Required, valid enum value — single-select ("select the one which applies").
+- `care_receiver.requires_vital_monitoring`: Required boolean. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
 - `city`: Required, must be valid city enum. `area`: Optional free text.
-- `description`: Required, free text.
+- `description`: Required, free text. UI label: "More details you want to share about patient or requirement which can help caregiver to decide."
 - `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. `start_date`: Optional (ISO date).
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
@@ -2070,13 +2125,19 @@ Get job detail with the care receiver and every application.
     "created_at": "2026-08-03T10:00:00Z",
     "care_receiver": {
       "id": "uuid",
+      "age": 72,
+      "gender": "female",
+      "weight_kg": 58,
       "mobility": "walks_with_assistance",
       "communication": "verbal",
       "feeding_type": "oral_needs_assistance",
       "medical_assistance": ["medication_reminders"],
       "has_medical_condition": true,
       "medical_conditions": ["diabetes"],
-      "medical_info": "Needs help twice daily, post hip surgery"
+      "medical_info": "Needs help twice daily, post hip surgery",
+      "toilet_assistance": "uses_diapers",
+      "requires_vital_monitoring": true,
+      "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
     },
     "applications": [
       {
