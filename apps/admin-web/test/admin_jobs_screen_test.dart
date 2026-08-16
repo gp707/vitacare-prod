@@ -15,14 +15,17 @@ import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 JobModel _job({String status = 'active'}) {
   return JobModel.fromJson({
     'id': 'job-1',
+    'job_number': 42,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
     'languages': ['hindi'],
+    'salary_monthly': 30000,
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
+    'posted_at': '2026-08-01T10:00:00Z',
     'created_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -32,14 +35,17 @@ JobModel _job({String status = 'active'}) {
 JobModel _jobWithCareReceiver({String status = 'active'}) {
   return JobModel.fromJson({
     'id': 'job-1',
+    'job_number': 42,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
     'languages': ['hindi'],
+    'salary_monthly': 30000,
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
+    'posted_at': '2026-08-01T10:00:00Z',
     'created_at': '2026-08-01T10:00:00Z',
     'care_receiver': {
       'id': 'cr-1',
@@ -101,6 +107,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String dutyType,
     String? startDate,
     required List<String> languages,
+    required int salaryMonthly,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -118,6 +125,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String dutyType,
     String? startDate,
     required List<String> languages,
+    required int salaryMonthly,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -212,12 +220,21 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await _selectDropdown(tester, 'Toilet Assistance', 'None');
 }
 
+Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
+  final salary = find.widgetWithText(TextField, 'Salary (₹/month)');
+  await tester.ensureVisible(salary);
+  await tester.enterText(salary, amount);
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('lists posted jobs with duty type, city, and status', (tester) async {
+  testWidgets('lists posted jobs with job number, duty type, city, salary, and status', (tester) async {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
 
+    expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
+    expect(find.textContaining('₹30000/month'), findsOneWidget);
     expect(find.text('active'), findsOneWidget);
   });
 
@@ -267,6 +284,7 @@ void main() {
     expect(find.text('About Patient'), findsOneWidget);
 
     await _fillAboutPatientRequiredFields(tester);
+    await _fillSalary(tester);
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
 
@@ -292,6 +310,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _fillAboutPatientRequiredFields(tester);
+    await _fillSalary(tester);
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
 
@@ -343,6 +362,7 @@ void main() {
     await _selectDropdown(tester, 'Communication', 'Speaks / communicates verbally');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
     await _selectDropdown(tester, 'Toilet Assistance', 'None');
+    await _fillSalary(tester);
     await _selectDropdown(tester, 'Duty Type', '12Hrs Day Shift (8am to 8pm)');
     await _tapChip(tester, 'Hindi');
 
@@ -376,12 +396,18 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit Job'), findsOneWidget);
+    expect(find.text('Edit Job #42'), findsOneWidget);
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     expect(find.widgetWithText(TextField, "Patient's Age"), findsOneWidget);
     expect(find.text('72'), findsOneWidget, reason: 'age should be pre-filled from the care receiver');
     expect(find.text('58'), findsOneWidget, reason: 'weight should be pre-filled from the care receiver');
+    expect(
+      find.widgetWithText(TextField, 'Salary (₹/month)'),
+      findsOneWidget,
+    );
+    final salaryField = tester.widget<TextField>(find.widgetWithText(TextField, 'Salary (₹/month)'));
+    expect(salaryField.controller!.text, '30000', reason: 'salary should be pre-filled from the job');
     expect(
       find.widgetWithText(TextField, _descriptionLabel),
       findsOneWidget,

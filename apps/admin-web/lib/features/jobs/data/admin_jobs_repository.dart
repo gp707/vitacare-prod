@@ -94,6 +94,7 @@ class AdminJobsRepository {
     required String dutyType,
     String? startDate,
     required List<String> languages,
+    required int salaryMonthly,
     String? preferredGender,
     String? preferredReligion,
   }) =>
@@ -105,6 +106,7 @@ class AdminJobsRepository {
         'duty_type': dutyType,
         if (startDate != null) 'start_date': startDate,
         'languages': languages,
+        'salary_monthly': salaryMonthly,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
       };
@@ -117,6 +119,7 @@ class AdminJobsRepository {
     required String dutyType,
     String? startDate,
     required List<String> languages,
+    required int salaryMonthly,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -131,6 +134,7 @@ class AdminJobsRepository {
           dutyType: dutyType,
           startDate: startDate,
           languages: languages,
+          salaryMonthly: salaryMonthly,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
         ),
@@ -152,6 +156,7 @@ class AdminJobsRepository {
     required String dutyType,
     String? startDate,
     required List<String> languages,
+    required int salaryMonthly,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -166,6 +171,7 @@ class AdminJobsRepository {
           dutyType: dutyType,
           startDate: startDate,
           languages: languages,
+          salaryMonthly: salaryMonthly,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
         ),

@@ -157,6 +157,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   }
 }
 
+String _formatDate(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
 class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback? onClose;
@@ -186,6 +189,15 @@ class _JobRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'Job #${job.jobNumber}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Row(
                   children: [
                     Flexible(
@@ -203,10 +215,16 @@ class _JobRow extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   [
+                    if (job.salaryMonthly != null) '₹${job.salaryMonthly}/month',
                     if (job.area != null && job.area!.isNotEmpty) job.area,
                     job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
                   ].join(' • '),
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(job.description, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -243,6 +261,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _medicalInfoController = TextEditingController();
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
+  final _salaryController = TextEditingController();
 
   // Job Location
   String? _city;
@@ -285,6 +304,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _dutyType = job.dutyType;
       _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
       _languages = List.of(job.languages);
+      _salaryController.text = job.salaryMonthly?.toString() ?? '';
       _preferredGender = job.preferredGender;
       _preferredReligion = job.preferredReligion;
 
@@ -312,6 +332,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     _medicalInfoController.dispose();
     _ageController.dispose();
     _weightController.dispose();
+    _salaryController.dispose();
     super.dispose();
   }
 
@@ -320,6 +341,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
+  int? get _salaryMonthly => int.tryParse(_salaryController.text.trim());
 
   bool get _canSubmit =>
       !_submitting &&
@@ -340,6 +362,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
       _dutyType != null &&
       _languages.isNotEmpty &&
+      _salaryMonthly != null &&
+      _salaryMonthly! >= 1 &&
+      _salaryMonthly! <= 1000000 &&
       _descriptionController.text.trim().isNotEmpty;
 
   Future<void> _pickStartDate() async {
@@ -392,6 +417,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               dutyType: _dutyType!,
               startDate: startDate,
               languages: _languages,
+              salaryMonthly: _salaryMonthly!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
             );
@@ -404,6 +430,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               dutyType: _dutyType!,
               startDate: startDate,
               languages: _languages,
+              salaryMonthly: _salaryMonthly!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
             );
@@ -419,7 +446,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEditing ? 'Edit Job' : 'Post New Job'),
+      title: Text(_isEditing ? 'Edit Job #${widget.job!.jobNumber}' : 'Post New Job'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -591,6 +618,13 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               const SizedBox(height: AppSpacing.lg),
               const Text('Duty', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _salaryController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Salary (₹/month)'),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 initialValue: _dutyType,
@@ -733,7 +767,8 @@ class _JobApplicationsDialogState extends ConsumerState<_JobApplicationsDialog> 
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        'Applicants — ${DutyType.displayNames[widget.job.dutyType] ?? widget.job.dutyType} in '
+        'Applicants — Job #${widget.job.jobNumber} · '
+        '${DutyType.displayNames[widget.job.dutyType] ?? widget.job.dutyType} in '
         '${City.displayNames[widget.job.city] ?? widget.job.city}',
       ),
       content: SizedBox(

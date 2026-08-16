@@ -89,11 +89,19 @@ describe('Jobs (e2e)', () => {
         description: `${jobDescriptionPrefix} Need a caregiver`,
         duty_type: 'live_in',
         languages: ['hindi'],
+        salary_monthly: 30000,
         preferred_gender: 'female',
         ...jobOverrides,
       })
       .expect(201);
-    return res.body.data as { id: string; status: string; care_receiver_id: string };
+    return res.body.data as {
+      id: string;
+      job_number: number;
+      status: string;
+      care_receiver_id: string;
+      salary_monthly: number;
+      posted_at: string;
+    };
   }
 
   beforeAll(async () => {
@@ -173,6 +181,33 @@ describe('Jobs (e2e)', () => {
       expect(careReceiver.rows[0].vital_monitoring_types).toEqual([]);
     });
 
+    it('assigns a sequential job_number, stores salary_monthly, and sets posted_at = created_at at creation', async () => {
+      const jobA = await createJob({ salary_monthly: 28000 });
+      const jobB = await createJob({ salary_monthly: 31000 });
+      expect(typeof jobA.job_number).toBe('number');
+      expect(jobB.job_number).toBeGreaterThan(jobA.job_number);
+      expect(jobA.salary_monthly).toBe(28000);
+
+      const row = await db.query('SELECT created_at, posted_at FROM jobs WHERE id = $1', [jobA.id]);
+      expect(row.rows[0].posted_at.getTime()).toBe(row.rows[0].created_at.getTime());
+    });
+
+    it('rejects a missing/invalid salary_monthly (GEN_001)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          description: `${jobDescriptionPrefix} salary validation test`,
+          duty_type: 'live_in',
+          languages: ['hindi'],
+          salary_monthly: 0,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
     it('rejects an out-of-range age (GEN_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')
@@ -183,6 +218,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} age validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -198,6 +234,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} toilet assistance validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -213,6 +250,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} vital monitoring validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -267,6 +305,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} bad duty type`,
           duty_type: 'other',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -282,6 +321,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} empty languages`,
           duty_type: 'live_in',
           languages: [],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -307,6 +347,7 @@ describe('Jobs (e2e)', () => {
           description: 'x',
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
@@ -322,6 +363,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} tube feeding validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -337,6 +379,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} medical condition validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -352,6 +395,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} others religion validation test`,
           duty_type: 'live_in',
           languages: ['hindi'],
+          salary_monthly: 30000,
           preferred_religion: 'others',
         })
         .expect(400);
@@ -418,6 +462,7 @@ describe('Jobs (e2e)', () => {
         description: `${jobDescriptionPrefix} Edited description`,
         duty_type: 'day_duty',
         languages: ['hindi', 'english'],
+        salary_monthly: 32000,
         preferred_gender: 'female',
         ...jobOverrides,
       };
@@ -473,6 +518,30 @@ describe('Jobs (e2e)', () => {
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
       );
+      expect(new Date(res.body.data.posted_at).getTime()).toBeGreaterThan(
+        new Date(job.posted_at).getTime(),
+      );
+    });
+
+    it('does NOT bump posted_at when editing an already-active job (only a repost restarts the urgency window)', async () => {
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload())
+        .expect(200);
+      expect(res.body.data.status).toBe('active');
+      expect(new Date(res.body.data.posted_at).getTime()).toBe(new Date(job.posted_at).getTime());
+    });
+
+    it('updates salary_monthly on edit', async () => {
+      const job = await createJob({ salary_monthly: 25000 });
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(editPayload({ salary_monthly: 40000 }))
+        .expect(200);
+      expect(res.body.data.salary_monthly).toBe(40000);
     });
 
     it('leaves existing applications untouched when the job is edited', async () => {

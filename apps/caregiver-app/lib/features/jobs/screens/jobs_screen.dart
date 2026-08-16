@@ -115,6 +115,23 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 }
 
+String _formatDate(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+/// Purely informational urgency message — never blocks applying, even once
+/// the 3-day window has passed.
+String _urgencyLabel(int daysLeft) {
+  if (daysLeft <= 0) return 'Application window closed';
+  if (daysLeft == 1) return '1 day left to apply';
+  return '$daysLeft days left to apply';
+}
+
+Color _urgencyColor(int daysLeft) {
+  if (daysLeft <= 0) return AppColors.error;
+  if (daysLeft == 1) return AppColors.warning;
+  return AppColors.success;
+}
+
 class _JobCard extends StatelessWidget {
   final JobModel job;
   final bool isApplying;
@@ -139,10 +156,66 @@ class _JobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'Job #${job.jobNumber}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(
+                  _urgencyLabel(job.daysLeftToApply),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _urgencyColor(job.daysLeftToApply),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (job.salaryMonthly != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                border: Border.all(color: AppColors.success),
+              ),
+              child: Text(
+                '₹${job.salaryMonthly}/month',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.success,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
           Text(
             '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
             '${City.displayNames[job.city] ?? job.city}',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(

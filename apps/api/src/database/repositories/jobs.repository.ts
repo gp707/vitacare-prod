@@ -5,6 +5,7 @@ import { DatabaseService, QueryRunner } from '../database.service';
 
 export interface JobRecord {
   id: string;
+  job_number: number;
   care_receiver_id: string;
   city: City;
   area: string | null;
@@ -14,10 +15,15 @@ export interface JobRecord {
   end_time: string | null;
   start_date: string | null;
   languages: Language[];
+  salary_monthly: number | null;
   preferred_gender: string | null;
   preferred_religion: string | null;
   status: JobStatus;
   posted_by: string;
+  /** Effective "went live" timestamp — starts equal to created_at, bumped
+   *  to NOW() only when a closed job is edited-and-reposted. The 3-day
+   *  apply-by urgency window is always computed from this, not created_at. */
+  posted_at: Date;
   created_at: Date;
   updated_at: Date;
 }
@@ -36,6 +42,7 @@ export interface CreateJobInput {
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
+  salary_monthly: number;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   posted_by: string;
@@ -50,10 +57,12 @@ export interface UpdateJobInput {
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
+  salary_monthly: number;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   /** Only set when the edit should also repost a closed job — omitted
-   *  leaves status untouched. */
+   *  leaves status untouched. When set, `posted_at` is also bumped to
+   *  NOW(), restarting the 3-day apply-by urgency window. */
   status?: JobStatus;
 }
 
@@ -90,8 +99,8 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, start_time, end_time,
-          start_date, languages, preferred_gender, preferred_religion, posted_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          start_date, languages, salary_monthly, preferred_gender, preferred_religion, posted_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.care_receiver_id,
@@ -103,6 +112,7 @@ export class JobsRepository {
         input.end_time ?? null,
         input.start_date ?? null,
         JSON.stringify(input.languages),
+        input.salary_monthly,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.posted_by,
@@ -166,9 +176,11 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `UPDATE jobs SET
          city = $1, area = $2, description = $3, duty_type = $4, start_time = $5, end_time = $6,
-         start_date = $7, languages = $8, preferred_gender = $9, preferred_religion = $10,
-         status = COALESCE($11, status), updated_at = NOW()
-       WHERE id = $12
+         start_date = $7, languages = $8, salary_monthly = $9, preferred_gender = $10,
+         preferred_religion = $11, status = COALESCE($12, status),
+         posted_at = CASE WHEN $12::text IS NOT NULL THEN NOW() ELSE posted_at END,
+         updated_at = NOW()
+       WHERE id = $13
        RETURNING *`,
       [
         input.city,
@@ -179,6 +191,7 @@ export class JobsRepository {
         input.end_time ?? null,
         input.start_date ?? null,
         JSON.stringify(input.languages),
+        input.salary_monthly,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.status ?? null,

@@ -1086,6 +1086,7 @@ CREATE TABLE care_receivers (
 -- ============================================
 CREATE TABLE jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_number SERIAL UNIQUE,               -- short sequential id shown as "Job #<n>" to everyone; distinct from id (UUID)
   care_receiver_id UUID NOT NULL REFERENCES care_receivers(id),
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
   area TEXT,                              -- free text, optional
@@ -1095,10 +1096,12 @@ CREATE TABLE jobs (
   end_time TIME,
   start_date DATE,
   languages JSONB NOT NULL DEFAULT '[]',  -- multi-select language preference, non-empty array
+  salary_monthly INTEGER CHECK (salary_monthly > 0),  -- ₹/month; required via API for every create/edit, nullable at DB level only for rows that predate this field
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
   preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian')),  -- NULL = no preference; 'others' excluded (valid for a caregiver's own religion, not offered as a job preference)
   status VARCHAR(10) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
   posted_by UUID NOT NULL REFERENCES users(id),
+  posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- effective "went live" time; drives the 3-day apply-by urgency window; starts = created_at, bumped to NOW() only on repost (edit of a closed job)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -2031,6 +2034,7 @@ notification to ALL caregivers.
   "duty_type": "live_in",
   "start_date": "2026-08-10",
   "languages": ["kannada", "english"],
+  "salary_monthly": 30000,
   "preferred_gender": "female",
   "preferred_religion": "hindu"
 }
@@ -2050,6 +2054,7 @@ notification to ALL caregivers.
 - `description`: Required, free text. UI label: "More details you want to share about patient or requirement which can help caregiver to decide."
 - `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. `start_date`: Optional (ISO date).
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
+- `salary_monthly`: Required integer, 1-1,000,000 (₹/month). Shown highlighted at the top of the job card in caregiver-app.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
 - `preferred_religion`: Optional, `hindu`/`muslim`/`christian` only (`others` excluded — valid for a caregiver's own religion at registration, not offered as a job preference) — omitted means no preference. Never used as a filter.
 
@@ -2059,7 +2064,10 @@ notification to ALL caregivers.
   "success": true,
   "data": {
     "id": "uuid",
+    "job_number": 42,
     "care_receiver_id": "uuid",
+    "salary_monthly": 30000,
+    "posted_at": "2026-08-16T10:00:00Z",
     "status": "active"
   }
 }
@@ -2090,15 +2098,18 @@ List all job postings (paginated).
   "data": [
     {
       "id": "uuid",
+      "job_number": 42,
       "care_receiver_id": "uuid",
       "city": "bangalore",
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
       "languages": ["kannada", "english"],
+      "salary_monthly": 30000,
       "preferred_gender": "female",
       "preferred_religion": "hindu",
       "status": "active",
+      "posted_at": "2026-08-03T10:00:00Z",
       "created_at": "2026-08-03T10:00:00Z"
     }
   ],
@@ -2169,7 +2180,11 @@ also **reposts** it: `status` flips back to `active` and the "New Job" push
 re-broadcasts to all caregivers (same copy as `POST /admin/jobs`). Editing an
 already-`active` job does not resend that push, to avoid spamming caregivers
 on every minor edit. Doubles as the "view full job details" surface in
-admin-web — the edit form is pre-filled with every current field.
+admin-web — the edit form is pre-filled with every current field. A repost
+also bumps `posted_at` to NOW(), restarting the caregiver-facing 3-day
+apply-by urgency window (a plain edit of an already-active job leaves
+`posted_at`, and therefore the window, untouched). `job_number` never
+changes.
 
 **Request:** identical shape to `POST /admin/jobs`'s request body (see above).
 
@@ -2241,7 +2256,11 @@ there's no separate in-app caregiver "accept offer" step.
 
 #### GET `/caregiver/jobs`
 
-List active job postings for caregiver to view and apply.
+List active job postings for caregiver to view and apply. The caregiver-app
+shows `job_number` ("Job #<n>") and `salary_monthly` highlighted at the top
+of each card, plus a 3-day apply-by urgency message computed client-side
+from `posted_at` (`posted_at + 3 days`, shown as days remaining — purely
+informational, never blocks applying).
 
 **Response (200):**
 ```json
@@ -2250,13 +2269,16 @@ List active job postings for caregiver to view and apply.
   "data": [
     {
       "id": "uuid",
+      "job_number": 42,
       "city": "bangalore",
       "area": "Indiranagar",
       "description": "Elderly patient...",
       "duty_type": "live_in",
       "languages": ["kannada", "english"],
+      "salary_monthly": 30000,
       "preferred_gender": "female",
       "preferred_religion": "hindu",
+      "posted_at": "2026-08-03T10:00:00Z",
       "created_at": "2026-08-03T10:00:00Z",
       "my_application_status": null
     }

@@ -119,6 +119,11 @@ export class CreateJobDto {
   @IsDateString({}, { message: 'GEN_001' })
   start_date?: string;
 
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(1000000, { message: 'GEN_001' })
+  salary_monthly!: number;
+
   @IsArray({ message: 'GEN_001' })
   @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })

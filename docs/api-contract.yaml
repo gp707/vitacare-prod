@@ -264,6 +264,11 @@ components:
         id:
           type: string
           format: uuid
+        job_number:
+          type: integer
+          description: >
+            Short sequential id, auto-assigned, distinct from `id` — shown
+            as "Job #<n>" prominently to both admin and caregivers.
         care_receiver_id:
           type: string
           format: uuid
@@ -295,6 +300,15 @@ components:
           items:
             $ref: "#/components/schemas/Language"
           description: Multi-select language preference — informational only, never used as a filter.
+        salary_monthly:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 1000000
+          description: >
+            ₹/month. Required via the API for every create/edit; nullable
+            at the schema level only for rows that predate this field.
+            Shown highlighted at the top of the job card in caregiver-app.
         preferred_gender:
           type: string
           nullable: true
@@ -314,6 +328,14 @@ components:
         posted_by:
           type: string
           format: uuid
+        posted_at:
+          type: string
+          format: date-time
+          description: >
+            Effective "went live" time — drives the 3-day apply-by urgency
+            window (posted_at + 3 days). Starts equal to created_at; bumped
+            to NOW() only when a closed job is edited-and-reposted, not on
+            a plain edit of an already-active job.
         created_at:
           type: string
           format: date-time
@@ -322,6 +344,7 @@ components:
           format: date-time
       example:
         id: "c3d4e5f6-a7b8-9012-cdef-345678901234"
+        job_number: 42
         care_receiver_id: "d3e4f5a6-b7c8-9012-def0-345678901234"
         city: "bangalore"
         area: "Indiranagar"
@@ -331,10 +354,12 @@ components:
         end_time: null
         start_date: "2026-08-10"
         languages: ["hindi", "english"]
+        salary_monthly: 30000
         preferred_gender: "female"
         preferred_religion: "hindu"
         status: "active"
         posted_by: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        posted_at: "2026-08-09T10:00:00Z"
         created_at: "2026-08-09T10:00:00Z"
         updated_at: "2026-08-09T10:00:00Z"
 
@@ -1592,6 +1617,10 @@ paths:
         Viewable at ANY verification status — browsing motivates completing
         onboarding. Only applying is gated. Each item includes
         `my_application_status` (null if this caregiver hasn't applied yet).
+        The caregiver-app highlights `job_number` ("Job #<n>") and
+        `salary_monthly` at the top of each card, plus a 3-day apply-by
+        urgency message computed client-side from `posted_at` — purely
+        informational, never blocks applying.
       operationId: listCaregiverJobs
       security:
         - BearerAuth: []
@@ -3179,7 +3208,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, description, duty_type, languages]
+              required: [care_receiver, city, description, duty_type, languages, salary_monthly]
               properties:
                 care_receiver:
                   type: object
@@ -3265,6 +3294,11 @@ paths:
                   items:
                     $ref: "#/components/schemas/Language"
                   description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
+                salary_monthly:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                  description: "Required. ₹/month. Shown highlighted at the top of the job card in caregiver-app."
                 preferred_gender:
                   type: string
                   enum: [male, female]
@@ -3298,6 +3332,7 @@ paths:
               duty_type: "live_in"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
+              salary_monthly: 30000
               preferred_gender: "female"
               preferred_religion: "hindu"
       responses:
@@ -3436,7 +3471,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, description, duty_type, languages]
+              required: [care_receiver, city, description, duty_type, languages, salary_monthly]
               properties:
                 care_receiver:
                   type: object
@@ -3522,6 +3557,11 @@ paths:
                   items:
                     $ref: "#/components/schemas/Language"
                   description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
+                salary_monthly:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                  description: "Required. ₹/month. Shown highlighted at the top of the job card in caregiver-app."
                 preferred_gender:
                   type: string
                   enum: [male, female]
@@ -3555,6 +3595,7 @@ paths:
               duty_type: "day_duty"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
+              salary_monthly: 30000
               preferred_gender: "female"
               preferred_religion: "hindu"
       responses:

@@ -32,6 +32,7 @@ describe('JobsService', () => {
 
   const job = {
     id: 'job-1',
+    job_number: 42,
     care_receiver_id: 'cr-1',
     city: 'bangalore',
     area: 'Indiranagar',
@@ -41,10 +42,12 @@ describe('JobsService', () => {
     end_time: null,
     start_date: null,
     languages: ['hindi'],
+    salary_monthly: 30000,
     preferred_gender: 'female',
     preferred_religion: null,
     status: 'active',
     posted_by: 'admin-1',
+    posted_at: new Date(),
     created_at: new Date(),
     updated_at: new Date(),
   };
@@ -106,6 +109,7 @@ describe('JobsService', () => {
       description: 'Need a caregiver',
       duty_type: 'live_in' as any,
       languages: ['hindi'] as any,
+      salary_monthly: 30000,
       preferred_gender: 'female' as any,
     };
 
@@ -163,6 +167,7 @@ describe('JobsService', () => {
       description: 'Updated description',
       duty_type: 'day_duty' as any,
       languages: ['hindi', 'english'] as any,
+      salary_monthly: 35000,
       preferred_gender: 'female' as any,
     };
 
