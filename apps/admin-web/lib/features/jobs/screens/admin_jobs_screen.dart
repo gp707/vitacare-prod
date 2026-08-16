@@ -213,9 +213,25 @@ class _JobRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSpacing.xs),
+                    border: Border.all(color: AppColors.success),
+                  ),
+                  child: Text(
+                    job.salaryMonthly != null ? '₹${job.salaryMonthly}/month' : 'Salary not set',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: job.salaryMonthly != null ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   [
-                    if (job.salaryMonthly != null) '₹${job.salaryMonthly}/month',
                     if (job.area != null && job.area!.isNotEmpty) job.area,
                     job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
                   ].join(' • '),

@@ -12,7 +12,7 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 
-JobModel _job({String status = 'active'}) {
+JobModel _job({String status = 'active', int? salaryMonthly = 30000}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -21,7 +21,7 @@ JobModel _job({String status = 'active'}) {
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
     'languages': ['hindi'],
-    'salary_monthly': 30000,
+    'salary_monthly': salaryMonthly,
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
@@ -234,8 +234,15 @@ void main() {
 
     expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
-    expect(find.textContaining('₹30000/month'), findsOneWidget);
+    expect(find.text('₹30000/month'), findsOneWidget);
     expect(find.text('active'), findsOneWidget);
+  });
+
+  testWidgets('flags a job with no salary set instead of silently showing nothing', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job(salaryMonthly: null)]);
+    await _pump(tester, repo);
+
+    expect(find.text('Salary not set'), findsOneWidget);
   });
 
   testWidgets('shows Close for an active job but not a closed one', (tester) async {
