@@ -966,14 +966,12 @@ CREATE TABLE audit_logs (
     'profile_updated',
     'status_changed',
     'code_changed',
-    'service_mode_assigned',
     'admin_edit_profile',
     'admin_note_added',
     'admin_created',
     'admin_deactivated',
     'phone_changed',
     'edits_acknowledged',
-    'work_type_assigned',
     'job_posted',
     'job_closed',
     'job_response'
@@ -1272,9 +1270,6 @@ Get own full profile.
     "age": 32,
     "selfie_photo_url": "https://signed-url...",
     "languages": ["hindi", "english"],
-    "service_modes": ["24hrs_live_in"],
-    "work_types": ["companion_care", "bedside_care"],
-    "salary": 28000.00,
     "highest_qualification": "rn_above_2_years",
     "religion": "hindu",
     "qualification_document_url": "https://signed-url...",
@@ -1513,8 +1508,6 @@ Paginated, filterable list.
 - `status` (filter: `pending_call`, `available`, `unavailable`, `assigned`, `rejected`)
 - `qualification` (filter by qualification)
 - `language` (filter by language, comma-separated for multiple)
-- `service_mode` (filter: `24hrs_live_in`, `12hrs_pg`)
-- `work_type` (filter: `companion_care`, `bedside_care`, `critical_care`)
 - `from_date` (ISO date, registration date from)
 - `to_date` (ISO date, registration date to)
 
@@ -1532,8 +1525,6 @@ Paginated, filterable list.
       "gender": "male",
       "age": 32,
       "highest_qualification": "rn_above_2_years",
-      "service_modes": ["24hrs_live_in"],
-      "work_types": ["companion_care"],
       "verification_status": "pending_call",
       "created_at": "2026-08-01T10:00:00Z"
     }
@@ -1566,9 +1557,6 @@ Full caregiver detail with signed document URLs.
     "age": 32,
     "selfie_photo_url": "https://signed-url...",
     "languages": ["hindi", "english"],
-    "service_modes": ["24hrs_live_in"],
-    "work_types": ["companion_care", "bedside_care"],
-    "salary": 28000.00,
     "highest_qualification": "rn_above_2_years",
     "religion": "hindu",
     "qualification_document_url": "https://signed-url...",
@@ -1580,8 +1568,6 @@ Full caregiver detail with signed document URLs.
     "preferred_cities": ["bangalore", "mumbai"],
     "admin_notes": {
       "internal_notes": "Good candidate, verified docs look clean",
-      "rate_24hrs_live_in": 25000.00,
-      "rate_12hrs_pg": 15000.00,
       "availability_remarks": "Prefers south Bangalore"
     },
     "created_at": "2026-08-01T10:00:00Z",
@@ -1651,15 +1637,11 @@ Add or update admin notes for a caregiver.
 ```json
 {
   "internal_notes": "Verified all documents. Candidate seems experienced.",
-  "rate_24hrs_live_in": 25000.00,
-  "rate_12hrs_pg": 15000.00,
   "availability_remarks": "Prefers morning shifts, south Bangalore area"
 }
 ```
 
 **Validation:**
-- `rate_24hrs_live_in`: Optional, decimal, >= 0.
-- `rate_12hrs_pg`: Optional, decimal, >= 0.
 - `internal_notes`: Optional, no max length.
 - `availability_remarks`: Optional, no max length.
 
@@ -1678,110 +1660,6 @@ Add or update admin notes for a caregiver.
 **DO NOT:**
 - Do NOT expose admin notes to caregivers via any endpoint.
 - Do NOT include admin notes in the caregiver's own profile response.
-
----
-
-#### PUT `/admin/caregivers/:id/work-types`
-
-Assign work types to a caregiver. Admin-only. Caregivers can view but not modify.
-
-**Request:**
-```json
-{
-  "work_types": ["companion_care", "bedside_care"]
-}
-```
-
-**Validation:**
-- `work_types`: Required, array, min 1, each must be valid work type enum (`companion_care`, `bedside_care`, `critical_care`).
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Work types assigned",
-    "work_types": ["companion_care", "bedside_care"]
-  }
-}
-```
-
-**Side effects:**
-- Replaces all existing work types for this caregiver (full replace, not merge).
-- `assigned_by` set to admin user ID.
-- Audit log entry created.
-
-**DO NOT:**
-- Do NOT allow caregivers to modify work types. Read-only for them.
-- Do NOT expose `assigned_by` to caregiver-facing endpoints.
-
----
-
-#### PUT `/admin/caregivers/:id/service-modes`
-
-Assign service modes to a caregiver. Admin-only. Caregivers can view but not modify.
-
-**Request:**
-```json
-{
-  "service_modes": ["24hrs_live_in", "12hrs_pg"]
-}
-```
-
-**Validation:**
-- `service_modes`: Required, array, min 1, each must be valid service mode enum (`24hrs_live_in`, `12hrs_pg`).
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Service modes assigned",
-    "service_modes": ["24hrs_live_in", "12hrs_pg"]
-  }
-}
-```
-
-**Side effects:**
-- Replaces all existing service modes for this caregiver.
-- Audit log entry created.
-
-**DO NOT:**
-- Do NOT allow caregivers to modify service modes. Read-only for them.
-
----
-
-#### PATCH `/admin/caregivers/:id/salary`
-
-Set or update a caregiver's salary. Admin-only. Visible to caregiver on their profile.
-
-**Request:**
-```json
-{
-  "salary": 28000.00
-}
-```
-
-**Validation:**
-- `salary`: Required, decimal, >= 0.
-
-**Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Salary updated",
-    "salary": 28000.00
-  }
-}
-```
-
-**Side effects:**
-- `salary` column updated in `caregiver_profiles`.
-- Audit log entry created.
-
-**DO NOT:**
-- Do NOT allow caregivers to modify their own salary.
 
 ---
 
@@ -2287,8 +2165,6 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | PROFILE_007 | 400 | Invalid phone number format | Phone doesn't match pattern |
 | PROFILE_009 | 400 | Terms and conditions must be accepted | terms_accepted is false (registration) |
 | PROFILE_010 | 400 | Invalid religion value | Religion not in enum (registration) |
-| PROFILE_012 | 400 | At least one service mode is required | Empty service_modes array |
-| PROFILE_013 | 400 | Invalid service mode: {value} | Service mode not in enum |
 | PROFILE_016 | 400 | Code must be exactly 4 digits | Code not matching /^\d{4}$/ |
 | PROFILE_018 | 400 | Invalid qualification value | Qualification not in allowed list (registration or self-edit) |
 | PROFILE_019 | 404 | Caregiver profile not found | Profile ID doesn't exist |
@@ -2542,7 +2418,6 @@ Implemented as a NestJS interceptor that wraps every mutating request.
 | `profile_updated` | `caregiver_profiles` | before/after: changed fields only |
 | `status_changed` | `caregiver_profiles` | before/after: status + who changed it |
 | `code_changed` | `users` | after: { timestamp, changed_by } |
-| `service_mode_assigned` | `caregiver_service_modes` | before/after: modes list |
 | `admin_edit_profile` | `caregiver_profiles` | before/after: changed fields |
 | `admin_note_added` | `admin_notes` | before/after: note content |
 | `admin_created` | `users` | after: new admin data |
@@ -2651,8 +2526,6 @@ Route by verification_status:
 - **Green verified icon** displayed prominently (indicates verified status).
 - Quick stats/info:
   - Status badge (Available / Assigned) with green icon for verified.
-  - Assigned work types and salary (read-only, admin-set).
-  - Service modes (read-only, admin-set).
 - Jobs section: List of active job postings with Accept / Reject / Ask More Details buttons.
 - Navigation to: Profile, Jobs, Settings.
 
@@ -2673,7 +2546,6 @@ Route by verification_status:
 - Phone Number: own input + "Save" button (re-verification sensitive — see below).
 - Login PIN: own input + "Save" button.
 - Document upload/re-upload: Selfie, Aadhaar, Qualification Document, Other Documents — each uploads immediately on pick, individually.
-- Service Modes, Work Types, Salary displayed as read-only (admin-assigned).
 - Info banner: "Changes will be reviewed by admin. Your current verification status is not affected." — except changing Phone Number or re-uploading Aadhaar, which is flagged as identity-sensitive and (for `available`/`unavailable`/`rejected`) resets status to `pending_call` for re-verification.
 - If current status is `rejected`, any other edit (age, languages, qualification, preferred city, selfie, qualification/other documents, login PIN) also resets status to `pending_call` automatically — no separate resubmit action.
 
@@ -2731,13 +2603,12 @@ Route by verification_status:
 
 #### Caregiver List (`/caregivers`)
 - Sortable data table.
-- Columns: Name, Phone, Gender, Age, Qualification, Service Modes, Status, Registered.
+- Columns: Name, Phone, Gender, Age, Qualification, Status, Registered.
 - Filter panel (collapsible):
   - Search (text)
   - Status (dropdown)
   - Qualification (dropdown)
   - Language (multi-select)
-  - Service Mode (dropdown)
   - Date range (from/to pickers)
 - Quick filter chips: Last 24h, Last 7d, Last 30d.
 - Click row → navigate to Caregiver Detail.
@@ -2748,7 +2619,7 @@ Route by verification_status:
 - **Tabs:**
   - Profile: All profile fields displayed.
   - Documents: Inline preview (image viewer / PDF viewer). Download button.
-  - Notes: Admin notes form (internal notes, rates per mode, remarks). Save button.
+  - Notes: Admin notes form (internal notes, availability remarks). Save button.
   - Audit History: Filtered audit log for this caregiver.
 - **Action buttons (based on status):**
   - `pending_call` → "Approve" (→ available), "Reject" buttons. Admin reviews the full profile (all fields collected at registration) and approves in one step — there's no separate call-verification step.
@@ -2846,7 +2717,6 @@ Basic offline support: cache data for viewing, require internet for all writes.
 | Age | Integer, 18-65 |
 | Gender | Enum: male, female, other |
 | Languages | Array, min 1, valid enum values |
-| Service Modes | Array, min 1, valid enum values |
 | Address | Max 500 chars |
 | Code | Exactly 4 digits, numeric |
 | File size | Max 10MB |

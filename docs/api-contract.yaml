@@ -226,18 +226,6 @@ components:
           type: string
           nullable: true
           example: "Good candidate, verified docs look clean"
-        rate_24hrs_live_in:
-          type: number
-          format: double
-          nullable: true
-          minimum: 0
-          example: 25000.00
-        rate_12hrs_pg:
-          type: number
-          format: double
-          nullable: true
-          minimum: 0
-          example: 15000.00
         availability_remarks:
           type: string
           nullable: true
@@ -278,11 +266,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Language"
-        service_modes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ServiceMode"
-          nullable: true
         highest_qualification:
           $ref: "#/components/schemas/Qualification"
         qualification_document_url:
@@ -339,10 +322,6 @@ components:
           type: string
           nullable: true
           example: "gnm"
-        service_modes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ServiceMode"
         verification_status:
           $ref: "#/components/schemas/VerificationStatus"
         created_at:
@@ -953,7 +932,6 @@ paths:
                   age: 32
                   selfie_photo_url: "https://storage.supabase.co/signed/..."
                   languages: ["hindi", "english"]
-                  service_modes: ["24hrs_live_in", "12hrs_pg"]
                   highest_qualification: "rn_above_2_years"
                   qualification_document_url: "https://storage.supabase.co/signed/..."
                   aadhaar_document_url: "https://storage.supabase.co/signed/..."
@@ -1731,11 +1709,6 @@ paths:
             type: string
           description: Filter by language (comma-separated for multiple)
           example: "hindi,english"
-        - name: service_mode
-          in: query
-          schema:
-            $ref: "#/components/schemas/ServiceMode"
-          description: Filter by service mode
         - name: from_date
           in: query
           schema:
@@ -1775,7 +1748,6 @@ paths:
                     gender: "male"
                     age: 32
                     highest_qualification: "rn_above_2_years"
-                    service_modes: ["24hrs_live_in"]
                     verification_status: "pending_call"
                     created_at: "2026-08-01T10:00:00Z"
                 meta:
@@ -1842,7 +1814,6 @@ paths:
                   age: 32
                   selfie_photo_url: "https://storage.supabase.co/signed/..."
                   languages: ["hindi", "english"]
-                  service_modes: ["24hrs_live_in", "12hrs_pg"]
                   highest_qualification: "rn_above_2_years"
                   qualification_document_url: "https://storage.supabase.co/signed/..."
                   aadhaar_document_url: "https://storage.supabase.co/signed/..."
@@ -1854,8 +1825,6 @@ paths:
                   preferred_cities: ["bangalore"]
                   admin_notes:
                     internal_notes: "Good candidate, verified docs look clean"
-                    rate_24hrs_live_in: 25000.00
-                    rate_12hrs_pg: 15000.00
                     availability_remarks: "Prefers south Bangalore"
                   created_at: "2026-08-01T10:00:00Z"
                   verified_at: null
@@ -1900,11 +1869,7 @@ paths:
           application/json:
             schema:
               type: object
-              description: |
-                Any subset of caregiver profile fields. Does NOT include service_modes,
-                work_types, or salary — those are admin-assigned via their own dedicated
-                endpoints (PUT .../work-types, PUT .../service-modes, PATCH .../salary),
-                not this generic profile edit.
+              description: Any subset of caregiver profile fields.
               properties:
                 full_name:
                   type: string
@@ -2116,20 +2081,6 @@ paths:
                   nullable: true
                   description: "Internal admin notes. No max length."
                   example: "Verified all documents. Candidate seems experienced."
-                rate_24hrs_live_in:
-                  type: number
-                  format: double
-                  minimum: 0
-                  nullable: true
-                  description: "Monthly rate for 24Hrs Live-In mode (INR). Must be >= 0."
-                  example: 25000.00
-                rate_12hrs_pg:
-                  type: number
-                  format: double
-                  minimum: 0
-                  nullable: true
-                  description: "Monthly rate for 12Hrs PG mode (INR). Must be >= 0."
-                  example: 15000.00
                 availability_remarks:
                   type: string
                   nullable: true
@@ -2172,220 +2123,6 @@ paths:
                   message: "Caregiver profile not found"
         "500":
           $ref: "#/components/responses/InternalError"
-
-  /admin/caregivers/{id}/work-types:
-    put:
-      tags: [Admin - Caregivers]
-      summary: Assign work types to caregiver
-      description: |
-        Assign work types to a caregiver. This is admin-only — caregivers can view
-        their assigned work types but cannot modify them. Replaces all existing work types.
-      operationId: assignWorkTypes
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [work_types]
-              properties:
-                work_types:
-                  type: array
-                  minItems: 1
-                  items:
-                    $ref: "#/components/schemas/WorkType"
-                  description: "At least one work type required."
-                  example: ["companion_care", "bedside_care"]
-      responses:
-        "200":
-          description: Work types assigned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      work_types:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/WorkType"
-              example:
-                success: true
-                data:
-                  message: "Work types assigned"
-                  work_types: ["companion_care", "bedside_care"]
-        "401":
-          $ref: "#/components/responses/UnauthorizedError"
-        "403":
-          $ref: "#/components/responses/ForbiddenError"
-        "404":
-          description: Caregiver not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_019"
-                  message: "Caregiver profile not found"
-
-  /admin/caregivers/{id}/service-modes:
-    put:
-      tags: [Admin - Caregivers]
-      summary: Assign service modes to caregiver
-      description: |
-        Assign service modes to a caregiver. This is admin-only — caregivers can view
-        their assigned service modes but cannot modify them. Replaces all existing service modes.
-      operationId: assignServiceModes
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [service_modes]
-              properties:
-                service_modes:
-                  type: array
-                  minItems: 1
-                  items:
-                    $ref: "#/components/schemas/ServiceMode"
-                  description: "At least one service mode required."
-                  example: ["24hrs_live_in", "12hrs_pg"]
-      responses:
-        "200":
-          description: Service modes assigned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      service_modes:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/ServiceMode"
-              example:
-                success: true
-                data:
-                  message: "Service modes assigned"
-                  service_modes: ["24hrs_live_in", "12hrs_pg"]
-        "401":
-          $ref: "#/components/responses/UnauthorizedError"
-        "403":
-          $ref: "#/components/responses/ForbiddenError"
-        "404":
-          description: Caregiver not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_019"
-                  message: "Caregiver profile not found"
-
-  /admin/caregivers/{id}/salary:
-    patch:
-      tags: [Admin - Caregivers]
-      summary: Set caregiver salary
-      description: Set or update a caregiver's salary. Admin-only. Visible to caregiver on their profile.
-      operationId: setCaregiverSalary
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [salary]
-              properties:
-                salary:
-                  type: number
-                  format: double
-                  minimum: 0
-                  description: "Monthly salary in INR"
-                  example: 28000.00
-      responses:
-        "200":
-          description: Salary updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    enum: [true]
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      salary:
-                        type: number
-              example:
-                success: true
-                data:
-                  message: "Salary updated"
-                  salary: 28000.00
-        "401":
-          $ref: "#/components/responses/UnauthorizedError"
-        "403":
-          $ref: "#/components/responses/ForbiddenError"
-        "404":
-          description: Caregiver not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                error:
-                  code: "PROFILE_019"
-                  message: "Caregiver profile not found"
 
   /admin/caregivers/{id}/documents:
     get:
@@ -3199,7 +2936,6 @@ paths:
               - profile_updated
               - status_changed
               - code_changed
-              - service_mode_assigned
               - job_posted
               - job_closed
               - job_response
