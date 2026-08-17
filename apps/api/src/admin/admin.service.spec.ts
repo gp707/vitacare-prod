@@ -260,6 +260,8 @@ describe('AdminService', () => {
         action: 'status_changed',
         entity_type: 'caregiver_profiles',
         entity_id: 'profile-1',
+        job_number: null,
+        job_id: null,
         before_value: { verification_status: 'pending_verification' },
         after_value: { verification_status: 'available' },
         ip_address: '192.168.1.1',
@@ -275,6 +277,35 @@ describe('AdminService', () => {
       } as any);
 
       expect(result.data).toEqual([row]);
+    });
+
+    it('passes through the repository-resolved job_number/job_id for job-related entries', async () => {
+      const row = {
+        id: 'log-2',
+        user_id: 'admin-1',
+        user_name: 'Admin One',
+        target_user_id: null,
+        target_user_name: null,
+        action: 'job_posted',
+        entity_type: 'jobs',
+        entity_id: 'job-1',
+        job_number: 42,
+        job_id: 'job-1',
+        before_value: null,
+        after_value: { status: 'active' },
+        ip_address: null,
+        created_at: new Date('2026-08-01T14:30:00Z'),
+      };
+      auditLogsRepo.list.mockResolvedValue({ items: [row], total: 1 });
+
+      const result = await service.listAuditLogs({
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+      } as any);
+
+      expect(result.data[0]).toMatchObject({ job_number: 42, job_id: 'job-1' });
     });
   });
 

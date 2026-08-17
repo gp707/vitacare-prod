@@ -230,6 +230,8 @@ export class AdminService {
       action: item.action,
       entity_type: item.entity_type,
       entity_id: item.entity_id,
+      job_number: item.job_number,
+      job_id: item.job_id,
       before_value: item.before_value,
       after_value: item.after_value,
       ip_address: item.ip_address,

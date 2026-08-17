@@ -6,6 +6,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../data/admin_jobs_repository.dart';
+import '../widgets/job_detail_dialog.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
@@ -99,7 +100,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   Future<void> _viewApplications(JobModel job) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _JobApplicationsDialog(job: job),
+      builder: (dialogContext) => JobDetailDialog(jobId: job.id),
     );
     await _load();
   }
@@ -159,44 +160,6 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-String _formatDateTime(DateTime date) =>
-    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-
-/// Shows the real per-transition history (applied/accepted/declined, with
-/// timestamps) instead of a bare status word, and — unlike the caregiver's
-/// own view — names which admin made the accept/reject decision.
-class _ApplicationTimeline extends StatelessWidget {
-  final JobApplicationModel application;
-
-  const _ApplicationTimeline(this.application);
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = <String>[];
-    if (application.appliedAt != null) {
-      lines.add('Applied: ${_formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
-    }
-    if (application.acceptedAt != null) {
-      lines.add(
-        'Accepted: ${_formatDateTime(DateTime.parse(application.acceptedAt!).toLocal())}'
-        '${application.decidedByName != null ? ' by ${application.decidedByName}' : ''}',
-      );
-    }
-    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
-      final decider = application.decidedByName;
-      final label = decider != null ? 'Declined by $decider' : 'Declined';
-      lines.add('$label: ${_formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final line in lines)
-          Text(line, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      ],
-    );
-  }
-}
 
 class _JobRow extends StatelessWidget {
   final JobModel job;
@@ -760,132 +723,3 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   }
 }
 
-class _JobApplicationsDialog extends ConsumerStatefulWidget {
-  final JobModel job;
-
-  const _JobApplicationsDialog({required this.job});
-
-  @override
-  ConsumerState<_JobApplicationsDialog> createState() => _JobApplicationsDialogState();
-}
-
-class _JobApplicationsDialogState extends ConsumerState<_JobApplicationsDialog> {
-  List<JobApplicationModel>? _applications;
-  String? _errorMessage;
-  String? _decidingApplicationId;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  Future<void> _load() async {
-    try {
-      final (_, applications) = await ref.read(adminJobsRepositoryProvider).getDetail(widget.job.id);
-      if (mounted) setState(() => _applications = applications);
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _errorMessage = e.message);
-    }
-  }
-
-  Future<void> _decide(JobApplicationModel application, String status) async {
-    setState(() => _decidingApplicationId = application.id);
-    try {
-      await ref
-          .read(adminJobsRepositoryProvider)
-          .decideApplication(widget.job.id, application.id, status);
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    } finally {
-      if (mounted) setState(() => _decidingApplicationId = null);
-    }
-  }
-
-  void _viewProfile(JobApplicationModel application) {
-    Navigator.of(context).pushNamed('/caregiver-detail', arguments: application.profileId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        'Applicants — Job #${widget.job.jobNumber} · '
-        '${DutyType.displayNames[widget.job.dutyType] ?? widget.job.dutyType} in '
-        '${City.displayNames[widget.job.city] ?? widget.job.city}',
-      ),
-      content: SizedBox(
-        width: 480,
-        child: _errorMessage != null
-            ? Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-            : _applications == null
-                ? const Center(child: VitaLoadingIndicator())
-                : _applications!.isEmpty
-                    ? const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
-                    : SizedBox(
-                        height: 340,
-                        child: ListView.separated(
-                          itemCount: _applications!.length,
-                          separatorBuilder: (_, __) => const Divider(),
-                          itemBuilder: (context, index) {
-                            final application = _applications![index];
-                            final isDeciding = _decidingApplicationId == application.id;
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text('${application.fullName} — ${application.status}'),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(application.phone),
-                                  const SizedBox(height: 2),
-                                  _ApplicationTimeline(application),
-                                ],
-                              ),
-                              trailing: isDeciding
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: VitaLoadingIndicator(size: 20),
-                                    )
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TextButton(
-                                          onPressed: () => _viewProfile(application),
-                                          child: const Text('Profile'),
-                                        ),
-                                        if (application.status == JobApplicationStatus.applied) ...[
-                                          TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.accepted),
-                                            child: const Text('Accept'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                                            child: const Text('Reject'),
-                                          ),
-                                        ] else if (application.status == JobApplicationStatus.accepted)
-                                          TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                                            child: const Text('Reject'),
-                                          ),
-                                      ],
-                                    ),
-                            );
-                          },
-                        ),
-                      ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-      ],
-    );
-  }
-}

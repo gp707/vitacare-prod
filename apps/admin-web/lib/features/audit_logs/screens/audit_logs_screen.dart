@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../data/audit_log_models.dart';
 import '../data/audit_logs_repository.dart';
+import '../../jobs/widgets/job_detail_dialog.dart';
 
 /// Renders a JSON value map as a compact "key: value, key: value" string —
 /// enough to see what changed at a glance without a full diff-viewer widget.
@@ -74,6 +75,13 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
   void _applyFilters() {
     _page = 1;
     _load();
+  }
+
+  void _openJob(String jobId) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => JobDetailDialog(jobId: jobId),
+    );
   }
 
   Future<void> _pickDate({required bool isFrom}) async {
@@ -163,6 +171,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
             DataColumn(label: Text('Actor')),
             DataColumn(label: Text('Action')),
             DataColumn(label: Text('Entity')),
+            DataColumn(label: Text('Job')),
             DataColumn(label: Text('Target')),
             DataColumn(label: Text('Before')),
             DataColumn(label: Text('After')),
@@ -176,6 +185,14 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
                     DataCell(Text(entry.userName ?? '-')),
                     DataCell(Text(entry.action)),
                     DataCell(Text(entry.entityType)),
+                    DataCell(
+                      entry.jobNumber == null || entry.jobId == null
+                          ? const Text('-')
+                          : TextButton(
+                              onPressed: () => _openJob(entry.jobId!),
+                              child: Text('Job #${entry.jobNumber}'),
+                            ),
+                    ),
                     DataCell(Text(entry.targetUserName ?? '-')),
                     DataCell(SizedBox(width: 220, child: Text(formatAuditValue(entry.beforeValue)))),
                     DataCell(SizedBox(width: 220, child: Text(formatAuditValue(entry.afterValue)))),

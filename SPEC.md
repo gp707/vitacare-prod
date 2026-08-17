@@ -2536,6 +2536,8 @@ Deactivate admin account (soft delete — sets `is_active = false`).
       "action": "status_changed",
       "entity_type": "caregiver_profiles",
       "entity_id": "uuid",
+      "job_number": null,
+      "job_id": null,
       "before_value": { "verification_status": "pending_call" },
       "after_value": { "verification_status": "available" },
       "ip_address": "192.168.1.1",
@@ -2545,6 +2547,16 @@ Deactivate admin account (soft delete — sets `is_active = false`).
   "meta": { "page": 1, "limit": 20, "total": 100, "totalPages": 5 }
 }
 ```
+
+`job_number`/`job_id` are resolved server-side (not stored columns — a
+query-time join in `AuditLogsRepository.list`), so admin-web can render
+"Job #<n>" and link straight to that job instead of a bare
+entity_type/entity_id UUID, which was otherwise unreadable. Both are `null`
+for every entity_type except two: `entity_type = 'jobs'` (entity_id is the
+job itself — `job_posted`/`job_updated`/`job_closed`/`job_reminder_sent`)
+and `entity_type = 'job_applications'` (entity_id is the application;
+resolved one hop further via `job_applications.job_id` —
+`job_response`/`job_application_decided`).
 
 **DO NOT:**
 - Do NOT allow caregivers to access audit logs.
@@ -3150,9 +3162,9 @@ Route by verification_status:
 - **Change Phone button:** Opens modal with new phone number input. For account recovery.
 
 #### Audit Logs (`/audit-logs`)
-- Data table: Timestamp, Actor, Target, Action, Changes.
-- Filters: Action type, actor, target, date range.
-- Expandable rows to show before/after JSON values.
+- Data table: Timestamp, Actor, Action, Entity, Job, Target, Before, After, IP.
+- The Job column renders "Job #<n>" (from the resolved `job_number`, see 6.8) as a link for any job-related entry — tapping it opens that job's applicants dialog (`JobDetailDialog`, fetched fresh by id, independent of whatever page the Jobs list happens to be on). Every other entry shows "-".
+- Filters: Action type, date range (target_user_id is settable via the caregiver detail screen's "view audit history" link).
 - No export functionality.
 
 #### Admin Management (`/admins`) — Super Admin only

@@ -9,6 +9,8 @@ class AuditLogEntry {
   final String action;
   final String entityType;
   final String? entityId;
+  final int? jobNumber;
+  final String? jobId;
   final Map<String, dynamic>? beforeValue;
   final Map<String, dynamic>? afterValue;
   final String? ipAddress;
@@ -23,6 +25,8 @@ class AuditLogEntry {
     required this.action,
     required this.entityType,
     this.entityId,
+    this.jobNumber,
+    this.jobId,
     this.beforeValue,
     this.afterValue,
     this.ipAddress,
@@ -38,6 +42,8 @@ class AuditLogEntry {
         action: json['action'] as String,
         entityType: json['entity_type'] as String,
         entityId: json['entity_id'] as String?,
+        jobNumber: json['job_number'] as int?,
+        jobId: json['job_id'] as String?,
         beforeValue: json['before_value'] as Map<String, dynamic>?,
         afterValue: json['after_value'] as Map<String, dynamic>?,
         ipAddress: json['ip_address'] as String?,

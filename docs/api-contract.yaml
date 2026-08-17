@@ -642,6 +642,19 @@ components:
           type: string
           format: uuid
           nullable: true
+        job_number:
+          type: integer
+          nullable: true
+          description: >
+            Resolved server-side (not a stored column) whenever entity_type is 'jobs' (entity_id
+            is the job) or 'job_applications' (entity_id is the application, resolved one hop
+            further via job_applications.job_id). Null for every other entity_type. Lets
+            admin-web show "Job #<n>" and link to it instead of a bare entity_id UUID.
+        job_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The job's UUID, resolved under the same conditions as job_number.
         before_value:
           type: object
           nullable: true
@@ -3415,6 +3428,8 @@ paths:
                     action: "status_changed"
                     entity_type: "caregiver_profiles"
                     entity_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    job_number: null
+                    job_id: null
                     before_value:
                       verification_status: "pending_call"
                     after_value:

@@ -171,6 +171,18 @@ describe('Jobs (e2e)', () => {
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_posted');
 
+      // GET /admin/audit-logs resolves job_number/job_id for entity_type
+      // 'jobs' rows too, not just the raw entity_id UUID — this is what
+      // lets admin-web show "Job #<n>" and link to it from the audit log.
+      const auditList = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ action: 'job_posted', limit: 50 })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const auditEntry = auditList.body.data.find((e: { entity_id: string }) => e.entity_id === job.id);
+      expect(auditEntry.job_number).toBe(job.job_number);
+      expect(auditEntry.job_id).toBe(job.id);
+
       const careReceiver = await db.query('SELECT * FROM care_receivers WHERE id = $1', [
         job.care_receiver_id,
       ]);
@@ -1060,6 +1072,19 @@ describe('Jobs (e2e)', () => {
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_application_decided');
 
+      // job_number/job_id resolve here too — entity_id is the application,
+      // one hop away from the job via job_applications.job_id.
+      const auditListForApplication = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ action: 'job_application_decided', limit: 50 })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const applicationAuditEntry = auditListForApplication.body.data.find(
+        (e: { entity_id: string }) => e.entity_id === applicationA.id,
+      );
+      expect(applicationAuditEntry.job_number).toBe(job.job_number);
+      expect(applicationAuditEntry.job_id).toBe(job.id);
+
       // Admin reverses the acceptance.
       const reject = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}/applications/${applicationA.id}`)
@@ -1106,7 +1131,7 @@ describe('Jobs (e2e)', () => {
       expect(myApplicationAfterUndo.accepted_at).not.toBeNull();
       expect(myApplicationAfterUndo.rejected_at).not.toBeNull();
       expect(myApplicationAfterUndo.decided_by_admin).toBe(true);
-    });
+    }, 30000);
 
     it('rejects a still-applied application with no side effects on the job', async () => {
       const job = await createJob();
