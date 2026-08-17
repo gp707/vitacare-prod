@@ -146,11 +146,8 @@ class _JobCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (job.myApplicationStatus != null)
-            Text(
-              _statusLabel(job.myApplicationStatus!),
-              style: const TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
-            )
+          else if (job.myApplication != null)
+            _ApplicationTimeline(job.myApplication!)
           else
             Row(
               children: [
@@ -167,17 +164,37 @@ class _JobCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _statusLabel(String status) {
-    switch (status) {
-      case JobApplicationStatus.applied:
-        return 'You applied';
-      case JobApplicationStatus.accepted:
-        return 'You were accepted';
-      case JobApplicationStatus.rejected:
-        return 'You declined';
-      default:
-        return status;
+/// Shows what actually happened to this application and when, instead of a
+/// single bare status word — in particular this is what tells "you
+/// declined it" (self) apart from "the employer declined you" (admin
+/// rejected a still-applied application, or undid a prior acceptance —
+/// both read the same to the caregiver: the employer said no).
+class _ApplicationTimeline extends StatelessWidget {
+  final MyApplicationModel application;
+
+  const _ApplicationTimeline(this.application);
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = <String>[];
+    if (application.appliedAt != null) {
+      lines.add('Applied: ${formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
     }
+    if (application.acceptedAt != null) {
+      lines.add('Accepted: ${formatDateTime(DateTime.parse(application.acceptedAt!).toLocal())}');
+    }
+    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+      final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined';
+      lines.add('$label: ${formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final line in lines)
+          Text(line, style: const TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+      ],
+    );
   }
 }

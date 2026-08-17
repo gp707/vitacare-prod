@@ -364,11 +364,11 @@ describe('JobsService', () => {
     it('returns active jobs with pagination meta', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobsRepo.listActiveForCaregiver.mockResolvedValue({
-        items: [{ ...job, my_application_status: null }],
+        items: [{ ...job, my_application: null }],
         total: 1,
       });
       const result = await service.listActiveJobsForCaregiver('user-1', { page: 1, limit: 20 } as any);
-      expect(result.data).toEqual([{ ...job, my_application_status: null }]);
+      expect(result.data).toEqual([{ ...job, my_application: null }]);
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });
   });

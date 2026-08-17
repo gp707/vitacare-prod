@@ -830,7 +830,7 @@ describe('Jobs (e2e)', () => {
       expect(ids).toContain(activeJob.id);
       expect(ids).not.toContain(closedJob.id);
       expect(
-        res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_application_status,
+        res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_application,
       ).toBeNull();
     });
 
@@ -934,9 +934,12 @@ describe('Jobs (e2e)', () => {
         .get('/v1/caregiver/jobs')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
-      expect(
-        myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application_status,
-      ).toBe('applied');
+      const myApplication = myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application;
+      expect(myApplication.status).toBe('applied');
+      expect(myApplication.applied_at).not.toBeNull();
+      expect(myApplication.accepted_at).toBeNull();
+      expect(myApplication.rejected_at).toBeNull();
+      expect(myApplication.decided_by_admin).toBe(false);
 
       // Re-applying (rejecting) updates the same row rather than creating a duplicate.
       await request(app.getHttpServer())
@@ -953,6 +956,21 @@ describe('Jobs (e2e)', () => {
       expect(detail.body.data.applications[0]).toEqual(
         expect.objectContaining({ status: 'rejected', full_name: 'Jobs Test Subject' }),
       );
+
+      // Self-decline: applied_at is preserved from the earlier apply, rejected_at
+      // is now set, and decided_by_admin stays false — this was the caregiver's
+      // own action, not the employer's.
+      const myJobsAfterDecline = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const myApplicationAfterDecline = myJobsAfterDecline.body.data.find(
+        (j: { id: string }) => j.id === job.id,
+      ).my_application;
+      expect(myApplicationAfterDecline.status).toBe('rejected');
+      expect(myApplicationAfterDecline.applied_at).not.toBeNull();
+      expect(myApplicationAfterDecline.rejected_at).not.toBeNull();
+      expect(myApplicationAfterDecline.decided_by_admin).toBe(false);
     });
 
     it('allows an assigned caregiver to apply too', async () => {
@@ -1059,6 +1077,23 @@ describe('Jobs (e2e)', () => {
         [caregiverA.profile_id],
       );
       expect(caregiverAStatusAfter.rows[0].verification_status).toBe('available');
+
+      // The real story from caregiver A's own perspective: applied, then
+      // accepted, then declined BY THE EMPLOYER (not a self-decline) — all
+      // three timestamps set, decided_by_admin true. This is the case that
+      // used to render as a bare, misleading "You declined".
+      const myJobsAfterUndo = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiverA.access_token}`)
+        .expect(200);
+      const myApplicationAfterUndo = myJobsAfterUndo.body.data.find(
+        (j: { id: string }) => j.id === job.id,
+      ).my_application;
+      expect(myApplicationAfterUndo.status).toBe('rejected');
+      expect(myApplicationAfterUndo.applied_at).not.toBeNull();
+      expect(myApplicationAfterUndo.accepted_at).not.toBeNull();
+      expect(myApplicationAfterUndo.rejected_at).not.toBeNull();
+      expect(myApplicationAfterUndo.decided_by_admin).toBe(true);
     });
 
     it('rejects a still-applied application with no side effects on the job', async () => {

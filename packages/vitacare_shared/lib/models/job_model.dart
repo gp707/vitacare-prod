@@ -15,10 +15,43 @@ class JobPosterModel {
       );
 }
 
+/// The caregiver's own application to this job, if any, with the real
+/// per-transition timeline — not just the current status — so the UI can
+/// show what actually happened and when, e.g. "Applied: ... / Accepted:
+/// ... / Declined by employer: ..." instead of a bare "You declined" that
+/// can't tell a self-decline apart from an admin undoing a prior
+/// acceptance. [decidedByAdmin] is true whenever an admin (not the
+/// caregiver themselves) made the current status happen — covers both
+/// "admin rejected a still-applied application" and "admin undid a prior
+/// acceptance"; both read to the caregiver as "declined by the employer".
+class MyApplicationModel {
+  final String status;
+  final String? appliedAt;
+  final String? acceptedAt;
+  final String? rejectedAt;
+  final bool decidedByAdmin;
+
+  const MyApplicationModel({
+    required this.status,
+    this.appliedAt,
+    this.acceptedAt,
+    this.rejectedAt,
+    required this.decidedByAdmin,
+  });
+
+  factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
+        status: json['status'] as String,
+        appliedAt: json['applied_at'] as String?,
+        acceptedAt: json['accepted_at'] as String?,
+        rejectedAt: json['rejected_at'] as String?,
+        decidedByAdmin: json['decided_by_admin'] as bool,
+      );
+}
+
 /// Mirrors a row from GET /caregiver/jobs or GET /admin/jobs.
-/// `myApplicationStatus` is only ever populated on the caregiver-facing
-/// list (a per-caregiver join); admin-facing applications are fetched
-/// separately via the job-detail endpoint's `applications` array (see
+/// `myApplication` is only ever populated on the caregiver-facing list (a
+/// per-caregiver join); admin-facing applications are fetched separately
+/// via the job-detail endpoint's `applications` array (see
 /// JobApplicationModel). `careReceiver` is only present on the job-detail
 /// response (GET /admin/jobs/:id), not the list endpoints. `jobPoster` is
 /// only present on GET /caregiver/jobs/assigned.
@@ -41,7 +74,7 @@ class JobModel {
   final String postedBy;
   final String postedAt;
   final String createdAt;
-  final String? myApplicationStatus;
+  final MyApplicationModel? myApplication;
   final CareReceiverModel? careReceiver;
   final JobPosterModel? jobPoster;
 
@@ -64,7 +97,7 @@ class JobModel {
     required this.postedBy,
     required this.postedAt,
     required this.createdAt,
-    this.myApplicationStatus,
+    this.myApplication,
     this.careReceiver,
     this.jobPoster,
   });
@@ -88,7 +121,9 @@ class JobModel {
         postedBy: json['posted_by'] as String,
         postedAt: json['posted_at'] as String,
         createdAt: json['created_at'] as String,
-        myApplicationStatus: json['my_application_status'] as String?,
+        myApplication: json['my_application'] == null
+            ? null
+            : MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>),
         careReceiver: json['care_receiver'] == null
             ? null
             : CareReceiverModel.fromJson(json['care_receiver'] as Map<String, dynamic>),

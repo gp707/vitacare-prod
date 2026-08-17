@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { City, DutyType, FrequencyOfCare, JobStatus, Language } from '@vitacare/shared-constants';
+import {
+  City,
+  DutyType,
+  FrequencyOfCare,
+  JobApplicationStatus,
+  JobStatus,
+  Language,
+} from '@vitacare/shared-constants';
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { CareReceiverRecord } from './care-receivers.repository';
@@ -30,8 +37,22 @@ export interface JobRecord {
   updated_at: Date;
 }
 
+/** The caregiver's own application to this job, if any — includes the
+ *  real per-transition timeline (not just the current status) so the
+ *  caregiver-app can show what actually happened and when, e.g.
+ *  "Applied: ... / Accepted: ... / Declined by employer: ..." instead of
+ *  a bare "You declined" that can't tell a self-decline apart from an
+ *  admin undoing a prior acceptance. */
+export interface MyApplicationSummary {
+  status: JobApplicationStatus;
+  applied_at: Date | null;
+  accepted_at: Date | null;
+  rejected_at: Date | null;
+  decided_by_admin: boolean;
+}
+
 export interface JobWithMyApplication extends JobRecord {
-  my_application_status: string | null;
+  my_application: MyApplicationSummary | null;
   /** Full care-needs description, joined in so caregiver-app can show
    *  About Patient / About Patient Condition details on the jobs list
    *  itself, without a second per-job request. */
@@ -169,7 +190,14 @@ export class JobsRepository {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobWithMyApplication>(
-        `SELECT j.*, to_jsonb(cr) AS care_receiver, ja.status AS my_application_status
+        `SELECT j.*, to_jsonb(cr) AS care_receiver,
+           CASE WHEN ja.id IS NULL THEN NULL ELSE jsonb_build_object(
+             'status', ja.status,
+             'applied_at', ja.applied_at,
+             'accepted_at', ja.accepted_at,
+             'rejected_at', ja.rejected_at,
+             'decided_by_admin', ja.decided_by IS NOT NULL
+           ) END AS my_application
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1

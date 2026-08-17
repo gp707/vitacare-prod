@@ -1144,7 +1144,10 @@ CREATE TABLE job_applications (
   job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
   status VARCHAR(20) NOT NULL CHECK (status IN ('applied', 'rejected', 'accepted')),
-  decided_by UUID REFERENCES users(id),   -- admin who accepted/rejected; NULL while status = 'applied'
+  decided_by UUID REFERENCES users(id),   -- admin who accepted/rejected; NULL while the caregiver's own action produced the current status
+  applied_at TIMESTAMPTZ,                 -- set on a fresh 'applied' upsert; NULL if they declined without ever applying
+  accepted_at TIMESTAMPTZ,                -- set only by an admin decide() to 'accepted'
+  rejected_at TIMESTAMPTZ,                -- set by either a caregiver self-decline or an admin decide() to 'rejected' (including undoing a prior acceptance)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(job_id, profile_id)
@@ -2324,7 +2327,7 @@ remaining — purely informational, never blocks applying).
       "preferred_religion": "hindu",
       "posted_at": "2026-08-03T10:00:00Z",
       "created_at": "2026-08-03T10:00:00Z",
-      "my_application_status": null,
+      "my_application": null,
       "care_receiver": {
         "id": "uuid",
         "age": 72,
@@ -2347,7 +2350,7 @@ remaining — purely informational, never blocks applying).
 ```
 
 **Notes:**
-- `my_application_status` is `null` if the caregiver hasn't applied yet, or `"applied"` / `"rejected"` / `"accepted"`.
+- `my_application` is `null` if the caregiver hasn't applied yet, otherwise `{ status, applied_at, accepted_at, rejected_at, decided_by_admin }` — the real per-transition timeline, not just the current status. `status` is `"applied"` / `"rejected"` / `"accepted"`. Each `_at` field is `null` until that transition has happened (e.g. `accepted_at` stays `null` if the application was rejected without ever being accepted). `decided_by_admin` is `true` whenever an admin's decision (not the caregiver's own action) produced the current status — covers both "admin rejected a still-applied application" and "admin undid a prior acceptance"; both cases should read to the caregiver as "declined by the employer", not "you declined". This was added specifically because a bare status string couldn't distinguish a caregiver's own self-decline from an admin un-accepting them — both landed on `status: "rejected"` and rendered identically.
 - Viewable at any verification status — browsing motivates onboarding. Only applying is gated.
 - `care_receiver` is always present (every job has exactly one, `care_receiver_id` is `NOT NULL`) — unlike on `GET /admin/jobs` (list), which does NOT join it, matching the admin list view's summary-row style; admin gets full details via `GET /admin/jobs/:id` or the Edit dialog.
 

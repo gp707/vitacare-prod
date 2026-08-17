@@ -1698,7 +1698,11 @@ paths:
       description: |
         Viewable at ANY verification status — browsing motivates completing
         onboarding. Only applying is gated. Each item includes
-        `my_application_status` (null if this caregiver hasn't applied yet).
+        `my_application` (null if this caregiver hasn't applied yet) — the
+        real per-transition timeline, not just a bare status, so the app
+        can distinguish "you declined it" from "the employer declined you"
+        (an admin rejecting a still-applied application, or undoing a
+        prior acceptance, both set decided_by_admin: true).
         The caregiver-app highlights `job_number` ("Job #<n>") and
         `salary_monthly` at the top of each card, plus a 3-day apply-by
         urgency message computed client-side from `posted_at` — purely
@@ -1729,10 +1733,41 @@ paths:
                         - $ref: "#/components/schemas/Job"
                         - type: object
                           properties:
-                            my_application_status:
-                              type: string
+                            my_application:
+                              type: object
                               nullable: true
-                              enum: [applied, rejected, accepted, null]
+                              description: >
+                                Null if the caregiver has never applied.
+                                Otherwise the full timeline of this
+                                application, not just its current status.
+                              properties:
+                                status:
+                                  type: string
+                                  enum: [applied, rejected, accepted]
+                                applied_at:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                  description: Null if they declined without ever applying.
+                                accepted_at:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                  description: Set only when an admin has accepted this application.
+                                rejected_at:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                decided_by_admin:
+                                  type: boolean
+                                  description: >
+                                    True whenever an admin's decision (not
+                                    the caregiver's own action) produced
+                                    the current status — covers both
+                                    rejecting a still-applied application
+                                    and undoing a prior acceptance. Both
+                                    should read as "declined by the
+                                    employer", not "you declined".
                             care_receiver:
                               allOf:
                                 - $ref: "#/components/schemas/CareReceiver"

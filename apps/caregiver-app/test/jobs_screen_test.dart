@@ -7,8 +7,13 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/jobs_screen.dart';
+import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
 
-JobModel _job({String? myApplicationStatus, String? postedAt}) {
+// Same conversion the app applies (UTC -> local) so assertions don't
+// depend on the test machine's timezone.
+String _expected(String isoUtc) => formatDateTime(DateTime.parse(isoUtc).toLocal());
+
+JobModel _job({Map<String, dynamic>? myApplication, String? postedAt}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -24,7 +29,7 @@ JobModel _job({String? myApplicationStatus, String? postedAt}) {
     'posted_by': 'admin-1',
     'posted_at': postedAt ?? DateTime.now().toUtc().toIso8601String(),
     'created_at': '2026-08-01T10:00:00Z',
-    'my_application_status': myApplicationStatus,
+    'my_application': myApplication,
     'care_receiver': {
       'id': 'cr-1',
       'age': 78,
@@ -56,7 +61,15 @@ class _FakeJobsRepository extends JobsRepository {
   @override
   Future<String> applyToJob(String jobId, String status) async {
     appliedWith = status;
-    jobs = [_job(myApplicationStatus: status)];
+    jobs = [
+      _job(myApplication: {
+        'status': status,
+        'applied_at': status == 'applied' ? '2026-08-17T10:00:00Z' : null,
+        'accepted_at': null,
+        'rejected_at': status == 'rejected' ? '2026-08-17T10:00:00Z' : null,
+        'decided_by_admin': false,
+      }),
+    ];
     return status;
   }
 }
@@ -187,8 +200,16 @@ void main() {
     expect(find.widgetWithText(TextButton, 'More Info'), findsNothing);
   });
 
-  testWidgets('shows the application status instead of buttons once already applied', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_job(myApplicationStatus: 'applied')]);
+  testWidgets('shows the applied date instead of buttons once already applied', (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'applied',
+        'applied_at': '2026-08-17T10:00:00Z',
+        'accepted_at': null,
+        'rejected_at': null,
+        'decided_by_admin': false,
+      }),
+    ]);
     await _pumpTall(
       tester,
       ProviderScope(
@@ -198,12 +219,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('You applied'), findsOneWidget);
+    expect(find.text('Applied: ${_expected('2026-08-17T10:00:00Z')}'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply'), findsNothing);
   });
 
-  testWidgets('shows a declined label when rejected', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_job(myApplicationStatus: 'rejected')]);
+  testWidgets('shows "Declined" (not "Declined by employer") when the caregiver declined it themselves',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'rejected',
+        'applied_at': '2026-08-17T09:00:00Z',
+        'accepted_at': null,
+        'rejected_at': '2026-08-17T09:05:00Z',
+        'decided_by_admin': false,
+      }),
+    ]);
     await _pumpTall(
       tester,
       ProviderScope(
@@ -213,7 +243,36 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('You declined'), findsOneWidget);
+    expect(find.text('Applied: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Declined: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Declined by employer'), findsNothing);
+  });
+
+  testWidgets(
+      'shows the full real timeline — applied, accepted, then "Declined by employer" — not a bare '
+      '"You declined" when an admin undoes a prior acceptance', (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'rejected',
+        'applied_at': '2026-08-15T09:00:00Z',
+        'accepted_at': '2026-08-16T09:00:00Z',
+        'rejected_at': '2026-08-17T09:00:00Z',
+        'decided_by_admin': true,
+      }),
+    ]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Applied: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Accepted: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Declined by employer: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('You declined'), findsNothing);
   });
 
   testWidgets('tapping Apply calls applyToJob with applied', (tester) async {

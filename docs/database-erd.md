@@ -159,7 +159,10 @@ job postings are no longer built around a "work type" category; see
 │ profile_id           │
 │   (FK→profiles)      │
 │ status               │  ◄── applied | rejected | accepted
-│ decided_by (FK→users)│  ◄── admin who accepted/rejected
+│ decided_by (FK→users)│  ◄── set only by an admin decision (not caregiver self-action)
+│ applied_at           │  ◄── null if declined without ever applying
+│ accepted_at          │  ◄── set only when an admin accepts
+│ rejected_at          │  ◄── self-decline OR admin reject/undo-accept
 │ created_at           │
 │ updated_at           │
 └──────────────────────┘
