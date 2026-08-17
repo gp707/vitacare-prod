@@ -27,4 +27,19 @@ class JobsRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// The job the caregiver is currently (or was most recently) assigned to
+  /// and accepted for — null if they've never been accepted onto a job.
+  /// Needed because listActiveJobs() only returns active jobs, and an
+  /// accepted job closes immediately, so it would otherwise disappear from
+  /// the caregiver's own view of it.
+  Future<JobModel?> getAssignedJob() async {
+    try {
+      final res = await _dio.get(ApiRoutes.caregiverJobsAssigned);
+      final data = res.data['data'];
+      return data == null ? null : JobModel.fromJson(data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

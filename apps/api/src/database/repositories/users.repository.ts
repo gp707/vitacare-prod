@@ -96,6 +96,20 @@ export class UsersRepository {
     return result.rows.map((row) => row.fcm_token);
   }
 
+  /** Used by the daily 8 AM availability-reminder push — targets only
+   *  caregivers whose status is one of the given verification statuses
+   *  (available/unavailable), unlike listCaregiverFcmTokens which is an
+   *  unfiltered broadcast to every caregiver. */
+  async listCaregiverFcmTokensByStatus(statuses: string[]): Promise<string[]> {
+    const result = await this.db.query<{ fcm_token: string }>(
+      `SELECT u.fcm_token FROM users u
+       JOIN caregiver_profiles cp ON cp.user_id = u.id
+       WHERE u.role = 'caregiver' AND u.fcm_token IS NOT NULL AND cp.verification_status = ANY($1::text[])`,
+      [statuses],
+    );
+    return result.rows.map((row) => row.fcm_token);
+  }
+
   async listAdmins(): Promise<UserRecord[]> {
     const result = await this.db.query<UserRecord>(
       `SELECT * FROM users WHERE role IN ('admin', 'super_admin') ORDER BY created_at DESC`,

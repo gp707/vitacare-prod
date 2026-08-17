@@ -299,6 +299,24 @@ export class JobsService {
     return { data: items, meta };
   }
 
+  /** The job the caregiver is currently (or was most recently) assigned to
+   *  and accepted for — `GET /caregiver/jobs` only lists active jobs, so
+   *  once a job closes on acceptance it would otherwise vanish from the
+   *  caregiver's own view of it. Returns null (not an error) when they've
+   *  never been accepted onto a job. */
+  async getMyAssignedJob(userId: string) {
+    const profile = await this.profilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    const application = await this.jobApplicationsRepo.findMostRecentAcceptedByProfileId(profile.id);
+    if (!application) return null;
+
+    const job = await this.jobsRepo.findById(application.job_id);
+    if (!job) return null;
+    const careReceiver = await this.careReceiversRepo.findById(job.care_receiver_id);
+    return { ...job, care_receiver: careReceiver };
+  }
+
   async applyToJob(userId: string, jobId: string, dto: ApplyJobDto, ipAddress: string | null) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');

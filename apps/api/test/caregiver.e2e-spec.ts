@@ -564,4 +564,93 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.error.code).toBe('AUTH_005');
     });
   });
+
+  describe('POST /v1/caregiver/mark-available', () => {
+    async function registerWithStatus(phoneSuffix: string, status: string) {
+      const created = await registerTestCaregiver(phoneSuffix);
+      await db.query('UPDATE caregiver_profiles SET verification_status = $2 WHERE id = $1', [
+        created.profile_id,
+        status,
+      ]);
+      return created;
+    }
+
+    it('rejects from pending_call (PROFILE_022)', async () => {
+      const created = await registerTestCaregiver('0093'); // fresh registration starts pending_call
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('PROFILE_022');
+
+      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE id = $1', [
+        created.profile_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('pending_call');
+    });
+
+    it('rejects from rejected (PROFILE_022) — must edit profile to resubmit instead', async () => {
+      const created = await registerWithStatus('0094', 'rejected');
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('PROFILE_022');
+    });
+
+    it('is a no-op when already available — returns already_available without an error', async () => {
+      const created = await registerWithStatus('0095', 'available');
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(res.body.data).toEqual({
+        message: 'You are already marked as available',
+        verification_status: 'available',
+        already_available: true,
+      });
+    });
+
+    it('updates unavailable -> available', async () => {
+      const created = await registerWithStatus('0096', 'unavailable');
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(res.body.data).toEqual({
+        message: 'Status updated',
+        verification_status: 'available',
+        already_available: false,
+      });
+
+      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE id = $1', [
+        created.profile_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('available');
+    });
+
+    it('updates assigned -> available (self-service unassign) without touching jobs/applications', async () => {
+      const created = await registerWithStatus('0097', 'assigned');
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(res.body.data.verification_status).toBe('available');
+
+      const audit = await db.query(
+        `SELECT action, before_value, after_value FROM audit_logs
+         WHERE user_id = $1 AND action = 'status_changed' ORDER BY created_at DESC LIMIT 1`,
+        [created.user_id],
+      );
+      expect(audit.rows[0].before_value).toEqual({ verification_status: 'assigned' });
+      expect(audit.rows[0].after_value).toEqual({ verification_status: 'available' });
+    });
+
+    it('rejects without a token (AUTH_005)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .expect(401);
+      expect(res.body.error.code).toBe('AUTH_005');
+    });
+  });
 });

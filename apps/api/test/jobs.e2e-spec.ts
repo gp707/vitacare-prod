@@ -1127,4 +1127,94 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('AUTH_007');
     });
   });
+
+  describe('GET /v1/caregiver/jobs/assigned', () => {
+    it('returns null when the caregiver has never been accepted onto a job', async () => {
+      const caregiver = await registerCaregiver('0023');
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(res.body.data).toBeNull();
+    });
+
+    it("returns the assigned job's full details (including care_receiver) once accepted, even though the job is now closed", async () => {
+      const job = await createJob();
+      const caregiver = await registerCaregiver('0024');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(res.body.data.id).toBe(job.id);
+      expect(res.body.data.status).toBe('closed');
+      expect(res.body.data.care_receiver).toBeDefined();
+      expect(res.body.data.care_receiver.mobility).toBe('walks_independently');
+    });
+
+    it('still returns the job after the caregiver self-marks available again (Mark Available doesn\'t clear the historical assignment)', async () => {
+      const job = await createJob();
+      const caregiver = await registerCaregiver('0025');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/v1/caregiver/mark-available')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(res.body.data.id).toBe(job.id);
+    });
+
+    it('rejects an admin token (AUTH_007) — caregiver-only route', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+  });
 });

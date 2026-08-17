@@ -323,6 +323,46 @@ export class CaregiverService {
     };
   }
 
+  /** One-click self-service "I'm available" — allowed from unavailable or
+   *  assigned only. From pending_call/rejected, PROFILE_022 (the caregiver
+   *  must instead edit their profile, which auto-resubmits while rejected —
+   *  there's no self-service path out of pending_call at all). Already
+   *  available is a no-op (no write, no audit entry), so the UI can just
+   *  show "you're already available" without a failed request. */
+  async markAvailable(userId: string, ipAddress: string | null) {
+    const profile = await this.requireFullProfile(userId);
+
+    if (profile.verification_status === 'available') {
+      return {
+        message: 'You are already marked as available',
+        verification_status: 'available' as const,
+        already_available: true,
+      };
+    }
+
+    if (profile.verification_status !== 'unavailable' && profile.verification_status !== 'assigned') {
+      throw new AppException('PROFILE_022');
+    }
+
+    await this.profilesRepo.markAvailable(profile.id);
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.STATUS_CHANGED,
+      entityType: 'caregiver_profiles',
+      entityId: profile.id,
+      beforeValue: { verification_status: profile.verification_status },
+      afterValue: { verification_status: 'available' },
+      ipAddress,
+    });
+
+    return {
+      message: 'Status updated',
+      verification_status: 'available' as const,
+      already_available: false,
+    };
+  }
+
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
     await this.usersRepo.updateFcmToken(userId, dto.token);
     return { message: 'FCM token updated' };

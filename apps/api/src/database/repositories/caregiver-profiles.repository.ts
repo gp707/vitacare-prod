@@ -179,6 +179,18 @@ export class CaregiverProfilesRepository {
     );
   }
 
+  /** Caregiver self-service "mark myself available" — from unavailable or
+   *  assigned only (callers enforce this). Deliberately narrow: only flips
+   *  verification_status, unlike the admin override which also (re-)stamps
+   *  verified_at/verified_by when moving to available — this isn't a
+   *  re-verification event, so those are left untouched. */
+  async markAvailable(profileId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE caregiver_profiles SET verification_status = 'available', updated_at = NOW() WHERE id = $1`,
+      [profileId],
+    );
+  }
+
   async setSelfieUrl(profileId: string, path: string): Promise<void> {
     await this.db.query(
       'UPDATE caregiver_profiles SET selfie_photo_url = $2, updated_at = NOW() WHERE id = $1',

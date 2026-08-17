@@ -9,7 +9,7 @@ class CaregiverApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VitaCare',
+      title: 'NurseJobs',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

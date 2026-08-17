@@ -55,6 +55,7 @@ describe('CaregiverService', () => {
       setAadhaarDocumentUrl: jest.fn(),
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
+      markAvailable: jest.fn(),
     };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
     preferredCitiesRepo = {
@@ -469,6 +470,86 @@ describe('CaregiverService', () => {
         rejection_message: 'Aadhaar unclear',
         verified_at: null,
       });
+    });
+  });
+
+  describe('markAvailable', () => {
+    it('throws PROFILE_019 when no profile exists', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue(null);
+      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
+        code: 'PROFILE_019',
+      });
+    });
+
+    it('throws PROFILE_022 from pending_call', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.PENDING_CALL,
+      });
+      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
+        code: 'PROFILE_022',
+      });
+      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
+    });
+
+    it('throws PROFILE_022 from rejected', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.REJECTED,
+      });
+      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
+        code: 'PROFILE_022',
+      });
+      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op (no write, no audit log) when already available', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.AVAILABLE,
+      });
+      const result = await service.markAvailable('user-1', null);
+      expect(result).toEqual({
+        message: 'You are already marked as available',
+        verification_status: 'available',
+        already_available: true,
+      });
+      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('updates from unavailable to available and audit-logs it', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.UNAVAILABLE,
+      });
+      const result = await service.markAvailable('user-1', '127.0.0.1');
+      expect(profilesRepo.markAvailable).toHaveBeenCalledWith('profile-1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          action: 'status_changed',
+          entityId: 'profile-1',
+          beforeValue: { verification_status: 'unavailable' },
+          afterValue: { verification_status: 'available' },
+          ipAddress: '127.0.0.1',
+        }),
+      );
+      expect(result).toEqual({
+        message: 'Status updated',
+        verification_status: 'available',
+        already_available: false,
+      });
+    });
+
+    it('updates from assigned to available — self-service unassign, only the caregiver status changes', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({
+        ...fullProfile,
+        verification_status: VerificationStatus.ASSIGNED,
+      });
+      const result = await service.markAvailable('user-1', null);
+      expect(profilesRepo.markAvailable).toHaveBeenCalledWith('profile-1');
+      expect(result.verification_status).toBe('available');
     });
   });
 

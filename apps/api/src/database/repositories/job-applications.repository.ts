@@ -63,6 +63,24 @@ export class JobApplicationsRepository {
     );
   }
 
+  /** The caregiver's current/most-recent accepted application, if any —
+   *  used to show them their own assigned job's details even after it
+   *  closes (GET /caregiver/jobs only lists active jobs). Ordered by
+   *  updated_at so that if an admin's generic status-override endpoint
+   *  ever unassigns a caregiver without touching this row (it doesn't
+   *  cascade into job_applications), a later, more-recent acceptance on a
+   *  different job still wins over the stale one. */
+  async findMostRecentAcceptedByProfileId(profileId: string): Promise<JobApplicationRecord | null> {
+    const result = await this.db.query<JobApplicationRecord>(
+      `SELECT * FROM job_applications
+       WHERE profile_id = $1 AND status = 'accepted'
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [profileId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone

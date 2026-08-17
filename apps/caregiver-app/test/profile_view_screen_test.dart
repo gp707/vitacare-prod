@@ -27,11 +27,33 @@ CaregiverProfileModel _profile({String status = 'pending_call'}) {
 }
 
 class _FakeProfileRepository extends ProfileRepository {
-  final CaregiverProfileModel profile;
+  CaregiverProfileModel profile;
+  bool markAvailableCalled = false;
   _FakeProfileRepository(this.profile) : super(Dio());
 
   @override
   Future<CaregiverProfileModel> getProfile() async => profile;
+
+  @override
+  Future<MarkAvailableResult> markAvailable() async {
+    markAvailableCalled = true;
+    profile = CaregiverProfileModel.fromJson({
+      'user_id': profile.userId,
+      'profile_id': profile.profileId,
+      'full_name': profile.fullName,
+      'phone': profile.phone,
+      'gender': profile.gender,
+      'age': profile.age,
+      'languages': profile.languages,
+      'service_modes': [],
+      'work_types': [],
+      'other_document_urls': [],
+      'terms_accepted': profile.termsAccepted,
+      'verification_status': 'available',
+      'created_at': '2026-08-01T10:00:00Z',
+    });
+    return const MarkAvailableResult(verificationStatus: 'available', alreadyAvailable: false);
+  }
 }
 
 Future<void> _pumpTall(WidgetTester tester, Widget child) async {
@@ -103,5 +125,87 @@ void main() {
 
     expect(find.textContaining('Aadhaar unreadable'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Edit'), findsNWidgets(3));
+  });
+
+  for (final status in ['available', 'unavailable', 'assigned']) {
+    testWidgets('shows Mark Available when status is $status', (tester) async {
+      final fakeRepo = _FakeProfileRepository(_profile(status: status));
+      await _pumpTall(
+        tester,
+        ProviderScope(
+          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+          child: const MaterialApp(home: ProfileViewScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ElevatedButton, 'Mark Available'), findsOneWidget);
+    });
+  }
+
+  for (final status in ['pending_call', 'rejected']) {
+    testWidgets('hides Mark Available when status is $status', (tester) async {
+      final fakeRepo = _FakeProfileRepository(_profile(status: status));
+      await _pumpTall(
+        tester,
+        ProviderScope(
+          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+          child: const MaterialApp(home: ProfileViewScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ElevatedButton, 'Mark Available'), findsNothing);
+    });
+  }
+
+  testWidgets('tapping Mark Available while already available shows a snackbar without calling the API',
+      (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(status: 'available'));
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: ProfileViewScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Available'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('You are already marked as available'), findsOneWidget);
+    expect(fakeRepo.markAvailableCalled, isFalse);
+  });
+
+  testWidgets('tapping Mark Available while unavailable calls the API and refreshes the status',
+      (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(status: 'unavailable'));
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: ProfileViewScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Available'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.markAvailableCalled, isTrue);
+    expect(find.text("You're now marked as available"), findsOneWidget);
+  });
+
+  testWidgets('shows a My Assignment entry point regardless of verification status', (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(status: 'pending_call'));
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: ProfileViewScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, 'My Assignment'), findsOneWidget);
   });
 }

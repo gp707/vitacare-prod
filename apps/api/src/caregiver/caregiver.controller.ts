@@ -93,6 +93,12 @@ export class CaregiverController {
     return this.caregiverService.getVerificationStatus(user.sub);
   }
 
+  @Post('mark-available')
+  @HttpCode(HttpStatus.OK)
+  markAvailable(@CurrentUser() user: JwtPayload, @ClientIp() ip: string | null) {
+    return this.caregiverService.markAvailable(user.sub, ip);
+  }
+
   @Put('fcm-token')
   @HttpCode(HttpStatus.OK)
   updateFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {

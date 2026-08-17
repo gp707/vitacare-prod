@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
+import '../widgets/job_detail_card.dart';
 
 /// List of active job postings, viewable at any verification status
 /// (browsing motivates onboarding). Applying is gated server-side
@@ -66,6 +68,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       appBar: AppBar(
         title: const Text('Jobs'),
         actions: [
+          const WhatsAppHelpButton(),
           TextButton(
             onPressed: () {
               final navigator = Navigator.of(context);
@@ -115,39 +118,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 }
 
-String _formatDate(DateTime date) =>
-    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-/// Purely informational urgency message — never blocks applying, even once
-/// the 3-day window has passed.
-String _urgencyLabel(int daysLeft) {
-  if (daysLeft <= 0) return 'Application window closed';
-  if (daysLeft == 1) return '1 day left to apply';
-  return '$daysLeft days left to apply';
-}
-
-Color _urgencyColor(int daysLeft) {
-  if (daysLeft <= 0) return AppColors.error;
-  if (daysLeft == 1) return AppColors.warning;
-  return AppColors.success;
-}
-
-String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-    );
-  }
-}
-
 class _JobCard extends StatelessWidget {
   final JobModel job;
   final bool isApplying;
@@ -172,128 +142,7 @@ class _JobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  'Job #${job.jobNumber}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  _urgencyLabel(job.daysLeftToApply),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: _urgencyColor(job.daysLeftToApply),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (job.salaryMonthly != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppSpacing.sm),
-                border: Border.all(color: AppColors.success),
-              ),
-              child: Text(
-                '₹${job.salaryMonthly}/month',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.success,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
-            '${City.displayNames[job.city] ?? job.city}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          if (job.careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1),
-            const SizedBox(height: AppSpacing.sm),
-            const _SectionLabel('About Patient'),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              children: [
-                _Tag('${job.careReceiver!.age} yrs'),
-                _Tag(_capitalize(job.careReceiver!.gender)),
-                _Tag('${job.careReceiver!.weightKg} kg'),
-                _Tag(Mobility.displayNames[job.careReceiver!.mobility] ?? job.careReceiver!.mobility),
-                _Tag(Communication.displayNames[job.careReceiver!.communication] ??
-                    job.careReceiver!.communication),
-                _Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ??
-                    job.careReceiver!.feedingType),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const _SectionLabel('About Patient Condition'),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              children: [
-                for (final m in job.careReceiver!.medicalAssistance)
-                  _Tag(MedicalAssistance.displayNames[m] ?? m),
-                for (final t in job.careReceiver!.toiletAssistance)
-                  _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-                if (job.careReceiver!.hasMedicalCondition)
-                  for (final c in job.careReceiver!.medicalConditions)
-                    _Tag(MedicalCondition.displayNames[c] ?? c),
-                if (job.careReceiver!.requiresVitalMonitoring)
-                  for (final v in job.careReceiver!.vitalMonitoringTypes)
-                    _Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
-              ],
-            ),
-            if (job.careReceiver!.medicalInfo != null && job.careReceiver!.medicalInfo!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                job.careReceiver!.medicalInfo!,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-              ),
-            ],
-          ],
-          const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.sm),
-          const _SectionLabel('About Nurse/Caregiver Requirement'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            children: [
-              _Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
-              _Tag(FrequencyOfCare.displayNames[job.frequencyOfCare] ?? job.frequencyOfCare),
-              if (job.area != null && job.area!.isNotEmpty) _Tag(job.area!),
-              for (final lang in job.languages) _Tag(Language.displayNames[lang] ?? lang),
-              if (job.preferredGender != null) _Tag(_capitalize(job.preferredGender!)),
-              if (job.preferredReligion != null)
-                _Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(job.description),
+          JobDetailCard(job: job),
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
@@ -330,26 +179,5 @@ class _JobCard extends StatelessWidget {
       default:
         return status;
     }
-  }
-}
-
-class _Tag extends StatelessWidget {
-  final String label;
-
-  const _Tag(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.xs, bottom: AppSpacing.xs),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(AppSpacing.sm),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
-      ),
-    );
   }
 }

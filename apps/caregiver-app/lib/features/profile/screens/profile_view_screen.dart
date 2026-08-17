@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
+import '../../../app/whatsapp_help_button.dart';
 
 /// Full read-only view of the caregiver's own profile, reachable at any
 /// verification status. The single Edit entry point hands off to
@@ -19,9 +20,12 @@ class ProfileViewScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileViewScreen> createState() => _ProfileViewScreenState();
 }
 
+const _kMarkAvailableEligibleStatuses = ['available', 'unavailable', 'assigned'];
+
 class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   CaregiverProfileModel? _profile;
   bool _loading = true;
+  bool _markingAvailable = false;
   String? _errorMessage;
 
   @override
@@ -45,12 +49,41 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     }
   }
 
+  Future<void> _markAvailable() async {
+    if (_profile == null || _markingAvailable) return;
+
+    if (_profile!.verificationStatus == 'available') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are already marked as available')),
+      );
+      return;
+    }
+
+    setState(() => _markingAvailable = true);
+    try {
+      await ref.read(profileRepositoryProvider).markAvailable();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You're now marked as available")),
+        );
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _markingAvailable = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
         actions: [
+          const WhatsAppHelpButton(),
           TextButton(
             onPressed: () {
               final navigator = Navigator.of(context);
@@ -92,7 +125,29 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           statusMessageFor(profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: AppSpacing.xl),
+        if (_kMarkAvailableEligibleStatuses.contains(profile.verificationStatus)) ...[
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: ElevatedButton(
+              onPressed: _markingAvailable ? null : _markAvailable,
+              child: _markingAvailable
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Mark Available'),
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/my-assignment'),
+            child: const Text('My Assignment'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',
           onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),

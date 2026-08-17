@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { App, cert, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -64,6 +65,29 @@ export class FcmService implements OnModuleInit {
       });
     } catch (error) {
       this.logger.error('Failed to send job-posted push broadcast', error);
+    }
+  }
+
+  /** Daily 8 AM IST nudge (CLAUDE.md's Verification Status Transitions
+   *  notes) — only available/unavailable caregivers get it; pending_call,
+   *  assigned, and rejected caregivers have nothing to "confirm" here. No
+   *  response from the caregiver = no status change, this is purely a
+   *  reminder push. */
+  @Cron('0 8 * * *', { timeZone: 'Asia/Kolkata' })
+  async sendDailyAvailabilityReminder(): Promise<void> {
+    const tokens = await this.usersRepo.listCaregiverFcmTokensByStatus(['available', 'unavailable']);
+    if (tokens.length === 0) return;
+
+    try {
+      await getMessaging(this.app).sendEachForMulticast({
+        tokens,
+        notification: {
+          title: 'Update your availability',
+          body: 'Confirm your status for today — mark yourself available to keep getting job matches.',
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to send daily availability reminder push', error);
     }
   }
 }

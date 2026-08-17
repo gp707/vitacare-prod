@@ -14,6 +14,8 @@ class ApiRoutes {
   static const caregiverProfileSelfie = '/caregiver/profile/selfie';
   static const caregiverProfileDocuments = '/caregiver/profile/documents';
   static const caregiverVerificationStatus = '/caregiver/verification-status';
+  static const caregiverMarkAvailable = '/caregiver/mark-available';
   static const caregiverFcmToken = '/caregiver/fcm-token';
   static const caregiverJobs = '/caregiver/jobs';
+  static const caregiverJobsAssigned = '/caregiver/jobs/assigned';
 }

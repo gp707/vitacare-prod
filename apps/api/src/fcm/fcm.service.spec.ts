@@ -27,7 +27,11 @@ describe('FcmService', () => {
     send.mockReset().mockResolvedValue('projects/x/messages/1');
     sendEachForMulticast.mockReset().mockResolvedValue({ successCount: 1, failureCount: 0 });
     configService = { getOrThrow: jest.fn((key: string) => config[key]) };
-    usersRepo = { findById: jest.fn(), listCaregiverFcmTokens: jest.fn() };
+    usersRepo = {
+      findById: jest.fn(),
+      listCaregiverFcmTokens: jest.fn(),
+      listCaregiverFcmTokensByStatus: jest.fn(),
+    };
     service = new FcmService(configService, usersRepo);
     service.onModuleInit();
   });
@@ -78,6 +82,28 @@ describe('FcmService', () => {
     usersRepo.listCaregiverFcmTokens.mockResolvedValue(['token-a']);
     sendEachForMulticast.mockRejectedValueOnce(new Error('messaging/internal-error'));
     await expect(service.sendToAllCaregivers('Title', 'Body')).resolves.toBeUndefined();
+  });
+
+  it('sends the daily reminder only to available/unavailable caregivers', async () => {
+    usersRepo.listCaregiverFcmTokensByStatus.mockResolvedValue(['token-a', 'token-b']);
+    await service.sendDailyAvailabilityReminder();
+    expect(usersRepo.listCaregiverFcmTokensByStatus).toHaveBeenCalledWith(['available', 'unavailable']);
+    expect(sendEachForMulticast).toHaveBeenCalledWith({
+      tokens: ['token-a', 'token-b'],
+      notification: expect.objectContaining({ title: expect.any(String), body: expect.any(String) }),
+    });
+  });
+
+  it('no-ops the daily reminder when no eligible caregiver has a token', async () => {
+    usersRepo.listCaregiverFcmTokensByStatus.mockResolvedValue([]);
+    await service.sendDailyAvailabilityReminder();
+    expect(sendEachForMulticast).not.toHaveBeenCalled();
+  });
+
+  it('swallows daily reminder failures', async () => {
+    usersRepo.listCaregiverFcmTokensByStatus.mockResolvedValue(['token-a']);
+    sendEachForMulticast.mockRejectedValueOnce(new Error('messaging/internal-error'));
+    await expect(service.sendDailyAvailabilityReminder()).resolves.toBeUndefined();
   });
 
   it('unescapes literal \\n sequences in the private key before initializing', () => {

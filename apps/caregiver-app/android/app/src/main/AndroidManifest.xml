@@ -4,7 +4,7 @@
          builds need it declared here or the app has no network access at all. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="caregiver_app"
+        android:label="NurseJobs"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

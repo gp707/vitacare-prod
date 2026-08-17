@@ -26,6 +26,7 @@ class ErrorCodes {
     'PROFILE_019': 'Caregiver profile not found',
     'PROFILE_020': 'Name must contain only alphabetic characters and spaces',
     'PROFILE_021': 'FCM token is required',
+    'PROFILE_022': 'Cannot mark yourself available from your current status',
 
     // Upload
     'UPLOAD_001': 'File is required',

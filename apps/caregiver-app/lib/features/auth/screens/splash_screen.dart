@@ -38,7 +38,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'VitaCare',
+              'NurseJobs',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
             ),
             SizedBox(height: AppSpacing.lg),

@@ -105,7 +105,7 @@ pending_call → rejected                           (admin: reject)
 available → unavailable                           (caregiver OR admin: "not taking work right now")
 unavailable → available                           (caregiver OR admin: "ready for work again")
 available → assigned                              (admin: assign — ONLY from available, NOT unavailable)
-assigned → available                              (admin: unassign — work completed)
+assigned → available                              (caregiver OR admin: caregiver self-service "Mark Available" one-click button, or admin: unassign — work completed)
 available → pending_call                          (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
 unavailable → pending_call                        (admin: manual reset for re-review; OR system: caregiver changed phone / re-uploaded Aadhaar)
 rejected → pending_call                           (system: any caregiver edit at all — auto-resubmit, no separate "resubmit" action)
@@ -114,8 +114,9 @@ rejected → pending_call                           (system: any caregiver edit 
 **Notes:**
 - `available` = verified + taking work. Green icon. Can respond to jobs.
 - `unavailable` = verified but NOT taking work. Green icon (still verified) but greyed out. Cannot respond to jobs, cannot be assigned.
-- `assigned` = currently working. Cannot toggle availability (admin must unassign first).
-- Daily push at 8 AM reminds available/unavailable caregivers to confirm status. No response = no change.
+- `assigned` = currently working. Caregiver can self-unassign anytime via the one-click "Mark Available" button (`POST /caregiver/mark-available`) — admin doesn't have to unassign first. This only flips `caregiver_profiles.verification_status`; it deliberately does NOT touch the job or `job_applications` row (mirrors the admin override endpoint's scope), so the job stays closed and the application stays `accepted` as a historical record.
+- `POST /caregiver/mark-available` (caregiver-only, no body) is the single "Mark Available" action covering both `unavailable → available` and `assigned → available`: called while already `available` it's a no-op (`already_available: true` in the response, no DB write, no audit entry — the UI shows "You are already marked as available"); called from `pending_call` or `rejected` it 400s with `PROFILE_022` (a rejected caregiver must instead edit their profile, which auto-resubmits per the row above — there's no self-service path out of `pending_call`).
+- Daily push at 8 AM IST reminds `available`/`unavailable` caregivers to confirm status. No response = no change.
 
 ## Enum Values (Source of Truth)
 

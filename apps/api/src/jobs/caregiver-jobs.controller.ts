@@ -23,6 +23,14 @@ export class CaregiverJobsController {
     return this.jobsService.listActiveJobsForCaregiver(user.sub, query);
   }
 
+  // The job the caregiver is currently/most-recently assigned to and
+  // accepted for — returns null (not 404) when there isn't one, since
+  // "no assignment yet" is the normal state for most caregivers.
+  @Get('assigned')
+  getAssigned(@CurrentUser() user: JwtPayload) {
+    return this.jobsService.getMyAssignedJob(user.sub);
+  }
+
   @Post(':id/apply')
   @HttpCode(HttpStatus.OK)
   apply(

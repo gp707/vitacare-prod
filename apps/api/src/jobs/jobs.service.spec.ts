@@ -69,6 +69,7 @@ describe('JobsService', () => {
       findById: jest.fn(),
       decide: jest.fn(),
       findByJobId: jest.fn(),
+      findMostRecentAcceptedByProfileId: jest.fn(),
     };
     careReceiversRepo = {
       create: jest.fn().mockResolvedValue(careReceiver),
@@ -366,6 +367,37 @@ describe('JobsService', () => {
       const result = await service.listActiveJobsForCaregiver('user-1', { page: 1, limit: 20 } as any);
       expect(result.data).toEqual([{ ...job, my_application_status: null }]);
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
+    });
+  });
+
+  describe('getMyAssignedJob', () => {
+    it('throws PROFILE_019 when no profile exists', async () => {
+      profilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.getMyAssignedJob('user-1')).rejects.toMatchObject({ code: 'PROFILE_019' });
+    });
+
+    it('returns null when the caregiver has never been accepted onto a job', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findMostRecentAcceptedByProfileId.mockResolvedValue(null);
+      const result = await service.getMyAssignedJob('user-1');
+      expect(result).toBeNull();
+      expect(jobsRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('returns the job with its care receiver when an accepted application exists', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findMostRecentAcceptedByProfileId.mockResolvedValue({
+        id: 'app-1',
+        job_id: 'job-1',
+        profile_id: 'profile-1',
+        status: 'accepted',
+      });
+      jobsRepo.findById.mockResolvedValue(job);
+      careReceiversRepo.findById.mockResolvedValue(careReceiver);
+
+      const result = await service.getMyAssignedJob('user-1');
+      expect(jobsRepo.findById).toHaveBeenCalledWith('job-1');
+      expect(result).toEqual({ ...job, care_receiver: careReceiver });
     });
   });
 

@@ -1571,6 +1571,67 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /caregiver/mark-available:
+    post:
+      tags: [Caregiver Profile]
+      summary: One-click "Mark Available"
+      description: >
+        The caregiver-app's single self-service action for becoming
+        available again. No request body. From unavailable or assigned,
+        sets verification_status to available (only that field — never
+        touches the job or job_applications row, mirroring the admin
+        status-override endpoint's scope). Already available is a no-op
+        (already_available: true, no write, no audit entry). From
+        pending_call or rejected, 400s with PROFILE_022 — a rejected
+        caregiver must instead edit their profile, which auto-resubmits.
+        There is currently no self-service way to go the other direction
+        (available -> unavailable); that's still admin-only.
+      operationId: markAvailable
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Status updated (or already available)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      verification_status:
+                        type: string
+                        enum: [available]
+                      already_available:
+                        type: boolean
+              example:
+                success: true
+                data:
+                  message: "Status updated"
+                  verification_status: "available"
+                  already_available: false
+        "400":
+          description: Ineligible current status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "PROFILE_022"
+                  message: "Cannot mark yourself available from your current status"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /caregiver/fcm-token:
     put:
       tags: [Caregiver Profile]
@@ -1685,6 +1746,48 @@ paths:
                                 directly on the jobs list.
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/jobs/assigned:
+    get:
+      tags: [Caregiver Jobs]
+      summary: Get my currently/most-recently assigned job
+      description: >
+        GET /caregiver/jobs only lists active jobs, and accepting an
+        application immediately closes the job — so without this endpoint,
+        an assigned caregiver would have no way to see their own job's
+        details again once it closes. Returns the full Job (with
+        care_receiver) for the job_applications row with status=accepted
+        and the most recent updated_at for this caregiver, regardless of
+        the job's current status. Returns data: null (not 404) when the
+        caregiver has never been accepted onto a job — that's the normal
+        state for most caregivers.
+      operationId: getMyAssignedJob
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Assigned job (or null)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    nullable: true
+                    allOf:
+                      - $ref: "#/components/schemas/Job"
+                      - type: object
+                        properties:
+                          care_receiver:
+                            $ref: "#/components/schemas/CareReceiver"
+              example:
+                success: true
+                data: null
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "500":

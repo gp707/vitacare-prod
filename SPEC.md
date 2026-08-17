@@ -1612,39 +1612,43 @@ Upload qualification doc, Aadhaar, or other documents. Multipart form data.
 
 ---
 
-#### PATCH `/caregiver/availability-status`
+#### POST `/caregiver/mark-available`
 
-Toggle availability status. Caregiver can switch between `available` and `unavailable`.
+One-click "Mark Available" — the caregiver-app's single self-service action
+for becoming available again. No request body.
 
-This is also triggered by the daily availability reminder notification — caregiver taps "Yes" (available) or "No" (unavailable).
+**Precondition/behavior by current status:**
+- `unavailable` or `assigned` → sets `verification_status` to `available`,
+  audit-logs it. This only flips `caregiver_profiles.verification_status` —
+  unlike the admin's dedicated accept/reject-application flow, it does NOT
+  touch the job or `job_applications` row (mirrors the scope of the generic
+  admin status-override endpoint), so a previously-accepted application
+  stays a historical `accepted` record and the job stays closed.
+- `available` already → no-op. No DB write, no audit entry.
+  `already_available: true` in the response so the UI can show "You are
+  already marked as available" without treating it as a failure.
+- `pending_call` or `rejected` → `PROFILE_022`. A rejected caregiver must
+  instead edit their profile, which auto-resubmits (see PATCH
+  `/caregiver/profile`); there's no self-service path out of `pending_call`
+  at all.
 
-**Precondition:** Status must be `available` or `unavailable`. Cannot toggle if `assigned` (must be unassigned by admin first), or if in any pre-verification status.
-
-**Request:**
-```json
-{
-  "status": "unavailable"
-}
-```
-
-**Validation:**
-- `status`: Required, must be `available` or `unavailable`.
-- Current status must be `available` or `unavailable`. If `assigned` → return error "Cannot change availability while assigned to work."
+There is currently no self-service way to go FROM `available` TO
+`unavailable` — that direction is still admin-only (via `PATCH
+/admin/caregivers/:id/status`).
 
 **Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "message": "Availability updated",
-    "verification_status": "unavailable"
+    "message": "Status updated",
+    "verification_status": "available",
+    "already_available": false
   }
 }
 ```
 
-**Side effects:**
-- Audit log entry created.
-- If toggled to `unavailable`, caregiver will NOT appear in admin's "available for assignment" pool.
+**Errors:** `PROFILE_019` (no profile), `PROFILE_022` (ineligible current status).
 
 ---
 
@@ -2349,6 +2353,36 @@ remaining — purely informational, never blocks applying).
 
 ---
 
+#### GET `/caregiver/jobs/assigned`
+
+The job the caregiver is currently (or was most recently) assigned to and
+accepted for. This endpoint exists because `GET /caregiver/jobs` only lists
+*active* jobs, and accepting an application immediately closes the job — so
+without this, an assigned caregiver would have no way to see their own
+job's details again once it closes. Caregiver-only, no query params.
+
+**Response (200) — has an assignment:** the full `Job` object (same shape
+as `POST /admin/jobs`'s response, including the joined `care_receiver`),
+regardless of the job's current `status`.
+
+**Response (200) — no assignment:**
+```json
+{ "success": true, "data": null }
+```
+Not a 404 — "never been accepted onto a job" is the normal state for most caregivers.
+
+**Resolution when there's ambiguity:** picks the `job_applications` row
+with `status = 'accepted'` and the most recent `updated_at` for this
+caregiver. In practice there's at most one such row at a time, but this
+ordering also protects against a rare edge case: the generic admin
+status-override endpoint (`PATCH /admin/caregivers/:id/status`) doesn't
+cascade into `job_applications`, so if an admin ever unassigns a caregiver
+through that route instead of the dedicated accept/reject-application flow,
+a stale `accepted` row could be left behind — the most-recent-first
+ordering ensures a later acceptance on a different job still wins.
+
+---
+
 #### POST `/caregiver/jobs/:id/apply`
 
 Apply to (or reject) a job posting. Caregiver can call this multiple times — the same application row is updated in place, not duplicated.
@@ -2517,6 +2551,7 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | PROFILE_019 | 404 | Caregiver profile not found | Profile ID doesn't exist |
 | PROFILE_020 | 400 | Name must contain only alphabetic characters and spaces | Invalid characters in name |
 | PROFILE_021 | 400 | FCM token is required | Empty/missing token on `PUT /caregiver/fcm-token` |
+| PROFILE_022 | 400 | Cannot mark yourself available from your current status | `POST /caregiver/mark-available` while pending_call or rejected |
 
 ### 7.3 Upload Errors (UPLOAD_xxx)
 
@@ -2585,7 +2620,7 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 | Status: Rejected | Caregiver | Profile Update Required | Your profile needs updates. Please check the app for details. |
 | New Job Posted | All Caregivers | New Job: {duty_type_display} in {city_display} | {area, }{city_display} \| IMMEDIATELY APPLY |
 | Job Reminder | All Caregivers | Reminder: {duty_type_display} in {city_display} | {area, }{city_display} \| APPLY NOW BEFORE IT'S FILLED |
-| Daily Availability Reminder | Verified caregivers (available/unavailable) | Update Your Availability | Are you available for work today? Open app to confirm. |
+| Daily Availability Reminder (8 AM IST cron, `@nestjs/schedule`) | Caregivers with status available/unavailable only | Update your availability | Confirm your status for today — mark yourself available to keep getting job matches. |
 
 **Payload Structure:**
 ```json

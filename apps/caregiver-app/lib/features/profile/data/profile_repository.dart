@@ -21,6 +21,18 @@ class VerificationStatusResult {
       );
 }
 
+class MarkAvailableResult {
+  final String verificationStatus;
+  final bool alreadyAvailable;
+
+  const MarkAvailableResult({required this.verificationStatus, required this.alreadyAvailable});
+
+  factory MarkAvailableResult.fromJson(Map<String, dynamic> json) => MarkAvailableResult(
+        verificationStatus: json['verification_status'] as String,
+        alreadyAvailable: json['already_available'] as bool,
+      );
+}
+
 class ProfileRepository {
   final Dio _dio;
 
@@ -101,6 +113,20 @@ class ProfileRepository {
         'file': MultipartFile.fromBytes(bytes, filename: filename),
       });
       await _dio.post(ApiRoutes.caregiverProfileDocuments, data: formData);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// One-click "Mark Available" — allowed from unavailable or assigned
+  /// only (PROFILE_022 from pending_call/rejected). Already available is a
+  /// no-op server-side (already_available: true, no error thrown) so the
+  /// UI can show "you're already available" without treating it as a
+  /// failure.
+  Future<MarkAvailableResult> markAvailable() async {
+    try {
+      final res = await _dio.post(ApiRoutes.caregiverMarkAvailable);
+      return MarkAvailableResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
