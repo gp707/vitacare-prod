@@ -160,6 +160,44 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+String _formatDateTime(DateTime date) =>
+    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+/// Shows the real per-transition history (applied/accepted/declined, with
+/// timestamps) instead of a bare status word, and — unlike the caregiver's
+/// own view — names which admin made the accept/reject decision.
+class _ApplicationTimeline extends StatelessWidget {
+  final JobApplicationModel application;
+
+  const _ApplicationTimeline(this.application);
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = <String>[];
+    if (application.appliedAt != null) {
+      lines.add('Applied: ${_formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
+    }
+    if (application.acceptedAt != null) {
+      lines.add(
+        'Accepted: ${_formatDateTime(DateTime.parse(application.acceptedAt!).toLocal())}'
+        '${application.decidedByName != null ? ' by ${application.decidedByName}' : ''}',
+      );
+    }
+    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+      final decider = application.decidedByName;
+      final label = decider != null ? 'Declined by $decider' : 'Declined';
+      lines.add('$label: ${_formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final line in lines)
+          Text(line, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      ],
+    );
+  }
+}
+
 class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback? onClose;
@@ -816,7 +854,14 @@ class _JobApplicationsDialogState extends ConsumerState<_JobApplicationsDialog> 
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text('${application.fullName} — ${application.status}'),
-                              subtitle: Text(application.phone),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(application.phone),
+                                  const SizedBox(height: 2),
+                                  _ApplicationTimeline(application),
+                                ],
+                              ),
                               trailing: isDeciding
                                   ? const SizedBox(
                                       height: 20,

@@ -67,7 +67,14 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
   });
 }
 
-JobApplicationModel _application({String status = 'applied', String id = 'app-1'}) {
+JobApplicationModel _application({
+  String status = 'applied',
+  String id = 'app-1',
+  String? appliedAt = '2026-08-01T10:00:00Z',
+  String? acceptedAt,
+  String? rejectedAt,
+  String? decidedByName,
+}) {
   return JobApplicationModel.fromJson({
     'id': id,
     'job_id': 'job-1',
@@ -75,8 +82,21 @@ JobApplicationModel _application({String status = 'applied', String id = 'app-1'
     'status': status,
     'full_name': 'Ramesh Kumar',
     'phone': '+919876543210',
+    'applied_at': appliedAt,
+    'accepted_at': acceptedAt,
+    'rejected_at': rejectedAt,
+    'decided_by_name': decidedByName,
     'updated_at': '2026-08-01T10:00:00Z',
   });
+}
+
+/// Mirrors admin_jobs_screen.dart's private `_formatDateTime` — kept in the
+/// test rather than exported, so this also verifies the app's actual format
+/// stays what the test expects (timezone-safe: same `.toLocal()` step).
+String _expectedDateTime(String isoUtc) {
+  final d = DateTime.parse(isoUtc).toLocal();
+  final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  return '$date ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 
 class _FakeAdminJobsRepository extends AdminJobsRepository {
@@ -587,5 +607,54 @@ void main() {
     expect(find.text('Ramesh Kumar — accepted'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
     expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets('Applicants dialog shows when the applicant applied, was accepted, and who accepted them',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job(status: 'closed')],
+      applications: [
+        _application(
+          status: 'accepted',
+          appliedAt: '2026-08-01T10:00:00Z',
+          acceptedAt: '2026-08-02T11:30:00Z',
+          decidedByName: 'Priya Admin',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Applied: ${_expectedDateTime('2026-08-01T10:00:00Z')}'), findsOneWidget);
+    expect(
+      find.text('Accepted: ${_expectedDateTime('2026-08-02T11:30:00Z')} by Priya Admin'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Applicants dialog shows who declined a previously-accepted applicant, and when', (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      applications: [
+        _application(
+          status: 'rejected',
+          appliedAt: '2026-08-01T10:00:00Z',
+          acceptedAt: '2026-08-02T11:30:00Z',
+          rejectedAt: '2026-08-03T09:15:00Z',
+          decidedByName: 'Priya Admin',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Declined by Priya Admin: ${_expectedDateTime('2026-08-03T09:15:00Z')}'),
+      findsOneWidget,
+    );
   });
 }

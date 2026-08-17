@@ -19,6 +19,7 @@ export interface JobApplicationRecord {
 export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   full_name: string;
   phone: string;
+  decided_by_name: string | null;
 }
 
 @Injectable()
@@ -119,10 +120,11 @@ export class JobApplicationsRepository {
 
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
-      `SELECT ja.*, u.full_name, u.phone
+      `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id
+       LEFT JOIN users decider ON decider.id = ja.decided_by
        WHERE ja.job_id = $1
        ORDER BY ja.updated_at DESC`,
       [jobId],

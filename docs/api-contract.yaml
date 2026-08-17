@@ -402,11 +402,30 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: Admin who accepted/rejected; null while status is 'applied'.
+          description: Admin who accepted/rejected; null while status is 'applied' or the caregiver self-declined.
+        decided_by_name:
+          type: string
+          nullable: true
+          description: The deciding admin's full_name, resolved server-side via a join. Null under the same conditions as decided_by.
         full_name:
           type: string
         phone:
           type: string
+        applied_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null if declined without ever applying.
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set only when an admin accepts.
+        rejected_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set on self-decline or admin reject/undo-accept.
         created_at:
           type: string
           format: date-time

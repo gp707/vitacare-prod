@@ -2198,12 +2198,25 @@ Get job detail with the care receiver and every application.
         "phone": "+919876543210",
         "status": "applied",
         "decided_by": null,
+        "decided_by_name": null,
+        "applied_at": "2026-08-03T11:00:00Z",
+        "accepted_at": null,
+        "rejected_at": null,
         "updated_at": "2026-08-03T11:00:00Z"
       }
     ]
   }
 }
 ```
+
+Each application carries the full per-transition timeline (`applied_at`/
+`accepted_at`/`rejected_at`, each `null` until that transition happens — same
+semantics as `my_application` on `GET /caregiver/jobs`, see below), plus
+`decided_by` (the deciding admin's user id, `null` while `status: "applied"`
+or when the caregiver self-declined) and `decided_by_name` (that admin's
+`full_name`, resolved server-side via a join — `null` under the same
+conditions as `decided_by`). This is what lets admin-web show not just that
+an application was accepted/rejected, but exactly when and by which admin.
 
 ---
 

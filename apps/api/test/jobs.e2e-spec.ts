@@ -1040,6 +1040,15 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(jobAfterAccept.body.data.status).toBe('closed');
 
+      // Admin-side view now shows exactly who accepted the application and when.
+      const applicationAAfterAccept = jobAfterAccept.body.data.applications.find(
+        (a: { id: string }) => a.id === applicationA.id,
+      );
+      expect(applicationAAfterAccept.applied_at).not.toBeNull();
+      expect(applicationAAfterAccept.accepted_at).not.toBeNull();
+      expect(applicationAAfterAccept.rejected_at).toBeNull();
+      expect(applicationAAfterAccept.decided_by_name).toBe('Jobs E2E Super Admin');
+
       const caregiverAStatus = await db.query(
         'SELECT verification_status FROM caregiver_profiles WHERE id = $1',
         [caregiverA.profile_id],
@@ -1071,6 +1080,16 @@ describe('Jobs (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(jobAfterReject.body.data.status).toBe('active');
+
+      // Reversing the acceptance re-decides the same application — decided_by_name
+      // still resolves (still that same admin, now on the rejection instead).
+      const applicationAAfterReject = jobAfterReject.body.data.applications.find(
+        (a: { id: string }) => a.id === applicationA.id,
+      );
+      expect(applicationAAfterReject.applied_at).not.toBeNull();
+      expect(applicationAAfterReject.accepted_at).not.toBeNull();
+      expect(applicationAAfterReject.rejected_at).not.toBeNull();
+      expect(applicationAAfterReject.decided_by_name).toBe('Jobs E2E Super Admin');
 
       const caregiverAStatusAfter = await db.query(
         'SELECT verification_status FROM caregiver_profiles WHERE id = $1',

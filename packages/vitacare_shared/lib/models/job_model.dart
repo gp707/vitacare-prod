@@ -151,8 +151,12 @@ class JobApplicationModel {
   final String profileId;
   final String status;
   final String? decidedBy;
+  final String? decidedByName;
   final String fullName;
   final String phone;
+  final String? appliedAt;
+  final String? acceptedAt;
+  final String? rejectedAt;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -161,8 +165,12 @@ class JobApplicationModel {
     required this.profileId,
     required this.status,
     this.decidedBy,
+    this.decidedByName,
     required this.fullName,
     required this.phone,
+    this.appliedAt,
+    this.acceptedAt,
+    this.rejectedAt,
     required this.updatedAt,
   });
 
@@ -172,8 +180,12 @@ class JobApplicationModel {
         profileId: json['profile_id'] as String,
         status: json['status'] as String,
         decidedBy: json['decided_by'] as String?,
+        decidedByName: json['decided_by_name'] as String?,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
+        appliedAt: json['applied_at'] as String?,
+        acceptedAt: json['accepted_at'] as String?,
+        rejectedAt: json['rejected_at'] as String?,
         updatedAt: json['updated_at'] as String,
       );
 }
