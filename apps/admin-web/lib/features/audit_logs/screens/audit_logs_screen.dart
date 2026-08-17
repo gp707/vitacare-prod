@@ -166,6 +166,10 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          // Default fixed row height clips the two-line Job cell (Job #<n> +
+          // the selectable UUID below it) — give rows room to grow.
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 88,
           columns: const [
             DataColumn(label: Text('Timestamp')),
             DataColumn(label: Text('Actor')),
@@ -188,9 +192,28 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
                     DataCell(
                       entry.jobNumber == null || entry.jobId == null
                           ? const Text('-')
-                          : TextButton(
-                              onPressed: () => _openJob(entry.jobId!),
-                              child: Text('Job #${entry.jobNumber}'),
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () => _openJob(entry.jobId!),
+                                  child: Text('Job #${entry.jobNumber}'),
+                                ),
+                                // The raw UUID, selectable so it can be copied
+                                // straight into a DB query or support ticket —
+                                // "Job #<n>" alone isn't enough when you need
+                                // the exact id.
+                                SelectableText(
+                                  entry.jobId!,
+                                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                ),
+                              ],
                             ),
                     ),
                     DataCell(Text(entry.targetUserName ?? '-')),

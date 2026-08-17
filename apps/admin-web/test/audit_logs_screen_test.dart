@@ -143,6 +143,7 @@ void main() {
     );
 
     expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('job-1'), findsOneWidget, reason: 'the exact job id (UUID) must be visible, not just Job #<n>');
 
     await tester.tap(find.text('Job #42'));
     await tester.pumpAndSettle();
