@@ -23,12 +23,12 @@ export class CaregiverJobsController {
     return this.jobsService.listActiveJobsForCaregiver(user.sub, query);
   }
 
-  // The job the caregiver is currently/most-recently assigned to and
-  // accepted for — returns null (not 404) when there isn't one, since
-  // "no assignment yet" is the normal state for most caregivers.
+  // Every job the caregiver is currently accepted onto or has completed —
+  // an empty array (not 404) when there are none, since that's the normal
+  // state for most caregivers. A caregiver can hold more than one at once.
   @Get('assigned')
   getAssigned(@CurrentUser() user: JwtPayload) {
-    return this.jobsService.getMyAssignedJob(user.sub);
+    return this.jobsService.listMyAssignedJobs(user.sub);
   }
 
   @Post(':id/apply')
@@ -40,5 +40,13 @@ export class CaregiverJobsController {
     @ClientIp() ip: string | null,
   ) {
     return this.jobsService.applyToJob(user.sub, id, dto, ip);
+  }
+
+  // Caregiver self-service "I finished this job" — the only way out of
+  // `assigned` once they may hold several accepted jobs at once.
+  @Post(':id/complete')
+  @HttpCode(HttpStatus.OK)
+  complete(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.jobsService.completeJob(user.sub, id, ip);
   }
 }

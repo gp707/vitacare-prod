@@ -29,6 +29,7 @@ class MyApplicationModel {
   final String? appliedAt;
   final String? acceptedAt;
   final String? rejectedAt;
+  final String? completedAt;
   final bool decidedByAdmin;
 
   const MyApplicationModel({
@@ -36,6 +37,7 @@ class MyApplicationModel {
     this.appliedAt,
     this.acceptedAt,
     this.rejectedAt,
+    this.completedAt,
     required this.decidedByAdmin,
   });
 
@@ -44,6 +46,7 @@ class MyApplicationModel {
         appliedAt: json['applied_at'] as String?,
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
+        completedAt: json['completed_at'] as String?,
         decidedByAdmin: json['decided_by_admin'] as bool,
       );
 }

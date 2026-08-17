@@ -302,34 +302,20 @@ export class JobsService {
     return { data: items, meta };
   }
 
-  /** The job the caregiver is currently (or was most recently) assigned to
-   *  and accepted for — `GET /caregiver/jobs` only lists active jobs, so
-   *  once a job closes on acceptance it would otherwise vanish from the
-   *  caregiver's own view of it. Returns null (not an error) when they've
-   *  never been accepted onto a job. */
-  /** Once accepted onto a job, the caregiver can see and contact whoever
+  /** Every job the caregiver is currently accepted onto or has completed —
+   *  `GET /caregiver/jobs` only lists active jobs, and an accepted job
+   *  closes immediately, so without this a caregiver would have no way to
+   *  see their own job(s) again. A caregiver can hold more than one
+   *  concurrent accepted job, so this returns all of them, not just the
+   *  most recent — durable history, so completed ones stay listed too.
+   *  Once accepted onto a job, the caregiver can see and contact whoever
    *  posted it (name + phone only — never the admin's password/code
-   *  hashes or fcm_token). Deliberately scoped to this endpoint alone, not
-   *  the general jobs list/browse — admin contact info is only surfaced
-   *  once there's an actual accepted engagement between them. */
-  async getMyAssignedJob(userId: string) {
+   *  hashes or fcm_token); that's included inline per job. */
+  async listMyAssignedJobs(userId: string) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
 
-    const application = await this.jobApplicationsRepo.findMostRecentAcceptedByProfileId(profile.id);
-    if (!application) return null;
-
-    const job = await this.jobsRepo.findById(application.job_id);
-    if (!job) return null;
-    const [careReceiver, poster] = await Promise.all([
-      this.careReceiversRepo.findById(job.care_receiver_id),
-      this.usersRepo.findById(job.posted_by),
-    ]);
-    return {
-      ...job,
-      care_receiver: careReceiver,
-      job_poster: poster ? { full_name: poster.full_name, phone: poster.phone } : null,
-    };
+    return this.jobsRepo.listAssignedForCaregiver(profile.id);
   }
 
   async applyToJob(userId: string, jobId: string, dto: ApplyJobDto, ipAddress: string | null) {
@@ -355,6 +341,50 @@ export class JobsService {
     });
 
     return { message: 'Application recorded', status: application.status };
+  }
+
+  /** Caregiver self-service "I finished this job" — the only way out of
+   *  `assigned` now that a caregiver can hold several accepted jobs at
+   *  once (the old single global "Available for Jobs" button can't say
+   *  which job it means). Marks just this application `completed`;
+   *  verification_status only drops back to `available` once no other
+   *  accepted applications remain — if others are still active, it stays
+   *  `assigned`. JOB_008 covers every case where this doesn't apply: never
+   *  applied, still `applied`, already `rejected`, or already
+   *  `completed`. */
+  async completeJob(userId: string, jobId: string, ipAddress: string | null) {
+    const profile = await this.profilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    const application = await this.jobApplicationsRepo.findByJobAndProfile(jobId, profile.id);
+    if (!application || application.status !== JobApplicationStatus.ACCEPTED) {
+      throw new AppException('JOB_008');
+    }
+
+    let stillAssigned = false;
+    await this.db.withTransaction(async (client) => {
+      await this.jobApplicationsRepo.markCompleted(application.id, client);
+      const remaining = await this.jobApplicationsRepo.countAcceptedByProfileId(profile.id, client);
+      stillAssigned = remaining > 0;
+      if (!stillAssigned) {
+        await this.profilesRepo.markAvailable(profile.id, client);
+      }
+    });
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_COMPLETED,
+      entityType: 'job_applications',
+      entityId: application.id,
+      beforeValue: { status: 'accepted' },
+      afterValue: {
+        status: 'completed',
+        verification_status: stillAssigned ? 'assigned' : 'available',
+      },
+      ipAddress,
+    });
+
+    return { message: 'Job marked complete', still_assigned: stillAssigned };
   }
 
   /** Admin decision on a specific applicant. `accepted` closes the job and

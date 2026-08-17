@@ -184,8 +184,9 @@ export class CaregiverProfilesRepository {
    *  verification_status, unlike the admin override which also (re-)stamps
    *  verified_at/verified_by when moving to available — this isn't a
    *  re-verification event, so those are left untouched. */
-  async markAvailable(profileId: string): Promise<void> {
-    await this.db.query(
+  async markAvailable(profileId: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
       `UPDATE caregiver_profiles SET verification_status = 'available', updated_at = NOW() WHERE id = $1`,
       [profileId],
     );

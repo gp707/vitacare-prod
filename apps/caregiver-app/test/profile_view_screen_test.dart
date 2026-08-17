@@ -58,11 +58,11 @@ class _FakeProfileRepository extends ProfileRepository {
 }
 
 class _FakeJobsRepository extends JobsRepository {
-  final JobModel? assignedJob;
-  _FakeJobsRepository({this.assignedJob}) : super(Dio());
+  final List<JobModel> assignedJobs;
+  _FakeJobsRepository({List<JobModel>? assignedJobs}) : assignedJobs = assignedJobs ?? [], super(Dio());
 
   @override
-  Future<JobModel?> getAssignedJob() async => assignedJob;
+  Future<List<JobModel>> getAssignedJobs() async => assignedJobs;
 }
 
 JobModel _assignedJobWithPoster() {
@@ -162,7 +162,7 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Edit'), findsNWidgets(3));
   });
 
-  for (final status in ['available', 'unavailable', 'assigned']) {
+  for (final status in ['available', 'unavailable']) {
     testWidgets('shows Available for Jobs when status is $status', (tester) async {
       final fakeRepo = _FakeProfileRepository(_profile(status: status));
       await _pumpTall(
@@ -197,6 +197,25 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'Available for Jobs'), findsNothing);
     });
   }
+
+  testWidgets(
+      'hides Available for Jobs when status is assigned — a caregiver may hold several accepted jobs, '
+      "so this button can't say which one it means; MyJobs' per-job Mark Complete is the only way out now",
+      (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(status: 'assigned'));
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(fakeRepo),
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()])),
+        ],
+        child: const MaterialApp(home: ProfileViewScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ElevatedButton, 'Available for Jobs'), findsNothing);
+  });
 
   testWidgets('tapping Available for Jobs while already available shows a snackbar without calling the API',
       (tester) async {
@@ -244,7 +263,7 @@ void main() {
 
   testWidgets('shows the job poster\'s contact info when currently assigned to an accepted job', (tester) async {
     final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'assigned'));
-    final fakeJobsRepo = _FakeJobsRepository(assignedJob: _assignedJobWithPoster());
+    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()]);
     await _pumpTall(
       tester,
       ProviderScope(
@@ -263,9 +282,43 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
   });
 
+  testWidgets('shows one contact card per job when accepted onto more than one at once', (tester) async {
+    final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'assigned'));
+    final secondPoster = JobModel.fromJson({
+      'id': 'job-2',
+      'job_number': 43,
+      'city': 'bangalore',
+      'description': 'Need a caregiver',
+      'duty_type': 'live_in',
+      'frequency_of_care': 'daily',
+      'languages': ['hindi'],
+      'status': 'closed',
+      'posted_by': 'admin-2',
+      'posted_at': '2026-08-01T10:00:00Z',
+      'created_at': '2026-08-01T10:00:00Z',
+      'job_poster': {'full_name': 'Priya Admin', 'phone': '+919876500001'},
+    });
+    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster(), secondPoster]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(fakeProfileRepo),
+          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
+        ],
+        child: const MaterialApp(home: ProfileViewScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Admin Kumar'), findsOneWidget);
+    expect(find.text('Priya Admin'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsNWidgets(2));
+  });
+
   testWidgets('does not show poster contact info when not currently assigned', (tester) async {
     final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'available'));
-    final fakeJobsRepo = _FakeJobsRepository(assignedJob: _assignedJobWithPoster());
+    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()]);
     await _pumpTall(
       tester,
       ProviderScope(

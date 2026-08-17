@@ -10,13 +10,14 @@ import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 
-/// The job the caregiver is currently (or was most recently) assigned to
-/// and accepted for. GET /caregiver/jobs only lists active jobs, and an
-/// accepted job closes immediately, so without this screen an assigned
-/// caregiver would have no way to see their own job's details again. The
+/// Every job the caregiver is currently accepted onto or has completed. A
+/// caregiver can hold more than one accepted job at once, so this is a
+/// list, not a single job — GET /caregiver/jobs only lists active jobs, and
+/// an accepted job closes immediately, so without this screen an assigned
+/// caregiver would have no way to see their own jobs' details again. The
 /// "MyJobs" bottom-nav tab, reachable regardless of current verification
-/// status, so it still shows the last assignment even after the caregiver
-/// marks themselves available again.
+/// status, so it still shows past assignments even after the caregiver has
+/// completed every job (durable history — completed jobs stay listed).
 class MyAssignmentScreen extends ConsumerStatefulWidget {
   const MyAssignmentScreen({super.key});
 
@@ -25,9 +26,10 @@ class MyAssignmentScreen extends ConsumerStatefulWidget {
 }
 
 class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
-  JobModel? _job;
+  List<JobModel> _jobs = [];
   bool _loading = true;
   String? _errorMessage;
+  String? _completingJobId;
 
   @override
   void initState() {
@@ -41,12 +43,56 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       _errorMessage = null;
     });
     try {
-      final job = await ref.read(jobsRepositoryProvider).getAssignedJob();
-      if (mounted) setState(() => _job = job);
+      final jobs = await ref.read(jobsRepositoryProvider).getAssignedJobs();
+      if (mounted) setState(() => _jobs = jobs);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _completeJob(JobModel job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mark job as complete?'),
+        content: Text(
+          "This marks Job #${job.jobNumber} as finished. If you don't have any other accepted jobs, "
+          "you'll be shown as available for new ones again.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Mark Complete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _completingJobId = job.id);
+    try {
+      final stillAssigned = await ref.read(jobsRepositoryProvider).completeJob(job.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              stillAssigned
+                  ? 'Job #${job.jobNumber} marked complete.'
+                  : "Job #${job.jobNumber} marked complete. You're now available for new jobs.",
+            ),
+          ),
+        );
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _completingJobId = null);
     }
   }
 
@@ -80,41 +126,82 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                    if (_job == null && _errorMessage == null)
+                    if (_jobs.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          "You don't have an assigned job yet.",
+                          "You don't have any accepted jobs yet.",
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
-                    if (_job != null)
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(AppSpacing.sm),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            JobDetailCard(job: _job!),
-                            const SizedBox(height: AppSpacing.md),
-                            const Text(
-                              'You were accepted for this job',
-                              style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
-                            ),
-                            if (_job!.jobPoster != null) ...[
-                              const SizedBox(height: AppSpacing.md),
-                              JobPosterContactCard(poster: _job!.jobPoster!),
-                            ],
-                          ],
-                        ),
+                    for (final job in _jobs) ...[
+                      _AssignedJobCard(
+                        job: job,
+                        completing: _completingJobId == job.id,
+                        onMarkComplete: () => _completeJob(job),
                       ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                   ],
                 ),
         ),
+      ),
+    );
+  }
+}
+
+class _AssignedJobCard extends StatelessWidget {
+  final JobModel job;
+  final bool completing;
+  final VoidCallback onMarkComplete;
+
+  const _AssignedJobCard({required this.job, required this.completing, required this.onMarkComplete});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompleted = job.myApplication?.status == JobApplicationStatus.completed;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          JobDetailCard(job: job),
+          const SizedBox(height: AppSpacing.md),
+          if (isCompleted)
+            const Text(
+              'Completed',
+              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+            )
+          else ...[
+            const Text(
+              'You were accepted for this job',
+              style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: completing ? null : onMarkComplete,
+                child: completing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Mark Complete'),
+              ),
+            ),
+          ],
+          if (job.jobPoster != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            JobPosterContactCard(poster: job.jobPoster!),
+          ],
+        ],
       ),
     );
   }

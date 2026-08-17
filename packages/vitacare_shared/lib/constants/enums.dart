@@ -32,8 +32,9 @@ class JobApplicationStatus {
   static const applied = 'applied';
   static const rejected = 'rejected';
   static const accepted = 'accepted';
+  static const completed = 'completed';
 
-  static const all = [applied, rejected, accepted];
+  static const all = [applied, rejected, accepted, completed];
 }
 
 class Gender {
@@ -362,6 +363,7 @@ class AuditAction {
   static const adminActivated = 'admin_activated';
   static const jobReminderSent = 'job_reminder_sent';
   static const jobUpdated = 'job_updated';
+  static const jobCompleted = 'job_completed';
 
   static const all = [
     registration,
@@ -384,6 +386,7 @@ class AuditAction {
     adminActivated,
     jobReminderSent,
     jobUpdated,
+    jobCompleted,
   ];
 }
 

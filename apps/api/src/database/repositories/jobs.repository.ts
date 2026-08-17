@@ -48,6 +48,7 @@ export interface MyApplicationSummary {
   applied_at: Date | null;
   accepted_at: Date | null;
   rejected_at: Date | null;
+  completed_at: Date | null;
   decided_by_admin: boolean;
 }
 
@@ -57,6 +58,16 @@ export interface JobWithMyApplication extends JobRecord {
    *  About Patient / About Patient Condition details on the jobs list
    *  itself, without a second per-job request. */
   care_receiver: CareReceiverRecord;
+}
+
+/** A job the caregiver is (or was) accepted onto — GET /caregiver/jobs/assigned's
+ *  shape. Unlike JobWithMyApplication, my_application is never null here (the
+ *  query only returns rows the caregiver has an accepted/completed
+ *  application for), and the posting admin's contact info is included
+ *  inline — once accepted, the caregiver can see and contact whoever
+ *  posted the job. */
+export interface JobAssignedRecord extends JobWithMyApplication {
+  job_poster: { full_name: string; phone: string } | null;
 }
 
 export interface CreateJobInput {
@@ -196,6 +207,7 @@ export class JobsRepository {
              'applied_at', ja.applied_at,
              'accepted_at', ja.accepted_at,
              'rejected_at', ja.rejected_at,
+             'completed_at', ja.completed_at,
              'decided_by_admin', ja.decided_by IS NOT NULL
            ) END AS my_application
          FROM jobs j
@@ -209,6 +221,34 @@ export class JobsRepository {
       this.db.query<{ count: string }>(`SELECT COUNT(*) FROM jobs WHERE status = 'active'`),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
+  }
+
+  /** Every job this caregiver is currently accepted onto or has completed —
+   *  a caregiver can hold more than one at once, so unlike
+   *  listActiveForCaregiver this isn't filtered to active jobs (an accepted
+   *  job closes immediately) and isn't limited to one row. Durable history:
+   *  completed jobs stay in the list rather than disappearing. */
+  async listAssignedForCaregiver(profileId: string): Promise<JobAssignedRecord[]> {
+    const result = await this.db.query<JobAssignedRecord>(
+      `SELECT j.*, to_jsonb(cr) AS care_receiver,
+         jsonb_build_object(
+           'status', ja.status,
+           'applied_at', ja.applied_at,
+           'accepted_at', ja.accepted_at,
+           'rejected_at', ja.rejected_at,
+           'completed_at', ja.completed_at,
+           'decided_by_admin', ja.decided_by IS NOT NULL
+         ) AS my_application,
+         jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
+       FROM job_applications ja
+       JOIN jobs j ON j.id = ja.job_id
+       JOIN care_receivers cr ON cr.id = j.care_receiver_id
+       JOIN users u ON u.id = j.posted_by
+       WHERE ja.profile_id = $1 AND ja.status IN ('accepted', 'completed')
+       ORDER BY ja.updated_at DESC`,
+      [profileId],
+    );
+    return result.rows;
   }
 
   async update(id: string, input: UpdateJobInput, client?: PoolClient): Promise<JobRecord> {

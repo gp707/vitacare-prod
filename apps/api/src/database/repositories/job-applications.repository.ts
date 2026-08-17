@@ -12,6 +12,7 @@ export interface JobApplicationRecord {
   applied_at: Date | null;
   accepted_at: Date | null;
   rejected_at: Date | null;
+  completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -100,22 +101,36 @@ export class JobApplicationsRepository {
     );
   }
 
-  /** The caregiver's current/most-recent accepted application, if any —
-   *  used to show them their own assigned job's details even after it
-   *  closes (GET /caregiver/jobs only lists active jobs). Ordered by
-   *  updated_at so that if an admin's generic status-override endpoint
-   *  ever unassigns a caregiver without touching this row (it doesn't
-   *  cascade into job_applications), a later, more-recent acceptance on a
-   *  different job still wins over the stale one. */
-  async findMostRecentAcceptedByProfileId(profileId: string): Promise<JobApplicationRecord | null> {
+  /** A caregiver can only ever have one application per job — the
+   *  UNIQUE(job_id, profile_id) constraint guarantees at most one row. */
+  async findByJobAndProfile(jobId: string, profileId: string): Promise<JobApplicationRecord | null> {
     const result = await this.db.query<JobApplicationRecord>(
-      `SELECT * FROM job_applications
-       WHERE profile_id = $1 AND status = 'accepted'
-       ORDER BY updated_at DESC
-       LIMIT 1`,
-      [profileId],
+      'SELECT * FROM job_applications WHERE job_id = $1 AND profile_id = $2',
+      [jobId, profileId],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** Caregiver self-service "I finished this job" — distinct from an admin
+   *  rejecting/undoing an acceptance, which lands on 'rejected' instead. */
+  async markCompleted(id: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE job_applications SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id],
+    );
+  }
+
+  /** How many jobs this caregiver is still actively accepted onto — used
+   *  right after marking one 'completed' to decide whether any others
+   *  remain (if none, verification_status can drop back to 'available'). */
+  async countAcceptedByProfileId(profileId: string, client?: PoolClient): Promise<number> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<{ count: string }>(
+      `SELECT COUNT(*) FROM job_applications WHERE profile_id = $1 AND status = 'accepted'`,
+      [profileId],
+    );
+    return Number(result.rows[0].count);
   }
 
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {

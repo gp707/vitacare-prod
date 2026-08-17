@@ -70,6 +70,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_005: { status: 400, message: 'Cannot send a reminder for a closed job' },
   JOB_006: { status: 404, message: 'Application not found' },
   JOB_007: { status: 400, message: 'Application has already been decided' },
+  JOB_008: { status: 400, message: 'No active accepted application found for this job' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

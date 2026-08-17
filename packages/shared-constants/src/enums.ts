@@ -17,6 +17,7 @@ export const JobApplicationStatus = {
   APPLIED: 'applied',
   REJECTED: 'rejected',
   ACCEPTED: 'accepted',
+  COMPLETED: 'completed',
 } as const;
 export type JobApplicationStatus = (typeof JobApplicationStatus)[keyof typeof JobApplicationStatus];
 
@@ -172,6 +173,7 @@ export const AuditAction = {
   ADMIN_ACTIVATED: 'admin_activated',
   JOB_REMINDER_SENT: 'job_reminder_sent',
   JOB_UPDATED: 'job_updated',
+  JOB_COMPLETED: 'job_completed',
   APP_VERSION_UPDATED: 'app_version_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

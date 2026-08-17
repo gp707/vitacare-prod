@@ -56,6 +56,7 @@ class ErrorCodes {
     'JOB_005': 'Cannot send a reminder for a closed job',
     'JOB_006': 'Application not found',
     'JOB_007': 'Application has already been decided',
+    'JOB_008': 'No active accepted application found for this job',
 
     // General
     'GEN_001': 'Invalid request body',

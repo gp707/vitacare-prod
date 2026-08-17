@@ -1300,13 +1300,13 @@ describe('Jobs (e2e)', () => {
   });
 
   describe('GET /v1/caregiver/jobs/assigned', () => {
-    it('returns null when the caregiver has never been accepted onto a job', async () => {
+    it('returns an empty array when the caregiver has never been accepted onto a job', async () => {
       const caregiver = await registerCaregiver('0023');
       const res = await request(app.getHttpServer())
         .get('/v1/caregiver/jobs/assigned')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
-      expect(res.body.data).toBeNull();
+      expect(res.body.data).toEqual([]);
     });
 
     it("returns the assigned job's full details (including care_receiver) once accepted, even though the job is now closed", async () => {
@@ -1338,11 +1338,14 @@ describe('Jobs (e2e)', () => {
         .get('/v1/caregiver/jobs/assigned')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
-      expect(res.body.data.id).toBe(job.id);
-      expect(res.body.data.status).toBe('closed');
-      expect(res.body.data.care_receiver).toBeDefined();
-      expect(res.body.data.care_receiver.mobility).toBe('walks_independently');
-      expect(res.body.data.job_poster).toEqual({
+      expect(res.body.data).toHaveLength(1);
+      const assigned = res.body.data[0];
+      expect(assigned.id).toBe(job.id);
+      expect(assigned.status).toBe('closed');
+      expect(assigned.care_receiver).toBeDefined();
+      expect(assigned.care_receiver.mobility).toBe('walks_independently');
+      expect(assigned.my_application.status).toBe('accepted');
+      expect(assigned.job_poster).toEqual({
         full_name: 'Jobs E2E Super Admin',
         phone: testPhone('0999'),
       });
@@ -1381,12 +1384,166 @@ describe('Jobs (e2e)', () => {
         .get('/v1/caregiver/jobs/assigned')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
-      expect(res.body.data.id).toBe(job.id);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].id).toBe(job.id);
+    });
+
+    it('lists every job the caregiver is accepted onto at once — not just the most recent', async () => {
+      const caregiver = await registerCaregiver('0027');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+
+      const jobA = await createJob();
+      const jobB = await createJob();
+      for (const job of [jobA, jobB]) {
+        await request(app.getHttpServer())
+          .post(`/v1/caregiver/jobs/${job.id}/apply`)
+          .set('Authorization', `Bearer ${caregiver.access_token}`)
+          .send({ status: 'applied' })
+          .expect(200);
+        const detail = await request(app.getHttpServer())
+          .get(`/v1/admin/jobs/${job.id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        const application = detail.body.data.applications.find(
+          (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+        );
+        await request(app.getHttpServer())
+          .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .send({ status: 'accepted' })
+          .expect(200);
+      }
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id).sort();
+      expect(ids).toEqual([jobA.id, jobB.id].sort());
+
+      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('assigned');
     });
 
     it('rejects an admin token (AUTH_007) — caregiver-only route', async () => {
       const res = await request(app.getHttpServer())
         .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+  });
+
+  describe('POST /v1/caregiver/jobs/:id/complete', () => {
+    async function acceptOnto(job: { id: string }, caregiver: { access_token: string; profile_id: string }) {
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+    }
+
+    it('completing one of two accepted jobs leaves the caregiver assigned; completing the second drops them to available', async () => {
+      const caregiver = await registerCaregiver('0028');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const jobA = await createJob();
+      const jobB = await createJob();
+      await acceptOnto(jobA, caregiver);
+      await acceptOnto(jobB, caregiver);
+
+      const completeA = await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobA.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(completeA.body.data).toEqual({ message: 'Job marked complete', still_assigned: true });
+
+      let profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('assigned');
+
+      const afterFirst = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(afterFirst.body.data).toHaveLength(2);
+      const jobAEntry = afterFirst.body.data.find((j: { id: string }) => j.id === jobA.id);
+      const jobBEntry = afterFirst.body.data.find((j: { id: string }) => j.id === jobB.id);
+      expect(jobAEntry.my_application.status).toBe('completed');
+      expect(jobAEntry.my_application.completed_at).not.toBeNull();
+      expect(jobBEntry.my_application.status).toBe('accepted');
+
+      const completeB = await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobB.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(completeB.body.data).toEqual({ message: 'Job marked complete', still_assigned: false });
+
+      profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('available');
+
+      // Durable history — both jobs still listed, just both completed now.
+      const afterSecond = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs/assigned')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      expect(afterSecond.body.data).toHaveLength(2);
+      expect(afterSecond.body.data.every((j: { my_application: { status: string } }) => j.my_application.status === 'completed')).toBe(true);
+    }, 30000);
+
+    it('rejects completing a job that was never applied to (JOB_008)', async () => {
+      const caregiver = await registerCaregiver('0029');
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_008');
+    });
+
+    it('rejects completing an already-completed job (JOB_008)', async () => {
+      const caregiver = await registerCaregiver('0030');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      await acceptOnto(job, caregiver);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_008');
+    }, 30000);
+
+    it('rejects an admin token (AUTH_007) — caregiver-only route', async () => {
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');

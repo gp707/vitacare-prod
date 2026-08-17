@@ -21,11 +21,14 @@ class ProfileViewScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileViewScreen> createState() => _ProfileViewScreenState();
 }
 
-const _kMarkAvailableEligibleStatuses = ['available', 'unavailable', 'assigned'];
+// 'assigned' is deliberately not here — a caregiver can hold several
+// accepted jobs at once, and this button can't say which one it means.
+// MyJobs' per-job "Mark Complete" is the only way out of `assigned` now.
+const _kMarkAvailableEligibleStatuses = ['available', 'unavailable'];
 
 class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   CaregiverProfileModel? _profile;
-  JobModel? _assignedJob;
+  List<JobModel> _assignedJobs = [];
   bool _loading = true;
   bool _markingAvailable = false;
   String? _errorMessage;
@@ -46,13 +49,13 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       // Only while currently assigned does the poster's contact info matter
       // here — the MyJobs tab is the durable historical record, so this
       // screen doesn't need to fetch it (or keep showing it) otherwise.
-      final assignedJob = profile.verificationStatus == 'assigned'
-          ? await ref.read(jobsRepositoryProvider).getAssignedJob()
-          : null;
+      final assignedJobs = profile.verificationStatus == 'assigned'
+          ? await ref.read(jobsRepositoryProvider).getAssignedJobs()
+          : <JobModel>[];
       if (mounted) {
         setState(() {
           _profile = profile;
-          _assignedJob = assignedJob;
+          _assignedJobs = assignedJobs;
         });
       }
     } on ApiException catch (e) {
@@ -153,10 +156,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             ),
           ),
         ],
-        if (_assignedJob?.jobPoster != null) ...[
-          const SizedBox(height: AppSpacing.md),
-          JobPosterContactCard(poster: _assignedJob!.jobPoster!),
-        ],
+        for (final job in _assignedJobs)
+          if (job.jobPoster != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            JobPosterContactCard(poster: job.jobPoster!),
+          ],
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',
