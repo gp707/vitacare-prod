@@ -83,7 +83,6 @@ function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInpu
     mobility: dto.mobility ?? CARE_RECEIVER_DEFAULTS.mobility,
     communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
     feeding_type: dto.feeding_type ?? CARE_RECEIVER_DEFAULTS.feeding_type,
-    tube_feeding_needs_assistance: dto.tube_feeding_needs_assistance ?? null,
     medical_assistance:
       dto.medical_assistance && dto.medical_assistance.length > 0
         ? dto.medical_assistance

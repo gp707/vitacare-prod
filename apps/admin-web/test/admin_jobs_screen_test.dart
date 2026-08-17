@@ -468,7 +468,7 @@ void main() {
     expect(postButtonAfter.onPressed, isNotNull);
   });
 
-  testWidgets('tube feeding reveals a required assistance checkbox that blocks submit until answered',
+  testWidgets('selecting Tube feeding does not reveal any extra question — the dropdown alone is enough',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
@@ -509,22 +509,10 @@ void main() {
     await tester.enterText(description, 'Need a caregiver urgently');
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Needs caregiver assistance with tube feeding'),
-      findsOneWidget,
-      reason: 'tube feeding should reveal the conditional assistance question',
-    );
+    expect(find.text('Needs caregiver assistance with tube feeding'), findsNothing);
 
-    final postButtonBefore = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButtonBefore.onPressed, isNull);
-
-    final checkbox = find.text('Needs caregiver assistance with tube feeding');
-    await tester.ensureVisible(checkbox);
-    await tester.tap(checkbox);
-    await tester.pumpAndSettle();
-
-    final postButtonAfter = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButtonAfter.onPressed, isNotNull);
+    final postButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
+    expect(postButton.onPressed, isNotNull, reason: 'the feeding dropdown alone is enough, no extra field required');
   });
 
   testWidgets('Edit opens the form pre-filled with the job\'s full details', (tester) async {

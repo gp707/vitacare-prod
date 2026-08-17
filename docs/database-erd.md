@@ -103,8 +103,6 @@ job postings are no longer built around a "work type" category; see
 │ mobility             │
 │ communication        │
 │ feeding_type         │
-│ tube_feeding_needs_  │
-│   assistance         │
 │ medical_assistance   │  ◄── JSONB array
 │ has_medical_condition│
 │ medical_conditions   │  ◄── JSONB array

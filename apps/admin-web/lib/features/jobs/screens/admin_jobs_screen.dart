@@ -325,7 +325,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   String? _mobility;
   String? _communication;
   String? _feedingType;
-  bool? _tubeFeedingNeedsAssistance;
   List<String> _medicalAssistance = [];
   bool _hasMedicalCondition = false;
   List<String> _medicalConditions = [];
@@ -370,7 +369,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _mobility = cr.mobility;
       _communication = cr.communication;
       _feedingType = cr.feedingType;
-      _tubeFeedingNeedsAssistance = cr.tubeFeedingNeedsAssistance;
       _medicalAssistance = List.of(cr.medicalAssistance);
       _hasMedicalCondition = cr.hasMedicalCondition;
       _medicalConditions = List.of(cr.medicalConditions);
@@ -392,9 +390,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     super.dispose();
   }
 
-  bool get _needsTubeFeedingAnswer =>
-      _feedingType == FeedingType.tubeFeeding || _feedingType == FeedingType.oralAndTube;
-
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
   int? get _salaryMonthly => int.tryParse(_salaryController.text.trim());
@@ -410,7 +405,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _weightKg != null &&
       _weightKg! >= 1 &&
       _weightKg! <= 300 &&
-      (!_needsTubeFeedingAnswer || _tubeFeedingNeedsAssistance != null) &&
       (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
       (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
       _dutyType != null &&
@@ -445,7 +439,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         mobility: _mobility,
         communication: _communication,
         feedingType: _feedingType,
-        tubeFeedingNeedsAssistance: _needsTubeFeedingAnswer ? _tubeFeedingNeedsAssistance : null,
         medicalAssistance: _medicalAssistance,
         hasMedicalCondition: _hasMedicalCondition,
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
@@ -585,19 +578,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 items: FeedingType.all
                     .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
                     .toList(),
-                onChanged: (value) => setState(() {
-                  _feedingType = value;
-                  _tubeFeedingNeedsAssistance = null;
-                }),
+                onChanged: (value) => setState(() => _feedingType = value),
               ),
-              if (_needsTubeFeedingAnswer)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: const Text('Needs caregiver assistance with tube feeding'),
-                  value: _tubeFeedingNeedsAssistance ?? false,
-                  onChanged: (value) => setState(() => _tubeFeedingNeedsAssistance = value),
-                ),
               const SizedBox(height: AppSpacing.lg),
               const Text('About Patient Condition', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),

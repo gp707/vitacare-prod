@@ -482,22 +482,17 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('AUTH_007');
     });
 
-    it('requires tube_feeding_needs_assistance when feeding_type is tube feeding (GEN_001)', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/admin/jobs')
+    it('accepts tube_feeding as a feeding_type with no additional field required', async () => {
+      const job = await createJob({
+        care_receiver: { ...defaultCareReceiver, feeding_type: 'tube_feeding' },
+        description: `${jobDescriptionPrefix} tube feeding no-extra-field test`,
+      });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({
-          care_receiver: { ...defaultCareReceiver, feeding_type: 'tube_feeding' },
-          city: 'bangalore',
-          area: 'Indiranagar',
-          description: `${jobDescriptionPrefix} tube feeding validation test`,
-          duty_type: 'live_in',
-          frequency_of_care: 'daily',
-          languages: ['hindi'],
-          salary_monthly: 30000,
-        })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
+        .expect(200);
+      expect(detail.body.data.care_receiver.feeding_type).toBe('tube_feeding');
+      expect(detail.body.data.care_receiver.tube_feeding_needs_assistance).toBeUndefined();
     });
 
     it('requires medical_conditions when has_medical_condition is true (GEN_001)', async () => {
@@ -541,7 +536,6 @@ describe('Jobs (e2e)', () => {
       const job = await createJob({
         care_receiver: {
           feeding_type: 'tube_feeding',
-          tube_feeding_needs_assistance: true,
           has_medical_condition: true,
           medical_conditions: ['diabetes', 'stroke'],
           medical_info: 'Needs help twice daily',
@@ -552,7 +546,6 @@ describe('Jobs (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(detail.body.data.care_receiver.medical_conditions).toEqual(['diabetes', 'stroke']);
-      expect(detail.body.data.care_receiver.tube_feeding_needs_assistance).toBe(true);
     });
   });
 

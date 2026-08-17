@@ -61,16 +61,6 @@ export class CareReceiverDto {
   @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
   feeding_type?: FeedingType;
 
-  // Only meaningful when feeding_type involves tube feeding — validated as
-  // present-if-relevant, not required, since the UI only shows this
-  // question conditionally.
-  @ValidateIf(
-    (o: CareReceiverDto) =>
-      o.feeding_type === FeedingType.TUBE_FEEDING || o.feeding_type === FeedingType.ORAL_AND_TUBE,
-  )
-  @IsBoolean({ message: 'GEN_001' })
-  tube_feeding_needs_assistance?: boolean;
-
   // Not required — an empty/omitted selection defaults to
   // [medication_reminders] when omitted.
   @IsOptional()

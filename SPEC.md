@@ -1094,7 +1094,6 @@ CREATE TABLE care_receivers (
   feeding_type VARCHAR(30) NOT NULL CHECK (feeding_type IN (
     'oral_independent', 'oral_needs_assistance', 'tube_feeding', 'oral_and_tube'
   )),
-  tube_feeding_needs_assistance BOOLEAN,  -- only meaningful when feeding_type involves tube feeding
   medical_assistance JSONB NOT NULL DEFAULT '[]',
   has_medical_condition BOOLEAN NOT NULL DEFAULT false,
   medical_conditions JSONB NOT NULL DEFAULT '[]',  -- only populated when has_medical_condition
@@ -2090,8 +2089,7 @@ notification to ALL caregivers.
 
 **Validation:**
 - `care_receiver.age`: Required integer, 1-120. `care_receiver.gender`: Required, valid gender enum (`male`/`female`/`other` — the patient's actual gender, not a preference). `care_receiver.weight_kg`: Required integer, 1-300. These three are the only hard-required care-receiver fields.
-- `care_receiver.mobility`/`communication`/`feeding_type`: Optional, valid enum value if provided. If omitted, the backend defaults them to `walks_independently`/`verbal`/`oral_independent` respectively (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`) — the persisted/returned value is always a real selection, never null.
-- `care_receiver.tube_feeding_needs_assistance`: Required boolean if `feeding_type` is `tube_feeding` or `oral_and_tube`; not validated otherwise.
+- `care_receiver.mobility`/`communication`/`feeding_type`: Optional, valid enum value if provided. If omitted, the backend defaults them to `walks_independently`/`verbal`/`oral_independent` respectively (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`) — the persisted/returned value is always a real selection, never null. `feeding_type` alone (`tube_feeding`/`oral_and_tube`) is sufficient — no separate assistance question.
 - `care_receiver.medical_assistance`: Optional array, each item a valid enum value. An omitted or empty array defaults to `[medication_reminders]`.
 - `care_receiver.has_medical_condition`: Optional boolean, defaults to `false` when omitted.
 - `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.

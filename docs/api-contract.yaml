@@ -233,10 +233,6 @@ components:
           $ref: "#/components/schemas/Communication"
         feeding_type:
           $ref: "#/components/schemas/FeedingType"
-        tube_feeding_needs_assistance:
-          type: boolean
-          nullable: true
-          description: Only meaningful when feeding_type involves tube feeding.
         medical_assistance:
           type: array
           items:
@@ -270,7 +266,6 @@ components:
         mobility: "walks_with_assistance"
         communication: "verbal"
         feeding_type: "oral_needs_assistance"
-        tube_feeding_needs_assistance: null
         medical_assistance: ["medication_reminders"]
         has_medical_condition: true
         medical_conditions: ["diabetes"]
@@ -3509,10 +3504,7 @@ paths:
                       description: "Optional — defaults to verbal when omitted."
                     feeding_type:
                       $ref: "#/components/schemas/FeedingType"
-                      description: "Optional — defaults to oral_independent when omitted."
-                    tube_feeding_needs_assistance:
-                      type: boolean
-                      description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
+                      description: "Optional — defaults to oral_independent when omitted. Sufficient on its own (tube_feeding/oral_and_tube) — no separate assistance question."
                     medical_assistance:
                       type: array
                       items:
@@ -3789,10 +3781,7 @@ paths:
                       description: "Optional — defaults to verbal when omitted."
                     feeding_type:
                       $ref: "#/components/schemas/FeedingType"
-                      description: "Optional — defaults to oral_independent when omitted."
-                    tube_feeding_needs_assistance:
-                      type: boolean
-                      description: "Required if feeding_type is tube_feeding or oral_and_tube; not validated otherwise."
+                      description: "Optional — defaults to oral_independent when omitted. Sufficient on its own (tube_feeding/oral_and_tube) — no separate assistance question."
                     medical_assistance:
                       type: array
                       items:
