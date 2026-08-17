@@ -24,6 +24,6 @@ Map<String, WidgetBuilder> buildRoutes() {
     '/profile': (context) => const ProfileViewScreen(),
     '/profile/edit': (context) => const EditProfileScreen(),
     '/jobs': (context) => const JobsScreen(),
-    '/my-assignment': (context) => const MyAssignmentScreen(),
+    '/my-jobs': (context) => const MyAssignmentScreen(),
   };
 }

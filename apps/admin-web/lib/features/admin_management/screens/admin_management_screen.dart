@@ -219,7 +219,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
         final admin = _admins[index];
         return ListTile(
           title: Text(admin.fullName),
-          subtitle: Text('${admin.email} · ${admin.role}'),
+          subtitle: Text('${admin.email} · ${admin.phone} · ${admin.role}'),
           trailing: admin.role == 'super_admin'
               ? const Chip(label: Text('Super Admin'))
               : Row(

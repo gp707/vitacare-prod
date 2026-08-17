@@ -12,16 +12,18 @@ class CaregiverBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const routes = ['/profile', '/jobs', '/my-jobs'];
     return BottomNavigationBar(
       currentIndex: currentIndex,
+      type: BottomNavigationBarType.fixed,
       onTap: (index) {
         if (index == currentIndex) return;
-        final route = index == 0 ? '/profile' : '/jobs';
-        Navigator.of(context).pushReplacementNamed(route);
+        Navigator.of(context).pushReplacementNamed(routes[index]);
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Jobs'),
+        BottomNavigationBarItem(icon: Icon(Icons.assignment_ind), label: 'MyJobs'),
       ],
     );
   }

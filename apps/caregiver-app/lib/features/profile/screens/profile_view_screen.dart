@@ -136,17 +136,10 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Mark Available'),
+                  : const Text('Available for Jobs'),
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.sm),
-        Center(
-          child: TextButton(
-            onPressed: () => Navigator.of(context).pushNamed('/my-assignment'),
-            child: const Text('My Assignment'),
-          ),
-        ),
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',

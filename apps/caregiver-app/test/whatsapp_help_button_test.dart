@@ -23,7 +23,8 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    expect(find.text('Help'), findsOneWidget);
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
 
     expect(openedUri, Uri.parse('https://wa.me/917259255869'));
@@ -42,7 +43,8 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    expect(find.text('Help'), findsOneWidget);
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Could not open WhatsApp'), findsOneWidget);

@@ -1,11 +1,27 @@
 import 'care_receiver_model.dart';
 
+/// The posting admin's contact info — only ever present on
+/// GET /caregiver/jobs/assigned, once the caregiver has actually been
+/// accepted onto the job. Never present on the browse list.
+class JobPosterModel {
+  final String fullName;
+  final String phone;
+
+  const JobPosterModel({required this.fullName, required this.phone});
+
+  factory JobPosterModel.fromJson(Map<String, dynamic> json) => JobPosterModel(
+        fullName: json['full_name'] as String,
+        phone: json['phone'] as String,
+      );
+}
+
 /// Mirrors a row from GET /caregiver/jobs or GET /admin/jobs.
 /// `myApplicationStatus` is only ever populated on the caregiver-facing
 /// list (a per-caregiver join); admin-facing applications are fetched
 /// separately via the job-detail endpoint's `applications` array (see
 /// JobApplicationModel). `careReceiver` is only present on the job-detail
-/// response (GET /admin/jobs/:id), not the list endpoints.
+/// response (GET /admin/jobs/:id), not the list endpoints. `jobPoster` is
+/// only present on GET /caregiver/jobs/assigned.
 class JobModel {
   final String id;
   final int jobNumber;
@@ -27,6 +43,7 @@ class JobModel {
   final String createdAt;
   final String? myApplicationStatus;
   final CareReceiverModel? careReceiver;
+  final JobPosterModel? jobPoster;
 
   const JobModel({
     required this.id,
@@ -49,6 +66,7 @@ class JobModel {
     required this.createdAt,
     this.myApplicationStatus,
     this.careReceiver,
+    this.jobPoster,
   });
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
@@ -74,6 +92,9 @@ class JobModel {
         careReceiver: json['care_receiver'] == null
             ? null
             : CareReceiverModel.fromJson(json['care_receiver'] as Map<String, dynamic>),
+        jobPoster: json['job_poster'] == null
+            ? null
+            : JobPosterModel.fromJson(json['job_poster'] as Map<String, dynamic>),
       );
 
   /// The 3-day "apply by" urgency window, always computed from [postedAt]

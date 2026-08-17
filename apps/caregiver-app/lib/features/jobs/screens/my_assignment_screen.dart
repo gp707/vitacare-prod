@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
+import '../widgets/job_poster_contact_card.dart';
 
 /// The job the caregiver is currently (or was most recently) assigned to
 /// and accepted for. GET /caregiver/jobs only lists active jobs, and an
 /// accepted job closes immediately, so without this screen an assigned
-/// caregiver would have no way to see their own job's details again.
-/// Reachable from the profile screen regardless of current verification
+/// caregiver would have no way to see their own job's details again. The
+/// "MyJobs" bottom-nav tab, reachable regardless of current verification
 /// status, so it still shows the last assignment even after the caregiver
 /// marks themselves available again.
 class MyAssignmentScreen extends ConsumerStatefulWidget {
@@ -51,10 +54,22 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Assignment'),
-        actions: const [WhatsAppHelpButton()],
+        title: const Text('MyJobs'),
+        actions: [
+          const WhatsAppHelpButton(),
+          TextButton(
+            onPressed: () {
+              final navigator = Navigator.of(context);
+              ref.read(sessionProvider.notifier).logout().then((_) {
+                navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+              });
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
       backgroundColor: AppColors.background,
+      bottomNavigationBar: const CaregiverBottomNav(currentIndex: 2),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -90,6 +105,10 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                               'You were accepted for this job',
                               style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
                             ),
+                            if (_job!.jobPoster != null) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              JobPosterContactCard(poster: _job!.jobPoster!),
+                            ],
                           ],
                         ),
                       ),

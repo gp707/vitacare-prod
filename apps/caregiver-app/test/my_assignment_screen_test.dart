@@ -39,6 +39,10 @@ JobModel _assignedJob() {
       'requires_vital_monitoring': false,
       'vital_monitoring_types': [],
     },
+    'job_poster': {
+      'full_name': 'Admin Kumar',
+      'phone': '+919876500000',
+    },
   });
 }
 
@@ -72,6 +76,10 @@ void main() {
     expect(find.text('You were accepted for this job'), findsOneWidget);
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('78 yrs'), findsOneWidget);
+    expect(find.text('Admin Kumar'), findsOneWidget);
+    expect(find.text('+919876500000'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
   });
 
   testWidgets("shows an empty state when there's no assigned job", (tester) async {

@@ -858,6 +858,18 @@ describe('Jobs (e2e)', () => {
       expect(listed.care_receiver.requires_vital_monitoring).toBe(true);
       expect(listed.care_receiver.vital_monitoring_types).toEqual(['blood_pressure']);
     });
+
+    it('does NOT include job_poster contact info on the browse list — only on the assigned-job endpoint', async () => {
+      const caregiver = await registerCaregiver('0026');
+      const job = await createJob();
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const listed = res.body.data.find((j: { id: string }) => j.id === job.id);
+      expect(listed.job_poster).toBeUndefined();
+    });
   });
 
   describe('POST /v1/caregiver/jobs/:id/apply', () => {
@@ -1171,6 +1183,10 @@ describe('Jobs (e2e)', () => {
       expect(res.body.data.status).toBe('closed');
       expect(res.body.data.care_receiver).toBeDefined();
       expect(res.body.data.care_receiver.mobility).toBe('walks_independently');
+      expect(res.body.data.job_poster).toEqual({
+        full_name: 'Jobs E2E Super Admin',
+        phone: testPhone('0999'),
+      });
     });
 
     it('still returns the job after the caregiver self-marks available again (Mark Available doesn\'t clear the historical assignment)', async () => {

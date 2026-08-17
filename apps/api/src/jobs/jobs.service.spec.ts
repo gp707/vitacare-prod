@@ -9,6 +9,7 @@ describe('JobsService', () => {
   let careReceiversRepo: any;
   let profilesRepo: any;
   let adminCaregiversRepo: any;
+  let usersRepo: any;
   let auditService: any;
   let fcmService: any;
 
@@ -78,6 +79,7 @@ describe('JobsService', () => {
     };
     profilesRepo = { findByUserId: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
+    usersRepo = { findById: jest.fn() };
     auditService = { log: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
     service = new JobsService(
@@ -87,6 +89,7 @@ describe('JobsService', () => {
       careReceiversRepo,
       profilesRepo,
       adminCaregiversRepo,
+      usersRepo,
       auditService,
       fcmService,
     );
@@ -384,7 +387,7 @@ describe('JobsService', () => {
       expect(jobsRepo.findById).not.toHaveBeenCalled();
     });
 
-    it('returns the job with its care receiver when an accepted application exists', async () => {
+    it('returns the job with its care receiver and the job poster\'s contact info when an accepted application exists', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findMostRecentAcceptedByProfileId.mockResolvedValue({
         id: 'app-1',
@@ -394,10 +397,39 @@ describe('JobsService', () => {
       });
       jobsRepo.findById.mockResolvedValue(job);
       careReceiversRepo.findById.mockResolvedValue(careReceiver);
+      usersRepo.findById.mockResolvedValue({
+        id: 'admin-1',
+        full_name: 'Admin Kumar',
+        phone: '+919876500000',
+        password_hash: 'secret',
+        code_hash: null,
+        fcm_token: 'should-not-leak',
+      });
 
       const result = await service.getMyAssignedJob('user-1');
       expect(jobsRepo.findById).toHaveBeenCalledWith('job-1');
-      expect(result).toEqual({ ...job, care_receiver: careReceiver });
+      expect(usersRepo.findById).toHaveBeenCalledWith('admin-1');
+      expect(result).toEqual({
+        ...job,
+        care_receiver: careReceiver,
+        job_poster: { full_name: 'Admin Kumar', phone: '+919876500000' },
+      });
+    });
+
+    it('returns job_poster: null when the posting admin no longer exists', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findMostRecentAcceptedByProfileId.mockResolvedValue({
+        id: 'app-1',
+        job_id: 'job-1',
+        profile_id: 'profile-1',
+        status: 'accepted',
+      });
+      jobsRepo.findById.mockResolvedValue(job);
+      careReceiversRepo.findById.mockResolvedValue(careReceiver);
+      usersRepo.findById.mockResolvedValue(null);
+
+      const result = await service.getMyAssignedJob('user-1');
+      expect(result).toEqual({ ...job, care_receiver: careReceiver, job_poster: null });
     });
   });
 

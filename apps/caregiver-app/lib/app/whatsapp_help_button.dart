@@ -30,12 +30,23 @@ class WhatsAppHelpButton extends StatelessWidget {
     }
   }
 
+  // WhatsApp's brand green — a plain white outline icon blended into the
+  // rest of the AppBar's white icons/text and was easy to miss. A filled
+  // green badge plus a visible "Help" label reads as an obviously
+  // tappable, distinct action instead.
+  static const _whatsAppGreen = Color(0xFF25D366);
+
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-      tooltip: 'Help via WhatsApp',
+    return TextButton.icon(
       onPressed: () => _open(context),
+      style: TextButton.styleFrom(foregroundColor: Colors.white),
+      icon: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: const BoxDecoration(color: _whatsAppGreen, shape: BoxShape.circle),
+        child: const Icon(Icons.chat, size: 14, color: Colors.white),
+      ),
+      label: const Text('Help', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -23,6 +23,7 @@ import {
 } from '../database/repositories/care-receivers.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
+import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CareReceiverDto, CreateJobDto } from './dto/create-job.dto';
@@ -108,6 +109,7 @@ export class JobsService {
     private readonly careReceiversRepo: CareReceiversRepository,
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly adminCaregiversRepo: AdminCaregiversRepository,
+    private readonly usersRepo: UsersRepository,
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
   ) {}
@@ -304,6 +306,11 @@ export class JobsService {
    *  once a job closes on acceptance it would otherwise vanish from the
    *  caregiver's own view of it. Returns null (not an error) when they've
    *  never been accepted onto a job. */
+  /** Once accepted onto a job, the caregiver can see and contact whoever
+   *  posted it (name + phone only — never the admin's password/code
+   *  hashes or fcm_token). Deliberately scoped to this endpoint alone, not
+   *  the general jobs list/browse — admin contact info is only surfaced
+   *  once there's an actual accepted engagement between them. */
   async getMyAssignedJob(userId: string) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
@@ -313,8 +320,15 @@ export class JobsService {
 
     const job = await this.jobsRepo.findById(application.job_id);
     if (!job) return null;
-    const careReceiver = await this.careReceiversRepo.findById(job.care_receiver_id);
-    return { ...job, care_receiver: careReceiver };
+    const [careReceiver, poster] = await Promise.all([
+      this.careReceiversRepo.findById(job.care_receiver_id),
+      this.usersRepo.findById(job.posted_by),
+    ]);
+    return {
+      ...job,
+      care_receiver: careReceiver,
+      job_poster: poster ? { full_name: poster.full_name, phone: poster.phone } : null,
+    };
   }
 
   async applyToJob(userId: string, jobId: string, dto: ApplyJobDto, ipAddress: string | null) {

@@ -90,6 +90,13 @@ void main() {
     expect(find.byTooltip('Deactivate'), findsNothing);
   });
 
+  testWidgets('shows the admin\'s phone number in the row', (tester) async {
+    final repo = _FakeAdminUsersRepository([_admin()]);
+    await _pump(tester, repo);
+
+    expect(find.textContaining('+919999900001'), findsOneWidget);
+  });
+
   testWidgets('an active admin shows Make Super Admin and Deactivate actions', (tester) async {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);

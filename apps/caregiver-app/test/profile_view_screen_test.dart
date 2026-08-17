@@ -128,7 +128,7 @@ void main() {
   });
 
   for (final status in ['available', 'unavailable', 'assigned']) {
-    testWidgets('shows Mark Available when status is $status', (tester) async {
+    testWidgets('shows Available for Jobs when status is $status', (tester) async {
       final fakeRepo = _FakeProfileRepository(_profile(status: status));
       await _pumpTall(
         tester,
@@ -138,12 +138,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(ElevatedButton, 'Mark Available'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Available for Jobs'), findsOneWidget);
     });
   }
 
   for (final status in ['pending_call', 'rejected']) {
-    testWidgets('hides Mark Available when status is $status', (tester) async {
+    testWidgets('hides Available for Jobs when status is $status', (tester) async {
       final fakeRepo = _FakeProfileRepository(_profile(status: status));
       await _pumpTall(
         tester,
@@ -153,11 +153,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(ElevatedButton, 'Mark Available'), findsNothing);
+      expect(find.widgetWithText(ElevatedButton, 'Available for Jobs'), findsNothing);
     });
   }
 
-  testWidgets('tapping Mark Available while already available shows a snackbar without calling the API',
+  testWidgets('tapping Available for Jobs while already available shows a snackbar without calling the API',
       (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(status: 'available'));
     await _pumpTall(
@@ -169,14 +169,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Available'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Available for Jobs'));
     await tester.pumpAndSettle();
 
     expect(find.text('You are already marked as available'), findsOneWidget);
     expect(fakeRepo.markAvailableCalled, isFalse);
   });
 
-  testWidgets('tapping Mark Available while unavailable calls the API and refreshes the status',
+  testWidgets('tapping Available for Jobs while unavailable calls the API and refreshes the status',
       (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(status: 'unavailable'));
     await _pumpTall(
@@ -188,24 +188,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Available'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Available for Jobs'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.markAvailableCalled, isTrue);
     expect(find.text("You're now marked as available"), findsOneWidget);
   });
 
-  testWidgets('shows a My Assignment entry point regardless of verification status', (tester) async {
-    final fakeRepo = _FakeProfileRepository(_profile(status: 'pending_call'));
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.widgetWithText(TextButton, 'My Assignment'), findsOneWidget);
-  });
 }

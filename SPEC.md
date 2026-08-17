@@ -1614,8 +1614,8 @@ Upload qualification doc, Aadhaar, or other documents. Multipart form data.
 
 #### POST `/caregiver/mark-available`
 
-One-click "Mark Available" — the caregiver-app's single self-service action
-for becoming available again. No request body.
+One-click "Available for Jobs" — the caregiver-app's single self-service
+action for becoming available again. No request body.
 
 **Precondition/behavior by current status:**
 - `unavailable` or `assigned` → sets `verification_status` to `available`,
@@ -2363,7 +2363,12 @@ job's details again once it closes. Caregiver-only, no query params.
 
 **Response (200) — has an assignment:** the full `Job` object (same shape
 as `POST /admin/jobs`'s response, including the joined `care_receiver`),
-regardless of the job's current `status`.
+regardless of the job's current `status`, plus `job_poster: { full_name,
+phone }` — the posting admin's contact info (nothing else — never their
+password/code hash or fcm_token), `null` if that admin account no longer
+exists. `job_poster` is only ever included here, never on `GET
+/caregiver/jobs` (the browse list) — admin contact info is only shared
+once there's an actual accepted engagement between the two.
 
 **Response (200) — no assignment:**
 ```json
@@ -2942,7 +2947,7 @@ Route by verification_status:
 ### 12.4 Navigation Rules
 
 **DO NOT:**
-- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding.
+- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding. 3 tabs: Profile, Jobs, MyJobs (the caregiver's own assigned job — see `GET /caregiver/jobs/assigned`).
 - Do NOT allow back navigation from Pending Call to Registration (registration is complete).
 
 ---

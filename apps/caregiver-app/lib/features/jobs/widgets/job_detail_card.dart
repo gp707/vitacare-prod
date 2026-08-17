@@ -60,7 +60,7 @@ class Tag extends StatelessWidget {
 /// Condition / About Nurse-Caregiver Requirement sections, and the
 /// free-text description — everything about a job except caregiver-action
 /// controls. Shared between the Jobs list card (which appends Apply/Reject)
-/// and the My Assignment screen (which appends an "Accepted" status
+/// and the MyJobs tab (which appends an "Accepted" status
 /// instead), so the same care-needs picture renders identically wherever a
 /// caregiver sees a job.
 class JobDetailCard extends StatelessWidget {

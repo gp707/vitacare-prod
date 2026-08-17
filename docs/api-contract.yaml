@@ -1764,7 +1764,10 @@ paths:
         and the most recent updated_at for this caregiver, regardless of
         the job's current status. Returns data: null (not 404) when the
         caregiver has never been accepted onto a job — that's the normal
-        state for most caregivers.
+        state for most caregivers. Also includes job_poster (the posting
+        admin's full_name + phone, nothing else) — surfaced here only,
+        never on the browse list, since contact info is only shared once
+        there's an actual accepted engagement.
       operationId: getMyAssignedJob
       security:
         - BearerAuth: []
@@ -1785,6 +1788,13 @@ paths:
                         properties:
                           care_receiver:
                             $ref: "#/components/schemas/CareReceiver"
+                          job_poster:
+                            type: object
+                            nullable: true
+                            description: The posting admin's contact info, so the caregiver can reach out. Null if that admin account no longer exists.
+                            properties:
+                              full_name: { type: string }
+                              phone: { type: string }
               example:
                 success: true
                 data: null
