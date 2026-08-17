@@ -8,6 +8,7 @@ import '../../auth/state/session_notifier.dart';
 import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../jobs/widgets/job_poster_contact_card.dart';
 
 /// Full read-only view of the caregiver's own profile, reachable at any
 /// verification status. The single Edit entry point hands off to
@@ -24,6 +25,7 @@ const _kMarkAvailableEligibleStatuses = ['available', 'unavailable', 'assigned']
 
 class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   CaregiverProfileModel? _profile;
+  JobModel? _assignedJob;
   bool _loading = true;
   bool _markingAvailable = false;
   String? _errorMessage;
@@ -41,7 +43,18 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     });
     try {
       final profile = await ref.read(profileRepositoryProvider).getProfile();
-      if (mounted) setState(() => _profile = profile);
+      // Only while currently assigned does the poster's contact info matter
+      // here — the MyJobs tab is the durable historical record, so this
+      // screen doesn't need to fetch it (or keep showing it) otherwise.
+      final assignedJob = profile.verificationStatus == 'assigned'
+          ? await ref.read(jobsRepositoryProvider).getAssignedJob()
+          : null;
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _assignedJob = assignedJob;
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -139,6 +152,10 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                   : const Text('Available for Jobs'),
             ),
           ),
+        ],
+        if (_assignedJob?.jobPoster != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          JobPosterContactCard(poster: _assignedJob!.jobPoster!),
         ],
         const SizedBox(height: AppSpacing.lg),
         _Section(
