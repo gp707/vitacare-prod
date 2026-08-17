@@ -172,8 +172,15 @@ export const AuditAction = {
   ADMIN_ACTIVATED: 'admin_activated',
   JOB_REMINDER_SENT: 'job_reminder_sent',
   JOB_UPDATED: 'job_updated',
+  APP_VERSION_UPDATED: 'app_version_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
+
+export const AppPlatform = {
+  ANDROID: 'android',
+  IOS: 'ios',
+} as const;
+export type AppPlatform = (typeof AppPlatform)[keyof typeof AppPlatform];
 
 export const UserRole = {
   SUPER_ADMIN: 'super_admin',

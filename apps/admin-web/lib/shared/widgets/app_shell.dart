@@ -4,7 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../features/auth/state/session_notifier.dart';
 import '../../features/auth/state/session_state.dart';
 
-enum AppShellSection { dashboard, caregivers, jobs, auditLogs, adminManagement }
+enum AppShellSection { dashboard, caregivers, jobs, auditLogs, adminManagement, appVersions }
 
 /// Web sidebar + content layout used by every authenticated screen.
 /// SPEC.md 13.2: Dashboard / Caregivers / Audit Logs (admin + super_admin) /
@@ -70,6 +70,12 @@ class AppShell extends ConsumerWidget {
                     selected: current == AppShellSection.adminManagement,
                     onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/admins', (r) => false),
                   ),
+                _NavItem(
+                  icon: Icons.system_update,
+                  label: 'App Versions',
+                  selected: current == AppShellSection.appVersions,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/app-versions', (r) => false),
+                ),
                 const Spacer(),
                 _NavItem(
                   icon: Icons.logout,

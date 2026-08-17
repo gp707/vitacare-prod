@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'network/api_client.dart';
 import 'storage/local_storage.dart';
 import 'fcm/fcm_service.dart';
+import 'version/app_version_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
@@ -30,4 +31,8 @@ final fcmServiceProvider = Provider<FcmService>((ref) {
 
 final jobsRepositoryProvider = Provider<JobsRepository>((ref) {
   return JobsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final appVersionRepositoryProvider = Provider<AppVersionRepository>((ref) {
+  return AppVersionRepository(ref.watch(apiClientProvider).dio);
 });

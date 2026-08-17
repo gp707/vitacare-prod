@@ -176,6 +176,24 @@ row (admin action) closes the job and sets the caregiver's
 `verification_status` to `assigned`; rejecting a previously-accepted
 application reopens the job and returns the caregiver to `available`.
 
+```
+┌──────────────────────┐
+│   app_min_versions    │  ◄── force-upgrade: 2-row singleton, one per platform
+│──────────────────────│
+│ platform (PK)         │  ◄── 'android' | 'ios'
+│ min_version           │  ◄── seeded '1.0.0'; caregiver app blocks below this
+│ store_url             │
+│ update_message        │
+│ updated_by (FK→users) │  ◄── admin who last changed this row; NULL until first edit
+│ updated_at            │
+└──────────────────────┘
+```
+
+Not part of the caregiver-profile/jobs graph above — a standalone admin
+control checked by the caregiver app on every cold launch (`GET
+/app-versions/check`, public, no auth) before anything else loads. See
+SPEC.md 6.9.
+
 ## Relationships
 
 | Table A | Table B | Type | FK Column | Notes |
@@ -194,6 +212,7 @@ application reopens the job and returns the caregiver to `available`.
 | jobs | job_applications | 1:N | job_applications.job_id | Caregiver applications to a job |
 | caregiver_profiles | job_applications | 1:N | job_applications.profile_id | A caregiver's applications across jobs |
 | users | job_applications (decided_by) | 1:N | job_applications.decided_by | Admin who accepted/rejected the application |
+| users | app_min_versions (updated_by) | 1:N | app_min_versions.updated_by | Admin who last set this platform's minimum version |
 
 ## Table Descriptions
 
@@ -207,4 +226,5 @@ application reopens the job and returns the caregiver to `available`.
 | **care_receivers** | "About Patient" in the admin-web UI. Care-needs description (age, gender, weight, mobility, communication, feeding, toilet assistance, medical assistance/conditions, vital monitoring) for the person a job is posted for. 1:1 with a job; no full patient PII/identity record yet — a future "Patient" app is expected to eventually supply that. |
 | **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required monthly salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has a short human-friendly `job_number` distinct from its UUID `id`, and a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost (editing a closed job back to active), not on a plain edit. |
 | **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
+| **app_min_versions** | Force-upgrade config: one row per platform (`android`/`ios`), admin-editable. The caregiver app checks this on every launch and blocks with an "Update Required" screen if its installed build is below `min_version`. |
 | **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. |

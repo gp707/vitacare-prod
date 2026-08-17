@@ -40,6 +40,10 @@ tags:
     description: Audit log viewing
   - name: Admin - Jobs
     description: Post, list, close job listings and review caregiver responses
+  - name: App Versions
+    description: Public force-upgrade version check, called by the caregiver app on launch
+  - name: Admin - App Versions
+    description: Admin control of the per-platform minimum supported app version
 
 components:
   securitySchemes:
@@ -432,6 +436,64 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    VersionCheckResult:
+      type: object
+      properties:
+        update_required:
+          type: boolean
+        min_version:
+          type: string
+          example: "1.2.0"
+        store_url:
+          type: string
+          nullable: true
+          description: Only populated when update_required is true.
+        update_message:
+          type: string
+          nullable: true
+          description: Admin-configured message shown on the Update Required screen; only populated when update_required is true.
+      example:
+        update_required: true
+        min_version: "1.2.0"
+        store_url: "https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs"
+        update_message: "Please update to continue using NurseJobs."
+
+    AppMinVersion:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [android, ios]
+        min_version:
+          type: string
+          example: "1.2.0"
+        store_url:
+          type: string
+          nullable: true
+        update_message:
+          type: string
+          nullable: true
+        updated_by_name:
+          type: string
+          nullable: true
+          description: The admin who last changed this row's full_name, resolved server-side via a join. Null if never changed.
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateAppVersionRequest:
+      type: object
+      required: [min_version]
+      properties:
+        min_version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          example: "1.3.0"
+        store_url:
+          type: string
+        update_message:
+          type: string
 
     AdminNotes:
       type: object
@@ -4067,5 +4129,133 @@ paths:
               example:
                 success: false
                 error: { code: "JOB_006", message: "Application not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /app-versions/check:
+    get:
+      tags: [App Versions]
+      summary: Check whether the caller's app build is below the admin-configured minimum
+      description: |
+        Public — no auth. Called by the caregiver app on every cold launch, before the splash
+        screen even loads the session, so a caregiver who's never logged in still gets blocked
+        on a too-old build. Fails open on the client side: any error here is treated as "no
+        update needed."
+      operationId: checkAppVersion
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema: { type: string, enum: [android, ios] }
+        - name: version
+          in: query
+          required: true
+          schema: { type: string }
+          example: "1.1.0"
+      responses:
+        "200":
+          description: Version check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/VersionCheckResult"
+        "400":
+          description: Missing/malformed platform or version (an unrecognized platform is rejected here too, by DTO validation)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_001", message: "Invalid request body" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/app-versions:
+    get:
+      tags: [Admin - App Versions]
+      summary: List the minimum supported version for every platform
+      operationId: listAppVersions
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: App version list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AppMinVersion"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/app-versions/{platform}:
+    patch:
+      tags: [Admin - App Versions]
+      summary: Set the minimum supported version, store URL, and update message for a platform
+      description: |
+        Raising min_version above what a caregiver has installed blocks them with an "Update
+        Required" screen on their next launch. Audit-logs app_version_updated with before/after
+        min_version and store_url.
+      operationId: updateAppVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema: { type: string, enum: [android, ios] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAppVersionRequest"
+      responses:
+        "200":
+          description: Updated row
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/AppMinVersion"
+        "400":
+          description: Malformed min_version (must be x.y.z)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_001", message: "Invalid request body" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Unrecognized platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
         "500":
           $ref: "#/components/responses/InternalError"

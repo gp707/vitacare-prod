@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { AdminModule } from './admin/admin.module';
 import { JobsModule } from './jobs/jobs.module';
+import { AppConfigModule } from './app-config/app-config.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -26,6 +27,7 @@ import { validateEnv } from './config/env.validation';
     CaregiverModule,
     AdminModule,
     JobsModule,
+    AppConfigModule,
   ],
 })
 export class AppModule {}

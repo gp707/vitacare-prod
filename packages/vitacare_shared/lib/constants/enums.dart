@@ -21,6 +21,13 @@ class JobStatus {
   static const all = [active, closed];
 }
 
+class AppPlatform {
+  static const android = 'android';
+  static const ios = 'ios';
+
+  static const all = [android, ios];
+}
+
 class JobApplicationStatus {
   static const applied = 'applied';
   static const rejected = 'rejected';

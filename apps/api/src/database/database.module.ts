@@ -11,6 +11,7 @@ import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
 import { CareReceiversRepository } from './repositories/care-receivers.repository';
+import { AppMinVersionsRepository } from './repositories/app-min-versions.repository';
 
 const repositories = [
   UsersRepository,
@@ -24,6 +25,7 @@ const repositories = [
   JobsRepository,
   JobApplicationsRepository,
   CareReceiversRepository,
+  AppMinVersionsRepository,
 ];
 
 @Global()

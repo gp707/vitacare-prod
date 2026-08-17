@@ -1157,6 +1157,19 @@ CREATE INDEX idx_job_applications_job ON job_applications(job_id);
 CREATE INDEX idx_job_applications_profile ON job_applications(profile_id);
 
 -- ============================================
+-- APP MIN VERSIONS TABLE (force-upgrade)
+-- 2-row singleton (one per platform), seeded at '1.0.0' — see 6.9.
+-- ============================================
+CREATE TABLE app_min_versions (
+  platform VARCHAR(10) PRIMARY KEY CHECK (platform IN ('android', 'ios')),
+  min_version VARCHAR(20) NOT NULL,
+  store_url TEXT,
+  update_message TEXT,
+  updated_by UUID REFERENCES users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
 -- AUDIT LOGS TABLE
 -- ============================================
 CREATE TABLE audit_logs (
@@ -1179,7 +1192,8 @@ CREATE TABLE audit_logs (
     'job_closed',
     'job_response',
     'job_application_decided',
-    'job_updated'
+    'job_updated',
+    'app_version_updated'
   )),
   entity_type VARCHAR(50) NOT NULL,
   entity_id UUID,
@@ -2540,6 +2554,101 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 
 ---
 
+### 6.9 App Version / Force-Upgrade Endpoints
+
+Lets an admin force caregivers on an old build to update before they can use
+the app again. `app_min_versions` is a 2-row singleton table (one row per
+platform, seeded at `1.0.0`), not something admins create/delete — only
+`PATCH` per platform.
+
+#### GET `/app-versions/check`
+
+**Public — no auth.** Called by the caregiver app on every cold launch,
+before the splash screen even loads the session (`AppVersionRepository
+.checkForUpdate()`), so a caregiver who's never logged in still gets
+blocked on a too-old build. The caregiver app fails open on any error here
+(network down, unexpected response) — this check must never be able to
+lock every caregiver out by itself.
+
+**Query Parameters:**
+- `platform` (required) — `android` | `ios`
+- `version` (required) — the installed build's version string (e.g. `"1.2.0"`, from `PackageInfo.version`)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "update_required": true,
+    "min_version": "1.2.0",
+    "store_url": "https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs",
+    "update_message": "Please update to continue using NurseJobs."
+  }
+}
+```
+`store_url`/`update_message` are only populated when `update_required` is
+`true`; otherwise both are `null`. Version comparison is numeric
+major/minor/patch (not lexicographic — `2.10.0` beats `2.9.0`); an
+unparseable segment counts as `0` rather than throwing.
+
+**Errors:** `GEN_001` (missing/malformed `platform` or `version` — an unrecognized platform is rejected here too, by DTO validation, before ever reaching the lookup).
+
+---
+
+#### GET `/admin/app-versions`
+
+Admin or super_admin. Lists both platform rows.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "platform": "android",
+      "min_version": "1.2.0",
+      "store_url": "https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs",
+      "update_message": "Please update to continue using NurseJobs.",
+      "updated_by_name": "Admin One",
+      "updated_at": "2026-08-17T10:00:00Z"
+    },
+    {
+      "platform": "ios",
+      "min_version": "1.0.0",
+      "store_url": null,
+      "update_message": null,
+      "updated_by_name": null,
+      "updated_at": "2026-08-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### PATCH `/admin/app-versions/:platform`
+
+Admin or super_admin. `:platform` is `android` or `ios`; anything else
+returns `GEN_002` (there's simply no matching row to update). Audit-logs
+`app_version_updated` with before/after `min_version`/`store_url`.
+
+**Request Body:**
+```json
+{
+  "min_version": "1.3.0",
+  "store_url": "https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs",
+  "update_message": "Please update to continue using NurseJobs."
+}
+```
+`min_version` is required, `x.y.z` format only (`GEN_001` otherwise).
+`store_url`/`update_message` are optional free text.
+
+**Response (200):** the updated row, same shape as one item of the `GET` list above.
+
+**DO NOT:**
+- Do NOT gate this behind super_admin only — any admin can raise/lower the bar (same trust level as posting/editing jobs).
+- Do NOT add an equivalent gate to admin-web — it's a web app, a browser reload picks up a new deploy, there's no store binary to be "behind" on.
+
+---
+
 ## 7. Error Catalog
 
 ### 7.1 Authentication Errors (AUTH_xxx)
@@ -2869,6 +2978,12 @@ documents) is collected on the Registration screen itself.
 
 ### 12.2 Navigation Flow
 
+Before any of the below: Splash calls `GET /app-versions/check` (see 6.9).
+If the installed build is below the admin-configured minimum, Splash shows
+a blocking `UpdateRequiredScreen` instead — no token check, no navigation,
+nothing else loads until the caregiver updates. Otherwise (including on
+any error from that check — fails open) navigation proceeds as normal:
+
 ```
 App Launch → Splash
   ├── No token → Login
@@ -2981,14 +3096,17 @@ Route by verification_status:
 | 5 | Audit Logs | `/audit-logs` | Admin, Super Admin |
 | 6 | Admin Management | `/admins` | Super Admin only |
 | 7 | Settings | `/settings` | Admin, Super Admin |
+| 8 | App Versions | `/app-versions` | Admin, Super Admin |
 
 ### 13.2 Navigation Structure
 
 **Sidebar Navigation:**
 - Dashboard (icon: grid)
 - Caregivers (icon: people)
+- Jobs (icon: work)
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
+- App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9
 - Settings (icon: gear)
 
 ### 13.3 Screen Details
