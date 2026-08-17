@@ -48,6 +48,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   Future<void> _openCreateDialog() async {
     final created = await showDialog<bool>(
       context: context,
+      // A stray click outside the dialog must not silently wipe out
+      // whatever the admin has already typed — only Cancel/Post do that.
+      barrierDismissible: false,
       builder: (dialogContext) => const _JobFormDialog(),
     );
     if (created == true) await _load();
@@ -63,6 +66,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       if (!mounted) return;
       final saved = await showDialog<bool>(
         context: context,
+        // Same reasoning as the create dialog — don't let a stray outside
+        // click discard in-progress edits.
+        barrierDismissible: false,
         builder: (dialogContext) => _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
       );
       if (saved == true) await _load();

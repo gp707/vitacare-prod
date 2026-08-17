@@ -342,6 +342,31 @@ void main() {
   });
 
   testWidgets(
+      'tapping outside the Post New Job dialog does not dismiss it or lose the partially-filled data',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    final age = find.widgetWithText(TextField, "Patient's Age");
+    await tester.ensureVisible(age);
+    await tester.enterText(age, '72');
+    await tester.pumpAndSettle();
+
+    // Tap the modal barrier, well outside the dialog's bounds.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    // Still open, and the typed value is still there — a stray outside
+    // click must not silently discard in-progress form data.
+    expect(find.text('Post New Job'), findsWidgets);
+    expect(find.text('72'), findsOneWidget);
+    expect(repo.createCalled, isFalse);
+  });
+
+  testWidgets(
       'only age/weight/gender/city/area are hard-required — mobility, communication, feeding, '
       'toilet assistance and medical assistance can all be left unselected', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -564,6 +589,27 @@ void main() {
     expect(repo.updatedJobId, 'job-1');
     expect(repo.updatedDescription, 'Updated details for the caregiver');
     expect(repo.createCalled, isFalse);
+  });
+
+  testWidgets('tapping outside the Edit dialog does not dismiss it or lose the in-progress edit', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Updated details for the caregiver');
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Job #42'), findsOneWidget);
+    final descriptionField = tester.widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
+    expect(descriptionField.controller!.text, 'Updated details for the caregiver');
+    expect(repo.updatedJobId, isNull);
   });
 
   testWidgets('Applicants dialog shows Accept/Reject for an applied application; Accept calls decideApplication',
