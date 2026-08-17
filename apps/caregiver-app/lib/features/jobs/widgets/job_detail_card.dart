@@ -204,8 +204,10 @@ class JobDetailCard extends StatelessWidget {
               Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
           ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(job.description),
+        if (job.description != null && job.description!.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(job.description!),
+        ],
       ],
     );
   }

@@ -313,6 +313,7 @@ components:
           nullable: true
         description:
           type: string
+          nullable: true
         duty_type:
           $ref: "#/components/schemas/DutyType"
         frequency_of_care:
@@ -3497,7 +3498,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, description, duty_type, languages, salary_monthly]
+              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_monthly]
               properties:
                 care_receiver:
                   type: object
@@ -3583,8 +3584,9 @@ paths:
                 description:
                   type: string
                   description: >
-                    UI label: "More details you want to share about patient
-                    or requirement which can help caregiver to decide."
+                    Optional (previously required), max 2000 chars. UI label
+                    shortened to "More details you want to share about
+                    patient".
                 duty_type:
                   $ref: "#/components/schemas/DutyType"
                   description: >
@@ -3597,7 +3599,9 @@ paths:
                 start_date:
                   type: string
                   format: date
-                  description: UI label "Preferred Start Date".
+                  description: >
+                    Required (previously optional). UI label "Preferred
+                    Start Date".
                 languages:
                   type: array
                   minItems: 1
@@ -3784,7 +3788,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, description, duty_type, languages, salary_monthly]
+              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_monthly]
               properties:
                 care_receiver:
                   type: object
@@ -3870,8 +3874,9 @@ paths:
                 description:
                   type: string
                   description: >
-                    UI label: "More details you want to share about patient
-                    or requirement which can help caregiver to decide."
+                    Optional (previously required), max 2000 chars. UI label
+                    shortened to "More details you want to share about
+                    patient".
                 duty_type:
                   $ref: "#/components/schemas/DutyType"
                   description: >
@@ -3884,7 +3889,9 @@ paths:
                 start_date:
                   type: string
                   format: date
-                  description: UI label "Preferred Start Date".
+                  description: >
+                    Required (previously optional). UI label "Preferred
+                    Start Date".
                 languages:
                   type: array
                   minItems: 1

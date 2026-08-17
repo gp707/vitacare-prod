@@ -1116,12 +1116,12 @@ CREATE TABLE jobs (
   care_receiver_id UUID NOT NULL REFERENCES care_receivers(id),
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
   area TEXT,                              -- free text; required via API (DTO), nullable at DB level only for rows that predate this being required
-  description TEXT NOT NULL,
+  description TEXT,                       -- free text; optional via API — previously required, DB NOT NULL constraint dropped in migration 034
   duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in')),  -- 3 fixed shifts only; UI label "Hours Care Needed"
   frequency_of_care VARCHAR(10) NOT NULL CHECK (frequency_of_care IN ('daily', 'monthly')),
   start_time TIME,                        -- derived from duty_type, not admin-entered; NULL for live_in
   end_time TIME,
-  start_date DATE,                        -- UI label "Preferred Start Date"
+  start_date DATE,                        -- UI label "Preferred Start Date"; required via API (DTO) — previously optional, nullable at DB level only for rows that predate this being required
   languages JSONB NOT NULL DEFAULT '[]',  -- multi-select language preference, non-empty array
   salary_monthly INTEGER CHECK (salary_monthly > 0),  -- ₹/month; required via API for every create/edit, nullable at DB level only for rows that predate this field
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
@@ -2103,10 +2103,10 @@ notification to ALL caregivers.
 - `care_receiver.toilet_assistance_other`: Optional free text, max 500 chars. Same pattern as `medical_condition_other` — UI-conditional on `toilet_assistance` including `others`, unconditionally optional server-side.
 - `care_receiver.requires_vital_monitoring`: Optional boolean, defaults to `false` when omitted. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
 - `city`: Required, must be valid city enum. `area`: Required free text (previously optional).
-- `description`: Required, free text. UI label: "More details you want to share about patient or requirement which can help caregiver to decide."
+- `description`: Optional free text, max 2000 chars (previously required). UI label shortened to "More details you want to share about patient".
 - `duty_type`: Required, must be exactly one of the 3 fixed shifts — `live_in` ("24Hrs - Live In"), `day_duty` ("12Hrs Day Shift, 8am to 8pm"), `night_duty` ("12Hrs Night Shift, 8pm to 8am"). No `other` value, and no separate `start_time`/`end_time` input — the backend derives and stores those from `duty_type`. UI label: "Hours Care Needed".
 - `frequency_of_care`: Required, valid enum value — `daily` ("Daily") or `monthly` ("Monthly").
-- `start_date`: Optional (ISO date). UI label: "Preferred Start Date".
+- `start_date`: Required (ISO date, previously optional). UI label: "Preferred Start Date".
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
 - `salary_monthly`: Required integer, 1-1,000,000 (₹/month). Shown highlighted at the top of the job card in caregiver-app.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.

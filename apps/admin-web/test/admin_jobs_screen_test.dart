@@ -21,6 +21,7 @@ JobModel _job({String status = 'active', int? salaryMonthly = 30000}) {
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
+    'start_date': '2026-08-10',
     'languages': ['hindi'],
     'salary_monthly': salaryMonthly,
     'preferred_gender': 'female',
@@ -42,6 +43,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
+    'start_date': '2026-08-10',
     'languages': ['hindi'],
     'salary_monthly': 30000,
     'preferred_gender': 'female',
@@ -127,7 +129,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required CareReceiverInput careReceiver,
     required String city,
     String? area,
-    required String description,
+    String? description,
     required String dutyType,
     required String frequencyOfCare,
     String? startDate,
@@ -147,7 +149,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required CareReceiverInput careReceiver,
     required String city,
     String? area,
-    required String description,
+    String? description,
     required String dutyType,
     required String frequencyOfCare,
     String? startDate,
@@ -220,9 +222,18 @@ Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
   await tester.pumpAndSettle();
 }
 
-const _descriptionLabel =
-    'More details you want to share about patient or requirement which can help caregiver to decide '
-    '(Mandatory)';
+const _descriptionLabel = 'More details you want to share about patient';
+
+/// Picks today's date (the picker's default) for the mandatory Preferred
+/// Start Date field via its own OK button.
+Future<void> _pickPreferredStartDate(WidgetTester tester) async {
+  final dateButton = find.widgetWithText(OutlinedButton, 'Select date');
+  await tester.ensureVisible(dateButton);
+  await tester.tap(dateButton);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
+}
 
 /// Fills every required field up through (and including) Toilet Assistance —
 /// i.e. everything needed before Duty/Language/Description — so individual
@@ -330,6 +341,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -352,7 +364,7 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Preferred Start Date'), findsOneWidget);
+    expect(find.text('Preferred Start Date (Mandatory)'), findsOneWidget);
     expect(find.text('Select date'), findsOneWidget);
 
     final dateButton = find.widgetWithText(OutlinedButton, 'Select date');
@@ -367,7 +379,7 @@ void main() {
     // The heading is still there — before this fix, the button's own label
     // doubled as both the heading and the value, so picking a date replaced
     // "Preferred Start Date" with a bare, context-free date.
-    expect(find.text('Preferred Start Date'), findsOneWidget);
+    expect(find.text('Preferred Start Date (Mandatory)'), findsOneWidget);
     expect(find.text('Select date'), findsNothing);
   });
 
@@ -397,8 +409,8 @@ void main() {
   });
 
   testWidgets(
-      'only age/weight/gender/city/area are hard-required — mobility, communication, feeding, '
-      'toilet assistance and medical assistance can all be left unselected', (tester) async {
+      'only age/weight/gender/city/area/start-date are hard-required — mobility, communication, feeding, '
+      'toilet assistance, medical assistance, and description can all be left unselected/empty', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
@@ -429,19 +441,17 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
-
+    // Deliberately leave the description empty too — it's optional now.
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
     await tester.tap(postButton);
     await tester.pumpAndSettle();
 
-    expect(repo.createCalled, isTrue, reason: 'mobility/communication/feeding/toilet assistance/medical assistance are optional now');
+    expect(repo.createCalled, isTrue,
+        reason: 'mobility/communication/feeding/toilet assistance/medical assistance/description are optional now');
   });
 
   testWidgets('Post is always clickable; tapping it with every mandatory field empty highlights all of them '
@@ -468,8 +478,8 @@ void main() {
     expect(find.text('Salary is required'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
     expect(find.text('Please select a frequency'), findsOneWidget);
+    expect(find.text('Please select a start date'), findsOneWidget);
     expect(find.text('Select at least one language'), findsOneWidget);
-    expect(find.text('Please add a description'), findsOneWidget);
   });
 
   testWidgets('tapping Post with only Area missing does not submit and moves the cursor into Area',
@@ -531,6 +541,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -592,6 +603,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -631,6 +643,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -670,6 +683,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -716,6 +730,7 @@ void main() {
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
     await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);

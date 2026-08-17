@@ -60,7 +60,7 @@ class JobModel {
   final int jobNumber;
   final String city;
   final String? area;
-  final String description;
+  final String? description;
   final String dutyType;
   final String frequencyOfCare;
   final String? startTime;
@@ -83,7 +83,7 @@ class JobModel {
     required this.jobNumber,
     required this.city,
     this.area,
-    required this.description,
+    this.description,
     required this.dutyType,
     required this.frequencyOfCare,
     this.startTime,
@@ -107,7 +107,7 @@ class JobModel {
         jobNumber: json['job_number'] as int,
         city: json['city'] as String,
         area: json['area'] as String?,
-        description: json['description'] as String,
+        description: json['description'] as String?,
         dutyType: json['duty_type'] as String,
         frequencyOfCare: json['frequency_of_care'] as String,
         startTime: json['start_time'] as String?,

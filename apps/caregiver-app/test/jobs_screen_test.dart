@@ -13,13 +13,13 @@ import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
 // depend on the test machine's timezone.
 String _expected(String isoUtc) => formatDateTime(DateTime.parse(isoUtc).toLocal());
 
-JobModel _job({Map<String, dynamic>? myApplication, String? postedAt}) {
+JobModel _job({Map<String, dynamic>? myApplication, String? postedAt, Object? description = 'Need a caregiver for an elderly patient'}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
     'city': 'bangalore',
     'area': 'Indiranagar',
-    'description': 'Need a caregiver for an elderly patient',
+    'description': description,
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
     'languages': ['hindi'],
@@ -97,6 +97,22 @@ void main() {
     expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
     expect(find.text('Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
+  });
+
+  testWidgets('renders fine and shows no description line when the job has none set (now optional)',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job(description: null)]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
 
   testWidgets(

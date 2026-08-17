@@ -90,6 +90,7 @@ describe('Jobs (e2e)', () => {
         description: `${jobDescriptionPrefix} Need a caregiver`,
         duty_type: 'live_in',
         frequency_of_care: 'daily',
+        start_date: '2026-09-01',
         languages: ['hindi'],
         salary_monthly: 30000,
         preferred_gender: 'female',
@@ -234,11 +235,60 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} missing area validation test`,
           duty_type: 'live_in',
           frequency_of_care: 'daily',
+          start_date: '2026-09-01',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects a missing start_date (GEN_001) — Preferred Start Date is now mandatory', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} missing start date validation test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('accepts and persists a job posted with no description — it is optional now', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          area: 'Indiranagar',
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          start_date: '2026-09-01',
+          languages: ['hindi'],
+          salary_monthly: 30000,
+        })
+        .expect(201);
+      expect(res.body.data.description).toBeNull();
+      // Regression check: DATE columns must round-trip as the exact
+      // 'YYYY-MM-DD' string sent — pg's default DATE parser returns a JS
+      // Date, which is timezone-aware and can drift the calendar date by a
+      // day once serialized back to JSON (see database.service.ts's
+      // types.setTypeParser(1082, ...) fix).
+      expect(res.body.data.start_date).toBe('2026-09-01');
+
+      // This job's description doesn't carry the test prefix, so the shared
+      // cleanup() helper (which finds jobs by "description LIKE" that
+      // prefix) can't find it — delete it directly here instead.
+      await db.query('DELETE FROM jobs WHERE id = $1', [res.body.data.id]);
+      await db.query('DELETE FROM care_receivers WHERE id = $1', [res.body.data.care_receiver_id]);
     });
 
     it('creates a job with only the hard-required care-receiver fields (age/gender/weight), defaulting every optional field to a real, visible value', async () => {
@@ -252,6 +302,7 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} minimal care receiver defaults test`,
           duty_type: 'live_in',
           frequency_of_care: 'daily',
+          start_date: '2026-09-01',
           languages: ['hindi'],
           salary_monthly: 30000,
         })
@@ -637,6 +688,7 @@ describe('Jobs (e2e)', () => {
         description: `${jobDescriptionPrefix} Edited description`,
         duty_type: 'day_duty',
         frequency_of_care: 'daily',
+        start_date: '2026-09-01',
         languages: ['hindi', 'english'],
         salary_monthly: 32000,
         preferred_gender: 'female',

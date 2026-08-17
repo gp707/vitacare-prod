@@ -128,10 +128,10 @@ export class CreateJobDto {
   @IsString()
   area!: string;
 
-  @IsNotEmpty({ message: 'GEN_001' })
+  @IsOptional()
   @IsString()
   @MaxLength(2000, { message: 'GEN_001' })
-  description!: string;
+  description?: string;
 
   // Duty Type fully determines the shift's timing (see DUTY_TYPE_TIMES in
   // jobs.service.ts) — admins pick one of the 3 fixed shifts, they don't
@@ -142,9 +142,9 @@ export class CreateJobDto {
   @IsIn(Object.values(FrequencyOfCare), { message: 'GEN_001' })
   frequency_of_care!: FrequencyOfCare;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'GEN_001' })
   @IsDateString({}, { message: 'GEN_001' })
-  start_date?: string;
+  start_date!: string;
 
   @IsInt({ message: 'GEN_001' })
   @Min(1, { message: 'GEN_001' })

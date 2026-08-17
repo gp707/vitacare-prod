@@ -249,8 +249,10 @@ class _JobRow extends StatelessWidget {
                   'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(job.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (job.description != null && job.description!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(job.description!, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
               ],
             ),
           ),
@@ -316,6 +318,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _salaryKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
   final _frequencyKey = GlobalKey();
+  final _startDateKey = GlobalKey();
   final _languagesKey = GlobalKey();
   final _descriptionKey = GlobalKey();
 
@@ -360,7 +363,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     if (job != null && cr != null) {
       _city = job.city;
       _areaController.text = job.area ?? '';
-      _descriptionController.text = job.description;
+      _descriptionController.text = job.description ?? '';
       _dutyType = job.dutyType;
       _frequencyOfCare = job.frequencyOfCare;
       _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
@@ -420,7 +423,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _isFrequencyValid => _frequencyOfCare != null;
   bool get _isLanguagesValid => _languages.isNotEmpty;
   bool get _isSalaryValid => _salaryMonthly != null && _salaryMonthly! >= 1 && _salaryMonthly! <= 1000000;
-  bool get _isDescriptionValid => _descriptionController.text.trim().isNotEmpty;
+  bool get _isStartDateValid => _startDate != null;
 
   bool get _canSubmit =>
       !_submitting &&
@@ -433,9 +436,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _isVitalMonitoringTypesValid &&
       _isDutyTypeValid &&
       _isFrequencyValid &&
+      _isStartDateValid &&
       _isLanguagesValid &&
-      _isSalaryValid &&
-      _isDescriptionValid;
+      _isSalaryValid;
 
   /// In on-form order, so the first invalid one found here is genuinely
   /// the first one the admin sees when Post scrolls them to it.
@@ -450,8 +453,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_frequencyKey, _isFrequencyValid),
+        _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_languagesKey, _isLanguagesValid),
-        _MandatoryField(_descriptionKey, _isDescriptionValid, focusNode: _descriptionFocusNode),
       ];
 
   /// Post is always clickable — this is what runs when it's tapped. With
@@ -874,18 +877,41 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              // A persistent heading, unlike the old design where the button's
-              // own label doubled as the display text — that meant "Preferred
-              // Start Date" disappeared the moment a date was picked, leaving
-              // just a bare date with no context for what it was.
-              const Text('Preferred Start Date', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              OutlinedButton(
-                onPressed: _pickStartDate,
-                child: Text(
-                  _startDate == null
-                      ? 'Select date'
-                      : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+              KeyedSubtree(
+                key: _startDateKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // A persistent heading, unlike the old design where the
+                    // button's own label doubled as the display text — that
+                    // meant "Preferred Start Date" disappeared the moment a
+                    // date was picked, leaving just a bare date with no
+                    // context for what it was.
+                    Text(
+                      'Preferred Start Date (Mandatory)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    OutlinedButton(
+                      onPressed: _pickStartDate,
+                      child: Text(
+                        _startDate == null
+                            ? 'Select date'
+                            : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                    if (_showValidationErrors && !_isStartDateValid)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Please select a start date',
+                          style: TextStyle(color: AppColors.error, fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -953,11 +979,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   controller: _descriptionController,
                   focusNode: _descriptionFocusNode,
                   maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'More details you want to share about patient or requirement which can '
-                        'help caregiver to decide (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isDescriptionValid ? 'Please add a description' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'More details you want to share about patient',
+                    border: OutlineInputBorder(),
                   ),
                   onChanged: (_) => setState(() {}),
                 ),

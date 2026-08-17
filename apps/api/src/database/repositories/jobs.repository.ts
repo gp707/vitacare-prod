@@ -17,7 +17,7 @@ export interface JobRecord {
   care_receiver_id: string;
   city: City;
   area: string | null;
-  description: string;
+  description: string | null;
   duty_type: DutyType;
   frequency_of_care: FrequencyOfCare;
   start_time: string | null;
@@ -63,7 +63,7 @@ export interface CreateJobInput {
   care_receiver_id: string;
   city: City;
   area?: string | null;
-  description: string;
+  description?: string | null;
   duty_type: DutyType;
   frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
@@ -79,7 +79,7 @@ export interface CreateJobInput {
 export interface UpdateJobInput {
   city: City;
   area?: string | null;
-  description: string;
+  description?: string | null;
   duty_type: DutyType;
   frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
@@ -135,7 +135,7 @@ export class JobsRepository {
         input.care_receiver_id,
         input.city,
         input.area ?? null,
-        input.description,
+        input.description ?? null,
         input.duty_type,
         input.frequency_of_care,
         input.start_time ?? null,
@@ -225,7 +225,7 @@ export class JobsRepository {
       [
         input.city,
         input.area ?? null,
-        input.description,
+        input.description ?? null,
         input.duty_type,
         input.frequency_of_care,
         input.start_time ?? null,
