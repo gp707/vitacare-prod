@@ -42,7 +42,9 @@ JobModel _job({Map<String, dynamic>? myApplication, String? postedAt}) {
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
       'medical_info': 'Needs help twice daily',
+      'medical_condition_other': 'Recovering from hip surgery',
       'toilet_assistance': ['uses_diapers', 'uses_catheter'],
+      'toilet_assistance_other': 'Needs a raised commode seat',
       'requires_vital_monitoring': true,
       'vital_monitoring_types': ['blood_pressure', 'blood_sugar'],
     },
@@ -127,12 +129,60 @@ void main() {
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);
     expect(find.text('Needs help twice daily'), findsOneWidget);
+    expect(find.text('Other condition: Recovering from hip surgery'), findsOneWidget);
+    expect(find.text('Other toilet assistance: Needs a raised commode seat'), findsOneWidget);
 
     // About Nurse/Caregiver Requirement
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
     expect(find.text('24Hrs - Live In'), findsOneWidget);
     expect(find.text('Daily'), findsOneWidget);
     expect(find.text('Hindi'), findsOneWidget);
+  });
+
+  testWidgets('does not show the "other" detail lines when the care receiver has none set', (tester) async {
+    final job = JobModel.fromJson({
+      'id': 'job-1',
+      'job_number': 42,
+      'city': 'bangalore',
+      'area': 'Indiranagar',
+      'description': 'Need a caregiver for an elderly patient',
+      'duty_type': 'live_in',
+      'frequency_of_care': 'daily',
+      'languages': ['hindi'],
+      'salary_monthly': 30000,
+      'preferred_gender': 'female',
+      'status': 'active',
+      'posted_by': 'admin-1',
+      'posted_at': DateTime.now().toUtc().toIso8601String(),
+      'created_at': '2026-08-01T10:00:00Z',
+      'care_receiver': {
+        'id': 'cr-1',
+        'age': 78,
+        'gender': 'female',
+        'weight_kg': 60,
+        'mobility': 'uses_wheelchair',
+        'communication': 'verbal',
+        'feeding_type': 'oral_needs_assistance',
+        'medical_assistance': ['medication_reminders'],
+        'has_medical_condition': false,
+        'medical_conditions': [],
+        'toilet_assistance': ['uses_diapers'],
+        'requires_vital_monitoring': false,
+        'vital_monitoring_types': [],
+      },
+    });
+    final fakeRepo = _FakeJobsRepository([job]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Other condition:'), findsNothing);
+    expect(find.textContaining('Other toilet assistance:'), findsNothing);
   });
 
   testWidgets('shows the job number and salary highlighted at the top', (tester) async {

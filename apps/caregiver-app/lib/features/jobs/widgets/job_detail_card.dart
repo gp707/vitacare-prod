@@ -171,6 +171,22 @@ class JobDetailCard extends StatelessWidget {
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
             ),
           ],
+          if (job.careReceiver!.medicalConditionOther != null &&
+              job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Other condition: ${job.careReceiver!.medicalConditionOther!}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+            ),
+          ],
+          if (job.careReceiver!.toiletAssistanceOther != null &&
+              job.careReceiver!.toiletAssistanceOther!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+            ),
+          ],
         ],
         const SizedBox(height: AppSpacing.md),
         const Divider(height: 1),

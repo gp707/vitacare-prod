@@ -17,7 +17,9 @@ class CareReceiverInput {
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
   final String? medicalInfo;
+  final String? medicalConditionOther;
   final List<String> toiletAssistance;
+  final String? toiletAssistanceOther;
   final bool requiresVitalMonitoring;
   final List<String>? vitalMonitoringTypes;
 
@@ -32,7 +34,9 @@ class CareReceiverInput {
     required this.hasMedicalCondition,
     this.medicalConditions,
     this.medicalInfo,
+    this.medicalConditionOther,
     required this.toiletAssistance,
+    this.toiletAssistanceOther,
     required this.requiresVitalMonitoring,
     this.vitalMonitoringTypes,
   });
@@ -48,7 +52,11 @@ class CareReceiverInput {
         'has_medical_condition': hasMedicalCondition,
         if (medicalConditions != null) 'medical_conditions': medicalConditions,
         if (medicalInfo != null && medicalInfo!.isNotEmpty) 'medical_info': medicalInfo,
+        if (medicalConditionOther != null && medicalConditionOther!.isNotEmpty)
+          'medical_condition_other': medicalConditionOther,
         'toilet_assistance': toiletAssistance,
+        if (toiletAssistanceOther != null && toiletAssistanceOther!.isNotEmpty)
+          'toilet_assistance_other': toiletAssistanceOther,
         'requires_vital_monitoring': requiresVitalMonitoring,
         if (vitalMonitoringTypes != null) 'vital_monitoring_types': vitalMonitoringTypes,
       };

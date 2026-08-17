@@ -290,6 +290,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _descriptionController = TextEditingController();
   final _areaController = TextEditingController();
   final _medicalInfoController = TextEditingController();
+  final _medicalConditionOtherController = TextEditingController();
+  final _toiletAssistanceOtherController = TextEditingController();
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
   final _salaryController = TextEditingController();
@@ -377,7 +379,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _hasMedicalCondition = cr.hasMedicalCondition;
       _medicalConditions = List.of(cr.medicalConditions);
       _medicalInfoController.text = cr.medicalInfo ?? '';
+      _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
       _toiletAssistance = List.of(cr.toiletAssistance);
+      _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
       _requiresVitalMonitoring = cr.requiresVitalMonitoring;
       _vitalMonitoringTypes = List.of(cr.vitalMonitoringTypes);
     }
@@ -388,6 +392,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     _descriptionController.dispose();
     _areaController.dispose();
     _medicalInfoController.dispose();
+    _medicalConditionOtherController.dispose();
+    _toiletAssistanceOtherController.dispose();
     _ageController.dispose();
     _weightController.dispose();
     _salaryController.dispose();
@@ -511,7 +517,15 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
         medicalInfo:
             _medicalInfoController.text.trim().isEmpty ? null : _medicalInfoController.text.trim(),
+        medicalConditionOther: _medicalConditions.contains(MedicalCondition.other) &&
+                _medicalConditionOtherController.text.trim().isNotEmpty
+            ? _medicalConditionOtherController.text.trim()
+            : null,
         toiletAssistance: _toiletAssistance,
+        toiletAssistanceOther: _toiletAssistance.contains(ToiletAssistance.others) &&
+                _toiletAssistanceOtherController.text.trim().isNotEmpty
+            ? _toiletAssistanceOtherController.text.trim()
+            : null,
         requiresVitalMonitoring: _requiresVitalMonitoring,
         vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
       );
@@ -728,6 +742,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                             style: TextStyle(color: AppColors.error, fontSize: 12),
                           ),
                         ),
+                      if (_medicalConditions.contains(MedicalCondition.other)) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _medicalConditionOtherController,
+                          maxLines: 2,
+                          decoration: const InputDecoration(labelText: 'Please describe the other condition'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -752,6 +774,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 selected: _toiletAssistance,
                 onChanged: (next) => setState(() => _toiletAssistance = next),
               ),
+              if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _toiletAssistanceOtherController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Please describe the other toilet assistance'),
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

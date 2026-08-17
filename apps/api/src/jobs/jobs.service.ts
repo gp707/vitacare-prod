@@ -90,10 +90,12 @@ function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInpu
     has_medical_condition: dto.has_medical_condition ?? false,
     medical_conditions: dto.medical_conditions ?? [],
     medical_info: dto.medical_info ?? null,
+    medical_condition_other: dto.medical_condition_other ?? null,
     toilet_assistance:
       dto.toilet_assistance && dto.toilet_assistance.length > 0
         ? dto.toilet_assistance
         : [...CARE_RECEIVER_DEFAULTS.toilet_assistance],
+    toilet_assistance_other: dto.toilet_assistance_other ?? null,
     requires_vital_monitoring: dto.requires_vital_monitoring ?? false,
     vital_monitoring_types: dto.vital_monitoring_types ?? [],
   };

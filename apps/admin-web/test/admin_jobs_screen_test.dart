@@ -61,6 +61,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
       'has_medical_condition': false,
       'medical_conditions': [],
       'toilet_assistance': ['others'],
+      'toilet_assistance_other': 'Needs help with a raised commode seat',
       'requires_vital_monitoring': false,
       'vital_monitoring_types': [],
     },
@@ -109,6 +110,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? decidedStatus;
   String? updatedJobId;
   String? updatedDescription;
+  CareReceiverInput? submittedCareReceiver;
 
   _FakeAdminJobsRepository(this.jobs, {this.applications = const []}) : super(Dio());
 
@@ -135,6 +137,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     String? preferredReligion,
   }) async {
     createCalled = true;
+    submittedCareReceiver = careReceiver;
     jobs = [...jobs, _job()];
   }
 
@@ -606,6 +609,130 @@ void main() {
     expect(repo.createCalled, isTrue, reason: 'the feeding dropdown alone is enough, no extra field required');
   });
 
+  testWidgets(
+      'selecting Others for Toilet Assistance reveals a free-text field whose value is submitted '
+      'alongside the selected values', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Please describe the other toilet assistance'), findsNothing);
+
+    await _fillAboutPatientRequiredFields(tester); // taps the "Others" toilet assistance chip
+
+    final otherField = find.widgetWithText(TextField, 'Please describe the other toilet assistance');
+    expect(otherField, findsOneWidget);
+    await tester.ensureVisible(otherField);
+    await tester.enterText(otherField, 'Needs help with a raised commode seat');
+    await tester.pumpAndSettle();
+
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.submittedCareReceiver!.toiletAssistance, contains(ToiletAssistance.others));
+    expect(repo.submittedCareReceiver!.toiletAssistanceOther, 'Needs help with a raised commode seat');
+  });
+
+  testWidgets(
+      'unselecting Others for Toilet Assistance hides the free-text field and it is not submitted',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _fillAboutPatientRequiredFields(tester); // taps the "Others" toilet assistance chip
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Please describe the other toilet assistance'),
+      'Some detail',
+    );
+    await tester.pumpAndSettle();
+
+    await _tapChip(tester, 'Others'); // untap it
+    expect(find.text('Please describe the other toilet assistance'), findsNothing);
+
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.submittedCareReceiver!.toiletAssistance, isNot(contains(ToiletAssistance.others)));
+    expect(repo.submittedCareReceiver!.toiletAssistanceOther, isNull);
+  });
+
+  testWidgets(
+      'selecting Other for medical Condition(s) reveals a free-text field whose value is submitted '
+      'alongside the selected conditions', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _fillAboutPatientRequiredFields(tester);
+
+    final medicalConditionSwitch = find.text('Has a medical condition the caregiver should know about?');
+    await tester.ensureVisible(medicalConditionSwitch);
+    await tester.tap(medicalConditionSwitch);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Please describe the other condition'), findsNothing);
+
+    await _tapChip(tester, 'Other');
+
+    final otherField = find.widgetWithText(TextField, 'Please describe the other condition');
+    expect(otherField, findsOneWidget);
+    await tester.ensureVisible(otherField);
+    await tester.enterText(otherField, 'Recovering from hip surgery');
+    await tester.pumpAndSettle();
+
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.submittedCareReceiver!.medicalConditions, contains(MedicalCondition.other));
+    expect(repo.submittedCareReceiver!.medicalConditionOther, 'Recovering from hip surgery');
+  });
+
   testWidgets('Edit opens the form pre-filled with the job\'s full details', (tester) async {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
@@ -632,6 +759,23 @@ void main() {
     );
     final description = tester.widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
     expect(description.controller!.text, 'Need a caregiver');
+  });
+
+  testWidgets(
+      'Edit pre-fills the toilet-assistance "Others" free-text field from the existing care receiver',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    final otherField = find.widgetWithText(TextField, 'Please describe the other toilet assistance');
+    expect(otherField, findsOneWidget);
+    expect(
+      tester.widget<TextField>(otherField).controller!.text,
+      'Needs help with a raised commode seat',
+    );
   });
 
   testWidgets('editing and saving calls repository.update() with the job id, not create()', (tester) async {

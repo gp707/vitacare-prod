@@ -13,7 +13,9 @@ class CareReceiverModel {
   final bool hasMedicalCondition;
   final List<String> medicalConditions;
   final String? medicalInfo;
+  final String? medicalConditionOther;
   final List<String> toiletAssistance;
+  final String? toiletAssistanceOther;
   final bool requiresVitalMonitoring;
   final List<String> vitalMonitoringTypes;
 
@@ -29,7 +31,9 @@ class CareReceiverModel {
     required this.hasMedicalCondition,
     required this.medicalConditions,
     this.medicalInfo,
+    this.medicalConditionOther,
     required this.toiletAssistance,
+    this.toiletAssistanceOther,
     required this.requiresVitalMonitoring,
     required this.vitalMonitoringTypes,
   });
@@ -46,7 +50,9 @@ class CareReceiverModel {
         hasMedicalCondition: json['has_medical_condition'] as bool? ?? false,
         medicalConditions: List<String>.from(json['medical_conditions'] as List? ?? const []),
         medicalInfo: json['medical_info'] as String?,
+        medicalConditionOther: json['medical_condition_other'] as String?,
         toiletAssistance: List<String>.from(json['toilet_assistance'] as List? ?? const []),
+        toiletAssistanceOther: json['toilet_assistance_other'] as String?,
         requiresVitalMonitoring: json['requires_vital_monitoring'] as bool? ?? false,
         vitalMonitoringTypes: List<String>.from(json['vital_monitoring_types'] as List? ?? const []),
       );

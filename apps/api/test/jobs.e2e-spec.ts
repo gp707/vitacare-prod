@@ -559,6 +559,41 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(detail.body.data.care_receiver.medical_conditions).toEqual(['diabetes', 'stroke']);
     });
+
+    it('accepts free-text detail for the "other" option on toilet_assistance and medical_conditions, alongside the other selected values', async () => {
+      const job = await createJob({
+        care_receiver: {
+          toilet_assistance: ['uses_diapers', 'others'],
+          toilet_assistance_other: 'Needs help transferring to the commode',
+          has_medical_condition: true,
+          medical_conditions: ['diabetes', 'other'],
+          medical_condition_other: 'Chronic lower back pain',
+        },
+      });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers', 'others']);
+      expect(detail.body.data.care_receiver.toilet_assistance_other).toBe(
+        'Needs help transferring to the commode',
+      );
+      expect(detail.body.data.care_receiver.medical_conditions).toEqual(['diabetes', 'other']);
+      expect(detail.body.data.care_receiver.medical_condition_other).toBe('Chronic lower back pain');
+
+      // Also visible to caregivers (browsing is allowed regardless of
+      // verification status), same as every other care-receiver field.
+      const caregiver = await registerCaregiver('0013');
+      const myJobs = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const listedJob = myJobs.body.data.find((j: { id: string }) => j.id === job.id);
+      expect(listedJob.care_receiver.toilet_assistance_other).toBe(
+        'Needs help transferring to the commode',
+      );
+      expect(listedJob.care_receiver.medical_condition_other).toBe('Chronic lower back pain');
+    });
   });
 
   describe('GET /v1/admin/jobs and /v1/admin/jobs/:id', () => {

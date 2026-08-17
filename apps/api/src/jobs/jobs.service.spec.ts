@@ -178,10 +178,37 @@ describe('JobsService', () => {
           has_medical_condition: false,
           medical_conditions: [],
           medical_info: null,
+          medical_condition_other: null,
           toilet_assistance: ['independent'],
+          toilet_assistance_other: null,
           requires_vital_monitoring: false,
           vital_monitoring_types: [],
         },
+        expect.anything(),
+      );
+    });
+
+    it('passes through medical_condition_other and toilet_assistance_other when provided', async () => {
+      await service.createJob(
+        'admin-1',
+        {
+          ...dto,
+          care_receiver: {
+            ...dto.care_receiver,
+            has_medical_condition: true,
+            medical_conditions: ['other'] as any,
+            medical_condition_other: 'Chronic back pain',
+            toilet_assistance: ['others'] as any,
+            toilet_assistance_other: 'Needs help transferring to commode',
+          },
+        },
+        null,
+      );
+      expect(careReceiversRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medical_condition_other: 'Chronic back pain',
+          toilet_assistance_other: 'Needs help transferring to commode',
+        }),
         expect.anything(),
       );
     });

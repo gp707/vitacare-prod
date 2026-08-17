@@ -170,10 +170,10 @@ oral_independent, oral_needs_assistance, tube_feeding, oral_and_tube
 medication_reminders ("Medicine Reminders"), medication_administration ("Oral Medicine Administration"), insulin_administration, other_injections, other ("Others/Cannula/Tube")
 
 ### Medical Condition (multi-select)
-cancer, stroke, brain_injury, dementia_alzheimers, parkinsons, heart_condition, kidney_disease_dialysis, diabetes, colostomy, paralysis, tb, other
+cancer, stroke, brain_injury, dementia_alzheimers, parkinsons, heart_condition, kidney_disease_dialysis, diabetes, colostomy, paralysis, tb, other. When `other` is selected, admin-web reveals an optional free-text field ("Please describe the other condition") stored as `care_receivers.medical_condition_other`; sent alongside — not instead of — the selected values. Unconditionally optional server-side (no cross-field validation tying it to `other` being selected). Visible to caregivers on the job card as "Other condition: <text>".
 
 ### Toilet Assistance (multi-select)
-uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, others, independent
+uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, others, independent. When `others` is selected, admin-web reveals an optional free-text field ("Please describe the other toilet assistance") stored as `care_receivers.toilet_assistance_other`; same pattern as `medical_condition_other` above (sent alongside the selected values, unconditionally optional, visible to caregivers as "Other toilet assistance: <text>").
 
 ### Vital Monitoring Type (multi-select)
 blood_pressure, blood_sugar, oxygen_spo2, temperature, pulse, other

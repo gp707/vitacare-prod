@@ -243,6 +243,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MedicalCondition"
+        medical_condition_other:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: >
+            Free text shown in admin-web only when medical_conditions includes
+            "other"; sent alongside (not instead of) the selected values.
+            Unconditionally optional server-side — no cross-field validation
+            tying it to "other" being selected.
         medical_info:
           type: string
           nullable: true
@@ -251,6 +260,13 @@ components:
           items:
             $ref: "#/components/schemas/ToiletAssistance"
           description: Multi-select — admin can pick more than one.
+        toilet_assistance_other:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: >
+            Free text shown in admin-web only when toilet_assistance includes
+            "others"; same pattern as medical_condition_other.
         requires_vital_monitoring:
           type: boolean
         vital_monitoring_types:
@@ -269,8 +285,10 @@ components:
         medical_assistance: ["medication_reminders"]
         has_medical_condition: true
         medical_conditions: ["diabetes"]
+        medical_condition_other: null
         medical_info: "Needs help twice daily, post hip surgery"
         toilet_assistance: ["uses_diapers"]
+        toilet_assistance_other: null
         requires_vital_monitoring: true
         vital_monitoring_types: ["blood_pressure", "blood_sugar"]
 
@@ -3533,6 +3551,10 @@ paths:
                       items:
                         $ref: "#/components/schemas/MedicalCondition"
                       description: "Required if has_medical_condition is true; not validated otherwise."
+                    medical_condition_other:
+                      type: string
+                      maxLength: 500
+                      description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when medical_conditions includes 'other'."
                     medical_info:
                       type: string
                       description: "Free text — important information for the caregiver."
@@ -3541,6 +3563,10 @@ paths:
                       items:
                         $ref: "#/components/schemas/ToiletAssistance"
                       description: "Optional — multi-select, admin can pick more than one. An omitted or empty array defaults to [independent]."
+                    toilet_assistance_other:
+                      type: string
+                      maxLength: 500
+                      description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when toilet_assistance includes 'others'."
                     requires_vital_monitoring:
                       type: boolean
                       description: "Optional — defaults to false when omitted."
@@ -3606,8 +3632,10 @@ paths:
                 medical_assistance: ["medication_reminders"]
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
+                medical_condition_other: null
                 medical_info: "Needs help twice daily, post hip surgery"
                 toilet_assistance: ["uses_diapers"]
+                toilet_assistance_other: null
                 requires_vital_monitoring: true
                 vital_monitoring_types: ["blood_pressure", "blood_sugar"]
               city: "bangalore"
@@ -3810,6 +3838,10 @@ paths:
                       items:
                         $ref: "#/components/schemas/MedicalCondition"
                       description: "Required if has_medical_condition is true; not validated otherwise."
+                    medical_condition_other:
+                      type: string
+                      maxLength: 500
+                      description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when medical_conditions includes 'other'."
                     medical_info:
                       type: string
                       description: "Free text — important information for the caregiver."
@@ -3818,6 +3850,10 @@ paths:
                       items:
                         $ref: "#/components/schemas/ToiletAssistance"
                       description: "Optional — multi-select, admin can pick more than one. An omitted or empty array defaults to [independent]."
+                    toilet_assistance_other:
+                      type: string
+                      maxLength: 500
+                      description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when toilet_assistance includes 'others'."
                     requires_vital_monitoring:
                       type: boolean
                       description: "Optional — defaults to false when omitted."
@@ -3883,8 +3919,10 @@ paths:
                 medical_assistance: ["medication_reminders"]
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
+                medical_condition_other: null
                 medical_info: "Needs help twice daily, post hip surgery"
                 toilet_assistance: ["uses_diapers"]
+                toilet_assistance_other: null
                 requires_vital_monitoring: true
                 vital_monitoring_types: ["blood_pressure", "blood_sugar"]
               city: "bangalore"

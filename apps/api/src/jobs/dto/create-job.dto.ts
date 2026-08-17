@@ -82,12 +82,27 @@ export class CareReceiverDto {
   @IsString()
   medical_info?: string;
 
+  // Free-text detail for the 'other' MedicalCondition option — same
+  // unconditional-optional treatment as medical_info; the admin-web form
+  // only ever sends it when 'other' is actually selected, but the backend
+  // doesn't need to enforce that itself.
+  @IsOptional()
+  @IsString({ message: 'GEN_001' })
+  @MaxLength(500, { message: 'GEN_001' })
+  medical_condition_other?: string;
+
   // Not required — an empty/omitted selection defaults to [independent]
   // when omitted.
   @IsOptional()
   @IsArray({ message: 'GEN_001' })
   @IsIn(Object.values(ToiletAssistance), { each: true, message: 'GEN_001' })
   toilet_assistance?: ToiletAssistance[];
+
+  // Free-text detail for the 'others' ToiletAssistance option.
+  @IsOptional()
+  @IsString({ message: 'GEN_001' })
+  @MaxLength(500, { message: 'GEN_001' })
+  toilet_assistance_other?: string;
 
   // Not required — defaults to false ("monitoring not required") when omitted.
   @IsOptional()
