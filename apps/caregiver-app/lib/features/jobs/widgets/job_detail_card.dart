@@ -59,9 +59,9 @@ class Tag extends StatelessWidget {
   }
 }
 
-/// Job header (Job #, urgency, salary), the About Patient / About Patient
-/// Condition / About Nurse-Caregiver Requirement sections, and the
-/// free-text description — everything about a job except caregiver-action
+/// Job header (Job #, urgency, salary), the About Patient / About
+/// Nurse-Caregiver Requirement sections, and the free-text description —
+/// everything about a job except caregiver-action
 /// controls. Shared between the Jobs list card (which appends Apply/Reject)
 /// and the MyJobs tab (which appends an "Accepted" status
 /// instead), so the same care-needs picture renders identically wherever a
@@ -152,13 +152,6 @@ class JobDetailCard extends StatelessWidget {
               Tag(Communication.displayNames[job.careReceiver!.communication] ??
                   job.careReceiver!.communication),
               Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const SectionLabel('About Patient Condition'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            children: [
               for (final m in job.careReceiver!.medicalAssistance)
                 Tag(MedicalAssistance.displayNames[m] ?? m),
               for (final t in job.careReceiver!.toiletAssistance)

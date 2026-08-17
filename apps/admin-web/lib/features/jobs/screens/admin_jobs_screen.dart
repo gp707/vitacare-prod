@@ -544,9 +544,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 onChanged: (value) => setState(() => _feedingType = value),
               ),
               const SizedBox(height: AppSpacing.lg),
-              const Text('About Patient Condition', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.sm),
-              const Text('Medical Assistance Required', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Medicine', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpacing.xs),
               VitaMultiSelectChips(
                 options: MedicalAssistance.all,

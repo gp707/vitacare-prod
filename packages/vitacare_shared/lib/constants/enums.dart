@@ -192,8 +192,8 @@ class MedicalAssistance {
   ];
 
   static const displayNames = {
-    medicationReminders: 'Medication reminders',
-    medicationAdministration: 'Oral Medication Administration',
+    medicationReminders: 'Medicine Reminders',
+    medicationAdministration: 'Oral Medicine Administration',
     insulinAdministration: 'Insulin administration',
     otherInjections: 'Other injections',
     other: 'Others/Cannula/Tube',

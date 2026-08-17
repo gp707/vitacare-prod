@@ -2322,10 +2322,10 @@ there's no separate in-app caregiver "accept offer" step.
 List active job postings for caregiver to view and apply. Each item
 includes the full `care_receiver` (joined via `care_receiver_id`, not just
 on `GET /admin/jobs/:id`) — the caregiver-app renders it under the same
-three section labels as the admin form: **About Patient** (age, gender,
-weight, mobility, communication, feeding), **About Patient Condition**
-(medical assistance, medical condition(s) + info, toilet assistance, vital
-monitoring), and **About Nurse/Caregiver Requirement** (duty type, area,
+two section labels as the admin form: **About Patient** (age, gender,
+weight, mobility, communication, feeding, medical assistance, medical
+condition(s) + info, toilet assistance, vital monitoring), and **About
+Nurse/Caregiver Requirement** (duty type, area,
 language/gender/religion preferences) — so every detail admin entered is
 visible directly on the jobs list, no separate detail screen. The
 caregiver-app also shows `job_number` ("Job #<n>") and `salary_monthly`

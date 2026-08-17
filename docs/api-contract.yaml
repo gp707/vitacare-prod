@@ -146,8 +146,8 @@ components:
     MedicalAssistance:
       type: string
       description: >
-        medication_administration = "Oral Medication Administration",
-        other = "Others/Cannula/Tube" (frontend display labels only, values
+        medication_reminders = "Medicine Reminders", medication_administration = "Oral Medicine
+        Administration", other = "Others/Cannula/Tube" (frontend display labels only, values
         unchanged).
       enum: [medication_reminders, medication_administration, insulin_administration, other_injections, other]
 

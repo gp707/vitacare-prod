@@ -98,7 +98,7 @@ void main() {
   });
 
   testWidgets(
-      'groups patient identity, patient condition, and caregiver requirement details into clearly labeled sections',
+      'groups patient identity/condition into one About Patient section, and caregiver requirement details into another',
       (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pumpTall(
@@ -110,18 +110,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // About Patient
+    // About Patient — identity and condition are one merged section now,
+    // not two separately labeled ones.
     expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('About Patient Condition'), findsNothing);
     expect(find.text('78 yrs'), findsOneWidget);
     expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
     expect(find.text('60 kg'), findsOneWidget);
     expect(find.text('Uses wheelchair'), findsOneWidget);
     expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
-
-    // About Patient Condition
-    expect(find.text('About Patient Condition'), findsOneWidget);
-    expect(find.text('Medication reminders'), findsOneWidget);
+    expect(find.text('Medicine Reminders'), findsOneWidget);
     expect(find.text('Toilet: Uses diapers'), findsOneWidget);
     expect(find.text('Toilet: Uses catheter'), findsOneWidget);
     expect(find.text('Diabetes'), findsOneWidget);
