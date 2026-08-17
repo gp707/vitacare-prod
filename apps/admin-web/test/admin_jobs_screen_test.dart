@@ -218,27 +218,28 @@ Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
 }
 
 const _descriptionLabel =
-    'More details you want to share about patient or requirement which can help caregiver to decide';
+    'More details you want to share about patient or requirement which can help caregiver to decide '
+    '(Mandatory)';
 
 /// Fills every required field up through (and including) Toilet Assistance —
 /// i.e. everything needed before Duty/Language/Description — so individual
 /// tests can pick up from there.
 Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
-  await _selectDropdown(tester, 'City', 'Bangalore');
+  await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
 
-  final area = find.widgetWithText(TextField, 'Area in Bangalore');
+  final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
   await tester.ensureVisible(area);
   await tester.enterText(area, 'Indiranagar');
   await tester.pumpAndSettle();
 
-  final age = find.widgetWithText(TextField, "Patient's Age");
+  final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
   await tester.ensureVisible(age);
   await tester.enterText(age, '72');
   await tester.pumpAndSettle();
 
-  await _selectDropdown(tester, "Patient's Gender", 'Female');
+  await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
 
-  final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+  final weight = find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
   await tester.ensureVisible(weight);
   await tester.enterText(weight, '58');
   await tester.pumpAndSettle();
@@ -250,7 +251,7 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
 }
 
 Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
-  final salary = find.widgetWithText(TextField, 'Salary (₹/month)');
+  final salary = find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)');
   await tester.ensureVisible(salary);
   await tester.enterText(salary, amount);
   await tester.pumpAndSettle();
@@ -324,8 +325,8 @@ void main() {
 
     await _fillAboutPatientRequiredFields(tester);
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -341,6 +342,32 @@ void main() {
     expect(repo.createCalled, isTrue);
   });
 
+  testWidgets('Preferred Start Date heading stays visible after a date is picked', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Preferred Start Date'), findsOneWidget);
+    expect(find.text('Select date'), findsOneWidget);
+
+    final dateButton = find.widgetWithText(OutlinedButton, 'Select date');
+    await tester.ensureVisible(dateButton);
+    await tester.tap(dateButton);
+    await tester.pumpAndSettle();
+
+    // Confirm the date picker's default (today's) date via its own OK button.
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // The heading is still there — before this fix, the button's own label
+    // doubled as both the heading and the value, so picking a date replaced
+    // "Preferred Start Date" with a bare, context-free date.
+    expect(find.text('Preferred Start Date'), findsOneWidget);
+    expect(find.text('Select date'), findsNothing);
+  });
+
   testWidgets(
       'tapping outside the Post New Job dialog does not dismiss it or lose the partially-filled data',
       (tester) async {
@@ -350,7 +377,7 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    final age = find.widgetWithText(TextField, "Patient's Age");
+    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
     await tester.ensureVisible(age);
     await tester.enterText(age, '72');
     await tester.pumpAndSettle();
@@ -375,21 +402,21 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'City', 'Bangalore');
+    await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
 
-    final area = find.widgetWithText(TextField, 'Area in Bangalore');
+    final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
     await tester.ensureVisible(area);
     await tester.enterText(area, 'Indiranagar');
     await tester.pumpAndSettle();
 
-    final age = find.widgetWithText(TextField, "Patient's Age");
+    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
     await tester.ensureVisible(age);
     await tester.enterText(age, '72');
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, "Patient's Gender", 'Female');
+    await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
 
-    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
     await tester.ensureVisible(weight);
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
@@ -397,8 +424,8 @@ void main() {
     // Deliberately skip Mobility, Communication, Feeding, Toilet Assistance,
     // and Medical Assistance — none of them should block submission.
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -408,19 +435,41 @@ void main() {
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
-    expect(
-      tester.widget<ElevatedButton>(postButton).onPressed,
-      isNotNull,
-      reason: 'mobility/communication/feeding/toilet assistance/medical assistance are optional now',
-    );
     await tester.tap(postButton);
     await tester.pumpAndSettle();
 
-    expect(repo.createCalled, isTrue);
+    expect(repo.createCalled, isTrue, reason: 'mobility/communication/feeding/toilet assistance/medical assistance are optional now');
   });
 
-  testWidgets(
-      'Area is required — leaving it blank blocks submission even with every other field filled',
+  testWidgets('Post is always clickable; tapping it with every mandatory field empty highlights all of them '
+      'in red and does not submit', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    expect(tester.widget<ElevatedButton>(postButton).onPressed, isNotNull, reason: 'Post must never be disabled');
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isFalse);
+    // Every still-empty mandatory field shows its own error simultaneously
+    // — not just the first one. (Area itself isn't even rendered yet since
+    // it only appears once a city is picked — covered separately below.)
+    expect(find.text('Please select a city'), findsOneWidget);
+    expect(find.text('Age is required (1-120)'), findsOneWidget);
+    expect(find.text('Please select a gender'), findsOneWidget);
+    expect(find.text('Weight is required (1-300 kg)'), findsOneWidget);
+    expect(find.text('Salary is required'), findsOneWidget);
+    expect(find.text('Please select duty hours'), findsOneWidget);
+    expect(find.text('Please select a frequency'), findsOneWidget);
+    expect(find.text('Select at least one language'), findsOneWidget);
+    expect(find.text('Please add a description'), findsOneWidget);
+  });
+
+  testWidgets('tapping Post with only Area missing does not submit and moves the cursor into Area',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
@@ -428,24 +477,24 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'City', 'Bangalore');
+    await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
     // Area deliberately left blank.
 
-    final age = find.widgetWithText(TextField, "Patient's Age");
+    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
     await tester.ensureVisible(age);
     await tester.enterText(age, '72');
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, "Patient's Gender", 'Female');
+    await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
 
-    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
     await tester.ensureVisible(weight);
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
 
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -455,7 +504,16 @@ void main() {
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
-    expect(tester.widget<ElevatedButton>(postButton).onPressed, isNull);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isFalse);
+    expect(find.text('Area is required'), findsOneWidget);
+    // Area is the only thing missing, so it's the one that gets focused —
+    // the literal cursor-to-first-invalid behavior.
+    final areaField =
+        tester.widget<TextField>(find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)'));
+    expect(areaField.focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('vital monitoring toggle reveals a required multi-select that blocks submit until answered',
@@ -468,8 +526,8 @@ void main() {
 
     await _fillAboutPatientRequiredFields(tester);
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -477,21 +535,24 @@ void main() {
     await tester.enterText(description, 'Need a caregiver urgently');
     await tester.pumpAndSettle();
 
-    final postButtonBefore = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButtonBefore.onPressed, isNotNull, reason: 'vitals off — required fields already satisfied');
-
     final vitalsSwitch = find.text('Is regular vital monitoring required?');
     await tester.ensureVisible(vitalsSwitch);
     await tester.tap(vitalsSwitch);
     await tester.pumpAndSettle();
 
-    final postButtonVitalsOn = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButtonVitalsOn.onPressed, isNull, reason: 'vitals on but no monitoring type selected yet');
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isFalse, reason: 'vitals on but no monitoring type selected yet');
+    expect(find.text('Select at least one vital to monitor'), findsOneWidget);
 
     await _tapChip(tester, 'Blood pressure');
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
 
-    final postButtonAfter = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButtonAfter.onPressed, isNotNull);
+    expect(repo.createCalled, isTrue);
   });
 
   testWidgets('selecting Tube feeding does not reveal any extra question — the dropdown alone is enough',
@@ -502,21 +563,21 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'City', 'Bangalore');
+    await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
 
-    final area = find.widgetWithText(TextField, 'Area in Bangalore');
+    final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
     await tester.ensureVisible(area);
     await tester.enterText(area, 'Indiranagar');
     await tester.pumpAndSettle();
 
-    final age = find.widgetWithText(TextField, "Patient's Age");
+    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
     await tester.ensureVisible(age);
     await tester.enterText(age, '72');
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, "Patient's Gender", 'Female');
+    await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
 
-    final weight = find.widgetWithText(TextField, "Patient's Weight (kg)");
+    final weight = find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
     await tester.ensureVisible(weight);
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
@@ -526,8 +587,8 @@ void main() {
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
     await _tapChip(tester, 'Others');
     await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed', '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care', 'Daily');
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _tapChip(tester, 'Hindi');
 
     final description = find.widgetWithText(TextField, _descriptionLabel);
@@ -537,8 +598,12 @@ void main() {
 
     expect(find.text('Needs caregiver assistance with tube feeding'), findsNothing);
 
-    final postButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post'));
-    expect(postButton.onPressed, isNotNull, reason: 'the feeding dropdown alone is enough, no extra field required');
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue, reason: 'the feeding dropdown alone is enough, no extra field required');
   });
 
   testWidgets('Edit opens the form pre-filled with the job\'s full details', (tester) async {
@@ -551,14 +616,14 @@ void main() {
     expect(find.text('Edit Job #42'), findsOneWidget);
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
-    expect(find.widgetWithText(TextField, "Patient's Age"), findsOneWidget);
+    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
     expect(find.text('72'), findsOneWidget, reason: 'age should be pre-filled from the care receiver');
     expect(find.text('58'), findsOneWidget, reason: 'weight should be pre-filled from the care receiver');
     expect(
-      find.widgetWithText(TextField, 'Salary (₹/month)'),
+      find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'),
       findsOneWidget,
     );
-    final salaryField = tester.widget<TextField>(find.widgetWithText(TextField, 'Salary (₹/month)'));
+    final salaryField = tester.widget<TextField>(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'));
     expect(salaryField.controller!.text, '30000', reason: 'salary should be pre-filled from the job');
     expect(
       find.widgetWithText(TextField, _descriptionLabel),

@@ -264,6 +264,14 @@ class _JobRow extends StatelessWidget {
   }
 }
 
+class _MandatoryField {
+  final GlobalKey key;
+  final bool isValid;
+  final FocusNode? focusNode;
+
+  const _MandatoryField(this.key, this.isValid, {this.focusNode});
+}
+
 /// Handles both posting a new job and editing an existing one. Pass [job] +
 /// [careReceiver] to open pre-filled in edit mode (same dialog doubles as
 /// the "view full details" surface, since every field is visible); leave
@@ -285,6 +293,33 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
   final _salaryController = TextEditingController();
+
+  // Only mandatory text fields need a FocusNode — that's what lets Post
+  // literally put the cursor in the first one that's missing.
+  final _areaFocusNode = FocusNode();
+  final _ageFocusNode = FocusNode();
+  final _weightFocusNode = FocusNode();
+  final _salaryFocusNode = FocusNode();
+  final _descriptionFocusNode = FocusNode();
+
+  // One key per mandatory field, in the order they appear on the form, so
+  // Post can scroll to whichever one is first still-invalid.
+  final _cityKey = GlobalKey();
+  final _areaKey = GlobalKey();
+  final _ageKey = GlobalKey();
+  final _genderKey = GlobalKey();
+  final _weightKey = GlobalKey();
+  final _medicalConditionsKey = GlobalKey();
+  final _vitalMonitoringTypesKey = GlobalKey();
+  final _salaryKey = GlobalKey();
+  final _dutyTypeKey = GlobalKey();
+  final _frequencyKey = GlobalKey();
+  final _languagesKey = GlobalKey();
+  final _descriptionKey = GlobalKey();
+
+  // Only turns true once Post has been pressed with something missing —
+  // before that, fields don't show red just because they're empty.
+  bool _showValidationErrors = false;
 
   // Job Location
   String? _city;
@@ -356,6 +391,11 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     _ageController.dispose();
     _weightController.dispose();
     _salaryController.dispose();
+    _areaFocusNode.dispose();
+    _ageFocusNode.dispose();
+    _weightFocusNode.dispose();
+    _salaryFocusNode.dispose();
+    _descriptionFocusNode.dispose();
     super.dispose();
   }
 
@@ -363,26 +403,84 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   int? get _weightKg => int.tryParse(_weightController.text.trim());
   int? get _salaryMonthly => int.tryParse(_salaryController.text.trim());
 
+  bool get _isCityValid => _city != null;
+  bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
+  bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
+  bool get _isGenderValid => _gender != null;
+  bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
+  bool get _isMedicalConditionsValid => !_hasMedicalCondition || _medicalConditions.isNotEmpty;
+  bool get _isVitalMonitoringTypesValid => !_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty;
+  bool get _isDutyTypeValid => _dutyType != null;
+  bool get _isFrequencyValid => _frequencyOfCare != null;
+  bool get _isLanguagesValid => _languages.isNotEmpty;
+  bool get _isSalaryValid => _salaryMonthly != null && _salaryMonthly! >= 1 && _salaryMonthly! <= 1000000;
+  bool get _isDescriptionValid => _descriptionController.text.trim().isNotEmpty;
+
   bool get _canSubmit =>
       !_submitting &&
-      _city != null &&
-      _areaController.text.trim().isNotEmpty &&
-      _age != null &&
-      _age! >= 1 &&
-      _age! <= 120 &&
-      _gender != null &&
-      _weightKg != null &&
-      _weightKg! >= 1 &&
-      _weightKg! <= 300 &&
-      (!_hasMedicalCondition || _medicalConditions.isNotEmpty) &&
-      (!_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty) &&
-      _dutyType != null &&
-      _frequencyOfCare != null &&
-      _languages.isNotEmpty &&
-      _salaryMonthly != null &&
-      _salaryMonthly! >= 1 &&
-      _salaryMonthly! <= 1000000 &&
-      _descriptionController.text.trim().isNotEmpty;
+      _isCityValid &&
+      _isAreaValid &&
+      _isAgeValid &&
+      _isGenderValid &&
+      _isWeightValid &&
+      _isMedicalConditionsValid &&
+      _isVitalMonitoringTypesValid &&
+      _isDutyTypeValid &&
+      _isFrequencyValid &&
+      _isLanguagesValid &&
+      _isSalaryValid &&
+      _isDescriptionValid;
+
+  /// In on-form order, so the first invalid one found here is genuinely
+  /// the first one the admin sees when Post scrolls them to it.
+  List<_MandatoryField> get _mandatoryFieldsInOrder => [
+        _MandatoryField(_cityKey, _isCityValid),
+        _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
+        _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
+        _MandatoryField(_genderKey, _isGenderValid),
+        _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+        _MandatoryField(_medicalConditionsKey, _isMedicalConditionsValid),
+        _MandatoryField(_vitalMonitoringTypesKey, _isVitalMonitoringTypesValid),
+        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+        _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
+        _MandatoryField(_frequencyKey, _isFrequencyValid),
+        _MandatoryField(_languagesKey, _isLanguagesValid),
+        _MandatoryField(_descriptionKey, _isDescriptionValid, focusNode: _descriptionFocusNode),
+      ];
+
+  /// Post is always clickable — this is what runs when it's tapped. With
+  /// something missing, it flags every missing mandatory field red and
+  /// jumps straight to the first one instead of submitting.
+  Future<void> _handlePostPressed() async {
+    if (_submitting) return;
+    if (!_canSubmit) {
+      setState(() => _showValidationErrors = true);
+      _MandatoryField? firstInvalid;
+      for (final field in _mandatoryFieldsInOrder) {
+        if (!field.isValid) {
+          firstInvalid = field;
+          break;
+        }
+      }
+      if (firstInvalid != null) {
+        final target = firstInvalid;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = target.key.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(
+              ctx,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: 0.1,
+            );
+          }
+          target.focusNode?.requestFocus();
+        });
+      }
+      return;
+    }
+    await _submit();
+  }
 
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
@@ -474,50 +572,84 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
             children: [
               const Text('Job Location', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _city,
-                decoration: const InputDecoration(labelText: 'City'),
-                items: City.all
-                    .map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c)))
-                    .toList(),
-                onChanged: (value) => setState(() => _city = value),
+              KeyedSubtree(
+                key: _cityKey,
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _city,
+                  decoration: InputDecoration(
+                    labelText: 'City (Mandatory)',
+                    errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+                  ),
+                  items: City.all
+                      .map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _city = value),
+                ),
               ),
               if (_city != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _areaController,
-                  decoration: InputDecoration(labelText: 'Area in ${City.displayNames[_city] ?? _city}'),
-                  onChanged: (_) => setState(() {}),
+                KeyedSubtree(
+                  key: _areaKey,
+                  child: TextField(
+                    controller: _areaController,
+                    focusNode: _areaFocusNode,
+                    decoration: InputDecoration(
+                      labelText: 'Area in ${City.displayNames[_city] ?? _city} (Mandatory)',
+                      errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
               const Text('About Patient', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Patient's Age"),
-                onChanged: (_) => setState(() {}),
+              KeyedSubtree(
+                key: _ageKey,
+                child: TextField(
+                  controller: _ageController,
+                  focusNode: _ageFocusNode,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: "Patient's Age (Mandatory)",
+                    errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _gender,
-                decoration: const InputDecoration(labelText: "Patient's Gender"),
-                items: const [
-                  DropdownMenuItem(value: Gender.male, child: Text('Male')),
-                  DropdownMenuItem(value: Gender.female, child: Text('Female')),
-                  DropdownMenuItem(value: Gender.other, child: Text('Other')),
-                ],
-                onChanged: (value) => setState(() => _gender = value),
+              KeyedSubtree(
+                key: _genderKey,
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _gender,
+                  decoration: InputDecoration(
+                    labelText: "Patient's Gender (Mandatory)",
+                    errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: Gender.male, child: Text('Male')),
+                    DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                    DropdownMenuItem(value: Gender.other, child: Text('Other')),
+                  ],
+                  onChanged: (value) => setState(() => _gender = value),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _weightController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Patient's Weight (kg)"),
-                onChanged: (_) => setState(() {}),
+              KeyedSubtree(
+                key: _weightKey,
+                child: TextField(
+                  controller: _weightController,
+                  focusNode: _weightFocusNode,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: "Patient's Weight (kg) (Mandatory)",
+                    errorText:
+                        _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(
@@ -569,13 +701,35 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 }),
               ),
               if (_hasMedicalCondition) ...[
-                const Text('Condition(s)', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: AppSpacing.xs),
-                VitaMultiSelectChips(
-                  options: MedicalCondition.all,
-                  labels: MedicalCondition.displayNames,
-                  selected: _medicalConditions,
-                  onChanged: (next) => setState(() => _medicalConditions = next),
+                KeyedSubtree(
+                  key: _medicalConditionsKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Condition(s) (Mandatory)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _showValidationErrors && !_isMedicalConditionsValid ? AppColors.error : null,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      VitaMultiSelectChips(
+                        options: MedicalCondition.all,
+                        labels: MedicalCondition.displayNames,
+                        selected: _medicalConditions,
+                        onChanged: (next) => setState(() => _medicalConditions = next),
+                      ),
+                      if (_showValidationErrors && !_isMedicalConditionsValid)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Select at least one condition',
+                            style: TextStyle(color: AppColors.error, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
@@ -609,61 +763,131 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 }),
               ),
               if (_requiresVitalMonitoring) ...[
-                const Text('Select what needs monitoring', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: AppSpacing.xs),
-                VitaMultiSelectChips(
-                  options: VitalMonitoringType.all,
-                  labels: VitalMonitoringType.displayNames,
-                  selected: _vitalMonitoringTypes,
-                  onChanged: (next) => setState(() => _vitalMonitoringTypes = next),
+                KeyedSubtree(
+                  key: _vitalMonitoringTypesKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select what needs monitoring (Mandatory)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color:
+                              _showValidationErrors && !_isVitalMonitoringTypesValid ? AppColors.error : null,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      VitaMultiSelectChips(
+                        options: VitalMonitoringType.all,
+                        labels: VitalMonitoringType.displayNames,
+                        selected: _vitalMonitoringTypes,
+                        onChanged: (next) => setState(() => _vitalMonitoringTypes = next),
+                      ),
+                      if (_showValidationErrors && !_isVitalMonitoringTypesValid)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Select at least one vital to monitor',
+                            style: TextStyle(color: AppColors.error, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
               const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _salaryController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Salary (₹/month)'),
-                onChanged: (_) => setState(() {}),
+              KeyedSubtree(
+                key: _salaryKey,
+                child: TextField(
+                  controller: _salaryController,
+                  focusNode: _salaryFocusNode,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Salary (₹/month) (Mandatory)',
+                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _dutyType,
-                decoration: const InputDecoration(labelText: 'Hours Care Needed'),
-                items: DutyType.all
-                    .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
-                    .toList(),
-                onChanged: (value) => setState(() => _dutyType = value),
+              KeyedSubtree(
+                key: _dutyTypeKey,
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _dutyType,
+                  decoration: InputDecoration(
+                    labelText: 'Hours Care Needed (Mandatory)',
+                    errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+                  ),
+                  items: DutyType.all
+                      .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _dutyType = value),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _frequencyOfCare,
-                decoration: const InputDecoration(labelText: 'Frequency of Care'),
-                items: FrequencyOfCare.all
-                    .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
-                    .toList(),
-                onChanged: (value) => setState(() => _frequencyOfCare = value),
+              KeyedSubtree(
+                key: _frequencyKey,
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _frequencyOfCare,
+                  decoration: InputDecoration(
+                    labelText: 'Frequency of Care (Mandatory)',
+                    errorText: _showValidationErrors && !_isFrequencyValid ? 'Please select a frequency' : null,
+                  ),
+                  items: FrequencyOfCare.all
+                      .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _frequencyOfCare = value),
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
+              // A persistent heading, unlike the old design where the button's
+              // own label doubled as the display text — that meant "Preferred
+              // Start Date" disappeared the moment a date was picked, leaving
+              // just a bare date with no context for what it was.
+              const Text('Preferred Start Date', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.xs),
               OutlinedButton(
                 onPressed: _pickStartDate,
                 child: Text(
                   _startDate == null
-                      ? 'Preferred Start Date'
+                      ? 'Select date'
                       : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              VitaMultiSelectChips(
-                options: Language.all,
-                labels: Language.displayNames,
-                selected: _languages,
-                onChanged: (next) => setState(() => _languages = next),
+              KeyedSubtree(
+                key: _languagesKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Language Preference (Mandatory)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    VitaMultiSelectChips(
+                      options: Language.all,
+                      labels: Language.displayNames,
+                      selected: _languages,
+                      onChanged: (next) => setState(() => _languages = next),
+                    ),
+                    if (_showValidationErrors && !_isLanguagesValid)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Select at least one language',
+                          style: TextStyle(color: AppColors.error, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String?>(
@@ -693,14 +917,20 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 onChanged: (value) => setState(() => _preferredReligion = value),
               ),
               const SizedBox(height: AppSpacing.lg),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'More details you want to share about patient or requirement which can help caregiver to decide',
-                  border: OutlineInputBorder(),
+              KeyedSubtree(
+                key: _descriptionKey,
+                child: TextField(
+                  controller: _descriptionController,
+                  focusNode: _descriptionFocusNode,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'More details you want to share about patient or requirement which can '
+                        'help caregiver to decide (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText: _showValidationErrors && !_isDescriptionValid ? 'Please add a description' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
-                onChanged: (_) => setState(() {}),
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -713,7 +943,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
         ElevatedButton(
-          onPressed: _canSubmit ? _submit : null,
+          // Always clickable — missing fields are handled inside
+          // _handlePostPressed (highlight + scroll), not by disabling this.
+          onPressed: _submitting ? null : _handlePostPressed,
           child: _submitting
               ? const SizedBox(
                   height: 16,
