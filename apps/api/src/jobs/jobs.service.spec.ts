@@ -43,7 +43,7 @@ describe('JobsService', () => {
     end_time: null,
     start_date: null,
     languages: ['hindi'],
-    salary_monthly: 30000,
+    salary_amount: 30000,
     preferred_gender: 'female',
     preferred_religion: null,
     status: 'active',
@@ -118,7 +118,7 @@ describe('JobsService', () => {
       frequency_of_care: 'daily' as any,
       start_date: '2026-09-01',
       languages: ['hindi'] as any,
-      salary_monthly: 30000,
+      salary_amount: 30000,
       preferred_gender: 'female' as any,
     };
 
@@ -239,7 +239,7 @@ describe('JobsService', () => {
       frequency_of_care: 'daily' as any,
       start_date: '2026-09-01',
       languages: ['hindi', 'english'] as any,
-      salary_monthly: 35000,
+      salary_amount: 35000,
       preferred_gender: 'female' as any,
     };
 

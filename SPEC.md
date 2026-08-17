@@ -1123,7 +1123,7 @@ CREATE TABLE jobs (
   end_time TIME,
   start_date DATE,                        -- UI label "Preferred Start Date"; required via API (DTO) — previously optional, nullable at DB level only for rows that predate this being required
   languages JSONB NOT NULL DEFAULT '[]',  -- multi-select language preference, non-empty array
-  salary_monthly INTEGER CHECK (salary_monthly > 0),  -- ₹/month; required via API for every create/edit, nullable at DB level only for rows that predate this field
+  salary_amount INTEGER CHECK (salary_amount > 0),  -- ₹/day or ₹/month per frequency_of_care; required via API for every create/edit, nullable at DB level only for rows that predate this field
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
   preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian')),  -- NULL = no preference; 'others' excluded (valid for a caregiver's own religion, not offered as a job preference)
   status VARCHAR(10) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
@@ -2085,7 +2085,7 @@ notification to ALL caregivers.
   "frequency_of_care": "daily",
   "start_date": "2026-08-10",
   "languages": ["kannada", "english"],
-  "salary_monthly": 30000,
+  "salary_amount": 30000,
   "preferred_gender": "female",
   "preferred_religion": "hindu"
 }
@@ -2108,7 +2108,7 @@ notification to ALL caregivers.
 - `frequency_of_care`: Required, valid enum value — `daily` ("Daily") or `monthly` ("Monthly").
 - `start_date`: Required (ISO date, previously optional). UI label: "Preferred Start Date".
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
-- `salary_monthly`: Required integer, 1-1,000,000 (₹/month). Shown highlighted at the top of the job card in caregiver-app.
+- `salary_amount`: Required integer, 1-1,000,000. Unit follows `frequency_of_care` (₹/day for `daily`, ₹/month for `monthly`) — shown highlighted at the top of the job card in caregiver-app, and dynamically labeled on the admin-web form/job list.
 - `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
 - `preferred_religion`: Optional, `hindu`/`muslim`/`christian` only (`others` excluded — valid for a caregiver's own religion at registration, not offered as a job preference) — omitted means no preference. Never used as a filter.
 
@@ -2120,7 +2120,7 @@ notification to ALL caregivers.
     "id": "uuid",
     "job_number": 42,
     "care_receiver_id": "uuid",
-    "salary_monthly": 30000,
+    "salary_amount": 30000,
     "posted_at": "2026-08-16T10:00:00Z",
     "status": "active"
   }
@@ -2160,7 +2160,7 @@ List all job postings (paginated).
       "duty_type": "live_in",
       "frequency_of_care": "daily",
       "languages": ["kannada", "english"],
-      "salary_monthly": 30000,
+      "salary_amount": 30000,
       "preferred_gender": "female",
       "preferred_religion": "hindu",
       "status": "active",
@@ -2334,8 +2334,9 @@ condition(s) + info, toilet assistance, vital monitoring), and **About
 Nurse/Caregiver Requirement** (duty type, area,
 language/gender/religion preferences) — so every detail admin entered is
 visible directly on the jobs list, no separate detail screen. The
-caregiver-app also shows `job_number` ("Job #<n>") and `salary_monthly`
-highlighted at the top of each card, plus a 3-day apply-by urgency message
+caregiver-app also shows `job_number` ("Job #<n>") and `salary_amount`
+(unit — ₹/day or ₹/month — follows `frequency_of_care`) highlighted at the
+top of each card, plus a 3-day apply-by urgency message
 computed client-side from `posted_at` (`posted_at + 3 days`, shown as days
 remaining — purely informational, never blocks applying).
 
@@ -2353,7 +2354,7 @@ remaining — purely informational, never blocks applying).
       "duty_type": "live_in",
       "frequency_of_care": "daily",
       "languages": ["kannada", "english"],
-      "salary_monthly": 30000,
+      "salary_amount": 30000,
       "preferred_gender": "female",
       "preferred_religion": "hindu",
       "posted_at": "2026-08-03T10:00:00Z",

@@ -92,7 +92,7 @@ describe('Jobs (e2e)', () => {
         frequency_of_care: 'daily',
         start_date: '2026-09-01',
         languages: ['hindi'],
-        salary_monthly: 30000,
+        salary_amount: 30000,
         preferred_gender: 'female',
         ...jobOverrides,
       })
@@ -102,7 +102,7 @@ describe('Jobs (e2e)', () => {
       job_number: number;
       status: string;
       care_receiver_id: string;
-      salary_monthly: number;
+      salary_amount: number;
       posted_at: string;
     };
   }
@@ -196,18 +196,18 @@ describe('Jobs (e2e)', () => {
       expect(careReceiver.rows[0].vital_monitoring_types).toEqual([]);
     });
 
-    it('assigns a sequential job_number, stores salary_monthly, and sets posted_at = created_at at creation', async () => {
-      const jobA = await createJob({ salary_monthly: 28000 });
-      const jobB = await createJob({ salary_monthly: 31000 });
+    it('assigns a sequential job_number, stores salary_amount, and sets posted_at = created_at at creation', async () => {
+      const jobA = await createJob({ salary_amount: 28000 });
+      const jobB = await createJob({ salary_amount: 31000 });
       expect(typeof jobA.job_number).toBe('number');
       expect(jobB.job_number).toBeGreaterThan(jobA.job_number);
-      expect(jobA.salary_monthly).toBe(28000);
+      expect(jobA.salary_amount).toBe(28000);
 
       const row = await db.query('SELECT created_at, posted_at FROM jobs WHERE id = $1', [jobA.id]);
       expect(row.rows[0].posted_at.getTime()).toBe(row.rows[0].created_at.getTime());
     });
 
-    it('rejects a missing/invalid salary_monthly (GEN_001)', async () => {
+    it('rejects a missing/invalid salary_amount (GEN_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -219,7 +219,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 0,
+          salary_amount: 0,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -237,7 +237,7 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -255,7 +255,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -273,7 +273,7 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(201);
       expect(res.body.data.description).toBeNull();
@@ -304,7 +304,7 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(201);
       const job = res.body.data;
@@ -339,7 +339,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -357,7 +357,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -394,7 +394,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -412,7 +412,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -469,7 +469,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'other',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -487,7 +487,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'weekly',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -511,7 +511,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: [],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -539,7 +539,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
@@ -570,7 +570,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -588,7 +588,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_monthly: 30000,
+          salary_amount: 30000,
           preferred_religion: 'others',
         })
         .expect(400);
@@ -690,7 +690,7 @@ describe('Jobs (e2e)', () => {
         frequency_of_care: 'daily',
         start_date: '2026-09-01',
         languages: ['hindi', 'english'],
-        salary_monthly: 32000,
+        salary_amount: 32000,
         preferred_gender: 'female',
         ...jobOverrides,
       };
@@ -762,14 +762,14 @@ describe('Jobs (e2e)', () => {
       expect(new Date(res.body.data.posted_at).getTime()).toBe(new Date(job.posted_at).getTime());
     });
 
-    it('updates salary_monthly on edit', async () => {
-      const job = await createJob({ salary_monthly: 25000 });
+    it('updates salary_amount on edit', async () => {
+      const job = await createJob({ salary_amount: 25000 });
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(editPayload({ salary_monthly: 40000 }))
+        .send(editPayload({ salary_amount: 40000 }))
         .expect(200);
-      expect(res.body.data.salary_monthly).toBe(40000);
+      expect(res.body.data.salary_amount).toBe(40000);
     });
 
     it('leaves existing applications untouched when the job is edited', async () => {

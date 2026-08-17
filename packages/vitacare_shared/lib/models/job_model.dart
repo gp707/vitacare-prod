@@ -70,7 +70,7 @@ class JobModel {
   final String? endTime;
   final String? startDate;
   final List<String> languages;
-  final int? salaryMonthly;
+  final int? salaryAmount;
   final String? preferredGender;
   final String? preferredReligion;
   final String status;
@@ -93,7 +93,7 @@ class JobModel {
     this.endTime,
     this.startDate,
     required this.languages,
-    this.salaryMonthly,
+    this.salaryAmount,
     this.preferredGender,
     this.preferredReligion,
     required this.status,
@@ -117,7 +117,7 @@ class JobModel {
         endTime: json['end_time'] as String?,
         startDate: json['start_date'] as String?,
         languages: (json['languages'] as List).cast<String>(),
-        salaryMonthly: json['salary_monthly'] as int?,
+        salaryAmount: json['salary_amount'] as int?,
         preferredGender: json['preferred_gender'] as String?,
         preferredReligion: json['preferred_religion'] as String?,
         status: json['status'] as String,

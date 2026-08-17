@@ -338,13 +338,14 @@ components:
           items:
             $ref: "#/components/schemas/Language"
           description: Multi-select language preference — informational only, never used as a filter.
-        salary_monthly:
+        salary_amount:
           type: integer
           nullable: true
           minimum: 1
           maximum: 1000000
           description: >
-            ₹/month. Required via the API for every create/edit; nullable
+            Unit follows frequency_of_care (₹/day for daily, ₹/month for
+            monthly). Required via the API for every create/edit; nullable
             at the schema level only for rows that predate this field.
             Shown highlighted at the top of the job card in caregiver-app.
         preferred_gender:
@@ -393,7 +394,7 @@ components:
         end_time: null
         start_date: "2026-08-10"
         languages: ["hindi", "english"]
-        salary_monthly: 30000
+        salary_amount: 30000
         preferred_gender: "female"
         preferred_religion: "hindu"
         status: "active"
@@ -1812,7 +1813,8 @@ paths:
         (an admin rejecting a still-applied application, or undoing a
         prior acceptance, both set decided_by_admin: true).
         The caregiver-app highlights `job_number` ("Job #<n>") and
-        `salary_monthly` at the top of each card, plus a 3-day apply-by
+        `salary_amount` (unit — ₹/day or ₹/month — follows
+        `frequency_of_care`) at the top of each card, plus a 3-day apply-by
         urgency message computed client-side from `posted_at` — purely
         informational, never blocks applying.
       operationId: listCaregiverJobs
@@ -3498,7 +3500,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_monthly]
+              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_amount]
               properties:
                 care_receiver:
                   type: object
@@ -3608,11 +3610,11 @@ paths:
                   items:
                     $ref: "#/components/schemas/Language"
                   description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
-                salary_monthly:
+                salary_amount:
                   type: integer
                   minimum: 1
                   maximum: 1000000
-                  description: "Required. ₹/month. Shown highlighted at the top of the job card in caregiver-app."
+                  description: "Required. Unit follows frequency_of_care (₹/day for daily, ₹/month for monthly). Shown highlighted at the top of the job card in caregiver-app."
                 preferred_gender:
                   type: string
                   enum: [male, female]
@@ -3649,7 +3651,7 @@ paths:
               frequency_of_care: "daily"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
-              salary_monthly: 30000
+              salary_amount: 30000
               preferred_gender: "female"
               preferred_religion: "hindu"
       responses:
@@ -3788,7 +3790,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_monthly]
+              required: [care_receiver, city, duty_type, frequency_of_care, start_date, languages, salary_amount]
               properties:
                 care_receiver:
                   type: object
@@ -3898,11 +3900,11 @@ paths:
                   items:
                     $ref: "#/components/schemas/Language"
                   description: "Required, non-empty. Multi-select preference — informational, never used as a filter."
-                salary_monthly:
+                salary_amount:
                   type: integer
                   minimum: 1
                   maximum: 1000000
-                  description: "Required. ₹/month. Shown highlighted at the top of the job card in caregiver-app."
+                  description: "Required. Unit follows frequency_of_care (₹/day for daily, ₹/month for monthly). Shown highlighted at the top of the job card in caregiver-app."
                 preferred_gender:
                   type: string
                   enum: [male, female]
@@ -3939,7 +3941,7 @@ paths:
               frequency_of_care: "monthly"
               start_date: "2026-08-10"
               languages: ["hindi", "english"]
-              salary_monthly: 30000
+              salary_amount: 30000
               preferred_gender: "female"
               preferred_religion: "hindu"
       responses:

@@ -139,7 +139,7 @@ job postings are no longer built around a "work type" category; see
 │ end_time             │  ◄── derived from duty_type
 │ start_date           │  ◄── UI label "Preferred Start Date"
 │ languages            │  ◄── JSONB array, multi-select
-│ salary_monthly       │  ◄── ₹/month, highlighted for caregivers
+│ salary_amount        │  ◄── ₹/day or ₹/month per frequency_of_care, highlighted for caregivers
 │ preferred_gender     │  ◄── NULL = no preference
 │ preferred_religion   │  ◄── NULL = no pref; "others" excluded
 │ status               │  ◄── active | closed

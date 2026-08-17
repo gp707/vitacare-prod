@@ -167,6 +167,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+/// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
+/// per-day rate, everything else (including not-yet-picked) reads as
+/// monthly, matching the pre-dynamic-unit default.
+String _salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+
 class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback? onClose;
@@ -228,11 +233,13 @@ class _JobRow extends StatelessWidget {
                     border: Border.all(color: AppColors.success),
                   ),
                   child: Text(
-                    job.salaryMonthly != null ? '₹${job.salaryMonthly}/month' : 'Salary not set',
+                    job.salaryAmount != null
+                        ? '₹${job.salaryAmount}/${_salaryUnit(job.frequencyOfCare)}'
+                        : 'Salary not set',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
-                      color: job.salaryMonthly != null ? AppColors.success : AppColors.error,
+                      color: job.salaryAmount != null ? AppColors.success : AppColors.error,
                     ),
                   ),
                 ),
@@ -368,7 +375,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _frequencyOfCare = job.frequencyOfCare;
       _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
       _languages = List.of(job.languages);
-      _salaryController.text = job.salaryMonthly?.toString() ?? '';
+      _salaryController.text = job.salaryAmount?.toString() ?? '';
       _preferredGender = job.preferredGender;
       _preferredReligion = job.preferredReligion;
 
@@ -410,7 +417,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
-  int? get _salaryMonthly => int.tryParse(_salaryController.text.trim());
+  int? get _salaryAmount => int.tryParse(_salaryController.text.trim());
 
   bool get _isCityValid => _city != null;
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
@@ -422,7 +429,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isFrequencyValid => _frequencyOfCare != null;
   bool get _isLanguagesValid => _languages.isNotEmpty;
-  bool get _isSalaryValid => _salaryMonthly != null && _salaryMonthly! >= 1 && _salaryMonthly! <= 1000000;
+  bool get _isSalaryValid => _salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000;
   bool get _isStartDateValid => _startDate != null;
 
   bool get _canSubmit =>
@@ -549,7 +556,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
               languages: _languages,
-              salaryMonthly: _salaryMonthly!,
+              salaryAmount: _salaryAmount!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
             );
@@ -563,7 +570,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
               languages: _languages,
-              salaryMonthly: _salaryMonthly!,
+              salaryAmount: _salaryAmount!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
             );
@@ -838,7 +845,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   focusNode: _salaryFocusNode,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: 'Salary (₹/month) (Mandatory)',
+                    labelText: 'Salary (₹/${_salaryUnit(_frequencyOfCare)}) (Mandatory)',
                     errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
                   ),
                   onChanged: (_) => setState(() {}),

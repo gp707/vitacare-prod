@@ -103,7 +103,7 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryMonthly,
+    required int salaryAmount,
     String? preferredGender,
     String? preferredReligion,
   }) =>
@@ -116,7 +116,7 @@ class AdminJobsRepository {
         'frequency_of_care': frequencyOfCare,
         if (startDate != null) 'start_date': startDate,
         'languages': languages,
-        'salary_monthly': salaryMonthly,
+        'salary_amount': salaryAmount,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
       };
@@ -130,7 +130,7 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryMonthly,
+    required int salaryAmount,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -146,7 +146,7 @@ class AdminJobsRepository {
           frequencyOfCare: frequencyOfCare,
           startDate: startDate,
           languages: languages,
-          salaryMonthly: salaryMonthly,
+          salaryAmount: salaryAmount,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
         ),
@@ -169,7 +169,7 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryMonthly,
+    required int salaryAmount,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -185,7 +185,7 @@ class AdminJobsRepository {
           frequencyOfCare: frequencyOfCare,
           startDate: startDate,
           languages: languages,
-          salaryMonthly: salaryMonthly,
+          salaryAmount: salaryAmount,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
         ),

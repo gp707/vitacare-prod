@@ -24,7 +24,7 @@ export interface JobRecord {
   end_time: string | null;
   start_date: string | null;
   languages: Language[];
-  salary_monthly: number | null;
+  salary_amount: number | null;
   preferred_gender: string | null;
   preferred_religion: string | null;
   status: JobStatus;
@@ -81,7 +81,7 @@ export interface CreateJobInput {
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
-  salary_monthly: number;
+  salary_amount: number;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   posted_by: string;
@@ -97,7 +97,7 @@ export interface UpdateJobInput {
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
-  salary_monthly: number;
+  salary_amount: number;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   /** Only set when the edit should also repost a closed job — omitted
@@ -139,7 +139,7 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, frequency_of_care, start_time, end_time,
-          start_date, languages, salary_monthly, preferred_gender, preferred_religion, posted_by)
+          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
@@ -153,7 +153,7 @@ export class JobsRepository {
         input.end_time ?? null,
         input.start_date ?? null,
         JSON.stringify(input.languages),
-        input.salary_monthly,
+        input.salary_amount,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.posted_by,
@@ -256,7 +256,7 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `UPDATE jobs SET
          city = $1, area = $2, description = $3, duty_type = $4, frequency_of_care = $5,
-         start_time = $6, end_time = $7, start_date = $8, languages = $9, salary_monthly = $10,
+         start_time = $6, end_time = $7, start_date = $8, languages = $9, salary_amount = $10,
          preferred_gender = $11, preferred_religion = $12, status = COALESCE($13, status),
          posted_at = CASE WHEN $13::text IS NOT NULL THEN NOW() ELSE posted_at END,
          updated_at = NOW()
@@ -272,7 +272,7 @@ export class JobsRepository {
         input.end_time ?? null,
         input.start_date ?? null,
         JSON.stringify(input.languages),
-        input.salary_monthly,
+        input.salary_amount,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.status ?? null,

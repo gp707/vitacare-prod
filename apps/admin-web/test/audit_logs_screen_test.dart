@@ -49,7 +49,7 @@ JobModel _jobWithCareReceiver() {
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
     'languages': ['hindi'],
-    'salary_monthly': 30000,
+    'salary_amount': 30000,
     'preferred_gender': 'female',
     'status': 'active',
     'posted_by': 'admin-1',

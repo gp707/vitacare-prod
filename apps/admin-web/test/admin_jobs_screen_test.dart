@@ -12,7 +12,7 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 
-JobModel _job({String status = 'active', int? salaryMonthly = 30000}) {
+JobModel _job({String status = 'active', int? salaryAmount = 30000, String frequencyOfCare = 'daily'}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -20,10 +20,10 @@ JobModel _job({String status = 'active', int? salaryMonthly = 30000}) {
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
     'duty_type': 'live_in',
-    'frequency_of_care': 'daily',
+    'frequency_of_care': frequencyOfCare,
     'start_date': '2026-08-10',
     'languages': ['hindi'],
-    'salary_monthly': salaryMonthly,
+    'salary_amount': salaryAmount,
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
@@ -45,7 +45,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
     'frequency_of_care': 'daily',
     'start_date': '2026-08-10',
     'languages': ['hindi'],
-    'salary_monthly': 30000,
+    'salary_amount': 30000,
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
@@ -134,7 +134,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryMonthly,
+    required int salaryAmount,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -154,7 +154,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryMonthly,
+    required int salaryAmount,
     String? preferredGender,
     String? preferredReligion,
   }) async {
@@ -278,12 +278,61 @@ void main() {
 
     expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
-    expect(find.text('₹30000/month'), findsOneWidget);
+    // Fixture's frequency_of_care is 'daily' — the unit follows it.
+    expect(find.text('₹30000/day'), findsOneWidget);
     expect(find.text('active'), findsOneWidget);
   });
 
+  testWidgets('shows the salary unit as /month on the job row for a monthly job', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job(frequencyOfCare: 'monthly')]);
+    await _pump(tester, repo);
+
+    expect(find.text('₹30000/month'), findsOneWidget);
+  });
+
+  testWidgets(
+      "the Salary field's unit label follows Frequency of Care as it's picked, and the posted job's row "
+      'matches whichever was selected', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    // Before any Frequency of Care is picked, the label defaults to /month.
+    expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
+
+    await _fillAboutPatientRequiredFields(tester);
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+
+    expect(find.text('Salary (₹/day) (Mandatory)'), findsOneWidget);
+    expect(find.text('Salary (₹/month) (Mandatory)'), findsNothing);
+
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Monthly');
+
+    expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
+    expect(find.text('Salary (₹/day) (Mandatory)'), findsNothing);
+
+    await _pickPreferredStartDate(tester);
+    await _tapChip(tester, 'Hindi');
+
+    final description = find.widgetWithText(TextField, _descriptionLabel);
+    await tester.ensureVisible(description);
+    await tester.enterText(description, 'Need a caregiver urgently');
+    await tester.pumpAndSettle();
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+  });
+
   testWidgets('flags a job with no salary set instead of silently showing nothing', (tester) async {
-    final repo = _FakeAdminJobsRepository([_job(salaryMonthly: null)]);
+    final repo = _FakeAdminJobsRepository([_job(salaryAmount: null)]);
     await _pump(tester, repo);
 
     expect(find.text('Salary not set'), findsOneWidget);
@@ -761,11 +810,12 @@ void main() {
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
     expect(find.text('72'), findsOneWidget, reason: 'age should be pre-filled from the care receiver');
     expect(find.text('58'), findsOneWidget, reason: 'weight should be pre-filled from the care receiver');
+    // Edit fixture's frequency_of_care is 'daily' — the label's unit follows it.
     expect(
-      find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'),
+      find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'),
       findsOneWidget,
     );
-    final salaryField = tester.widget<TextField>(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'));
+    final salaryField = tester.widget<TextField>(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'));
     expect(salaryField.controller!.text, '30000', reason: 'salary should be pre-filled from the job');
     expect(
       find.widgetWithText(TextField, _descriptionLabel),

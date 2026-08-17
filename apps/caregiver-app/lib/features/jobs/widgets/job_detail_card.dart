@@ -24,6 +24,10 @@ Color urgencyColor(int daysLeft) {
 
 String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
+/// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
+/// per-day rate, everything else reads as monthly.
+String salaryUnit(String frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+
 class SectionLabel extends StatelessWidget {
   final String text;
 
@@ -105,7 +109,7 @@ class JobDetailCard extends StatelessWidget {
             ),
           ],
         ),
-        if (job.salaryMonthly != null) ...[
+        if (job.salaryAmount != null) ...[
           const SizedBox(height: AppSpacing.xs),
           Container(
             width: double.infinity,
@@ -116,7 +120,7 @@ class JobDetailCard extends StatelessWidget {
               border: Border.all(color: AppColors.success),
             ),
             child: Text(
-              '₹${job.salaryMonthly}/month',
+              '₹${job.salaryAmount}/${salaryUnit(job.frequencyOfCare)}',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 18,

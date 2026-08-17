@@ -13,7 +13,12 @@ import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
 // depend on the test machine's timezone.
 String _expected(String isoUtc) => formatDateTime(DateTime.parse(isoUtc).toLocal());
 
-JobModel _job({Map<String, dynamic>? myApplication, String? postedAt, Object? description = 'Need a caregiver for an elderly patient'}) {
+JobModel _job({
+  Map<String, dynamic>? myApplication,
+  String? postedAt,
+  Object? description = 'Need a caregiver for an elderly patient',
+  String frequencyOfCare = 'daily',
+}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -21,9 +26,9 @@ JobModel _job({Map<String, dynamic>? myApplication, String? postedAt, Object? de
     'area': 'Indiranagar',
     'description': description,
     'duty_type': 'live_in',
-    'frequency_of_care': 'daily',
+    'frequency_of_care': frequencyOfCare,
     'languages': ['hindi'],
-    'salary_monthly': 30000,
+    'salary_amount': 30000,
     'preferred_gender': 'female',
     'status': 'active',
     'posted_by': 'admin-1',
@@ -165,7 +170,7 @@ void main() {
       'duty_type': 'live_in',
       'frequency_of_care': 'daily',
       'languages': ['hindi'],
-      'salary_monthly': 30000,
+      'salary_amount': 30000,
       'preferred_gender': 'female',
       'status': 'active',
       'posted_by': 'admin-1',
@@ -213,6 +218,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Job #42'), findsOneWidget);
+    // Fixture's frequency_of_care is 'daily' — the unit follows it.
+    expect(find.text('₹30000/day'), findsOneWidget);
+  });
+
+  testWidgets('shows the salary unit as /month for a job with frequency_of_care monthly', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job(frequencyOfCare: 'monthly')]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('₹30000/month'), findsOneWidget);
   });
 
