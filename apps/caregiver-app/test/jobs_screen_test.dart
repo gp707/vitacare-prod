@@ -88,7 +88,51 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(child);
 }
 
+// JobDetailCard is collapsed by default; tests that need the About
+// Patient/About Nurse-Caregiver Requirement detail must expand it first.
+Future<void> _expandDetails(WidgetTester tester, {int index = 0}) async {
+  await tester.tap(find.text('Show details').at(index));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets(
+      'job cards start collapsed (About Patient/Requirement hidden) and expand/collapse on tap, '
+      'so cards are distinguishable when scanning a list of many', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Collapsed: header (job #, salary, duty type + city, posted date) is
+    // visible, but the tag-heavy detail sections are not.
+    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    expect(find.text('About Patient'), findsNothing);
+    expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
+    expect(find.text('Show details'), findsOneWidget);
+
+    await tester.tap(find.text('Show details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
+    expect(find.text('Hide details'), findsOneWidget);
+    expect(find.text('Show details'), findsNothing);
+
+    await tester.tap(find.text('Hide details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('About Patient'), findsNothing);
+    expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
+    expect(find.text('Show details'), findsOneWidget);
+  });
+
   testWidgets('shows job details: duty type, city, area, description', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pumpTall(
@@ -101,6 +145,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    // Area/description are inside the collapsible detail section.
+    expect(find.text('Indiranagar'), findsNothing);
+    expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
+
+    await _expandDetails(tester);
+
     expect(find.text('Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });
@@ -116,6 +166,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await _expandDetails(tester);
 
     expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
@@ -133,6 +184,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await _expandDetails(tester);
 
     // About Patient — identity and condition are one merged section now,
     // not two separately labeled ones.
@@ -201,6 +253,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await _expandDetails(tester);
 
     expect(find.textContaining('Other condition:'), findsNothing);
     expect(find.textContaining('Other toilet assistance:'), findsNothing);

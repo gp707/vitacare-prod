@@ -97,6 +97,12 @@ void main() {
 
     expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
+
+    // JobDetailCard's About Patient/Requirement detail is collapsed by
+    // default — expand it to check the care receiver's info renders.
+    await tester.tap(find.text('Show details'));
+    await tester.pumpAndSettle();
+
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('78 yrs'), findsOneWidget);
     expect(find.text('Admin Kumar'), findsOneWidget);

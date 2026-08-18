@@ -70,13 +70,27 @@ class Tag extends StatelessWidget {
 /// and the MyJobs tab (which appends an "Accepted" status
 /// instead), so the same care-needs picture renders identically wherever a
 /// caregiver sees a job.
-class JobDetailCard extends StatelessWidget {
+///
+/// Collapsed by default: with many jobs in the list, cards full of identical
+/// tag sections were hard to tell apart at a glance. Only the header (job
+/// number, urgency, salary, start date, duty type + city, posted date) shows
+/// up front; the patient/requirement detail is a tap away, one card at a
+/// time, so scanning the list stays fast.
+class JobDetailCard extends StatefulWidget {
   final JobModel job;
 
   const JobDetailCard({super.key, required this.job});
 
   @override
+  State<JobDetailCard> createState() => _JobDetailCardState();
+}
+
+class _JobDetailCardState extends State<JobDetailCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final job = widget.job;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -150,69 +164,93 @@ class JobDetailCard extends StatelessWidget {
           'Posted: ${formatDate(DateTime.parse(job.postedAt))}',
           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
-        if (job.careReceiver != null) ...[
+        const SizedBox(height: AppSpacing.xs),
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _expanded ? 'Hide details' : 'Show details',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 18,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
+        if (_expanded) ...[
+          if (job.careReceiver != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            const SectionLabel('About Patient'),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              children: [
+                Tag('${job.careReceiver!.age} yrs'),
+                Tag(capitalize(job.careReceiver!.gender)),
+                Tag('${job.careReceiver!.weightKg} kg'),
+                Tag(Mobility.displayNames[job.careReceiver!.mobility] ?? job.careReceiver!.mobility),
+                Tag(Communication.displayNames[job.careReceiver!.communication] ??
+                    job.careReceiver!.communication),
+                Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
+                for (final m in job.careReceiver!.medicalAssistance)
+                  Tag(MedicalAssistance.displayNames[m] ?? m),
+                for (final t in job.careReceiver!.toiletAssistance)
+                  Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
+                if (job.careReceiver!.hasMedicalCondition)
+                  for (final c in job.careReceiver!.medicalConditions)
+                    Tag(MedicalCondition.displayNames[c] ?? c),
+                if (job.careReceiver!.requiresVitalMonitoring)
+                  for (final v in job.careReceiver!.vitalMonitoringTypes)
+                    Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+              ],
+            ),
+            if (job.careReceiver!.medicalConditionOther != null &&
+                job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Other condition: ${job.careReceiver!.medicalConditionOther!}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+            ],
+            if (job.careReceiver!.toiletAssistanceOther != null &&
+                job.careReceiver!.toiletAssistanceOther!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ],
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
-          const SectionLabel('About Patient'),
+          const SectionLabel('About Nurse/Caregiver Requirement'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             children: [
-              Tag('${job.careReceiver!.age} yrs'),
-              Tag(capitalize(job.careReceiver!.gender)),
-              Tag('${job.careReceiver!.weightKg} kg'),
-              Tag(Mobility.displayNames[job.careReceiver!.mobility] ?? job.careReceiver!.mobility),
-              Tag(Communication.displayNames[job.careReceiver!.communication] ??
-                  job.careReceiver!.communication),
-              Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
-              for (final m in job.careReceiver!.medicalAssistance)
-                Tag(MedicalAssistance.displayNames[m] ?? m),
-              for (final t in job.careReceiver!.toiletAssistance)
-                Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-              if (job.careReceiver!.hasMedicalCondition)
-                for (final c in job.careReceiver!.medicalConditions)
-                  Tag(MedicalCondition.displayNames[c] ?? c),
-              if (job.careReceiver!.requiresVitalMonitoring)
-                for (final v in job.careReceiver!.vitalMonitoringTypes)
-                  Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+              Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
+              Tag(FrequencyOfCare.displayNames[job.frequencyOfCare] ?? job.frequencyOfCare),
+              if (job.area != null && job.area!.isNotEmpty) Tag(job.area!),
+              for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
+              if (job.preferredGender != null) Tag(capitalize(job.preferredGender!)),
+              if (job.preferredReligion != null)
+                Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
             ],
           ),
-          if (job.careReceiver!.medicalConditionOther != null &&
-              job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Other condition: ${job.careReceiver!.medicalConditionOther!}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-            ),
+          if (job.description != null && job.description!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(job.description!),
           ],
-          if (job.careReceiver!.toiletAssistanceOther != null &&
-              job.careReceiver!.toiletAssistanceOther!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-            ),
-          ],
-        ],
-        const SizedBox(height: AppSpacing.md),
-        const Divider(height: 1),
-        const SizedBox(height: AppSpacing.sm),
-        const SectionLabel('About Nurse/Caregiver Requirement'),
-        const SizedBox(height: AppSpacing.xs),
-        Wrap(
-          children: [
-            Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
-            Tag(FrequencyOfCare.displayNames[job.frequencyOfCare] ?? job.frequencyOfCare),
-            if (job.area != null && job.area!.isNotEmpty) Tag(job.area!),
-            for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
-            if (job.preferredGender != null) Tag(capitalize(job.preferredGender!)),
-            if (job.preferredReligion != null)
-              Tag(Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!),
-          ],
-        ),
-        if (job.description != null && job.description!.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Text(job.description!),
         ],
       ],
     );
