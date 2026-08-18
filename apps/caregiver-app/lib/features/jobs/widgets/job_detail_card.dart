@@ -109,25 +109,34 @@ class JobDetailCard extends StatelessWidget {
             ),
           ],
         ),
-        if (job.salaryAmount != null) ...[
+        if (job.salaryAmount != null || job.startDate != null) ...[
           const SizedBox(height: AppSpacing.xs),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSpacing.sm),
-              border: Border.all(color: AppColors.success),
-            ),
-            child: Text(
-              '₹${job.salaryAmount}/${salaryUnit(job.frequencyOfCare)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.success,
-              ),
-            ),
+          Row(
+            children: [
+              if (job.salaryAmount != null)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                      border: Border.all(color: AppColors.success),
+                    ),
+                    child: Text(
+                      '₹${job.salaryAmount}/${salaryUnit(job.frequencyOfCare)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ),
+                ),
+              if (job.salaryAmount != null && job.startDate != null) const SizedBox(width: AppSpacing.xs),
+              if (job.startDate != null)
+                Expanded(child: BlinkingStartDateBadge(startDate: job.startDate!)),
+            ],
           ),
         ],
         const SizedBox(height: AppSpacing.sm),
@@ -213,6 +222,62 @@ class JobDetailCard extends StatelessWidget {
           Text(job.description!),
         ],
       ],
+    );
+  }
+}
+
+/// Pulses continuously to draw the eye to the start date, alongside the
+/// salary, at the top of every job card — same treatment on the Jobs list
+/// and MyJobs (JobDetailCard is shared between both).
+class BlinkingStartDateBadge extends StatefulWidget {
+  final String startDate;
+
+  const BlinkingStartDateBadge({super.key, required this.startDate});
+
+  @override
+  State<BlinkingStartDateBadge> createState() => _BlinkingStartDateBadgeState();
+}
+
+class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 700))
+      ..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+          border: Border.all(color: AppColors.warning, width: 1.5),
+        ),
+        child: Text(
+          'Start: ${formatDate(DateTime.parse(widget.startDate))}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.warning,
+          ),
+        ),
+      ),
     );
   }
 }

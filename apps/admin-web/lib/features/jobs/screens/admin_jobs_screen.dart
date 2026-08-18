@@ -457,9 +457,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
         _MandatoryField(_medicalConditionsKey, _isMedicalConditionsValid),
         _MandatoryField(_vitalMonitoringTypesKey, _isVitalMonitoringTypesValid),
-        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_frequencyKey, _isFrequencyValid),
+        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
         _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_languagesKey, _isLanguagesValid),
       ];
@@ -839,20 +839,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               KeyedSubtree(
-                key: _salaryKey,
-                child: TextField(
-                  controller: _salaryController,
-                  focusNode: _salaryFocusNode,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Salary (₹/${_salaryUnit(_frequencyOfCare)}) (Mandatory)',
-                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              KeyedSubtree(
                 key: _dutyTypeKey,
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
@@ -881,6 +867,22 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
                       .toList(),
                   onChanged: (value) => setState(() => _frequencyOfCare = value),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Below Frequency of Care so the unit shown in this field's own
+              // label logically follows the field the admin just picked.
+              KeyedSubtree(
+                key: _salaryKey,
+                child: TextField(
+                  controller: _salaryController,
+                  focusNode: _salaryFocusNode,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Salary (₹/${_salaryUnit(_frequencyOfCare)}) (Mandatory)',
+                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

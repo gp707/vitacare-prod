@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:caregiver_app/core/providers.dart';
-import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/profile/data/profile_repository.dart';
 import 'package:caregiver_app/features/profile/screens/profile_view_screen.dart';
 
@@ -57,31 +56,6 @@ class _FakeProfileRepository extends ProfileRepository {
   }
 }
 
-class _FakeJobsRepository extends JobsRepository {
-  final List<JobModel> assignedJobs;
-  _FakeJobsRepository({List<JobModel>? assignedJobs}) : assignedJobs = assignedJobs ?? [], super(Dio());
-
-  @override
-  Future<List<JobModel>> getAssignedJobs() async => assignedJobs;
-}
-
-JobModel _assignedJobWithPoster() {
-  return JobModel.fromJson({
-    'id': 'job-1',
-    'job_number': 42,
-    'city': 'bangalore',
-    'description': 'Need a caregiver',
-    'duty_type': 'live_in',
-    'frequency_of_care': 'daily',
-    'languages': ['hindi'],
-    'status': 'closed',
-    'posted_by': 'admin-1',
-    'posted_at': '2026-08-01T10:00:00Z',
-    'created_at': '2026-08-01T10:00:00Z',
-    'job_poster': {'full_name': 'Admin Kumar', 'phone': '+919876500000'},
-  });
-}
-
 Future<void> _pumpTall(WidgetTester tester, Widget child) async {
   await tester.binding.setSurfaceSize(const Size(400, 2800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -94,10 +68,7 @@ void main() {
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
@@ -113,10 +84,7 @@ void main() {
       await _pumpTall(
         tester,
         ProviderScope(
-          overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
           child: const MaterialApp(home: ProfileViewScreen()),
         ),
       );
@@ -149,10 +117,7 @@ void main() {
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
@@ -168,10 +133,7 @@ void main() {
       await _pumpTall(
         tester,
         ProviderScope(
-          overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
           child: const MaterialApp(home: ProfileViewScreen()),
         ),
       );
@@ -186,10 +148,7 @@ void main() {
       await _pumpTall(
         tester,
         ProviderScope(
-          overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
           child: const MaterialApp(home: ProfileViewScreen()),
         ),
       );
@@ -206,10 +165,7 @@ void main() {
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()])),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
@@ -223,10 +179,7 @@ void main() {
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
@@ -245,10 +198,7 @@ void main() {
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeRepo),
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
@@ -261,76 +211,20 @@ void main() {
     expect(find.text("You're now marked as available"), findsOneWidget);
   });
 
-  testWidgets('shows the job poster\'s contact info when currently assigned to an accepted job', (tester) async {
-    final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'assigned'));
-    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()]);
+  testWidgets('does not show the job poster\'s contact info (phone/call/WhatsApp) — that now lives only on MyJobs',
+      (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(status: 'assigned'));
     await _pumpTall(
       tester,
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeProfileRepo),
-          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
         child: const MaterialApp(home: ProfileViewScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Admin Kumar'), findsOneWidget);
-    expect(find.text('+919876500000'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
-  });
-
-  testWidgets('shows one contact card per job when accepted onto more than one at once', (tester) async {
-    final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'assigned'));
-    final secondPoster = JobModel.fromJson({
-      'id': 'job-2',
-      'job_number': 43,
-      'city': 'bangalore',
-      'description': 'Need a caregiver',
-      'duty_type': 'live_in',
-      'frequency_of_care': 'daily',
-      'languages': ['hindi'],
-      'status': 'closed',
-      'posted_by': 'admin-2',
-      'posted_at': '2026-08-01T10:00:00Z',
-      'created_at': '2026-08-01T10:00:00Z',
-      'job_poster': {'full_name': 'Priya Admin', 'phone': '+919876500001'},
-    });
-    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster(), secondPoster]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeProfileRepo),
-          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
-        ],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Admin Kumar'), findsOneWidget);
-    expect(find.text('Priya Admin'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Call'), findsNWidgets(2));
-  });
-
-  testWidgets('does not show poster contact info when not currently assigned', (tester) async {
-    final fakeProfileRepo = _FakeProfileRepository(_profile(status: 'available'));
-    final fakeJobsRepo = _FakeJobsRepository(assignedJobs: [_assignedJobWithPoster()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(fakeProfileRepo),
-          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
-        ],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Admin Kumar'), findsNothing);
+    expect(find.text('Posted by'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsNothing);
   });
 }

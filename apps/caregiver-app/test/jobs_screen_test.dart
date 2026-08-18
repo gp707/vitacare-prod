@@ -18,6 +18,7 @@ JobModel _job({
   String? postedAt,
   Object? description = 'Need a caregiver for an elderly patient',
   String frequencyOfCare = 'daily',
+  String? startDate,
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
@@ -27,6 +28,7 @@ JobModel _job({
     'description': description,
     'duty_type': 'live_in',
     'frequency_of_care': frequencyOfCare,
+    'start_date': startDate,
     'languages': ['hindi'],
     'salary_amount': 30000,
     'preferred_gender': 'female',
@@ -220,6 +222,24 @@ void main() {
     expect(find.text('Job #42'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('₹30000/day'), findsOneWidget);
+  });
+
+  testWidgets('shows a highlighted start date next to the salary when the job has one', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job(startDate: '2026-08-20')]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    // Not pumpAndSettle: the start date badge blinks via a repeating
+    // AnimationController by design, so it never "settles".
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('₹30000/day'), findsOneWidget);
+    expect(find.text('Start: 2026-08-20'), findsOneWidget);
   });
 
   testWidgets('shows the salary unit as /month for a job with frequency_of_care monthly', (tester) async {
