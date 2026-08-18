@@ -59,6 +59,7 @@ describe('JobsService', () => {
       update: jest.fn().mockResolvedValue(job),
       findById: jest.fn(),
       listForAdmin: jest.fn(),
+      listPosters: jest.fn(),
       listActiveForCaregiver: jest.fn(),
       listAssignedForCaregiver: jest.fn(),
       close: jest.fn(),
@@ -308,6 +309,40 @@ describe('JobsService', () => {
       const result = await service.listJobsForAdmin({ page: 2, limit: 10 } as any);
       expect(result.data).toEqual([job]);
       expect(result.meta).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
+    });
+
+    it('passes posted_by/gender/duty_type/language filters through to the repository, alongside status/city', async () => {
+      jobsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
+      await service.listJobsForAdmin({
+        page: 1,
+        limit: 20,
+        status: 'active',
+        city: 'bangalore',
+        posted_by: 'admin-1',
+        gender: 'female',
+        duty_type: 'live_in',
+        language: 'hindi',
+      } as any);
+      expect(jobsRepo.listForAdmin).toHaveBeenCalledWith(
+        {
+          status: 'active',
+          city: 'bangalore',
+          posted_by: 'admin-1',
+          gender: 'female',
+          duty_type: 'live_in',
+          language: 'hindi',
+        },
+        { page: 1, limit: 20 },
+      );
+    });
+  });
+
+  describe('listJobPosters', () => {
+    it('returns whatever the repository resolves', async () => {
+      const posters = [{ id: 'admin-1', full_name: 'Admin One', phone: '+919876500000' }];
+      jobsRepo.listPosters.mockResolvedValue(posters);
+      const result = await service.listJobPosters();
+      expect(result).toEqual(posters);
     });
   });
 

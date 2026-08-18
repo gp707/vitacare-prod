@@ -27,6 +27,12 @@ export class AdminJobsController {
     return this.jobsService.listJobsForAdmin(query);
   }
 
+  // Must come before ':id' so Nest doesn't treat "posters" as a job id.
+  @Get('posters')
+  listPosters() {
+    return this.jobsService.listJobPosters();
+  }
+
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.jobsService.getJobDetailForAdmin(id);

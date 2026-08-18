@@ -19,6 +19,7 @@ class JobStatus {
   static const closed = 'closed';
 
   static const all = [active, closed];
+  static const displayNames = {active: 'Active', closed: 'Closed'};
 }
 
 class AppPlatform {
@@ -43,6 +44,7 @@ class Gender {
   static const other = 'other';
 
   static const all = [male, female, other];
+  static const displayNames = {male: 'Male', female: 'Female', other: 'Other'};
 }
 
 class Language {

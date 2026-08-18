@@ -161,7 +161,14 @@ export class JobsService {
 
   async listJobsForAdmin(query: ListJobsQueryDto) {
     const { items, total } = await this.jobsRepo.listForAdmin(
-      { status: query.status, city: query.city },
+      {
+        status: query.status,
+        city: query.city,
+        posted_by: query.posted_by,
+        gender: query.gender,
+        duty_type: query.duty_type,
+        language: query.language,
+      },
       { page: query.page, limit: query.limit },
     );
     const meta: PaginationMeta = {
@@ -171,6 +178,10 @@ export class JobsService {
       totalPages: Math.max(1, Math.ceil(total / query.limit)),
     };
     return { data: items, meta };
+  }
+
+  async listJobPosters() {
+    return this.jobsRepo.listPosters();
   }
 
   async getJobDetailForAdmin(jobId: string) {

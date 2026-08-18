@@ -20,6 +20,7 @@ describe('Jobs (e2e)', () => {
   let app: INestApplication;
   let db: Client;
   let superAdminToken: string;
+  let superAdminId: string;
   let fcmService: { sendToUser: jest.Mock; sendToAllCaregivers: jest.Mock };
 
   const testPhone = (suffix: string) => `+91700002${suffix}`;
@@ -148,6 +149,10 @@ describe('Jobs (e2e)', () => {
       .send({ email: 'jobs-super-admin-e2e@e2e-test.local', password: 'AdminPass123' })
       .expect(200);
     superAdminToken = login.body.data.access_token;
+    const superAdminRow = await db.query('SELECT id FROM users WHERE email = $1', [
+      'jobs-super-admin-e2e@e2e-test.local',
+    ]);
+    superAdminId = superAdminRow.rows[0].id;
   });
 
   afterAll(async () => {
@@ -674,6 +679,120 @@ describe('Jobs (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(404);
       expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    // These fetch with a generous limit and filter the response down to this
+    // suite's own jobs (by description prefix) so assertions aren't thrown
+    // off by unrelated jobs already in the shared live DB.
+    const ownJobIds = (res: request.Response, ids: string[]) =>
+      (res.body.data as Array<{ id: string }>).filter((j) => ids.includes(j.id)).map((j) => j.id);
+
+    it('filters by city', async () => {
+      const bangaloreJob = await createJob({ city: 'bangalore' });
+      const mumbaiJob = await createJob({ city: 'mumbai' });
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&city=mumbai')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [bangaloreJob.id, mumbaiJob.id]);
+      expect(ids).toEqual([mumbaiJob.id]);
+    });
+
+    it('filters by duty_type', async () => {
+      const liveInJob = await createJob({ duty_type: 'live_in' });
+      const dayDutyJob = await createJob({ duty_type: 'day_duty' });
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&duty_type=day_duty')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [liveInJob.id, dayDutyJob.id]);
+      expect(ids).toEqual([dayDutyJob.id]);
+    });
+
+    it('filters by status', async () => {
+      const activeJob = await createJob();
+      const closedJob = await createJob();
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${closedJob.id}/close`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&status=closed')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [activeJob.id, closedJob.id]);
+      expect(ids).toEqual([closedJob.id]);
+    });
+
+    it("filters by the patient's gender (care_receivers.gender, not the job's caregiver-preference field)", async () => {
+      const maleJob = await createJob({ care_receiver: { gender: 'male' } });
+      const femaleJob = await createJob({ care_receiver: { gender: 'female' } });
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&gender=male')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [maleJob.id, femaleJob.id]);
+      expect(ids).toEqual([maleJob.id]);
+    });
+
+    it('filters by language — matches jobs whose languages array includes the given value', async () => {
+      const tamilJob = await createJob({ languages: ['tamil'] });
+      const hindiTamilJob = await createJob({ languages: ['hindi', 'tamil'] });
+      const englishJob = await createJob({ languages: ['english'] });
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&language=tamil')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [tamilJob.id, hindiTamilJob.id, englishJob.id]);
+      expect(ids.sort()).toEqual([hindiTamilJob.id, tamilJob.id].sort());
+    });
+
+    it('filters by posted_by', async () => {
+      const job = await createJob();
+      const res = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs?limit=100&posted_by=${superAdminId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [job.id]);
+      expect(ids).toEqual([job.id]);
+
+      const otherRes = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&posted_by=00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(ownJobIds(otherRes, [job.id])).toEqual([]);
+    });
+
+    it('rejects an invalid gender value (GEN_005)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?gender=not-a-gender')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_005');
+    });
+  });
+
+  describe('GET /v1/admin/jobs/posters', () => {
+    it("returns distinct posters (id/full_name/phone) — includes this suite's super admin, who has posted jobs", async () => {
+      await createJob();
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs/posters')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(res.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: superAdminId, full_name: 'Jobs E2E Super Admin' }),
+        ]),
+      );
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const caregiver = await registerCaregiver('7010');
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs/posters')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
     });
   });
 

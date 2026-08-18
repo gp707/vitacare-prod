@@ -3,6 +3,7 @@ import {
   City,
   DutyType,
   FrequencyOfCare,
+  Gender,
   JobApplicationStatus,
   JobStatus,
   Language,
@@ -109,6 +110,12 @@ export interface UpdateJobInput {
 export interface ListJobsFilters {
   status?: JobStatus;
   city?: City;
+  posted_by?: string;
+  /** Patient's gender, on care_receivers — requires the cr join below. */
+  gender?: Gender;
+  duty_type?: DutyType;
+  /** Matches jobs whose languages array includes this one value. */
+  language?: Language;
 }
 
 export interface ListPage {
@@ -121,11 +128,27 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
   const params: unknown[] = [];
   if (filters.status) {
     params.push(filters.status);
-    conditions.push(`status = $${params.length}`);
+    conditions.push(`j.status = $${params.length}`);
   }
   if (filters.city) {
     params.push(filters.city);
-    conditions.push(`city = $${params.length}`);
+    conditions.push(`j.city = $${params.length}`);
+  }
+  if (filters.posted_by) {
+    params.push(filters.posted_by);
+    conditions.push(`j.posted_by = $${params.length}`);
+  }
+  if (filters.duty_type) {
+    params.push(filters.duty_type);
+    conditions.push(`j.duty_type = $${params.length}`);
+  }
+  if (filters.gender) {
+    params.push(filters.gender);
+    conditions.push(`cr.gender = $${params.length}`);
+  }
+  if (filters.language) {
+    params.push(JSON.stringify([filters.language]));
+    conditions.push(`j.languages @> $${params.length}::jsonb`);
   }
   return { clause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
@@ -179,14 +202,29 @@ export class JobsRepository {
 
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobRecord>(
-        `SELECT * FROM jobs ${clause}
-         ORDER BY created_at DESC
+        `SELECT j.* FROM jobs j JOIN care_receivers cr ON cr.id = j.care_receiver_id ${clause}
+         ORDER BY j.created_at DESC
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),
-      this.db.query<{ count: string }>(`SELECT COUNT(*) FROM jobs ${clause}`, params),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*) FROM jobs j JOIN care_receivers cr ON cr.id = j.care_receiver_id ${clause}`,
+        params,
+      ),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
+  }
+
+  /** Distinct admins who have posted at least one job — powers the admin-web
+   *  "Job Poster" filter dropdown (name + phone, since names can collide). */
+  async listPosters(): Promise<{ id: string; full_name: string; phone: string }[]> {
+    const result = await this.db.query<{ id: string; full_name: string; phone: string }>(
+      `SELECT DISTINCT u.id, u.full_name, u.phone
+       FROM users u
+       JOIN jobs j ON j.posted_by = u.id
+       ORDER BY u.full_name`,
+    );
+    return result.rows;
   }
 
   /** Active jobs only, with the caregiver's own application status (if any)

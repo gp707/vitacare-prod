@@ -24,10 +24,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   bool _loading = true;
   String? _errorMessage;
 
+  List<JobPosterOption> _posters = [];
+  String? _filterPostedBy;
+  String? _filterCity;
+  String? _filterGender;
+  String? _filterDutyType;
+  String? _filterStatus;
+  String? _filterLanguage;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+      _loadPosters();
+    });
   }
 
   Future<void> _load() async {
@@ -36,7 +47,16 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       _errorMessage = null;
     });
     try {
-      final jobs = await ref.read(adminJobsRepositoryProvider).list();
+      final jobs = await ref.read(adminJobsRepositoryProvider).list(
+            filters: JobListFilters(
+              postedBy: _filterPostedBy,
+              city: _filterCity,
+              gender: _filterGender,
+              dutyType: _filterDutyType,
+              status: _filterStatus,
+              language: _filterLanguage,
+            ),
+          );
       if (mounted) setState(() => _jobs = jobs);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -44,6 +64,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  // Posters list is best-effort — a failure here shouldn't block the jobs
+  // list itself from loading, so errors are swallowed (the dropdown just
+  // stays empty rather than surfacing a second error banner).
+  Future<void> _loadPosters() async {
+    try {
+      final posters = await ref.read(adminJobsRepositoryProvider).listPosters();
+      if (mounted) setState(() => _posters = posters);
+    } on ApiException catch (_) {
+      // Swallowed — see comment above.
+    }
+  }
+
+  void _applyFilters() => _load();
 
   Future<void> _openCreateDialog() async {
     final created = await showDialog<bool>(
@@ -111,6 +145,116 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     await _load();
   }
 
+  bool get _hasActiveFilters =>
+      _filterPostedBy != null ||
+      _filterCity != null ||
+      _filterGender != null ||
+      _filterDutyType != null ||
+      _filterStatus != null ||
+      _filterLanguage != null;
+
+  Widget _buildFilterPanel() {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 260,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterPostedBy,
+            decoration:
+                const InputDecoration(labelText: 'Job Poster', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All posters')),
+              ..._posters.map(
+                (p) => DropdownMenuItem<String?>(value: p.id, child: Text('${p.fullName} (${p.phone})')),
+              ),
+            ],
+            onChanged: (value) => setState(() => _filterPostedBy = value),
+          ),
+        ),
+        SizedBox(
+          width: 180,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterCity,
+            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+            ],
+            onChanged: (value) => setState(() => _filterCity = value),
+          ),
+        ),
+        SizedBox(
+          width: 170,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterGender,
+            decoration: const InputDecoration(
+              labelText: "Patient's Gender",
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Any gender')),
+              ...Gender.all.map((g) => DropdownMenuItem<String?>(value: g, child: Text(Gender.displayNames[g] ?? g))),
+            ],
+            onChanged: (value) => setState(() => _filterGender = value),
+          ),
+        ),
+        SizedBox(
+          width: 230,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterDutyType,
+            decoration:
+                const InputDecoration(labelText: 'Duty Time', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All duty times')),
+              ...DutyType.all
+                  .map((d) => DropdownMenuItem<String?>(value: d, child: Text(DutyType.displayNames[d] ?? d))),
+            ],
+            onChanged: (value) => setState(() => _filterDutyType = value),
+          ),
+        ),
+        SizedBox(
+          width: 160,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterStatus,
+            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              ...JobStatus.all.map(
+                (s) => DropdownMenuItem<String?>(value: s, child: Text(JobStatus.displayNames[s] ?? s)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _filterStatus = value),
+          ),
+        ),
+        SizedBox(
+          width: 180,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterLanguage,
+            decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Any language')),
+              ...Language.all.map(
+                (l) => DropdownMenuItem<String?>(value: l, child: Text(Language.displayNames[l] ?? l)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _filterLanguage = value),
+          ),
+        ),
+        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
@@ -133,12 +277,17 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
+              _buildFilterPanel(),
+              const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
                 Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
               else if (_jobs.isEmpty)
-                const Text('No jobs posted yet.', style: TextStyle(color: AppColors.textSecondary))
+                Text(
+                  _hasActiveFilters ? 'No jobs match these filters.' : 'No jobs posted yet.',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                )
               else
                 Expanded(
                   child: ListView.separated(

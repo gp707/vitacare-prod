@@ -105,6 +105,7 @@ String _expectedDateTime(String isoUtc) {
 class _FakeAdminJobsRepository extends AdminJobsRepository {
   List<JobModel> jobs;
   List<JobApplicationModel> applications;
+  List<JobPosterOption> posters;
   bool createCalled = false;
   bool closeCalled = false;
   String? remindedJobId;
@@ -113,11 +114,18 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? updatedJobId;
   String? updatedDescription;
   CareReceiverInput? submittedCareReceiver;
+  JobListFilters? lastListFilters;
 
-  _FakeAdminJobsRepository(this.jobs, {this.applications = const []}) : super(Dio());
+  _FakeAdminJobsRepository(this.jobs, {this.applications = const [], this.posters = const []}) : super(Dio());
 
   @override
-  Future<List<JobModel>> list({String? status}) async => jobs;
+  Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async {
+    lastListFilters = filters;
+    return jobs;
+  }
+
+  @override
+  Future<List<JobPosterOption>> listPosters() async => posters;
 
   @override
   Future<(JobModel, List<JobApplicationModel>)> getDetail(String jobId) async {
@@ -215,6 +223,20 @@ Future<void> _selectDropdown(WidgetTester tester, String fieldLabel, String opti
   await tester.pumpAndSettle();
 }
 
+// The filter panel's dropdowns are DropdownButtonFormField<String?> (nullable
+// — "All X"/"Any X" is represented as a null selection), a different runtime
+// type from the create/edit form's DropdownButtonFormField<String> above, so
+// they need their own finder.
+Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
+  final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
+  await tester.ensureVisible(field);
+  await tester.pumpAndSettle();
+  await tester.tap(field);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(optionLabel).last);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
   final chip = find.widgetWithText(FilterChip, chipLabel);
   await tester.ensureVisible(chip);
@@ -281,6 +303,71 @@ void main() {
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('₹30000/day'), findsOneWidget);
     expect(find.text('active'), findsOneWidget);
+  });
+
+  testWidgets('shows no jobs posted yet with no filters active, vs no jobs match these filters once one is',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    expect(find.text('No jobs posted yet.'), findsOneWidget);
+    expect(find.text('No jobs match these filters.'), findsNothing);
+
+    await _selectFilterDropdown(tester, 'City', 'Bangalore');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No jobs posted yet.'), findsNothing);
+    expect(find.text('No jobs match these filters.'), findsOneWidget);
+  });
+
+  testWidgets('Job Poster filter options come from listPosters(), shown as name (phone)', (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      posters: const [
+        JobPosterOption(id: 'admin-1', fullName: 'Admin One', phone: '+919876500000'),
+        JobPosterOption(id: 'admin-2', fullName: 'Priya Admin', phone: '+919876500001'),
+      ],
+    );
+    await _pump(tester, repo);
+
+    final posterField = find.widgetWithText(DropdownButtonFormField<String?>, 'Job Poster').first;
+    await tester.tap(posterField);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Admin One (+919876500000)'), findsOneWidget);
+    expect(find.text('Priya Admin (+919876500001)'), findsOneWidget);
+  });
+
+  testWidgets(
+      'selecting Job Poster/City/Patient Gender/Duty Time/Status/Language and tapping Apply Filters '
+      'calls list() with all of them', (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      posters: const [JobPosterOption(id: 'admin-1', fullName: 'Admin One', phone: '+919876500000')],
+    );
+    await _pump(tester, repo);
+
+    await _selectFilterDropdown(tester, 'Job Poster', 'Admin One (+919876500000)');
+    await _selectFilterDropdown(tester, 'City', 'Bangalore');
+    await _selectFilterDropdown(tester, "Patient's Gender", 'Female');
+    await _selectFilterDropdown(tester, 'Duty Time', '24Hrs - Live In');
+    await _selectFilterDropdown(tester, 'Status', 'Closed');
+    await _selectFilterDropdown(tester, 'Language', 'Hindi');
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(
+      repo.lastListFilters,
+      isA<JobListFilters>()
+          .having((f) => f.postedBy, 'postedBy', 'admin-1')
+          .having((f) => f.city, 'city', 'bangalore')
+          .having((f) => f.gender, 'gender', 'female')
+          .having((f) => f.dutyType, 'dutyType', 'live_in')
+          .having((f) => f.status, 'status', 'closed')
+          .having((f) => f.language, 'language', 'hindi'),
+    );
   });
 
   testWidgets('shows the salary unit as /month on the job row for a monthly job', (tester) async {

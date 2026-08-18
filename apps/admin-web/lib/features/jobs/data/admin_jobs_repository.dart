@@ -59,19 +59,72 @@ class CareReceiverInput {
       };
 }
 
+/// All fields optional/null = no filter applied for that field. `postedBy`
+/// is a user id (from [JobPosterOption.id]/the poster dropdown), not a name.
+class JobListFilters {
+  final String? postedBy;
+  final String? city;
+  final String? gender;
+  final String? dutyType;
+  final String? status;
+  final String? language;
+
+  const JobListFilters({
+    this.postedBy,
+    this.city,
+    this.gender,
+    this.dutyType,
+    this.status,
+    this.language,
+  });
+
+  Map<String, dynamic> toQueryParameters() => {
+        'limit': 100,
+        if (postedBy != null) 'posted_by': postedBy,
+        if (city != null) 'city': city,
+        if (gender != null) 'gender': gender,
+        if (dutyType != null) 'duty_type': dutyType,
+        if (status != null) 'status': status,
+        if (language != null) 'language': language,
+      };
+}
+
+/// An admin who has posted at least one job — powers the "Job Poster" filter
+/// dropdown. Shown as name + phone since names can collide.
+class JobPosterOption {
+  final String id;
+  final String fullName;
+  final String phone;
+
+  const JobPosterOption({required this.id, required this.fullName, required this.phone});
+
+  factory JobPosterOption.fromJson(Map<String, dynamic> json) => JobPosterOption(
+        id: json['id'] as String,
+        fullName: json['full_name'] as String,
+        phone: json['phone'] as String,
+      );
+}
+
 class AdminJobsRepository {
   final Dio _dio;
 
   AdminJobsRepository(this._dio);
 
-  Future<List<JobModel>> list({String? status}) async {
+  Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async {
     try {
-      final res = await _dio.get('/admin/jobs', queryParameters: {
-        'limit': 100,
-        if (status != null) 'status': status,
-      });
+      final res = await _dio.get('/admin/jobs', queryParameters: filters.toQueryParameters());
       final items = res.data['data'] as List;
       return items.map((item) => JobModel.fromJson(item as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<List<JobPosterOption>> listPosters() async {
+    try {
+      final res = await _dio.get('/admin/jobs/posters');
+      final items = res.data['data'] as List;
+      return items.map((item) => JobPosterOption.fromJson(item as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
