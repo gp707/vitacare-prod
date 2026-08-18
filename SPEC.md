@@ -3131,19 +3131,26 @@ Route by verification_status:
 - Action buttons per job: **Apply**, **Reject**.
 - Already-applied jobs show the application status ("You applied" / "You declined" / "You were accepted") instead of buttons.
 - Pull-to-refresh for new jobs.
+- Gear icon (`Icons.tune`) in the app bar → Job Search Preferences screen (preferred city, preferred shift/duty type, minimum salary per day/month — all dynamically filter this list, see `GET /caregiver/jobs` in 6.5). Saving pops back here and immediately reloads the list.
 
 #### Profile View (`/profile`)
 - Display all profile information (read-only).
 - "Edit" button.
 
 #### Edit Profile (`/profile/edit`)
-- Editable: Age, Languages, Highest Qualification, Preferred City — one "Save" button for this section.
+- Editable: Age, Languages, Highest Qualification — one "Save" button for this section. Preferred City moved to the Jobs tab's gear icon (see Job Search Preferences below) along with the other job-search-only preferences — this screen's info banner points there.
 - Full Name, Gender, and Religion shown read-only — contact the office to change any of them; only admins can.
 - Phone Number: own input + "Save" button (re-verification sensitive — see below).
 - Login PIN: own input + "Save" button.
 - Document upload/re-upload: Selfie, Aadhaar, Qualification Document, Other Documents — each uploads immediately on pick, individually.
 - Info banner: "Changes will be reviewed by admin. Your current verification status is not affected." — except changing Phone Number or re-uploading Aadhaar, which is flagged as identity-sensitive and (for `available`/`unavailable`/`rejected`) resets status to `pending_call` for re-verification.
-- If current status is `rejected`, any other edit (age, languages, qualification, preferred city, selfie, qualification/other documents, login PIN) also resets status to `pending_call` automatically — no separate resubmit action.
+- If current status is `rejected`, any other edit (age, languages, qualification, selfie, qualification/other documents, login PIN) also resets status to `pending_call` automatically — no separate resubmit action.
+
+#### Job Search Preferences (pushed from the Jobs tab's gear icon, not a bottom-nav destination)
+- Editable: Preferred City (multi-select), Preferred Shift/Duty Type (multi-select), Minimum Salary — ₹/day (optional), Minimum Salary — ₹/month (optional) — one "Save" button.
+- Info banner: these only control which jobs show up on the Jobs tab — no admin approval needed, never affects verification status.
+- All four fields go through the same `PATCH /caregiver/profile` self-edit endpoint as Edit Profile (see 6.4) — same partial-write semantics, `has_pending_edits` flagged, `verification_status` untouched except the `rejected` auto-resubmit rule.
+- On successful save, pops back to the Jobs tab, which immediately re-fetches `GET /caregiver/jobs` so the new filtering is visible right away.
 
 #### Settings (`/settings`)
 - Change code (4-digit PIN update).

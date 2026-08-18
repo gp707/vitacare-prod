@@ -7,7 +7,9 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/jobs_screen.dart';
+import 'package:caregiver_app/features/jobs/screens/job_preferences_screen.dart';
 import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
+import 'package:caregiver_app/features/profile/data/profile_repository.dart';
 
 // Same conversion the app applies (UTC -> local) so assertions don't
 // depend on the test machine's timezone.
@@ -60,11 +62,15 @@ JobModel _job({
 class _FakeJobsRepository extends JobsRepository {
   List<JobModel> jobs;
   String? appliedWith;
+  int listActiveJobsCallCount = 0;
 
   _FakeJobsRepository(this.jobs) : super(Dio());
 
   @override
-  Future<List<JobModel>> listActiveJobs() async => jobs;
+  Future<List<JobModel>> listActiveJobs() async {
+    listActiveJobsCallCount++;
+    return jobs;
+  }
 
   @override
   Future<String> applyToJob(String jobId, String status) async {
@@ -80,6 +86,39 @@ class _FakeJobsRepository extends JobsRepository {
     ];
     return status;
   }
+}
+
+class _FakeProfileRepository extends ProfileRepository {
+  _FakeProfileRepository() : super(Dio());
+
+  @override
+  Future<CaregiverProfileModel> getProfile() async => CaregiverProfileModel.fromJson({
+        'user_id': 'u1',
+        'profile_id': 'p1',
+        'full_name': 'Test Caregiver',
+        'phone': '+919876543210',
+        'gender': 'male',
+        'age': 30,
+        'languages': ['hindi'],
+        'other_document_urls': [],
+        'terms_accepted': true,
+        'verification_status': 'available',
+        'created_at': '2026-08-01T10:00:00Z',
+        'preferred_cities': [],
+        'preferred_duty_types': [],
+      });
+
+  @override
+  Future<String> editProfile({
+    int? age,
+    List<String>? languages,
+    String? highestQualification,
+    List<String>? preferredCities,
+    List<String>? preferredDutyTypes,
+    int? minSalaryPerDay,
+    int? minSalaryPerMonth,
+  }) async =>
+      'available';
 }
 
 Future<void> _pumpTall(WidgetTester tester, Widget child) async {
@@ -477,5 +516,52 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No jobs posted right now'), findsOneWidget);
+  });
+
+  testWidgets('tapping the gear icon opens Job Search Preferences', (tester) async {
+    final fakeJobsRepo = _FakeJobsRepository([_job()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
+          profileRepositoryProvider.overrideWithValue(_FakeProfileRepository()),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.tune));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JobPreferencesScreen), findsOneWidget);
+    expect(find.text('Job Search Preferences'), findsOneWidget);
+  });
+
+  testWidgets('reloads the job list after saving preferences', (tester) async {
+    final fakeJobsRepo = _FakeJobsRepository([_job()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(fakeJobsRepo),
+          profileRepositoryProvider.overrideWithValue(_FakeProfileRepository()),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(fakeJobsRepo.listActiveJobsCallCount, 1);
+
+    await tester.tap(find.byIcon(Icons.tune));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'Mumbai'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JobPreferencesScreen), findsNothing);
+    expect(fakeJobsRepo.listActiveJobsCallCount, 2);
   });
 }

@@ -37,10 +37,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _ageController = TextEditingController();
   final List<String> _languages = [];
   String? _qualification;
-  List<String> _preferredCities = [];
-  List<String> _preferredDutyTypes = [];
-  final _minSalaryPerDayController = TextEditingController();
-  final _minSalaryPerMonthController = TextEditingController();
   bool _savingProfile = false;
   String? _profileError;
   String? _profileSuccess;
@@ -68,8 +64,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   void dispose() {
     _ageController.dispose();
-    _minSalaryPerDayController.dispose();
-    _minSalaryPerMonthController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -86,10 +80,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ..clear()
         ..addAll(profile.languages);
       _qualification = profile.highestQualification;
-      _preferredCities = List.from(profile.preferredCities);
-      _preferredDutyTypes = List.from(profile.preferredDutyTypes);
-      _minSalaryPerDayController.text = profile.minSalaryPerDay?.toString() ?? '';
-      _minSalaryPerMonthController.text = profile.minSalaryPerMonth?.toString() ?? '';
       _phoneController.text = profile.phone.replaceFirst('+91', '');
       _loading = false;
     });
@@ -97,18 +87,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   bool get _willTriggerReview =>
       _profile != null && _reReviewStatuses.contains(_profile!.verificationStatus);
-
-  bool _preferredCitiesChanged(CaregiverProfileModel profile) {
-    final next = [..._preferredCities]..sort();
-    final previous = [...profile.preferredCities]..sort();
-    return next.join(',') != previous.join(',');
-  }
-
-  bool _preferredDutyTypesChanged(CaregiverProfileModel profile) {
-    final next = [..._preferredDutyTypes]..sort();
-    final previous = [...profile.preferredDutyTypes]..sort();
-    return next.join(',') != previous.join(',');
-  }
 
   Future<void> _saveProfile() async {
     final profile = _profile!;
@@ -127,24 +105,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         setState(() => _profileError = 'Select at least one language');
         return;
       }
-      final minSalaryPerDayText = _minSalaryPerDayController.text.trim();
-      int? minSalaryPerDay;
-      if (minSalaryPerDayText.isNotEmpty) {
-        minSalaryPerDay = int.tryParse(minSalaryPerDayText);
-        if (minSalaryPerDay == null || minSalaryPerDay < 1) {
-          setState(() => _profileError = 'Minimum salary per day must be a positive number');
-          return;
-        }
-      }
-      final minSalaryPerMonthText = _minSalaryPerMonthController.text.trim();
-      int? minSalaryPerMonth;
-      if (minSalaryPerMonthText.isNotEmpty) {
-        minSalaryPerMonth = int.tryParse(minSalaryPerMonthText);
-        if (minSalaryPerMonth == null || minSalaryPerMonth < 1) {
-          setState(() => _profileError = 'Minimum salary per month must be a positive number');
-          return;
-        }
-      }
       final sortedNewLangs = [..._languages]..sort();
       final sortedOldLangs = [...profile.languages]..sort();
       final status = await ref.read(profileRepositoryProvider).editProfile(
@@ -152,11 +112,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             languages: sortedNewLangs.join(',') != sortedOldLangs.join(',') ? _languages : null,
             highestQualification:
                 _qualification != profile.highestQualification ? _qualification : null,
-            preferredCities: _preferredCitiesChanged(profile) ? _preferredCities : null,
-            preferredDutyTypes: _preferredDutyTypesChanged(profile) ? _preferredDutyTypes : null,
-            minSalaryPerDay: minSalaryPerDay != profile.minSalaryPerDay ? minSalaryPerDay : null,
-            minSalaryPerMonth:
-                minSalaryPerMonth != profile.minSalaryPerMonth ? minSalaryPerMonth : null,
           );
       setState(() {
         _profileSuccess = status == VerificationStatus.pendingCall && profile.verificationStatus == VerificationStatus.rejected
@@ -286,7 +241,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(AppSpacing.sm),
                     ),
                     child: const Text(
-                      "Changes here will be reviewed by admin. Your current verification status is not affected — except changing your phone number or Aadhaar card, which sends an available/unavailable profile back for re-review (a rejected profile is always resubmitted by any change here).",
+                      "Changes here will be reviewed by admin. Your current verification status is not affected — except changing your phone number or Aadhaar card, which sends an available/unavailable profile back for re-review (a rejected profile is always resubmitted by any change here). Looking for your preferred city, shift, or minimum salary? That's now under the gear icon on the Jobs tab.",
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -352,49 +307,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         .map((q) => DropdownMenuItem(value: q, child: Text(Qualification.displayNames[q] ?? q)))
                         .toList(),
                     onChanged: (value) => setState(() => _qualification = value),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  const Text('Preferred City (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: AppSpacing.sm),
-                  VitaMultiSelectChips(
-                    options: City.all,
-                    labels: City.displayNames,
-                    selected: _preferredCities,
-                    onChanged: (next) => setState(() => _preferredCities = next),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  const Text('Job Search Preferences', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: AppSpacing.xs),
-                  const Text(
-                    "These only control which jobs you see below — they never need admin approval and never affect your verification status. Leave anything blank for no preference on that filter.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const Text('Preferred Shift/Duty Type (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: AppSpacing.sm),
-                  VitaMultiSelectChips(
-                    options: DutyType.all,
-                    labels: DutyType.displayNames,
-                    selected: _preferredDutyTypes,
-                    onChanged: (next) => setState(() => _preferredDutyTypes = next),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _minSalaryPerDayController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum Salary — ₹/day (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _minSalaryPerMonthController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Minimum Salary — ₹/month (optional)',
-                      border: OutlineInputBorder(),
-                    ),
                   ),
                   if (_profileError != null) ...[
                     const SizedBox(height: AppSpacing.sm),

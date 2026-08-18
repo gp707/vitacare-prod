@@ -8,6 +8,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
+import 'job_preferences_screen.dart';
 
 /// List of active job postings, viewable at any verification status
 /// (browsing motivates onboarding). Applying is gated server-side
@@ -48,6 +49,13 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
+  Future<void> _openJobPreferences() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const JobPreferencesScreen()),
+    );
+    if (saved == true) await _load();
+  }
+
   Future<void> _apply(JobModel job, String status) async {
     setState(() => _applyingJobId.add(job.id));
     try {
@@ -68,6 +76,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       appBar: AppBar(
         title: const Text('Jobs'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Job Search Preferences',
+            onPressed: _openJobPreferences,
+          ),
           const WhatsAppHelpButton(),
           TextButton(
             onPressed: () {
