@@ -12,7 +12,7 @@
 │ password_hash        │
 │ code_hash            │
 │ full_name            │
-│ role                 │
+│ role                 │  ◄── super_admin | admin | caregiver | individual
 │ is_active            │
 │ fcm_token            │
 │ created_at           │
@@ -21,25 +21,25 @@
            │
            │ 1
            │
-     ┌─────┼──────────────────────────────────────────┐
-     │     │                                          │
-     │     │ N                                        │ N
-     │     ▼                                          ▼
-     │  ┌──────────────────────┐           ┌──────────────────────┐
-     │  │   refresh_tokens     │           │     audit_logs        │
-     │  │──────────────────────│           │──────────────────────│
-     │  │ id (PK)              │           │ id (PK)              │
-     │  │ user_id (FK→users)   │           │ user_id (FK→users)   │
-     │  │ token_hash           │           │ target_user_id       │
-     │  │ expires_at           │           │   (FK→users)         │
-     │  │ created_at           │           │ action               │
-     │  │ revoked_at           │           │ entity_type          │
-     │  └──────────────────────┘           │ entity_id            │
-     │                                     │ before_value         │
-     │                                     │ after_value          │
-     │ 1                                   │ ip_address           │
-     ▼                                     │ created_at           │
-┌──────────────────────┐                   └──────────────────────┘
+     ┌─────┼──────────────────────────────────┬───────────┐
+     │     │                                  │           │
+     │     │ N                                │ N         │ N
+     │     ▼                                  ▼           ▼
+     │  ┌──────────────────────┐  ┌──────────────────────┐ ┌──────────────────────┐
+     │  │   refresh_tokens     │  │     audit_logs        │ │  individual_profiles │
+     │  │──────────────────────│  │──────────────────────│ │──────────────────────│
+     │  │ id (PK)              │  │ id (PK)              │ │ id (PK)              │
+     │  │ user_id (FK→users)   │  │ user_id (FK→users)   │ │ user_id (FK→users)   │
+     │  │ token_hash           │  │ target_user_id       │ │   ◄── 1:1 with users │
+     │  │ expires_at           │  │   (FK→users)         │ │ is_job_posting_      │
+     │  │ created_at           │  │ action               │ │   blocked            │
+     │  │ revoked_at           │  │ entity_type          │ │ block_reason         │
+     │  └──────────────────────┘  │ entity_id            │ │ created_at           │
+     │                            │ before_value         │ │ updated_at           │
+     │                            │ after_value          │ └──────────────────────┘
+     │ 1                          │ ip_address           │  ◄── NurseNow (patient/
+     ▼                            │ created_at           │      family) accounts;
+┌──────────────────────┐          └──────────────────────┘      role = 'individual'
 │  caregiver_profiles  │
 │──────────────────────│
 │ id (PK)              │
@@ -142,16 +142,17 @@ job postings are no longer built around a "work type" category; see
 │ area                 │  ◄── free text, required via API (was optional)
 │ description          │
 │ duty_type            │  ◄── 3 fixed shifts only; UI label "Hours Care Needed"
-│ frequency_of_care    │  ◄── daily/monthly
+│ frequency_of_care    │  ◄── daily/monthly; NULL while pending_review
 │ start_time           │  ◄── derived from duty_type
 │ end_time             │  ◄── derived from duty_type
 │ start_date           │  ◄── UI label "Preferred Start Date"
 │ languages            │  ◄── JSONB array, multi-select
-│ salary_amount        │  ◄── ₹/day or ₹/month per frequency_of_care, highlighted for caregivers
+│ salary_amount        │  ◄── ₹/day or ₹/month per frequency_of_care; NULL while pending_review
 │ preferred_gender     │  ◄── NULL = no preference
 │ preferred_religion   │  ◄── NULL = no pref; "others" excluded
-│ status               │  ◄── active | closed
-│ posted_by (FK→users) │
+│ status               │  ◄── pending_review | active | closed
+│ rejection_reason     │  ◄── set only on admin reject of a pending_review row
+│ posted_by (FK→users) │  ◄── an admin OR a NurseNow individual (role='individual')
 │ posted_at            │  ◄── drives 3-day apply-by urgency window
 │ created_at           │
 │ updated_at           │
@@ -209,6 +210,7 @@ SPEC.md 6.9.
 | Table A | Table B | Type | FK Column | Notes |
 |---------|---------|------|-----------|-------|
 | users | caregiver_profiles | 1:1 | caregiver_profiles.user_id | Each caregiver has exactly one profile |
+| users | individual_profiles | 1:1 | individual_profiles.user_id | Each NurseNow individual (role='individual') has exactly one profile |
 | users | refresh_tokens | 1:N | refresh_tokens.user_id | A user can have multiple active/revoked tokens |
 | users | audit_logs (actor) | 1:N | audit_logs.user_id | Who performed the action |
 | users | audit_logs (target) | 1:N | audit_logs.target_user_id | Who was affected by the action |
@@ -218,7 +220,7 @@ SPEC.md 6.9.
 | caregiver_profiles | caregiver_preferred_cities | 1:N | caregiver_preferred_cities.profile_id | A profile has 0+ preferred cities (multi-select) |
 | caregiver_profiles | caregiver_preferred_duty_types | 1:N | caregiver_preferred_duty_types.profile_id | A profile has 0+ preferred shift/duty types (multi-select) |
 | caregiver_profiles | admin_notes | 1:1 | admin_notes.profile_id | One notes record per profile (upserted) |
-| users | jobs (posted_by) | 1:N | jobs.posted_by | Admin who posted the job |
+| users | jobs (posted_by) | 1:N | jobs.posted_by | Admin, or a NurseNow individual (role='individual'), who posted the job |
 | care_receivers | jobs | 1:1 | jobs.care_receiver_id | Each job describes exactly one care receiver's needs |
 | jobs | job_applications | 1:N | job_applications.job_id | Caregiver applications to a job |
 | caregiver_profiles | job_applications | 1:N | job_applications.profile_id | A caregiver's applications across jobs |
@@ -229,14 +231,15 @@ SPEC.md 6.9.
 
 | Table | Purpose |
 |-------|---------|
-| **users** | Core identity table for all user types (caregivers, admins, super_admins). Holds auth credentials, contact info, role, and FCM token for push notifications. |
+| **users** | Core identity table for all user types (caregivers, admins, super_admins, and NurseNow individuals). Holds auth credentials, contact info, role, and FCM token for push notifications. |
 | **refresh_tokens** | Stores hashed refresh tokens for JWT rotation. Each token use generates a new one and revokes the old. Supports 30-day TTL. |
 | **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. Also carries `min_salary_per_day`/`min_salary_per_month` — job search preferences that dynamically filter `GET /caregiver/jobs`, editable anytime, never affecting verification status. |
+| **individual_profiles** | Role-specific data for a NurseNow patient/family account (`users.role = 'individual'`). No verification pipeline — just two independent admin block levers: `is_job_posting_blocked` (blocks new postings only) and the shared `users.is_active` (full login lockout), each with an admin-entered `block_reason`. See "NurseNow" in CLAUDE.md. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **caregiver_preferred_duty_types** | Junction table for a caregiver's preferred shift/duty types (job search preference, multi-select from the same 3 fixed shifts as a job's `duty_type`). Same pattern as `caregiver_preferred_cities`. Dynamically filters `GET /caregiver/jobs`; editable anytime via the self-edit endpoint. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
 | **care_receivers** | "About Patient" in the admin-web UI. Care-needs description (age, gender, weight, mobility, communication, feeding, toilet assistance, medical assistance/conditions, vital monitoring) for the person a job is posted for. 1:1 with a job; no full patient PII/identity record yet — a future "Patient" app is expected to eventually supply that. |
-| **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required monthly salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has a short human-friendly `job_number` distinct from its UUID `id`, and a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost (editing a closed job back to active), not on a plain edit. |
+| **jobs** | Job listings sent to all caregivers as push notifications — posted either by an admin (straight to `active`) or by a NurseNow individual (`POST /individual/requirements`, created `pending_review` with `frequency_of_care`/`salary_amount` null until admin approves-by-editing, or declines via `PATCH /admin/jobs/:id/reject` with `rejection_reason`). Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has a short human-friendly `job_number` distinct from its UUID `id`, and a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost/approval (editing a closed or pending_review job to active), not on a plain edit. |
 | **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
 | **app_min_versions** | Force-upgrade config: one row per platform (`android`/`ios`), admin-editable. The caregiver app checks this on every launch and blocks with an "Update Required" screen if its installed build is below `min_version`. |
 | **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. `GET /admin/audit-logs` additionally resolves `job_number`/`job_id` at query time (not stored columns) for job-related entries — see SPEC.md 6.8. |

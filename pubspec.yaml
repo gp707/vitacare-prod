@@ -10,6 +10,7 @@ environment:
 workspace:
   - apps/caregiver-app
   - apps/admin-web
+  - apps/nursenow-app
   - packages/vitacare_shared
   - packages/vitacare_ui
 

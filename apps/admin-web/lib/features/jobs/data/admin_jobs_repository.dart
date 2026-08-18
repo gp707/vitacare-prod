@@ -261,6 +261,17 @@ class AdminJobsRepository {
     }
   }
 
+  /// Only valid from pending_review — declines a NurseNow individual's
+  /// requirement, which never goes live. [reason] is shown to the
+  /// individual on their own requirement view.
+  Future<void> reject(String jobId, String reason) async {
+    try {
+      await _dio.patch('/admin/jobs/$jobId/reject', data: {'reason': reason});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Admin decision on a specific applicant — 'accepted' closes the job and
   /// assigns the caregiver; 'rejected' on a previously-accepted application
   /// reopens the job and un-assigns the caregiver; 'rejected' on a still-

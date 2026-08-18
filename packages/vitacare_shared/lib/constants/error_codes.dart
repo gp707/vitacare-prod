@@ -57,6 +57,9 @@ class ErrorCodes {
     'JOB_006': 'Application not found',
     'JOB_007': 'Application has already been decided',
     'JOB_008': 'No active accepted application found for this job',
+    'JOB_009': 'You already have a requirement in progress',
+    'JOB_010': 'Your account is blocked from posting new requirements',
+    'JOB_011': 'Only a pending-review requirement can be rejected',
 
     // General
     'GEN_001': 'Invalid request body',

@@ -29,10 +29,10 @@ export class TokenService {
       role: user.role,
       phone: user.phone,
     };
-    // Caregiver mobile app has no login-again flow in its UI — its access
-    // token must never expire. Admin web sessions expire after
-    // JWT_ACCESS_TOKEN_TTL (default 6 months).
-    if (user.role === UserRole.CAREGIVER) {
+    // Caregiver and NurseNow individual mobile apps have no login-again
+    // flow in their UI — their access tokens must never expire. Admin web
+    // sessions expire after JWT_ACCESS_TOKEN_TTL (default 6 months).
+    if (user.role === UserRole.CAREGIVER || user.role === UserRole.INDIVIDUAL) {
       return jwt.sign(payload, this.secret);
     }
     return jwt.sign(payload, this.secret, { expiresIn: this.accessTtlSeconds });

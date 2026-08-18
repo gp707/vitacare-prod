@@ -26,7 +26,7 @@ String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(
 
 /// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
 /// per-day rate, everything else reads as monthly.
-String salaryUnit(String frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+String salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
 
 class SectionLabel extends StatelessWidget {
   final String text;
@@ -239,7 +239,11 @@ class _JobDetailCardState extends State<JobDetailCard> {
           Wrap(
             children: [
               Tag(DutyType.displayNames[job.dutyType] ?? job.dutyType),
-              Tag(FrequencyOfCare.displayNames[job.frequencyOfCare] ?? job.frequencyOfCare),
+              // Always set on an active job (only ever null for a NurseNow
+              // individual's still-pending_review posting, which caregivers
+              // never see — GET /caregiver/jobs only returns active jobs).
+              if (job.frequencyOfCare != null)
+                Tag(FrequencyOfCare.displayNames[job.frequencyOfCare!] ?? job.frequencyOfCare!),
               if (job.area != null && job.area!.isNotEmpty) Tag(job.area!),
               for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
               if (job.preferredGender != null) Tag(capitalize(job.preferredGender!)),

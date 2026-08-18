@@ -6,5 +6,6 @@ import { JobsService } from './jobs.service';
 @Module({
   controllers: [AdminJobsController, CaregiverJobsController],
   providers: [JobsService],
+  exports: [JobsService],
 })
 export class JobsModule {}

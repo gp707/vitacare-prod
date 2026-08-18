@@ -8,6 +8,11 @@ export const VerificationStatus = {
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 
 export const JobStatus = {
+  // A NurseNow individual-posted job sits here until an admin approves
+  // (-> active, setting frequency_of_care/salary_amount) or rejects
+  // (-> closed, with rejection_reason). Admin's own postings skip this
+  // entirely — created straight into active, same as before.
+  PENDING_REVIEW: 'pending_review',
   ACTIVE: 'active',
   CLOSED: 'closed',
 } as const;
@@ -188,6 +193,9 @@ export const UserRole = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
   CAREGIVER: 'caregiver',
+  // NurseNow patient/family account. Organisation isn't added yet — a
+  // later phase's migration/enum change.
+  INDIVIDUAL: 'individual',
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 

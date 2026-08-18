@@ -15,11 +15,19 @@ class VerificationStatus {
 }
 
 class JobStatus {
+  // A NurseNow individual-posted job sits here until an admin approves
+  // (-> active) or rejects (-> closed) it. Admin's own postings skip this
+  // entirely — created straight into active.
+  static const pendingReview = 'pending_review';
   static const active = 'active';
   static const closed = 'closed';
 
-  static const all = [active, closed];
-  static const displayNames = {active: 'Active', closed: 'Closed'};
+  static const all = [pendingReview, active, closed];
+  static const displayNames = {
+    pendingReview: 'Pending Review',
+    active: 'Active',
+    closed: 'Closed',
+  };
 }
 
 class AppPlatform {
@@ -396,8 +404,11 @@ class UserRole {
   static const superAdmin = 'super_admin';
   static const admin = 'admin';
   static const caregiver = 'caregiver';
+  // NurseNow patient/family account. Organisation isn't added yet — a
+  // later phase's enum change.
+  static const individual = 'individual';
 
-  static const all = [superAdmin, admin, caregiver];
+  static const all = [superAdmin, admin, caregiver, individual];
 }
 
 class DocumentType {

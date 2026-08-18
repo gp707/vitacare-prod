@@ -1,0 +1,125 @@
+import { Injectable } from '@nestjs/common';
+import { AuditAction, JobStatus } from '@vitacare/shared-constants';
+import { AppException } from '../common/exceptions/app.exception';
+import { DatabaseService } from '../database/database.service';
+import { JobsRepository } from '../database/repositories/jobs.repository';
+import { JobApplicationsRepository } from '../database/repositories/job-applications.repository';
+import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
+import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
+import { UsersRepository } from '../database/repositories/users.repository';
+import { AuditService } from '../audit/audit.service';
+import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
+import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
+import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+
+@Injectable()
+export class IndividualService {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly jobsRepo: JobsRepository,
+    private readonly jobApplicationsRepo: JobApplicationsRepository,
+    private readonly careReceiversRepo: CareReceiversRepository,
+    private readonly individualProfilesRepo: IndividualProfilesRepository,
+    private readonly usersRepo: UsersRepository,
+    private readonly jobsService: JobsService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  /** Minimal "who am I" for session hydration on app launch — no
+   *  verification pipeline to report, just identity + the job-posting
+   *  block state (full block is enforced at login, not here). */
+  async getMe(userId: string) {
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new AppException('GEN_002');
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    return {
+      user_id: user.id,
+      full_name: user.full_name,
+      phone: user.phone,
+      is_job_posting_blocked: profile?.is_job_posting_blocked ?? false,
+    };
+  }
+
+  /** Creates a job in pending_review — frequency_of_care/salary_amount are
+   *  null until an admin approves it (see JobsService.updateJob). Enforces
+   *  the one-live-requirement-at-a-time rule (JOB_009, pending_review
+   *  counts as live) and the job-posting-blocked admin lever (JOB_010). */
+  async createRequirement(
+    userId: string,
+    dto: CreateIndividualRequirementDto,
+    ipAddress: string | null,
+  ) {
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    if (profile.is_job_posting_blocked) throw new AppException('JOB_010');
+
+    const existingLive = await this.jobsRepo.findLiveByPostedBy(userId);
+    if (existingLive) throw new AppException('JOB_009');
+
+    const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
+    const job = await this.db.withTransaction(async (client) => {
+      const careReceiver = await this.careReceiversRepo.create(
+        applyCareReceiverDefaults(dto.care_receiver),
+        client,
+      );
+      return this.jobsRepo.create(
+        {
+          care_receiver_id: careReceiver.id,
+          city: dto.city,
+          area: dto.area,
+          description: dto.description,
+          duty_type: dto.duty_type,
+          frequency_of_care: null,
+          start_time: start,
+          end_time: end,
+          start_date: dto.start_date,
+          languages: dto.languages,
+          salary_amount: null,
+          preferred_gender: dto.preferred_gender,
+          preferred_religion: dto.preferred_religion,
+          posted_by: userId,
+          status: JobStatus.PENDING_REVIEW,
+        },
+        client,
+      );
+    });
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_POSTED,
+      entityType: 'jobs',
+      entityId: job.id,
+      afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
+      ipAddress,
+    });
+
+    return job;
+  }
+
+  async listMyRequirements(userId: string) {
+    return this.jobsRepo.listByPostedBy(userId);
+  }
+
+  async getMyRequirementApplications(userId: string, jobId: string) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    return this.jobApplicationsRepo.findByJobId(jobId);
+  }
+
+  /** Reuses JobsService.decideApplication's full accept/reject logic
+   *  (closes the job, flips the caregiver to assigned/available) — an
+   *  individual deciding on their own requirement has exactly the same
+   *  effect as admin deciding on it. Ownership-checked first; admin has
+   *  its own separate endpoint for deciding on any job. */
+  async decideMyApplication(
+    userId: string,
+    jobId: string,
+    applicationId: string,
+    dto: DecideApplicationDto,
+    ipAddress: string | null,
+  ) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    return this.jobsService.decideApplication(userId, jobId, applicationId, dto, ipAddress);
+  }
+}

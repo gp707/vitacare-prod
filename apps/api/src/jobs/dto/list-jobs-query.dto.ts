@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { City, DutyType, Gender, JobStatus, Language, Validation } from '@vitacare/shared-constants';
+import { City, DutyType, Gender, JobStatus, Language, UserRole, Validation } from '@vitacare/shared-constants';
 
 export class ListJobsQueryDto {
   @IsOptional()
@@ -27,6 +27,13 @@ export class ListJobsQueryDto {
   @IsOptional()
   @IsUUID(undefined, { message: 'GEN_005' })
   posted_by?: string;
+
+  // Filters to jobs posted by any user of this role — e.g. 'individual' to
+  // see just NurseNow patient/family postings vs admin's own ('admin' or
+  // 'super_admin'). One level up from posted_by (a specific user).
+  @IsOptional()
+  @IsIn(Object.values(UserRole), { message: 'GEN_005' })
+  posted_by_role?: UserRole;
 
   // Patient's gender, on care_receivers — not to be confused with a job's
   // preferred_gender (a caregiver preference).

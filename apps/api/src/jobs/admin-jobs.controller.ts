@@ -10,6 +10,7 @@ import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
 import { DecideApplicationDto } from './dto/decide-application.dto';
+import { RejectJobDto } from './dto/reject-job.dto';
 
 @Controller('admin/jobs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -53,6 +54,17 @@ export class AdminJobsController {
   @HttpCode(HttpStatus.OK)
   close(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
     return this.jobsService.closeJob(user.sub, id, ip);
+  }
+
+  @Patch(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  reject(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RejectJobDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.rejectJob(user.sub, id, dto.reason, ip);
   }
 
   @Post(':id/remind')

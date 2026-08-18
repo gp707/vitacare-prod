@@ -20,7 +20,10 @@ export interface JobRecord {
   area: string | null;
   description: string | null;
   duty_type: DutyType;
-  frequency_of_care: FrequencyOfCare;
+  /** Null only for a NurseNow individual-posted job still awaiting admin
+   *  approval (status = pending_review) — admin sets it during approval,
+   *  same as salary_amount. */
+  frequency_of_care: FrequencyOfCare | null;
   start_time: string | null;
   end_time: string | null;
   start_date: string | null;
@@ -30,12 +33,24 @@ export interface JobRecord {
   preferred_religion: string | null;
   status: JobStatus;
   posted_by: string;
+  /** Only set when an admin rejects a pending_review job — null otherwise,
+   *  including for a normal close. */
+  rejection_reason: string | null;
   /** Effective "went live" timestamp — starts equal to created_at, bumped
    *  to NOW() only when a closed job is edited-and-reposted. The 3-day
    *  apply-by urgency window is always computed from this, not created_at. */
   posted_at: Date;
   created_at: Date;
   updated_at: Date;
+}
+
+/** listForAdmin's shape — adds the poster's role/name (via a users join)
+ *  so admin-web can label a NurseNow individual's posting distinctly from
+ *  admin's own, without a second round trip. Not present on plain
+ *  JobRecord (e.g. findById) since most callers don't need it. */
+export interface JobListItemForAdmin extends JobRecord {
+  posted_by_role: string;
+  posted_by_name: string;
 }
 
 /** The caregiver's own application to this job, if any — includes the
@@ -77,15 +92,20 @@ export interface CreateJobInput {
   area?: string | null;
   description?: string | null;
   duty_type: DutyType;
-  frequency_of_care: FrequencyOfCare;
+  /** Null for a NurseNow individual posting — admin sets it on approval. */
+  frequency_of_care: FrequencyOfCare | null;
   start_time?: string | null;
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
-  salary_amount: number;
+  /** Null for a NurseNow individual posting — admin sets it on approval. */
+  salary_amount: number | null;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   posted_by: string;
+  /** Omitted defaults to 'active' (admin's own postings, unchanged
+   *  behavior). A NurseNow individual posting passes 'pending_review'. */
+  status?: JobStatus;
 }
 
 export interface UpdateJobInput {
@@ -116,6 +136,10 @@ export interface ListJobsFilters {
   duty_type?: DutyType;
   /** Matches jobs whose languages array includes this one value. */
   language?: Language;
+  /** Jobs posted by any user of this role — e.g. 'individual' to see just
+   *  NurseNow patient/family postings vs admin's own. Requires the users
+   *  join added in listForAdmin below. */
+  posted_by_role?: string;
 }
 
 export interface ListPage {
@@ -150,6 +174,10 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
     params.push(JSON.stringify([filters.language]));
     conditions.push(`j.languages @> $${params.length}::jsonb`);
   }
+  if (filters.posted_by_role) {
+    params.push(filters.posted_by_role);
+    conditions.push(`u.role = $${params.length}`);
+  }
   return { clause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
@@ -162,8 +190,8 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, frequency_of_care, start_time, end_time,
-          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, 'active'))
        RETURNING *`,
       [
         input.care_receiver_id,
@@ -180,6 +208,7 @@ export class JobsRepository {
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
         input.posted_by,
+        input.status ?? null,
       ],
     );
     return result.rows[0];
@@ -190,10 +219,31 @@ export class JobsRepository {
     return result.rows[0] ?? null;
   }
 
+  /** A NurseNow individual's own job(s) — in practice zero-or-one given the
+   *  one-live-requirement rule, but shaped as a list for symmetry with
+   *  listAssignedForCaregiver. */
+  async listByPostedBy(postedBy: string): Promise<JobRecord[]> {
+    const result = await this.db.query<JobRecord>(
+      'SELECT * FROM jobs WHERE posted_by = $1 ORDER BY created_at DESC',
+      [postedBy],
+    );
+    return result.rows;
+  }
+
+  /** Used to enforce the one-live-requirement-at-a-time rule for
+   *  individual accounts — pending_review counts as live, same as active. */
+  async findLiveByPostedBy(postedBy: string): Promise<JobRecord | null> {
+    const result = await this.db.query<JobRecord>(
+      `SELECT * FROM jobs WHERE posted_by = $1 AND status IN ('pending_review', 'active') LIMIT 1`,
+      [postedBy],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async listForAdmin(
     filters: ListJobsFilters,
     page: ListPage,
-  ): Promise<{ items: JobRecord[]; total: number }> {
+  ): Promise<{ items: JobListItemForAdmin[]; total: number }> {
     const { clause, params } = buildJobsWhereClause(filters);
     const offset = (page.page - 1) * page.limit;
     const listParams = [...params, page.limit, offset];
@@ -201,14 +251,21 @@ export class JobsRepository {
     const offsetPlaceholder = `$${listParams.length}`;
 
     const [listResult, countResult] = await Promise.all([
-      this.db.query<JobRecord>(
-        `SELECT j.* FROM jobs j JOIN care_receivers cr ON cr.id = j.care_receiver_id ${clause}
+      this.db.query<JobListItemForAdmin>(
+        `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name
+         FROM jobs j
+         JOIN care_receivers cr ON cr.id = j.care_receiver_id
+         JOIN users u ON u.id = j.posted_by
+         ${clause}
          ORDER BY j.created_at DESC
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),
       this.db.query<{ count: string }>(
-        `SELECT COUNT(*) FROM jobs j JOIN care_receivers cr ON cr.id = j.care_receiver_id ${clause}`,
+        `SELECT COUNT(*) FROM jobs j
+         JOIN care_receivers cr ON cr.id = j.care_receiver_id
+         JOIN users u ON u.id = j.posted_by
+         ${clause}`,
         params,
       ),
     ]);
@@ -359,5 +416,16 @@ export class JobsRepository {
   async reopen(id: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(`UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1`, [id]);
+  }
+
+  /** Admin declines a pending_review individual-posted job — the
+   *  requirement never goes live. Distinct from close(): stores why, so
+   *  the individual can see the reason. */
+  async reject(id: string, reason: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE jobs SET status = 'closed', rejection_reason = $2, updated_at = NOW() WHERE id = $1`,
+      [id, reason],
+    );
   }
 }

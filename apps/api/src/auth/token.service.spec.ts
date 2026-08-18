@@ -21,6 +21,12 @@ describe('TokenService', () => {
       expect(decoded.exp).toBeUndefined();
     });
 
+    it('never expires an individual (NurseNow) access token, same as caregiver', () => {
+      const token = service.signAccessToken(user(UserRole.INDIVIDUAL));
+      const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
+      expect(decoded.exp).toBeUndefined();
+    });
+
     it('sets an expiry on admin access tokens, defaulting to 6 months', () => {
       const token = service.signAccessToken(user(UserRole.ADMIN));
       const decoded = jwt.verify(token, secret) as jwt.JwtPayload;

@@ -3,10 +3,20 @@
 /// are implemented on the backend.
 class ApiRoutes {
   static const register = '/auth/register';
+  static const registerIndividual = '/auth/register/individual';
   static const loginCode = '/auth/login/code';
   static const loginEmail = '/auth/login/email';
   static const refresh = '/auth/refresh';
   static const logout = '/auth/logout';
+
+  // NurseNow individual (patient/family) — same phone+code login as
+  // caregiver (loginCode above), different registration/profile endpoints.
+  static const individualMe = '/individual/me';
+  static const individualRequirements = '/individual/requirements';
+  static String individualRequirementApplications(String jobId) =>
+      '/individual/requirements/$jobId/applications';
+  static String individualRequirementApplicationDecide(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId';
 
   static const caregiverProfile = '/caregiver/profile';
   static const caregiverProfilePhone = '/caregiver/profile/phone';

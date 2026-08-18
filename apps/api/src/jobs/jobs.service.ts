@@ -47,7 +47,10 @@ const DUTY_TYPE_LABELS: Record<DutyType, string> = {
 
 // Duty Type is one of exactly 3 fixed shifts — the shift's start/end time
 // is implied by which one is picked, not entered separately by the admin.
-const DUTY_TYPE_TIMES: Record<DutyType, { start: string | null; end: string | null }> = {
+// Exported for reuse by individual.service.ts, which derives start/end
+// time from duty_type the same way when a NurseNow individual posts a
+// requirement.
+export const DUTY_TYPE_TIMES: Record<DutyType, { start: string | null; end: string | null }> = {
   [DutyType.DAY_DUTY]: { start: '08:00', end: '20:00' },
   [DutyType.NIGHT_DUTY]: { start: '20:00', end: '08:00' },
   [DutyType.LIVE_IN]: { start: null, end: null },
@@ -75,7 +78,10 @@ const CARE_RECEIVER_DEFAULTS = {
   toilet_assistance: [ToiletAssistance.INDEPENDENT],
 } as const;
 
-function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
+// Exported for reuse by individual.service.ts — a NurseNow individual's
+// requirement gets the exact same care-receiver defaulting as an
+// admin-posted job.
+export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
   return {
     age: dto.age,
     gender: dto.gender,
@@ -168,6 +174,7 @@ export class JobsService {
         gender: query.gender,
         duty_type: query.duty_type,
         language: query.language,
+        posted_by_role: query.posted_by_role,
       },
       { page: query.page, limit: query.limit },
     );
@@ -187,24 +194,36 @@ export class JobsService {
   async getJobDetailForAdmin(jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
-    const [careReceiver, applications] = await Promise.all([
+    const [careReceiver, applications, poster] = await Promise.all([
       this.careReceiversRepo.findById(job.care_receiver_id),
       this.jobApplicationsRepo.findByJobId(jobId),
+      this.usersRepo.findById(job.posted_by),
     ]);
-    return { ...job, care_receiver: careReceiver, applications };
+    return {
+      ...job,
+      care_receiver: careReceiver,
+      applications,
+      posted_by_role: poster?.role ?? null,
+      posted_by_name: poster?.full_name ?? null,
+    };
   }
 
   /** Admin edits any field of an existing job (and its care receiver) in
    *  place — same job id, existing applications untouched. If the job was
    *  `closed`, saving the edit also reposts it: status flips back to
-   *  `active` and the "New Job" push re-broadcasts to all caregivers. An
-   *  edit to an already-`active` job does NOT resend the push, to avoid
-   *  spamming caregivers on every minor edit. */
+   *  `active` and the "New Job" push re-broadcasts to all caregivers. If
+   *  the job was `pending_review` (a NurseNow individual's posting
+   *  awaiting approval), saving the edit — which requires
+   *  frequency_of_care/salary_amount, same validation as always — approves
+   *  and activates it the same way, also broadcasting the push (this is
+   *  the individual requirement's first time going live, same as any new
+   *  job). An edit to an already-`active` job does NOT resend the push, to
+   *  avoid spamming caregivers on every minor edit. */
   async updateJob(adminId: string, jobId: string, dto: CreateJobDto, ipAddress: string | null) {
     const existing = await this.jobsRepo.findById(jobId);
     if (!existing) throw new AppException('GEN_002');
 
-    const wasClosed = existing.status === 'closed';
+    const shouldActivate = existing.status === 'closed' || existing.status === 'pending_review';
     const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
 
     const job = await this.db.withTransaction(async (client) => {
@@ -228,13 +247,13 @@ export class JobsService {
           salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
-          status: wasClosed ? JobStatus.ACTIVE : undefined,
+          status: shouldActivate ? JobStatus.ACTIVE : undefined,
         },
         client,
       );
     });
 
-    if (wasClosed) {
+    if (shouldActivate) {
       await this.fcmService.sendToAllCaregivers(
         `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
         `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
@@ -252,6 +271,30 @@ export class JobsService {
     });
 
     return job;
+  }
+
+  /** Admin declines a pending_review individual-posted job — it never goes
+   *  live. Only valid from pending_review; the admin-web UI shouldn't
+   *  offer this once a job is already active/closed, but it's guarded
+   *  server-side too (JOB_011). */
+  async rejectJob(adminId: string, jobId: string, reason: string, ipAddress: string | null) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job) throw new AppException('GEN_002');
+    if (job.status !== JobStatus.PENDING_REVIEW) throw new AppException('JOB_011');
+
+    await this.jobsRepo.reject(jobId, reason);
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: job.status },
+      afterValue: { status: 'closed', rejection_reason: reason },
+      ipAddress,
+    });
+
+    return { message: 'Requirement rejected', status: 'closed' };
   }
 
   async closeJob(adminId: string, jobId: string, ipAddress: string | null) {

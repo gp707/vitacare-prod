@@ -11,7 +11,8 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 | App | Path | Tech |
 |-----|------|------|
 | Backend API | `apps/api/` | NestJS 10.x, Node.js 20 LTS, TypeScript |
-| Caregiver Mobile | `apps/caregiver-app/` | Flutter 3.19+, Dart, Riverpod |
+| Caregiver Mobile ("NurseJobs") | `apps/caregiver-app/` | Flutter 3.19+, Dart, Riverpod |
+| Patient/Hospital Mobile ("NurseNow") | `apps/nursenow-app/` | Flutter 3.19+, Dart, Riverpod |
 | Admin Web | `apps/admin-web/` | Flutter Web 3.19+, Dart, Riverpod |
 | Shared Constants (TS) | `packages/shared-constants/` | TypeScript |
 | Shared Models (Dart) | `packages/vitacare_shared/` | Pure Dart (no Flutter imports) |
@@ -35,6 +36,68 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Profile edits don't auto-reset status for `available`/`unavailable` caregivers**, with one exception: changing phone number or re-uploading Aadhaar is identity-sensitive and sends them back to `pending_call` (see transition matrix). Every other edit (age, languages, highest_qualification, preferred_cities, preferred_duty_types, min_salary_per_day, min_salary_per_month, login code/PIN, selfie/qualification/other document re-uploads) only flags `has_pending_edits = true` for admin review, status untouched. **For a `rejected` caregiver, this is different: any edit at all — not just identity-sensitive ones — automatically resubmits them** (sends status back to `pending_call`). There's no separate "resubmit" action; editing the flagged field(s) normally is the resubmission.
 - **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile`) — only admins can change it from that point on. Every other field remains caregiver-editable via self-edit.
 - **Force-upgrade:** admin-web has an "App Versions" screen (any admin, not just super_admin) where an admin sets a `min_version` (and optional `store_url`/`update_message`) per platform (`android`/`ios`) in the `app_min_versions` table (one row per platform, seeded at `1.0.0`). The caregiver app checks `GET /app-versions/check?platform=&version=` (public, no auth) on every cold launch — before the splash screen even loads the session, via `AppVersionRepository.checkForUpdate()` — and if its own build (`PackageInfo.version`) is below `min_version`, shows a full-screen, non-dismissible `UpdateRequiredScreen` with the admin's `update_message` (or a generic default) and an "Update Now" button linking to `store_url`; nothing else in the app loads until the caregiver updates. Platform is determined via `defaultTargetPlatform` (not `dart:io Platform`, which doesn't compile for the web dev target this app is also tested against) — anything other than iOS is treated as `android`. The version check is deliberately **fail-open**: any error (network down, backend unreachable, malformed response) is caught and treated as "no update needed," since a broken check must never be able to lock every caregiver out. admin-web itself has no equivalent gate — it's a web app that just needs a browser reload to pick up a new deploy (see Firebase Hosting cache note), not a store-distributed binary.
+
+## NurseNow (Patient/Family + Hospital/Rehab) — Phase 1: Individual only
+
+A separate companion app, **NurseNow** (`apps/nursenow-app/`), lets patients/families and
+hospitals/rehabs/clinics post care requirements and get matched against the same caregiver
+pool NurseJobs (`apps/caregiver-app/`) already serves. It is a genuinely separate Flutter app
+(own app-store listing, own registration/login) — not a merged "one app for everyone" build —
+sharing the same backend (`apps/api`) and Postgres DB. **Only the Individual account type is
+built (Phase 1); Organisation (hospital/rehab/clinic) accounts are not yet implemented** — they
+are deferred to a later phase and will use brand-new dedicated tables/codepath (a fundamentally
+different posting shape: no `care_receiver`, a "type of nurse" enum instead of a qualification
+enum, accommodation/food/special-skills fields, many simultaneous postings per org) rather than
+reusing `jobs`/`care_receivers`.
+
+- **Individual accounts reuse the existing `jobs`/`care_receivers`/`job_applications` tables and
+  the existing caregiver-app browse-and-apply flow.** A patient/family's approved requirement is
+  a real row in `jobs` (`posted_by` = the individual's `user_id`, no role restriction there).
+  Caregivers see and apply to it via the exact same `GET /caregiver/jobs` /
+  `POST /caregiver/jobs/:id/apply` endpoints used for admin-posted jobs — no caregiver-app
+  changes were needed. Matching reuses the same `caregiver_profiles.verification_status` state
+  machine (acceptance flips a caregiver to `assigned`), identical to any other job.
+- **Auth:** `individual` is a new `users.role` value, authenticating exactly like a caregiver —
+  phone + 4-digit PIN (bcrypt `code_hash`), non-expiring JWT (no `exp` claim, same as
+  caregiver-app). `POST /auth/register/individual` (`phone`, `full_name`, `code`) creates the
+  `users` row plus a 1:1 `individual_profiles` row; `POST /auth/login/code` is shared with
+  caregiver login (role-generalized check). No account-level admin approval gate — an individual
+  can post a requirement immediately after registering.
+- **Posting flow:** `POST /individual/requirements` takes the same shape as admin's job-posting
+  form (About Patient + city/area/duty_type/start_date/languages/preferred_gender/
+  preferred_religion) **except `frequency_of_care` and `salary_amount`**, which admin sets during
+  approval — the requirement is created with `status: 'pending_review'` and both fields `null`
+  (`jobs.frequency_of_care` is nullable for exactly this reason). An admin approves by editing
+  the job with the full shape (same `PATCH /admin/jobs/:id` edit dialog admin already uses,
+  supplying `frequency_of_care`/`salary_amount`) — this transitions `pending_review → active` and
+  stamps `posted_at`, reusing the exact same repost/push-broadcast code path that already
+  reactivates a `closed` job on edit. Admin can instead **reject** a `pending_review` job via
+  `PATCH /admin/jobs/:id/reject` (`{ reason }`, admin/super_admin only) — sets `status: 'closed'`
+  and `jobs.rejection_reason`, visible to the individual on their own requirement view; only
+  valid from `pending_review` (`JOB_011` otherwise). The individual only sees
+  `frequency_of_care`/`salary_amount` once approved. **An Individual account may have at most one
+  "live" requirement at a time**, where "live" includes a not-yet-approved `pending_review` one —
+  enforced server-side (`JOB_009`) via `JobsRepository.findLiveByPostedBy`.
+- **Individual-side endpoints** (`@Roles(UserRole.INDIVIDUAL)`, `src/individual/`):
+  `GET /individual/me`, `POST /individual/requirements`, `GET /individual/requirements`,
+  `GET /individual/requirements/:id/applications`,
+  `PATCH /individual/requirements/:jobId/applications/:applicationId` (accept/reject an
+  applicant — ownership-checked, then delegates to the same `JobsService.decideApplication` admin
+  uses). nursenow-app's `MyRequirementScreen` renders the current/most-recent requirement (status:
+  pending review / live+salary shown / rejected+reason / closed) with an applicants list.
+- **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
+  lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
+  **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account
+  via `GET /admin/individuals` and can block/unblock at either level
+  (`PATCH /admin/individuals/:id/block` `{ level: 'job_posting' | 'full', reason }` /
+  `.../unblock`). `job_posting` blocked (`JOB_010`) only stops *new* postings — an existing live
+  requirement/its applications keep working, and login still succeeds. Full block (`is_active =
+  false`) is a total login lockout (`AUTH_004`), same behavior as a deactivated admin/caregiver.
+- Admin's own Jobs screen (`AdminJobsScreen`) surfaces NurseNow postings inline: a "Pending
+  Review" badge on `pending_review` jobs, a "Posted by patient/family — <name>" label (via
+  `GET /admin/jobs`'s joined `posted_by_role`/`posted_by_name`), an optional `posted_by_role`
+  filter, and the Reject button described above — admin never needs a separate queue/screen to
+  triage individual postings.
 
 ## Naming Conventions (STRICT)
 
@@ -138,10 +201,10 @@ rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_ye
 male, female, other
 
 ### User Roles
-super_admin, admin, caregiver
+super_admin, admin, caregiver, individual (NurseNow patient/family account — see "NurseNow" above; organisation role not yet implemented)
 
 ### Job Status
-active, closed
+pending_review (NurseNow individual posting awaiting admin approval — never set by admin's own postings, which go straight to `active`), active, closed
 
 ### Job Application Status
 applied, rejected, accepted, completed — `accepted` is admin-only (see "Job/Application Flow" below); a caregiver can only ever set `applied`/`rejected` on their own application via apply, and `completed` via the separate per-job complete endpoint (`accepted` → `completed` only, see "Job/Application Flow").

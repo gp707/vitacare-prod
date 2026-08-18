@@ -10,6 +10,7 @@ describe('AuthService', () => {
   let caregiverProfilesRepo: any;
   let caregiverLanguagesRepo: any;
   let caregiverPreferredCitiesRepo: any;
+  let individualProfilesRepo: any;
   let refreshTokensRepo: any;
   let tokenService: any;
   let emailService: any;
@@ -32,6 +33,7 @@ describe('AuthService', () => {
     caregiverProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     caregiverLanguagesRepo = { createMany: jest.fn() };
     caregiverPreferredCitiesRepo = { createMany: jest.fn() };
+    individualProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     refreshTokensRepo = {
       create: jest.fn(),
       findActiveById: jest.fn(),
@@ -57,6 +59,7 @@ describe('AuthService', () => {
       caregiverProfilesRepo,
       caregiverLanguagesRepo,
       caregiverPreferredCitiesRepo,
+      individualProfilesRepo,
       refreshTokensRepo,
       tokenService,
       emailService,
@@ -201,6 +204,39 @@ describe('AuthService', () => {
     });
   });
 
+  describe('registerIndividual', () => {
+    const individualUser = { ...baseUser, role: UserRole.INDIVIDUAL };
+
+    it('throws AUTH_001 when phone already registered', async () => {
+      usersRepo.findByPhone.mockResolvedValue(individualUser);
+      await expect(
+        service.registerIndividual({ phone: individualUser.phone, full_name: 'Asha Patel', code: '1234' }),
+      ).rejects.toMatchObject({ code: 'AUTH_001' });
+    });
+
+    it('creates user + individual_profiles in a transaction and returns no verification_status', async () => {
+      usersRepo.findByPhone.mockResolvedValue(null);
+      const client = { query: jest.fn().mockResolvedValue({ rows: [individualUser] }) };
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      const result = await service.registerIndividual({
+        phone: individualUser.phone,
+        full_name: 'Asha Patel',
+        code: '1234',
+      });
+
+      expect(result.user_id).toBe(individualUser.id);
+      expect(result).not.toHaveProperty('verification_status');
+      expect(individualProfilesRepo.create).toHaveBeenCalledWith(individualUser.id, client);
+      const [insertQuery, insertParams] = client.query.mock.calls[0];
+      expect(insertQuery).toContain('code_hash');
+      expect(insertParams).toEqual([individualUser.phone, 'Asha Patel', UserRole.INDIVIDUAL, expect.any(String)]);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: individualUser.id, action: 'registration' }),
+      );
+    });
+  });
+
   describe('loginCode', () => {
     it('throws AUTH_008 when code_hash is null', async () => {
       usersRepo.findByPhone.mockResolvedValue(baseUser);
@@ -224,10 +260,30 @@ describe('AuthService', () => {
         verification_status: VerificationStatus.AVAILABLE,
       });
       const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
-      expect(result.verification_status).toBe('available');
+      expect((result as { verification_status: string }).verification_status).toBe('available');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: baseUser.id, action: 'login' }),
       );
+    });
+
+    it('logs in an individual account, with no verification_status in the response', async () => {
+      const codeHash = await bcrypt.hash('1234', 4);
+      usersRepo.findByPhone.mockResolvedValue({
+        ...baseUser,
+        role: UserRole.INDIVIDUAL,
+        code_hash: codeHash,
+      });
+      const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
+      expect(result.user_id).toBe(baseUser.id);
+      expect(result).not.toHaveProperty('verification_status');
+      expect(caregiverProfilesRepo.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('throws AUTH_002 for a role that cannot log in with a code (e.g. admin)', async () => {
+      usersRepo.findByPhone.mockResolvedValue({ ...baseUser, role: UserRole.ADMIN });
+      await expect(
+        service.loginCode({ phone: baseUser.phone, code: '1234' }),
+      ).rejects.toMatchObject({ code: 'AUTH_002' });
     });
   });
 

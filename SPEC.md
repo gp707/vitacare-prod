@@ -30,9 +30,11 @@
 
 ```
 ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
-│  Caregiver App        │  │  Family App (V2)      │  │  Admin Dashboard     │
-│  Flutter Mobile       │  │  Flutter Mobile       │  │  Flutter Web         │
-│  apps/caregiver-app   │  │  apps/family-app      │  │  apps/admin-web      │
+│  Caregiver App        │  │  NurseNow App          │  │  Admin Dashboard     │
+│  ("NurseJobs")        │  │  (patient/family +     │  │  Flutter Web         │
+│  Flutter Mobile       │  │   hospital/rehab)      │  │                      │
+│  apps/caregiver-app   │  │  Flutter Mobile        │  │  apps/admin-web      │
+│                       │  │  apps/nursenow-app     │  │                      │
 └──────────┬───────────┘  └──────────┬───────────┘  └──────────┬───────────┘
            │                          │                          │
            └──────────────────────────┼──────────────────────────┘
@@ -337,6 +339,7 @@ export const VerificationStatus = {
 } as const;
 
 export const JobStatus = {
+  PENDING_REVIEW: 'pending_review',  // NurseNow individual posting awaiting admin approval
   ACTIVE: 'active',
   CLOSED: 'closed',
 } as const;
@@ -487,6 +490,7 @@ export const UserRole = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
   CAREGIVER: 'caregiver',
+  INDIVIDUAL: 'individual',     // NurseNow patient/family account — see "NurseNow" in CLAUDE.md
 } as const;
 ```
 
@@ -521,10 +525,11 @@ class VerificationStatus {
 }
 
 class JobStatus {
+  static const pendingReview = 'pending_review';  // NurseNow individual posting awaiting admin approval
   static const active = 'active';
   static const closed = 'closed';
 
-  static const all = [active, closed];
+  static const all = [pendingReview, active, closed];
 }
 
 class JobApplicationStatus {
@@ -979,7 +984,7 @@ CREATE TABLE users (
   password_hash VARCHAR(255),             -- NULL for caregivers, set for admins only
   code_hash VARCHAR(255),                 -- NULL for admins, set at registration for caregivers (4-digit numeric code)
   full_name VARCHAR(100) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'caregiver')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'caregiver', 'individual')),  -- 'individual' = NurseNow patient/family account (see NurseNow section); organisation role not yet implemented
   is_active BOOLEAN DEFAULT true,
   fcm_token TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1107,6 +1112,23 @@ CREATE TABLE admin_notes (
 );
 
 -- ============================================
+-- INDIVIDUAL PROFILES TABLE (NurseNow patient/family accounts — see
+-- "NurseNow" in CLAUDE.md. Mirrors caregiver_profiles' role-specific-data
+-- pattern, but no verification workflow — just the two admin block levers.)
+-- ============================================
+CREATE TABLE individual_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_job_posting_blocked BOOLEAN NOT NULL DEFAULT false,  -- blocks new POST /individual/requirements only (JOB_010); existing live requirement/applications keep working
+  block_reason TEXT,                      -- admin-entered, shown to the individual; also used for a full block (users.is_active = false)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Full block (can't log in at all) reuses users.is_active + AUTH_004 —
+-- already wired into loginCode. No separate column needed for that state.
+
+-- ============================================
 -- CARE RECEIVERS TABLE (1:1 with a job — see "Job/Application Flow" in
 -- CLAUDE.md. Not an independently reusable/searchable entity yet; a future
 -- "Patient" app will eventually supply real care-receiver identity data.)
@@ -1148,7 +1170,7 @@ CREATE TABLE jobs (
   area TEXT,                              -- free text; required via API (DTO), nullable at DB level only for rows that predate this being required
   description TEXT,                       -- free text; optional via API — previously required, DB NOT NULL constraint dropped in migration 034
   duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('day_duty', 'night_duty', 'live_in')),  -- 3 fixed shifts only; UI label "Hours Care Needed"
-  frequency_of_care VARCHAR(10) NOT NULL CHECK (frequency_of_care IN ('daily', 'monthly')),
+  frequency_of_care VARCHAR(10) CHECK (frequency_of_care IN ('daily', 'monthly')),  -- nullable: a NurseNow individual's pending_review posting is created without it, admin sets it on approval (see NurseNow section)
   start_time TIME,                        -- derived from duty_type, not admin-entered; NULL for live_in
   end_time TIME,
   start_date DATE,                        -- UI label "Preferred Start Date"; required via API (DTO) — previously optional, nullable at DB level only for rows that predate this being required
@@ -1156,8 +1178,9 @@ CREATE TABLE jobs (
   salary_amount INTEGER CHECK (salary_amount > 0),  -- ₹/day or ₹/month per frequency_of_care; required via API for every create/edit, nullable at DB level only for rows that predate this field
   preferred_gender VARCHAR(10) CHECK (preferred_gender IN ('male', 'female')),        -- NULL = no preference
   preferred_religion VARCHAR(20) CHECK (preferred_religion IN ('hindu', 'muslim', 'christian')),  -- NULL = no preference; 'others' excluded (valid for a caregiver's own religion, not offered as a job preference)
-  status VARCHAR(10) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
-  posted_by UUID NOT NULL REFERENCES users(id),
+  status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('pending_review', 'active', 'closed')),  -- pending_review: a NurseNow individual's posting awaiting admin approval; admin's own postings skip straight to active
+  rejection_reason TEXT,                  -- set only when admin rejects a pending_review posting; NULL otherwise, including a normal close
+  posted_by UUID NOT NULL REFERENCES users(id),  -- an admin OR a NurseNow individual (users.role = 'individual'); no role restriction at the DB level
   posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- effective "went live" time; drives the 3-day apply-by urgency window; starts = created_at, bumped to NOW() only on repost (edit of a closed job)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -2724,6 +2747,67 @@ returns `GEN_002` (there's simply no matching row to update). Audit-logs
 
 ---
 
+### 6.10 NurseNow Individual Endpoints
+
+See "NurseNow" in CLAUDE.md for the full design context. `@Roles(UserRole.INDIVIDUAL)`,
+`src/individual/`. Only the Individual (patient/family) account type is implemented — no
+Organisation endpoints exist yet.
+
+Registration/login reuse the auth endpoints in 6.3: `POST /auth/register/individual`
+(`phone`, `full_name`, `code`) and `POST /auth/login/code` (shared with caregiver login, same
+phone+4-digit-code mechanic, non-expiring token).
+
+#### GET `/individual/me`
+
+Returns the caller's own account: `{ user_id, full_name, phone, is_job_posting_blocked }`.
+
+#### POST `/individual/requirements`
+
+Creates a new requirement. Same request shape as `POST /admin/jobs` (6.6) — `care_receiver`,
+`city`, `area`, `description`, `duty_type`, `start_date`, `languages`, `preferred_gender`,
+`preferred_religion` — **except no `frequency_of_care`/`salary_amount`**, which admin sets on
+approval. Always created with `status: 'pending_review'`.
+
+**Errors:** `JOB_009` (already have a `pending_review`/`active` requirement), `JOB_010`
+(`is_job_posting_blocked`), plus the same field-validation errors as `POST /admin/jobs`.
+
+#### GET `/individual/requirements`
+
+The caller's own requirement(s) — a list for symmetry with `GET /caregiver/jobs/assigned`, though
+in practice zero-or-one given the one-live-requirement limit. Once `active`,
+`frequency_of_care`/`salary_amount` are populated (admin-set on approval); while `pending_review`
+they're `null`. A `closed` requirement that was declined carries `rejection_reason`.
+
+#### GET `/individual/requirements/:id/applications`
+
+Applicants on the caller's own requirement — same shape as `GET /admin/jobs/:id`'s `applications`
+array (6.6). `GEN_002` if the requirement isn't found or isn't owned by the caller.
+
+#### PATCH `/individual/requirements/:jobId/applications/:applicationId`
+
+Accept/reject an applicant — same body/behavior as the admin decide-application endpoint (6.6):
+accepting closes the requirement and assigns the caregiver; rejecting a still-`applied` applicant
+just declines them. Ownership-checked (`GEN_002` if not the requirement's owner); admin can do the
+exact same decision via the regular `PATCH /admin/jobs/:jobId/applications/:applicationId`.
+
+**Admin-side additions supporting the above** (still under 6.5/6.6, not new endpoints):
+- Approving a `pending_review` requirement is just editing it — `PATCH /admin/jobs/:id`
+  (6.6) with the full shape including `frequency_of_care`/`salary_amount` transitions
+  `pending_review → active`, reusing the same repost/push-broadcast path a `closed → active`
+  edit already used.
+- `PATCH /admin/jobs/:id/reject` (`{ reason }`, admin/super_admin) — declines a `pending_review`
+  requirement: `status → closed`, `rejection_reason` set. `JOB_011` if not `pending_review`.
+- `GET /admin/jobs` (6.6) accepts an optional `posted_by_role` filter and every job in the
+  response now includes `posted_by_role`/`posted_by_name` (joined from `users`), so admin-web can
+  distinguish "posted by patient/family" from "posted by admin" inline.
+- `GET /admin/individuals`, `GET /admin/individuals/:id`, `PATCH /admin/individuals/:id/block`
+  (`{ level: 'job_posting' | 'full', reason }`), `PATCH /admin/individuals/:id/unblock` —
+  admin/super_admin, backs admin-web's "Patients/Family" tab. `job_posting` block only stops new
+  postings (`JOB_010`, existing live requirement keeps working); `full` block sets
+  `users.is_active = false` (total login lockout, `AUTH_004`).
+
+---
+
 ## 7. Error Catalog
 
 ### 7.1 Authentication Errors (AUTH_xxx)
@@ -2793,6 +2877,10 @@ returns `GEN_002` (there's simply no matching row to update). Audit-logs
 | JOB_005 | 400 | Cannot send a reminder for a closed job | POST .../remind on a closed job |
 | JOB_006 | 404 | Application not found | decide-application on a missing/mismatched application id |
 | JOB_007 | 400 | Application has already been decided | double-accept, or re-deciding an already-rejected application |
+| JOB_008 | 400 | No active accepted application found for this job | caregiver `POST .../complete` when never applied, still `applied`, already `rejected`, or already `completed` |
+| JOB_009 | 400 | You already have a requirement in progress | NurseNow individual `POST /individual/requirements` while a `pending_review`/`active` requirement already exists |
+| JOB_010 | 403 | Your account is blocked from posting new requirements | NurseNow individual with `individual_profiles.is_job_posting_blocked = true` |
+| JOB_011 | 400 | Only a pending-review requirement can be rejected | `PATCH /admin/jobs/:id/reject` on a job not in `pending_review` |
 
 ### 7.6 General Errors (GEN_xxx)
 
@@ -3165,6 +3253,33 @@ Route by verification_status:
 
 ---
 
+### 12.5 NurseNow App — Screens & Navigation
+
+Separate Flutter app (`apps/nursenow-app`), not a tab/mode inside the caregiver app — see
+"NurseNow" in CLAUDE.md. Only the Individual (patient/family) account type is built; the
+registration screen's account-type selector shows an Organisation option that is stubbed
+("coming soon") for this phase.
+
+| Screen Name | Route | Access Condition |
+|-------------|-------|-------------------|
+| Splash | `/` | Always (app launch) |
+| Login | `/login` | Unauthenticated — phone + 4-digit code (same mechanic as caregiver-app) |
+| Registration | `/register` | Unauthenticated — phone → PIN → full name → account-type selector (Individual / Hospital-Rehab) |
+| My Requirement | `/home` | Authenticated — the account's current/most-recent requirement (or an empty state with a "Post a Requirement" CTA) |
+| Post Requirement | `/post-requirement` | Authenticated, no live requirement, not `is_job_posting_blocked` |
+
+There is no status-gated routing like the caregiver app's `verification_status` — an Individual
+account has no verification pipeline, just the two independent block levers (job-posting block,
+full block) described in the NurseNow section of CLAUDE.md.
+
+**My Requirement screen** renders one of: empty state + CTA; pending review; live (with
+`frequency_of_care`/`salary_amount` shown, plus an applicants list with Accept/Reject per
+applicant); rejected (with `rejection_reason`); closed. Posting a new requirement is only offered
+once the account has no live (pending-review-or-active) requirement — `JOB_009` server-side is the
+backstop, but the UI disables/hides the CTA proactively using the same signal.
+
+---
+
 ## 13. Admin Dashboard — Screens & Navigation
 
 ### 13.1 Screen List
@@ -3179,13 +3294,15 @@ Route by verification_status:
 | 6 | Admin Management | `/admins` | Super Admin only |
 | 7 | Settings | `/settings` | Admin, Super Admin |
 | 8 | App Versions | `/app-versions` | Admin, Super Admin |
+| 9 | Patients/Family | `/patients-family` | Admin, Super Admin |
 
 ### 13.2 Navigation Structure
 
 **Sidebar Navigation:**
 - Dashboard (icon: grid)
 - Caregivers (icon: people)
-- Jobs (icon: work)
+- Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
+- Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

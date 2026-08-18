@@ -44,6 +44,15 @@ tags:
     description: Public force-upgrade version check, called by the caregiver app on launch
   - name: Admin - App Versions
     description: Admin control of the per-platform minimum supported app version
+  - name: NurseNow - Individual
+    description: >
+      Patient/family account endpoints for the separate NurseNow app
+      (apps/nursenow-app). Only the Individual account type is implemented;
+      Organisation is a later phase. Requirements reuse the jobs/
+      care_receivers/job_applications tables and the caregiver-facing job
+      endpoints above — see "NurseNow" in CLAUDE.md.
+  - name: Admin - Individuals
+    description: Admin management of NurseNow individual (patient/family) accounts
 
 components:
   securitySchemes:
@@ -313,7 +322,12 @@ components:
         duty_type:
           $ref: "#/components/schemas/DutyType"
         frequency_of_care:
-          $ref: "#/components/schemas/FrequencyOfCare"
+          allOf:
+            - $ref: "#/components/schemas/FrequencyOfCare"
+          nullable: true
+          description: >
+            Null only while status is pending_review — a NurseNow individual's
+            posting is created without it; admin sets it on approval.
         start_time:
           type: string
           nullable: true
@@ -362,18 +376,41 @@ components:
             registration, not offered as a job preference.
         status:
           type: string
-          enum: [active, closed]
+          enum: [pending_review, active, closed]
+          description: >
+            pending_review is only reachable via a NurseNow individual's
+            POST /individual/requirements — admin's own postings (POST
+            /admin/jobs) go straight to active.
+        rejection_reason:
+          type: string
+          nullable: true
+          description: >
+            Set only when admin rejects a pending_review posting via PATCH
+            /admin/jobs/{id}/reject. Null otherwise, including a normal close.
         posted_by:
           type: string
           format: uuid
+        posted_by_role:
+          type: string
+          nullable: true
+          enum: [admin, super_admin, individual, null]
+          description: >
+            Only present on admin-facing responses (GET /admin/jobs, GET
+            /admin/jobs/{id}) — joined from users.role so admin-web can show
+            "Posted by patient/family" for NurseNow individual postings.
+        posted_by_name:
+          type: string
+          nullable: true
+          description: Same admin-only availability as posted_by_role.
         posted_at:
           type: string
           format: date-time
           description: >
             Effective "went live" time — drives the 3-day apply-by urgency
             window (posted_at + 3 days). Starts equal to created_at; bumped
-            to NOW() only when a closed job is edited-and-reposted, not on
-            a plain edit of an already-active job.
+            to NOW() only when a closed or pending_review job is
+            edited-and-approved/reposted, not on a plain edit of an
+            already-active job.
         created_at:
           type: string
           format: date-time
@@ -954,6 +991,89 @@ paths:
                     error:
                       code: "PROFILE_009"
                       message: "Terms and conditions must be accepted"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_001"
+                  message: "Phone number is already registered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/register/individual:
+    post:
+      tags: [Auth, NurseNow - Individual]
+      summary: Register a new NurseNow Individual (patient/family) account
+      description: |
+        Creates a `users` row with role `individual` plus a 1:1
+        `individual_profiles` row. No verification pipeline and no
+        account-level approval gate — the account can post a requirement
+        immediately after registering. Issues a non-expiring JWT (same as
+        caregiver registration). Shares `POST /auth/login/code` with
+        caregivers for subsequent logins.
+      operationId: registerIndividual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, full_name, code]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  description: "Indian mobile number with +91 prefix. Must be unique across all roles."
+                  example: "+919876543210"
+                full_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                  example: "Asha Patel"
+                code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: "4-digit numeric login code, set once at registration."
+                  example: "1234"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+              example:
+                success: true
+                data:
+                  user_id: "e4f5a6b7-c8d9-0123-ef01-456789012345"
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Phone already registered
           content:
@@ -4068,6 +4188,72 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /admin/jobs/{id}/reject:
+    patch:
+      tags: [Admin - Jobs, NurseNow - Individual]
+      summary: Reject a NurseNow individual's pending-review requirement
+      description: >
+        Only valid from status pending_review (JOB_011 otherwise) — declines
+        a NurseNow individual's posting, which never goes live. Sets status
+        to closed and stores rejection_reason, visible to the individual on
+        their own GET /individual/requirements. Admin's own postings never
+        reach pending_review, so this is only ever used on NurseNow postings.
+      operationId: rejectJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+                  example: "Does not meet our coverage area"
+      responses:
+        "200":
+          description: Requirement rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/Job"
+        "400":
+          description: Job is not pending_review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_011", message: "Only a pending-review requirement can be rejected" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /admin/jobs/{id}/remind:
     post:
       tags: [Admin - Jobs]
@@ -4222,6 +4408,392 @@ paths:
               example:
                 success: false
                 error: { code: "JOB_006", message: "Application not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /individual/me:
+    get:
+      tags: [NurseNow - Individual]
+      summary: Get the caller's own NurseNow individual account
+      operationId: getIndividualMe
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      full_name: { type: string }
+                      phone: { type: string }
+                      is_job_posting_blocked: { type: boolean }
+              example:
+                success: true
+                data:
+                  user_id: "e4f5a6b7-c8d9-0123-ef01-456789012345"
+                  full_name: "Asha Patel"
+                  phone: "+919876543210"
+                  is_job_posting_blocked: false
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /individual/requirements:
+    post:
+      tags: [NurseNow - Individual]
+      summary: Post a new care requirement
+      description: >
+        Same request shape as POST /admin/jobs (care_receiver,
+        city/area/description/duty_type/start_date/languages/
+        preferred_gender/preferred_religion) except no frequency_of_care or
+        salary_amount, which admin sets on approval. Always created with
+        status pending_review. An account may have at most one live
+        (pending_review or active) requirement at a time.
+      operationId: createIndividualRequirement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/Job"
+              description: Same shape as the admin job-create body, minus frequency_of_care/salary_amount.
+      responses:
+        "201":
+          description: Requirement created (pending_review)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/Job"
+        "400":
+          description: Validation error, or a live requirement already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                already_has_live_requirement:
+                  summary: A pending_review or active requirement already exists
+                  value:
+                    success: false
+                    error: { code: "JOB_009", message: "You already have a requirement in progress" }
+        "403":
+          description: Account is blocked from posting new requirements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_010", message: "Your account is blocked from posting new requirements" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [NurseNow - Individual]
+      summary: List the caller's own requirement(s)
+      description: >
+        In practice zero-or-one item given the one-live-requirement limit —
+        shaped as a list for symmetry with GET /caregiver/jobs/assigned.
+        frequency_of_care/salary_amount are null until admin approves;
+        rejection_reason is set only on a rejected (closed) requirement.
+      operationId: listMyRequirements
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: The caller's requirement(s)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /individual/requirements/{id}/applications:
+    get:
+      tags: [NurseNow - Individual]
+      summary: List applicants on the caller's own requirement
+      description: Ownership-checked — GEN_002 if the requirement isn't found or isn't owned by the caller.
+      operationId: listMyRequirementApplications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Applicants list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/JobApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /individual/requirements/{jobId}/applications/{applicationId}:
+    patch:
+      tags: [NurseNow - Individual]
+      summary: Accept or reject an applicant on the caller's own requirement
+      description: >
+        Same body/behavior as the admin decide-application endpoint —
+        accepting closes the requirement and assigns the caregiver;
+        rejecting a still-applied applicant just declines them.
+        Ownership-checked (GEN_002 if not the requirement's owner); admin
+        can make the identical decision via
+        PATCH /admin/jobs/{jobId}/applications/{applicationId}.
+      operationId: decideMyRequirementApplication
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/JobApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement or application not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/individuals:
+    get:
+      tags: [Admin - Individuals]
+      summary: List NurseNow individual (patient/family) accounts
+      operationId: listAdminIndividuals
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Paginated individual accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id: { type: string, format: uuid }
+                        full_name: { type: string }
+                        phone: { type: string }
+                        is_active: { type: boolean }
+                        is_job_posting_blocked: { type: boolean }
+                        block_reason: { type: string, nullable: true }
+                        created_at: { type: string, format: date-time }
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/individuals/{id}:
+    get:
+      tags: [Admin - Individuals]
+      summary: Get a NurseNow individual account's detail
+      operationId: getAdminIndividualDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Individual account detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/individuals/{id}/block:
+    patch:
+      tags: [Admin - Individuals]
+      summary: Block an individual account
+      description: >
+        level=job_posting only stops new POST /individual/requirements
+        (JOB_010) — an existing live requirement and its applications keep
+        working, and login still succeeds. level=full sets users.is_active
+        to false — a total login lockout (AUTH_004), same as a deactivated
+        admin/caregiver.
+      operationId: blockIndividual
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level, reason]
+              properties:
+                level:
+                  type: string
+                  enum: [job_posting, full]
+                reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Account blocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/individuals/{id}/unblock:
+    patch:
+      tags: [Admin - Individuals]
+      summary: Unblock an individual account
+      operationId: unblockIndividual
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level]
+              properties:
+                level:
+                  type: string
+                  enum: [job_posting, full]
+      responses:
+        "200":
+          description: Account unblocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
         "500":
           $ref: "#/components/responses/InternalError"
 

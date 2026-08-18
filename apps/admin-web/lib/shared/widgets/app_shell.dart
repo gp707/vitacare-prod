@@ -4,7 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../features/auth/state/session_notifier.dart';
 import '../../features/auth/state/session_state.dart';
 
-enum AppShellSection { dashboard, caregivers, jobs, auditLogs, adminManagement, appVersions }
+enum AppShellSection { dashboard, caregivers, patientsFamily, jobs, auditLogs, adminManagement, appVersions }
 
 /// Web sidebar + content layout used by every authenticated screen.
 /// SPEC.md 13.2: Dashboard / Caregivers / Audit Logs (admin + super_admin) /
@@ -30,53 +30,71 @@ class AppShell extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: AppSpacing.lg),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text(
-                    'VitaCare Admin',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+                // Nav items scroll independently of the pinned Logout below
+                // — the sidebar's item count has grown over time (and will
+                // keep growing), so a fixed-height Column would eventually
+                // overflow on short screens instead of just scrolling.
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: AppSpacing.lg),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          child: Text(
+                            'VitaCare Admin',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        _NavItem(
+                          icon: Icons.grid_view,
+                          label: 'Dashboard',
+                          selected: current == AppShellSection.dashboard,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false),
+                        ),
+                        _NavItem(
+                          icon: Icons.people,
+                          label: 'Caregivers',
+                          selected: current == AppShellSection.caregivers,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/caregivers', (r) => false),
+                        ),
+                        _NavItem(
+                          icon: Icons.family_restroom,
+                          label: 'Patients/Family',
+                          selected: current == AppShellSection.patientsFamily,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/patients-family', (r) => false),
+                        ),
+                        _NavItem(
+                          icon: Icons.work,
+                          label: 'Jobs',
+                          selected: current == AppShellSection.jobs,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/jobs', (r) => false),
+                        ),
+                        _NavItem(
+                          icon: Icons.history,
+                          label: 'Audit Logs',
+                          selected: current == AppShellSection.auditLogs,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/audit-logs', (r) => false),
+                        ),
+                        if (isSuperAdmin)
+                          _NavItem(
+                            icon: Icons.shield,
+                            label: 'Admin Management',
+                            selected: current == AppShellSection.adminManagement,
+                            onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/admins', (r) => false),
+                          ),
+                        _NavItem(
+                          icon: Icons.system_update,
+                          label: 'App Versions',
+                          selected: current == AppShellSection.appVersions,
+                          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/app-versions', (r) => false),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xl),
-                _NavItem(
-                  icon: Icons.grid_view,
-                  label: 'Dashboard',
-                  selected: current == AppShellSection.dashboard,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.people,
-                  label: 'Caregivers',
-                  selected: current == AppShellSection.caregivers,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/caregivers', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.work,
-                  label: 'Jobs',
-                  selected: current == AppShellSection.jobs,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/jobs', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.history,
-                  label: 'Audit Logs',
-                  selected: current == AppShellSection.auditLogs,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/audit-logs', (r) => false),
-                ),
-                if (isSuperAdmin)
-                  _NavItem(
-                    icon: Icons.shield,
-                    label: 'Admin Management',
-                    selected: current == AppShellSection.adminManagement,
-                    onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/admins', (r) => false),
-                  ),
-                _NavItem(
-                  icon: Icons.system_update,
-                  label: 'App Versions',
-                  selected: current == AppShellSection.appVersions,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/app-versions', (r) => false),
-                ),
-                const Spacer(),
                 _NavItem(
                   icon: Icons.logout,
                   label: 'Logout',

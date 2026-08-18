@@ -65,7 +65,10 @@ class JobModel {
   final String? area;
   final String? description;
   final String dutyType;
-  final String frequencyOfCare;
+  /// Null only for a NurseNow individual-posted job still in
+  /// pending_review — an admin sets it (along with [salaryAmount]) on
+  /// approval. Always non-null for an admin-posted or already-approved job.
+  final String? frequencyOfCare;
   final String? startTime;
   final String? endTime;
   final String? startDate;
@@ -80,6 +83,15 @@ class JobModel {
   final MyApplicationModel? myApplication;
   final CareReceiverModel? careReceiver;
   final JobPosterModel? jobPoster;
+  /// Only set when an admin rejects a pending_review job — null otherwise,
+  /// including for a normal close.
+  final String? rejectionReason;
+  /// Only present on admin-facing responses (via a users join) — the
+  /// poster's role/name, e.g. 'individual' for a NurseNow patient/family
+  /// posting vs 'admin'/'super_admin' for admin's own. Null on
+  /// caregiver-facing responses.
+  final String? postedByRole;
+  final String? postedByName;
 
   const JobModel({
     required this.id,
@@ -88,7 +100,7 @@ class JobModel {
     this.area,
     this.description,
     required this.dutyType,
-    required this.frequencyOfCare,
+    this.frequencyOfCare,
     this.startTime,
     this.endTime,
     this.startDate,
@@ -103,6 +115,9 @@ class JobModel {
     this.myApplication,
     this.careReceiver,
     this.jobPoster,
+    this.rejectionReason,
+    this.postedByRole,
+    this.postedByName,
   });
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
@@ -112,7 +127,7 @@ class JobModel {
         area: json['area'] as String?,
         description: json['description'] as String?,
         dutyType: json['duty_type'] as String,
-        frequencyOfCare: json['frequency_of_care'] as String,
+        frequencyOfCare: json['frequency_of_care'] as String?,
         startTime: json['start_time'] as String?,
         endTime: json['end_time'] as String?,
         startDate: json['start_date'] as String?,
@@ -133,6 +148,9 @@ class JobModel {
         jobPoster: json['job_poster'] == null
             ? null
             : JobPosterModel.fromJson(json['job_poster'] as Map<String, dynamic>),
+        rejectionReason: json['rejection_reason'] as String?,
+        postedByRole: json['posted_by_role'] as String?,
+        postedByName: json['posted_by_name'] as String?,
       );
 
   /// The 3-day "apply by" urgency window, always computed from [postedAt]

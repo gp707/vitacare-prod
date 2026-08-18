@@ -12,7 +12,13 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 
-JobModel _job({String status = 'active', int? salaryAmount = 30000, String frequencyOfCare = 'daily'}) {
+JobModel _job({
+  String status = 'active',
+  int? salaryAmount = 30000,
+  String? frequencyOfCare = 'daily',
+  String? postedByRole,
+  String? postedByName,
+}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -29,6 +35,8 @@ JobModel _job({String status = 'active', int? salaryAmount = 30000, String frequ
     'posted_by': 'admin-1',
     'posted_at': '2026-08-01T10:00:00Z',
     'created_at': '2026-08-01T10:00:00Z',
+    if (postedByRole != null) 'posted_by_role': postedByRole,
+    if (postedByName != null) 'posted_by_name': postedByName,
   });
 }
 
@@ -115,6 +123,8 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? updatedDescription;
   CareReceiverInput? submittedCareReceiver;
   JobListFilters? lastListFilters;
+  String? rejectedJobId;
+  String? rejectedReason;
 
   _FakeAdminJobsRepository(this.jobs, {this.applications = const [], this.posters = const []}) : super(Dio());
 
@@ -179,6 +189,13 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   @override
   Future<void> remind(String jobId) async {
     remindedJobId = jobId;
+  }
+
+  @override
+  Future<void> reject(String jobId, String reason) async {
+    rejectedJobId = jobId;
+    rejectedReason = reason;
+    jobs = jobs.map((j) => _job(status: 'closed')).toList();
   }
 
   @override
@@ -302,7 +319,7 @@ void main() {
     expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('₹30000/day'), findsOneWidget);
-    expect(find.text('active'), findsOneWidget);
+    expect(find.text('Active'), findsOneWidget);
   });
 
   testWidgets('shows no jobs posted yet with no filters active, vs no jobs match these filters once one is',
@@ -457,6 +474,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.remindedJobId, 'job-1');
+  });
+
+  testWidgets('shows a Pending Review badge and Reject button for a pending_review job, but not an active one',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(status: 'pending_review', salaryAmount: null, frequencyOfCare: null),
+      _job(status: 'active'),
+    ]);
+    await _pump(tester, repo);
+
+    expect(find.text('Pending Review'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets('shows who posted a NurseNow individual requirement, but not an admin-posted job', (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(
+        status: 'pending_review',
+        salaryAmount: null,
+        frequencyOfCare: null,
+        postedByRole: 'individual',
+        postedByName: 'Asha Patel',
+      ),
+      _job(status: 'active', postedByRole: 'admin'),
+    ]);
+    await _pump(tester, repo);
+
+    expect(find.text('Posted by patient/family — Asha Patel'), findsOneWidget);
+  });
+
+  testWidgets('tapping Reject opens a reason dialog and calls the repository', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job(status: 'pending_review', salaryAmount: null, frequencyOfCare: null)]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reject requirement'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Does not meet our coverage area');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.rejectedJobId, 'job-1');
+    expect(repo.rejectedReason, 'Does not meet our coverage area');
   });
 
   testWidgets('Post New Job opens a dialog; filling required fields and submitting calls create()',

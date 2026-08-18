@@ -71,6 +71,9 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_006: { status: 404, message: 'Application not found' },
   JOB_007: { status: 400, message: 'Application has already been decided' },
   JOB_008: { status: 400, message: 'No active accepted application found for this job' },
+  JOB_009: { status: 400, message: 'You already have a requirement in progress' },
+  JOB_010: { status: 403, message: 'Your account is blocked from posting new requirements' },
+  JOB_011: { status: 400, message: 'Only a pending-review requirement can be rejected' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

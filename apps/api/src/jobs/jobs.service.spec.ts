@@ -64,6 +64,7 @@ describe('JobsService', () => {
       listAssignedForCaregiver: jest.fn(),
       close: jest.fn(),
       reopen: jest.fn(),
+      reject: jest.fn(),
     };
     jobApplicationsRepo = {
       upsert: jest.fn(),
@@ -301,6 +302,53 @@ describe('JobsService', () => {
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
       );
     });
+
+    it('approves+activates a pending_review individual requirement on edit (admin providing frequency/salary), and broadcasts the push', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'pending_review', frequency_of_care: null, salary_amount: null });
+      jobsRepo.update.mockResolvedValue({ ...job, status: 'active', duty_type: 'day_duty', area: 'Koramangala' });
+
+      await service.updateJob('admin-1', 'job-1', dto, null);
+
+      expect(jobsRepo.update).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ status: 'active', frequency_of_care: 'daily', salary_amount: 35000 }),
+        expect.anything(),
+      );
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
+        'New Job: Day Duty in Bangalore',
+        'Koramangala, Bangalore | IMMEDIATELY APPLY',
+      );
+    });
+  });
+
+  describe('rejectJob', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.rejectJob('admin-1', 'missing', 'not needed', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_011 when the job is not pending_review', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'active' });
+      await expect(service.rejectJob('admin-1', 'job-1', 'not needed', null)).rejects.toMatchObject({
+        code: 'JOB_011',
+      });
+    });
+
+    it('closes the job with a rejection_reason and audit-logs it', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'pending_review' });
+      const result = await service.rejectJob('admin-1', 'job-1', 'Salary expectations too high', '127.0.0.1');
+      expect(jobsRepo.reject).toHaveBeenCalledWith('job-1', 'Salary expectations too high');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          entityId: 'job-1',
+          afterValue: expect.objectContaining({ status: 'closed', rejection_reason: 'Salary expectations too high' }),
+        }),
+      );
+      expect(result).toEqual({ message: 'Requirement rejected', status: 'closed' });
+    });
   });
 
   describe('listJobsForAdmin', () => {
@@ -322,6 +370,7 @@ describe('JobsService', () => {
         gender: 'female',
         duty_type: 'live_in',
         language: 'hindi',
+        posted_by_role: 'individual',
       } as any);
       expect(jobsRepo.listForAdmin).toHaveBeenCalledWith(
         {
@@ -331,6 +380,7 @@ describe('JobsService', () => {
           gender: 'female',
           duty_type: 'live_in',
           language: 'hindi',
+          posted_by_role: 'individual',
         },
         { page: 1, limit: 20 },
       );
@@ -352,14 +402,17 @@ describe('JobsService', () => {
       await expect(service.getJobDetailForAdmin('missing')).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
-    it('returns the job with its care receiver and applications', async () => {
+    it('returns the job with its care receiver, applications, and poster info', async () => {
       jobsRepo.findById.mockResolvedValue(job);
       jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1', status: 'applied' }]);
+      usersRepo.findById.mockResolvedValue({ role: 'admin', full_name: 'Admin One' });
       const result = await service.getJobDetailForAdmin('job-1');
       expect(result).toEqual({
         ...job,
         care_receiver: careReceiver,
         applications: [{ id: 'app-1', status: 'applied' }],
+        posted_by_role: 'admin',
+        posted_by_name: 'Admin One',
       });
     });
   });

@@ -137,6 +137,38 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     }
   }
 
+  /// Only offered for a pending_review (NurseNow individual) requirement —
+  /// declines it with a reason, which the individual sees on their own
+  /// requirement view. It never goes live.
+  Future<void> _reject(JobModel job) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject requirement'),
+        content: TextField(
+          controller: controller,
+          maxLength: 1000,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason (shown to the requester)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirm')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(adminJobsRepositoryProvider).reject(job.id, controller.text.trim());
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   Future<void> _viewApplications(JobModel job) async {
     await showDialog<void>(
       context: context,
@@ -299,6 +331,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         job: job,
                         onClose: job.status == JobStatus.active ? () => _close(job) : null,
                         onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
+                        onReject: job.status == JobStatus.pendingReview ? () => _reject(job) : null,
                         onViewApplications: () => _viewApplications(job),
                         onEdit: () => _openEditDialog(job),
                       );
@@ -325,6 +358,7 @@ class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
+  final VoidCallback? onReject;
   final VoidCallback onViewApplications;
   final VoidCallback onEdit;
 
@@ -332,6 +366,7 @@ class _JobRow extends StatelessWidget {
     required this.job,
     required this.onClose,
     required this.onRemind,
+    required this.onReject,
     required this.onViewApplications,
     required this.onEdit,
   });
@@ -370,9 +405,16 @@ class _JobRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    VitaStatusBadge(status: job.status),
+                    _JobStatusBadge(status: job.status),
                   ],
                 ),
+                if (job.postedByRole == UserRole.individual) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Posted by patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
+                    style: const TextStyle(color: AppColors.primaryDark, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xs),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
@@ -416,8 +458,45 @@ class _JobRow extends StatelessWidget {
           TextButton(onPressed: onViewApplications, child: const Text('Applicants')),
           if (onRemind != null) TextButton(onPressed: onRemind, child: const Text('Remind')),
           if (onClose != null) TextButton(onPressed: onClose, child: const Text('Close')),
+          if (onReject != null) TextButton(onPressed: onReject, child: const Text('Reject')),
         ],
       ),
+    );
+  }
+}
+
+const Map<String, String> _jobStatusLabels = {
+  JobStatus.pendingReview: 'Pending Review',
+  JobStatus.active: 'Active',
+  JobStatus.closed: 'Closed',
+};
+
+const Map<String, Color> _jobStatusColors = {
+  JobStatus.pendingReview: Colors.orange,
+  JobStatus.active: AppColors.success,
+  JobStatus.closed: AppColors.textSecondary,
+};
+
+/// Job's own status (active/closed/pending_review) — distinct from
+/// VitaStatusBadge, which is specifically for a caregiver's
+/// VerificationStatus and doesn't know about job statuses.
+class _JobStatusBadge extends StatelessWidget {
+  final String status;
+
+  const _JobStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _jobStatusColors[status] ?? AppColors.textSecondary;
+    final label = _jobStatusLabels[status] ?? status;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }

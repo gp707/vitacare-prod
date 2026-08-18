@@ -7,6 +7,7 @@ import { UsersRepository, UserRecord } from '../database/repositories/users.repo
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
+import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
@@ -14,8 +15,14 @@ import { AuditService } from '../audit/audit.service';
 import { TokenService } from './token.service';
 import { RefreshTokenPayload } from '../common/interfaces/jwt-payload.interface';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterIndividualDto } from './dto/register-individual.dto';
 import { LoginCodeDto } from './dto/login-code.dto';
 import { LoginEmailDto } from './dto/login-email.dto';
+
+// Both caregiver and NurseNow individual accounts log in with phone + a
+// bcrypt-hashed 4-digit code — same mechanism, different profile table
+// created at registration.
+const CODE_LOGIN_ROLES: UserRole[] = [UserRole.CAREGIVER, UserRole.INDIVIDUAL];
 
 export interface IssuedTokens {
   access_token: string;
@@ -30,6 +37,7 @@ export class AuthService {
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
     private readonly caregiverLanguagesRepo: CaregiverLanguagesRepository,
     private readonly caregiverPreferredCitiesRepo: CaregiverPreferredCitiesRepository,
+    private readonly individualProfilesRepo: IndividualProfilesRepository,
     private readonly refreshTokensRepo: RefreshTokensRepository,
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
@@ -104,7 +112,7 @@ export class AuthService {
 
   async loginCode(dto: LoginCodeDto, ipAddress: string | null = null) {
     const user = await this.usersRepo.findByPhone(dto.phone);
-    if (!user || user.role !== UserRole.CAREGIVER) {
+    if (!user || !CODE_LOGIN_ROLES.includes(user.role)) {
       throw new AppException('AUTH_002');
     }
     if (!user.is_active) {
@@ -116,7 +124,6 @@ export class AuthService {
 
     await this.refreshTokensRepo.pruneStaleForUser(user.id);
     const tokens = await this.issueTokens(user);
-    const profile = await this.caregiverProfilesRepo.findByUserId(user.id);
 
     await this.auditService.log({
       userId: user.id,
@@ -127,11 +134,56 @@ export class AuthService {
       ipAddress,
     });
 
+    // verification_status is a caregiver-only concept (the 5-state
+    // pending_call/available/... pipeline) — individual accounts have no
+    // such workflow, so it's simply omitted rather than defaulted to a
+    // caregiver status that wouldn't mean anything for them.
+    if (user.role === UserRole.INDIVIDUAL) {
+      return { user_id: user.id, ...tokens };
+    }
+
+    const profile = await this.caregiverProfilesRepo.findByUserId(user.id);
     return {
       user_id: user.id,
       ...tokens,
       verification_status: profile?.verification_status ?? VerificationStatus.PENDING_CALL,
     };
+  }
+
+  /** Individual (patient/family) registration — deliberately minimal
+   *  compared to caregiver registration: no gender/age/religion/
+   *  qualification, no documents, no verification pipeline. Logs in the
+   *  same way (phone + code) immediately after. */
+  async registerIndividual(dto: RegisterIndividualDto, ipAddress: string | null = null) {
+    const existing = await this.usersRepo.findByPhone(dto.phone);
+    if (existing) {
+      throw new AppException('AUTH_001');
+    }
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+
+    const user = await this.db.withTransaction(async (client) => {
+      const userResult = await client.query<UserRecord>(
+        `INSERT INTO users (phone, full_name, role, code_hash) VALUES ($1, $2, $3, $4) RETURNING *`,
+        [dto.phone, dto.full_name, UserRole.INDIVIDUAL, codeHash],
+      );
+      const user = userResult.rows[0];
+      await this.individualProfilesRepo.create(user.id, client);
+      return user;
+    });
+
+    const tokens = await this.issueTokens(user);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: AuditAction.REGISTRATION,
+      entityType: 'users',
+      entityId: user.id,
+      afterValue: { full_name: dto.full_name, phone: dto.phone, role: UserRole.INDIVIDUAL },
+      ipAddress,
+    });
+
+    return { user_id: user.id, ...tokens };
   }
 
   async loginEmail(dto: LoginEmailDto, ipAddress: string | null = null) {
