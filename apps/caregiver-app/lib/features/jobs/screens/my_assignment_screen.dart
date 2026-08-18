@@ -30,6 +30,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   bool _loading = true;
   String? _errorMessage;
   String? _completingJobId;
+  bool _hideCompleted = false;
 
   @override
   void initState() {
@@ -98,6 +99,10 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasCompleted = _jobs.any((j) => j.myApplication?.status == JobApplicationStatus.completed);
+    final visibleJobs = _hideCompleted
+        ? _jobs.where((j) => j.myApplication?.status != JobApplicationStatus.completed).toList()
+        : _jobs;
     return Scaffold(
       appBar: AppBar(
         title: const Text('MyJobs'),
@@ -126,6 +131,13 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                    if (hasCompleted)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Hide completed jobs'),
+                        value: _hideCompleted,
+                        onChanged: (value) => setState(() => _hideCompleted = value),
+                      ),
                     if (_jobs.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
@@ -134,8 +146,17 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
+                      )
+                    else if (visibleJobs.isEmpty && _errorMessage == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                        child: Text(
+                          'All your accepted jobs are completed and hidden. Turn off "Hide completed jobs" to see them.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
                       ),
-                    for (final job in _jobs) ...[
+                    for (final job in visibleJobs) ...[
                       _AssignedJobCard(
                         job: job,
                         completing: _completingJobId == job.id,

@@ -142,6 +142,71 @@ void main() {
     expect(find.text('You were accepted for this job'), findsOneWidget);
   });
 
+  testWidgets('does not show the "Hide completed jobs" toggle when there are no completed jobs', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_assignedJob()]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: MyAssignmentScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hide completed jobs'), findsNothing);
+  });
+
+  testWidgets('toggling "Hide completed jobs" hides completed cards but keeps accepted ones, and can be undone',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
+      _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+    ]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: MyAssignmentScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final toggle = find.widgetWithText(SwitchListTile, 'Hide completed jobs');
+    expect(toggle, findsOneWidget);
+    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('Job #43'), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('Job #43'), findsNothing);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('Job #43'), findsOneWidget);
+  });
+
+  testWidgets('shows a message instead of the empty state when every job is completed and hidden', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]);
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: MyAssignmentScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Hide completed jobs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("You don't have any accepted jobs yet."), findsNothing);
+    expect(find.textContaining('are completed and hidden'), findsOneWidget);
+  });
+
   testWidgets('tapping Mark Complete, confirming, calls completeJob and refreshes the list', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()]);
     await _pumpTall(
