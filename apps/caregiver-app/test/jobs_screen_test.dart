@@ -48,7 +48,6 @@ JobModel _job({
       'medical_assistance': ['medication_reminders'],
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
-      'medical_info': 'Needs help twice daily',
       'medical_condition_other': 'Recovering from hip surgery',
       'toilet_assistance': ['uses_diapers', 'uses_catheter'],
       'toilet_assistance_other': 'Needs a raised commode seat',
@@ -151,7 +150,6 @@ void main() {
     expect(find.text('Diabetes'), findsOneWidget);
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);
-    expect(find.text('Needs help twice daily'), findsOneWidget);
     expect(find.text('Other condition: Recovering from hip surgery'), findsOneWidget);
     expect(find.text('Other toilet assistance: Needs a raised commode seat'), findsOneWidget);
 

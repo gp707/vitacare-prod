@@ -1098,7 +1098,6 @@ CREATE TABLE care_receivers (
   has_medical_condition BOOLEAN NOT NULL DEFAULT false,
   medical_conditions JSONB NOT NULL DEFAULT '[]',  -- only populated when has_medical_condition
   medical_condition_other TEXT,           -- free text shown when medical_conditions includes 'other'
-  medical_info TEXT,                      -- free text, "important information for the caregiver"
   toilet_assistance JSONB NOT NULL DEFAULT '[]',  -- multi-select: uses_diapers/uses_bed_pan/uses_catheter/complete_toileting_assistance/others/independent
   toilet_assistance_other TEXT,           -- free text shown when toilet_assistance includes 'others'
   requires_vital_monitoring BOOLEAN NOT NULL DEFAULT false,
@@ -2072,7 +2071,6 @@ notification to ALL caregivers.
     "has_medical_condition": true,
     "medical_conditions": ["diabetes"],
     "medical_condition_other": null,
-    "medical_info": "Needs help twice daily, post hip surgery",
     "toilet_assistance": ["uses_diapers"],
     "toilet_assistance_other": null,
     "requires_vital_monitoring": true,
@@ -2098,7 +2096,6 @@ notification to ALL caregivers.
 - `care_receiver.has_medical_condition`: Optional boolean, defaults to `false` when omitted.
 - `care_receiver.medical_conditions`: Required array if `has_medical_condition` is true; not validated otherwise.
 - `care_receiver.medical_condition_other`: Optional free text, max 500 chars. UI-only conditional (admin-web shows/sends it only when `medical_conditions` includes `other`) — the backend itself accepts it unconditionally, no cross-field validation.
-- `care_receiver.medical_info`: Optional free text.
 - `care_receiver.toilet_assistance`: Optional array, each item a valid enum value — multi-select ("select all that apply"). An omitted or empty array defaults to `[independent]`.
 - `care_receiver.toilet_assistance_other`: Optional free text, max 500 chars. Same pattern as `medical_condition_other` — UI-conditional on `toilet_assistance` including `others`, unconditionally optional server-side.
 - `care_receiver.requires_vital_monitoring`: Optional boolean, defaults to `false` when omitted. `care_receiver.vital_monitoring_types`: Required non-empty array if `requires_vital_monitoring` is true; not validated otherwise.
@@ -2203,7 +2200,6 @@ Get job detail with the care receiver and every application.
       "medical_assistance": ["medication_reminders"],
       "has_medical_condition": true,
       "medical_conditions": ["diabetes"],
-      "medical_info": "Needs help twice daily, post hip surgery",
       "toilet_assistance": ["uses_diapers"],
       "requires_vital_monitoring": true,
       "vital_monitoring_types": ["blood_pressure", "blood_sugar"]
@@ -2371,7 +2367,6 @@ remaining — purely informational, never blocks applying).
         "medical_assistance": ["medication_reminders"],
         "has_medical_condition": true,
         "medical_conditions": ["diabetes"],
-        "medical_info": "Needs help twice daily, post hip surgery",
         "toilet_assistance": ["uses_diapers"],
         "requires_vital_monitoring": true,
         "vital_monitoring_types": ["blood_pressure", "blood_sugar"]

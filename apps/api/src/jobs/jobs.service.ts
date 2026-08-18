@@ -89,7 +89,6 @@ function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInpu
         : [...CARE_RECEIVER_DEFAULTS.medical_assistance],
     has_medical_condition: dto.has_medical_condition ?? false,
     medical_conditions: dto.medical_conditions ?? [],
-    medical_info: dto.medical_info ?? null,
     medical_condition_other: dto.medical_condition_other ?? null,
     toilet_assistance:
       dto.toilet_assistance && dto.toilet_assistance.length > 0

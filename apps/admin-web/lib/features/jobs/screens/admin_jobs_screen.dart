@@ -298,7 +298,6 @@ class _JobFormDialog extends ConsumerStatefulWidget {
 class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _descriptionController = TextEditingController();
   final _areaController = TextEditingController();
-  final _medicalInfoController = TextEditingController();
   final _medicalConditionOtherController = TextEditingController();
   final _toiletAssistanceOtherController = TextEditingController();
   final _ageController = TextEditingController();
@@ -388,7 +387,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _medicalAssistance = List.of(cr.medicalAssistance);
       _hasMedicalCondition = cr.hasMedicalCondition;
       _medicalConditions = List.of(cr.medicalConditions);
-      _medicalInfoController.text = cr.medicalInfo ?? '';
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
       _toiletAssistance = List.of(cr.toiletAssistance);
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
@@ -401,7 +399,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   void dispose() {
     _descriptionController.dispose();
     _areaController.dispose();
-    _medicalInfoController.dispose();
     _medicalConditionOtherController.dispose();
     _toiletAssistanceOtherController.dispose();
     _ageController.dispose();
@@ -525,8 +522,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         medicalAssistance: _medicalAssistance,
         hasMedicalCondition: _hasMedicalCondition,
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
-        medicalInfo:
-            _medicalInfoController.text.trim().isEmpty ? null : _medicalInfoController.text.trim(),
         medicalConditionOther: _medicalConditions.contains(MedicalCondition.other) &&
                 _medicalConditionOtherController.text.trim().isNotEmpty
             ? _medicalConditionOtherController.text.trim()
@@ -762,13 +757,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       ],
                     ],
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _medicalInfoController,
-                  maxLines: 2,
-                  decoration:
-                      const InputDecoration(labelText: 'Important information for the caregiver'),
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),

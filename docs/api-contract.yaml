@@ -252,9 +252,6 @@ components:
             "other"; sent alongside (not instead of) the selected values.
             Unconditionally optional server-side — no cross-field validation
             tying it to "other" being selected.
-        medical_info:
-          type: string
-          nullable: true
         toilet_assistance:
           type: array
           items:
@@ -286,7 +283,6 @@ components:
         has_medical_condition: true
         medical_conditions: ["diabetes"]
         medical_condition_other: null
-        medical_info: "Needs help twice daily, post hip surgery"
         toilet_assistance: ["uses_diapers"]
         toilet_assistance_other: null
         requires_vital_monitoring: true
@@ -3558,9 +3554,6 @@ paths:
                       type: string
                       maxLength: 500
                       description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when medical_conditions includes 'other'."
-                    medical_info:
-                      type: string
-                      description: "Free text — important information for the caregiver."
                     toilet_assistance:
                       type: array
                       items:
@@ -3639,7 +3632,6 @@ paths:
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
                 medical_condition_other: null
-                medical_info: "Needs help twice daily, post hip surgery"
                 toilet_assistance: ["uses_diapers"]
                 toilet_assistance_other: null
                 requires_vital_monitoring: true
@@ -3848,9 +3840,6 @@ paths:
                       type: string
                       maxLength: 500
                       description: "Optional free text, unconditionally accepted server-side. Admin-web shows/sends it only when medical_conditions includes 'other'."
-                    medical_info:
-                      type: string
-                      description: "Free text — important information for the caregiver."
                     toilet_assistance:
                       type: array
                       items:
@@ -3929,7 +3918,6 @@ paths:
                 has_medical_condition: true
                 medical_conditions: ["diabetes"]
                 medical_condition_other: null
-                medical_info: "Needs help twice daily, post hip surgery"
                 toilet_assistance: ["uses_diapers"]
                 toilet_assistance_other: null
                 requires_vital_monitoring: true

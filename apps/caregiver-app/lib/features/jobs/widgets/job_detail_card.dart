@@ -177,13 +177,6 @@ class JobDetailCard extends StatelessWidget {
                   Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
             ],
           ),
-          if (job.careReceiver!.medicalInfo != null && job.careReceiver!.medicalInfo!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              job.careReceiver!.medicalInfo!,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-            ),
-          ],
           if (job.careReceiver!.medicalConditionOther != null &&
               job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),

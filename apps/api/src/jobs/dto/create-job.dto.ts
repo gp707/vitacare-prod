@@ -78,14 +78,9 @@ export class CareReceiverDto {
   @IsIn(Object.values(MedicalCondition), { each: true, message: 'GEN_001' })
   medical_conditions?: MedicalCondition[];
 
-  @IsOptional()
-  @IsString()
-  medical_info?: string;
-
-  // Free-text detail for the 'other' MedicalCondition option — same
-  // unconditional-optional treatment as medical_info; the admin-web form
-  // only ever sends it when 'other' is actually selected, but the backend
-  // doesn't need to enforce that itself.
+  // Free-text detail for the 'other' MedicalCondition option — the
+  // admin-web form only ever sends it when 'other' is actually selected,
+  // but the backend doesn't need to enforce that itself.
   @IsOptional()
   @IsString({ message: 'GEN_001' })
   @MaxLength(500, { message: 'GEN_001' })

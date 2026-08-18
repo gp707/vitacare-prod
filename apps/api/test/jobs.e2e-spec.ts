@@ -601,7 +601,6 @@ describe('Jobs (e2e)', () => {
           feeding_type: 'tube_feeding',
           has_medical_condition: true,
           medical_conditions: ['diabetes', 'stroke'],
-          medical_info: 'Needs help twice daily',
         },
       });
       const detail = await request(app.getHttpServer())

@@ -108,7 +108,6 @@ job postings are no longer built around a "work type" category; see
 │ medical_conditions   │  ◄── JSONB array
 │ medical_condition_   │  ◄── free text, shown when medical_conditions
 │   other              │      includes 'other'
-│ medical_info         │
 │ toilet_assistance    │  ◄── JSONB array (multi-select)
 │ toilet_assistance_   │  ◄── free text, shown when toilet_assistance
 │   other              │      includes 'others'
