@@ -207,6 +207,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
       expect(mine.body.data).toHaveLength(1);
       expect(mine.body.data[0].status).toBe('pending_review');
+      expect(mine.body.data[0].care_receiver).toMatchObject({ age: 74, gender: 'female', weight_kg: 58 });
     });
 
     it('rejects a second posting while the first is still pending_review (JOB_009)', async () => {
@@ -537,6 +538,69 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .get('/v1/admin/individuals')
         .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(403);
+    });
+  });
+
+  describe('PATCH /v1/individual/profile/phone + /profile/code', () => {
+    it('changes the phone number and the individual can log in with it', async () => {
+      const individual = await registerIndividual('0021');
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/phone')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ phone: testPhone('0022') })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone: testPhone('0022'), code: '1234' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone: testPhone('0021'), code: '1234' })
+        .expect(404);
+    });
+
+    it('rejects a phone already registered to another account (AUTH_001)', async () => {
+      const individual = await registerIndividual('0023');
+      await registerIndividual('0024');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/individual/profile/phone')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ phone: testPhone('0024') })
+        .expect(409);
+      expect(res.body.error.code).toBe('AUTH_001');
+    });
+
+    it('changes the login code and the individual can log in with the new one only', async () => {
+      const individual = await registerIndividual('0025');
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/code')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ code: '4321' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone: testPhone('0025'), code: '4321' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone: testPhone('0025'), code: '1234' })
+        .expect(401);
+    });
+
+    it('rejects a caregiver token (AUTH_007) on both endpoints', async () => {
+      const caregiver = await registerCaregiver('0121');
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/phone')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ phone: testPhone('0026') })
+        .expect(403);
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/code')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ code: '4321' })
         .expect(403);
     });
   });

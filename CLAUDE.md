@@ -83,8 +83,21 @@ reusing `jobs`/`care_receivers`.
   `GET /individual/requirements/:id/applications`,
   `PATCH /individual/requirements/:jobId/applications/:applicationId` (accept/reject an
   applicant — ownership-checked, then delegates to the same `JobsService.decideApplication` admin
-  uses). nursenow-app's `MyRequirementScreen` renders the current/most-recent requirement (status:
-  pending review / live+salary shown / rejected+reason / closed) with an applicants list.
+  uses), `PATCH /individual/profile/phone` / `PATCH /individual/profile/code` (self-service phone
+  and 4-digit PIN change, reusing caregiver's `UpdatePhoneDto`/`UpdateCodeDto` — no re-review
+  logic, since an individual account has no verification pipeline to send back for review).
+  `GET /individual/requirements` returns the account's full requirement history (not just the
+  current one), each with its `care_receiver` joined in, so a past requirement's full detail and
+  its applicants (including who was accepted) stay visible after it closes — not just while live.
+  **nursenow-app has a 2-tab bottom nav** (`NurseNowBottomNav`, mirroring NurseJobs'
+  `CaregiverBottomNav`): **Profile** (`/profile` — identity, phone/PIN self-edit, Logout) and
+  **Jobs Posted** (`/home` — `JobsPostedScreen`, the full requirement history described above,
+  each card showing the full About Patient / About Nurse-Caregiver Requirement detail inline, an
+  always-visible applicants list once a requirement leaves `pending_review` [so an accepted
+  caregiver's name/phone stay visible after the job closes], and a "Post a Requirement" CTA that's
+  shown whenever the account has **no live requirement** — i.e. none `pending_review` or
+  `active` — not merely whenever the history list is non-empty, so posting again is always
+  possible once the current one closes or is rejected).
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
   **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account

@@ -9,6 +9,8 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { IndividualService } from './individual.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Controller('individual')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,6 +36,18 @@ export class IndividualController {
   @Get('requirements')
   listRequirements(@CurrentUser() user: JwtPayload) {
     return this.individualService.listMyRequirements(user.sub);
+  }
+
+  @Patch('profile/phone')
+  @HttpCode(HttpStatus.OK)
+  updatePhone(@CurrentUser() user: JwtPayload, @Body() dto: UpdatePhoneDto, @ClientIp() ip: string | null) {
+    return this.individualService.updatePhone(user.sub, dto, ip);
+  }
+
+  @Patch('profile/code')
+  @HttpCode(HttpStatus.OK)
+  updateCode(@CurrentUser() user: JwtPayload, @Body() dto: UpdateCodeDto, @ClientIp() ip: string | null) {
+    return this.individualService.updateCode(user.sub, dto, ip);
   }
 
   @Get('requirements/:id/applications')

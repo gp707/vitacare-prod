@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction, JobStatus } from '@vitacare/shared-constants';
+import * as bcrypt from 'bcrypt';
+import { AuditAction, Config, JobStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
@@ -11,6 +12,8 @@ import { AuditService } from '../audit/audit.service';
 import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Injectable()
 export class IndividualService {
@@ -96,8 +99,56 @@ export class IndividualService {
     return job;
   }
 
+  /** Full history (durable — a closed/rejected requirement stays visible,
+   *  not just the current live one), each with its care_receiver joined in
+   *  so the app can show the full requirement detail without a second
+   *  per-job request. */
   async listMyRequirements(userId: string) {
-    return this.jobsRepo.listByPostedBy(userId);
+    const jobs = await this.jobsRepo.listByPostedBy(userId);
+    const careReceivers = await Promise.all(jobs.map((job) => this.careReceiversRepo.findById(job.care_receiver_id)));
+    return jobs.map((job, i) => ({ ...job, care_receiver: careReceivers[i] }));
+  }
+
+  /** No re-review/verification pipeline to trigger, unlike the caregiver
+   *  equivalent — an individual account has none, so this is just a plain
+   *  uniqueness-checked update. */
+  async updatePhone(userId: string, dto: UpdatePhoneDto, ipAddress: string | null) {
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new AppException('GEN_002');
+    if (dto.phone === user.phone) return { message: 'Phone number updated' };
+
+    const existing = await this.usersRepo.findByPhone(dto.phone);
+    if (existing) throw new AppException('AUTH_001');
+
+    await this.usersRepo.updatePhone(userId, dto.phone);
+    await this.auditService.log({
+      userId,
+      action: AuditAction.PHONE_CHANGED,
+      entityType: 'individual_profiles',
+      entityId: profile.id,
+      beforeValue: { phone: user.phone },
+      afterValue: { phone: dto.phone },
+      ipAddress,
+    });
+    return { message: 'Phone number updated' };
+  }
+
+  async updateCode(userId: string, dto: UpdateCodeDto, ipAddress: string | null) {
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updateCodeHash(userId, codeHash);
+    await this.auditService.log({
+      userId,
+      action: AuditAction.CODE_CHANGED,
+      entityType: 'individual_profiles',
+      entityId: profile.id,
+      ipAddress,
+    });
+    return { message: 'Login code updated' };
   }
 
   async getMyRequirementApplications(userId: string, jobId: string) {

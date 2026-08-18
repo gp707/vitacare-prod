@@ -4635,6 +4635,104 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /individual/profile/phone:
+    patch:
+      tags: [NurseNow - Individual]
+      summary: Change phone number
+      description: >
+        Self-service phone change, reusing caregiver's UpdatePhoneDto unchanged. Unlike the
+        caregiver equivalent, this never triggers a re-review reset — an individual account has
+        no verification pipeline. No-op (still 200) if the phone is unchanged.
+      operationId: updateIndividualPhone
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[6-9]\\d{9}$"
+                  example: "+919876500099"
+      responses:
+        "200":
+          description: Phone number updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+              example:
+                success: true
+                data: { message: "Phone number updated" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "409":
+          description: Phone number already registered to another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "AUTH_001", message: "Phone number is already registered" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /individual/profile/code:
+    patch:
+      tags: [NurseNow - Individual]
+      summary: Change login PIN
+      description: Self-service 4-digit login PIN change, reusing caregiver's UpdateCodeDto unchanged.
+      operationId: updateIndividualCode
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: "^\\d{4}$"
+                  example: "4321"
+      responses:
+        "200":
+          description: Login code updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+              example:
+                success: true
+                data: { message: "Login code updated" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /admin/individuals:
     get:
       tags: [Admin - Individuals]

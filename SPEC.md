@@ -2773,15 +2773,22 @@ approval. Always created with `status: 'pending_review'`.
 
 #### GET `/individual/requirements`
 
-The caller's own requirement(s) — a list for symmetry with `GET /caregiver/jobs/assigned`, though
-in practice zero-or-one given the one-live-requirement limit. Once `active`,
+The caller's **full requirement history** — every past posting stays visible (not just the
+current one), so a past requirement's full detail and applicants (including who was accepted)
+remain visible after it closes. Each item has its `care_receiver` joined in (unlike
+`GET /caregiver/jobs`'s list form, this one always includes it — an individual has realistically
+few historical postings, so the per-item join cost is negligible). Once `active`,
 `frequency_of_care`/`salary_amount` are populated (admin-set on approval); while `pending_review`
-they're `null`. A `closed` requirement that was declined carries `rejection_reason`.
+they're `null`. A `closed` requirement that was declined carries `rejection_reason`. The account
+may have at most one **live** requirement (`pending_review` or `active`) at a time (`JOB_009`) —
+closed/rejected ones never block posting again.
 
 #### GET `/individual/requirements/:id/applications`
 
 Applicants on the caller's own requirement — same shape as `GET /admin/jobs/:id`'s `applications`
-array (6.6). `GEN_002` if the requirement isn't found or isn't owned by the caller.
+array (6.6). `GEN_002` if the requirement isn't found or isn't owned by the caller. Callable
+regardless of the requirement's status — including `closed`, so the accepted (or declined)
+applicant list stays visible after the requirement closes, not just while it's `active`.
 
 #### PATCH `/individual/requirements/:jobId/applications/:applicationId`
 
@@ -2789,6 +2796,15 @@ Accept/reject an applicant — same body/behavior as the admin decide-applicatio
 accepting closes the requirement and assigns the caregiver; rejecting a still-`applied` applicant
 just declines them. Ownership-checked (`GEN_002` if not the requirement's owner); admin can do the
 exact same decision via the regular `PATCH /admin/jobs/:jobId/applications/:applicationId`.
+
+#### PATCH `/individual/profile/phone` + PATCH `/individual/profile/code`
+
+Self-service phone number and 4-digit login PIN change — reuse caregiver's `UpdatePhoneDto`
+(`{ phone }`) / `UpdateCodeDto` (`{ code }`) unchanged (role-agnostic regex validators). Unlike
+the caregiver equivalent, neither ever triggers a re-review reset — an individual account has no
+verification pipeline to send back. Phone: no-op if unchanged; `AUTH_001` if the new number is
+already registered to another account. Both audit-log (`phone_changed`/`code_changed`,
+`entity_type: 'individual_profiles'`).
 
 **Admin-side additions supporting the above** (still under 6.5/6.6, not new endpoints):
 - Approving a `pending_review` requirement is just editing it — `PATCH /admin/jobs/:id`
@@ -3265,18 +3281,31 @@ registration screen's account-type selector shows an Organisation option that is
 | Splash | `/` | Always (app launch) |
 | Login | `/login` | Unauthenticated — phone + 4-digit code (same mechanic as caregiver-app) |
 | Registration | `/register` | Unauthenticated — phone → PIN → full name → account-type selector (Individual / Hospital-Rehab) |
-| My Requirement | `/home` | Authenticated — the account's current/most-recent requirement (or an empty state with a "Post a Requirement" CTA) |
+| Jobs Posted | `/home` | Authenticated — bottom nav tab 2 |
+| Profile | `/profile` | Authenticated — bottom nav tab 1 |
 | Post Requirement | `/post-requirement` | Authenticated, no live requirement, not `is_job_posting_blocked` |
 
 There is no status-gated routing like the caregiver app's `verification_status` — an Individual
 account has no verification pipeline, just the two independent block levers (job-posting block,
-full block) described in the NurseNow section of CLAUDE.md.
+full block) described in the NurseNow section of CLAUDE.md. Once authenticated, a 2-tab bottom
+nav (`NurseNowBottomNav`, mirroring NurseJobs' `CaregiverBottomNav`) is shown on both top-level
+screens — Profile and Jobs Posted — switching tabs via `pushReplacementNamed`, not a stack push.
 
-**My Requirement screen** renders one of: empty state + CTA; pending review; live (with
-`frequency_of_care`/`salary_amount` shown, plus an applicants list with Accept/Reject per
-applicant); rejected (with `rejection_reason`); closed. Posting a new requirement is only offered
-once the account has no live (pending-review-or-active) requirement — `JOB_009` server-side is the
-backstop, but the UI disables/hides the CTA proactively using the same signal.
+**Profile screen**: account identity (name, phone), a job-posting-blocked notice if applicable,
+independently-saved Phone Number and Login PIN sections (`PATCH /individual/profile/phone` /
+`/code`, 6.10 — neither ever triggers a re-review reset, unlike the caregiver equivalent), and
+Logout.
+
+**Jobs Posted screen**: the account's **full requirement history** (`GET /individual/requirements`,
+6.10) — every past posting, not just the current one, newest first. Each card renders the full
+About Patient / About Nurse-Caregiver Requirement detail inline (including the free-text
+description) and, for every requirement past `pending_review`, its applicants list with
+Accept/Reject per still-`applied` applicant — shown regardless of the requirement's current status,
+so an accepted caregiver's name/phone stay visible even after the requirement closes. A "Post a
+Requirement" CTA is shown whenever the account has **no live requirement** (none `pending_review`
+or `active`) — not merely whenever the history is empty, so posting again is always available once
+the current one closes or is rejected; `JOB_009` server-side is the backstop, the UI computes the
+same live/not-live signal client-side from the fetched list.
 
 ---
 

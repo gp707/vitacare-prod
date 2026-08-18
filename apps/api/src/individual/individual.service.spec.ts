@@ -35,9 +35,14 @@ describe('IndividualService', () => {
       findLiveByPostedBy: jest.fn(),
     };
     jobApplicationsRepo = { findByJobId: jest.fn() };
-    careReceiversRepo = { create: jest.fn().mockResolvedValue({ id: 'cr-1' }) };
+    careReceiversRepo = { create: jest.fn().mockResolvedValue({ id: 'cr-1' }), findById: jest.fn() };
     individualProfilesRepo = { findByUserId: jest.fn() };
-    usersRepo = { findById: jest.fn() };
+    usersRepo = {
+      findById: jest.fn(),
+      findByPhone: jest.fn(),
+      updatePhone: jest.fn(),
+      updateCodeHash: jest.fn(),
+    };
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
 
@@ -120,11 +125,89 @@ describe('IndividualService', () => {
   });
 
   describe('listMyRequirements', () => {
-    it('delegates to jobsRepo.listByPostedBy', async () => {
-      jobsRepo.listByPostedBy.mockResolvedValue([{ id: 'job-1' }]);
+    it('joins each job with its own care_receiver', async () => {
+      jobsRepo.listByPostedBy.mockResolvedValue([
+        { id: 'job-1', care_receiver_id: 'cr-1' },
+        { id: 'job-2', care_receiver_id: 'cr-2' },
+      ]);
+      careReceiversRepo.findById.mockImplementation((id: string) => Promise.resolve({ id, age: 70 }));
+
       const result = await service.listMyRequirements('user-1');
+
       expect(jobsRepo.listByPostedBy).toHaveBeenCalledWith('user-1');
-      expect(result).toEqual([{ id: 'job-1' }]);
+      expect(careReceiversRepo.findById).toHaveBeenNthCalledWith(1, 'cr-1');
+      expect(careReceiversRepo.findById).toHaveBeenNthCalledWith(2, 'cr-2');
+      expect(result).toEqual([
+        { id: 'job-1', care_receiver_id: 'cr-1', care_receiver: { id: 'cr-1', age: 70 } },
+        { id: 'job-2', care_receiver_id: 'cr-2', care_receiver: { id: 'cr-2', age: 70 } },
+      ]);
+    });
+  });
+
+  describe('updatePhone', () => {
+    it('throws GEN_002 when no individual profile exists', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(
+        service.updatePhone('user-1', { phone: '+919876543210' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('is a no-op when the phone is unchanged', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'user-1', phone: '+919876543210' });
+      const result = await service.updatePhone('user-1', { phone: '+919876543210' } as any, null);
+      expect(result).toEqual({ message: 'Phone number updated' });
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('throws AUTH_001 when the new phone is already taken', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'user-1', phone: '+919876543210' });
+      usersRepo.findByPhone.mockResolvedValue({ id: 'someone-else' });
+      await expect(
+        service.updatePhone('user-1', { phone: '+919876500000' } as any, null),
+      ).rejects.toMatchObject({ code: 'AUTH_001' });
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
+    });
+
+    it('updates the phone and audit-logs it when it is new and unused', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'user-1', phone: '+919876543210' });
+      usersRepo.findByPhone.mockResolvedValue(null);
+
+      const result = await service.updatePhone('user-1', { phone: '+919876500000' } as any, '127.0.0.1');
+
+      expect(usersRepo.updatePhone).toHaveBeenCalledWith('user-1', '+919876500000');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          action: 'phone_changed',
+          entityType: 'individual_profiles',
+          entityId: 'ip-1',
+        }),
+      );
+      expect(result).toEqual({ message: 'Phone number updated' });
+    });
+  });
+
+  describe('updateCode', () => {
+    it('throws GEN_002 when no individual profile exists', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.updateCode('user-1', { code: '1234' } as any, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('hashes and stores the new code, and audit-logs it', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      const result = await service.updateCode('user-1', { code: '4321' } as any, '127.0.0.1');
+
+      expect(usersRepo.updateCodeHash).toHaveBeenCalledWith('user-1', expect.any(String));
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'code_changed', entityType: 'individual_profiles' }),
+      );
+      expect(result).toEqual({ message: 'Login code updated' });
     });
   });
 

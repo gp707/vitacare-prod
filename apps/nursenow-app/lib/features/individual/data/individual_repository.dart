@@ -142,4 +142,22 @@ class IndividualRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// No re-review/verification pipeline to trigger, unlike caregiver-app's
+  /// equivalent — an individual account has none.
+  Future<void> updatePhone(String phone) async {
+    try {
+      await _dio.patch(ApiRoutes.individualProfilePhone, data: {'phone': phone});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> updateCode(String code) async {
+    try {
+      await _dio.patch(ApiRoutes.individualProfileCode, data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }
