@@ -299,10 +299,13 @@ export class JobsService {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
 
-    const { items, total } = await this.jobsRepo.listActiveForCaregiver(profile.id, profile.gender, {
-      page: query.page,
-      limit: query.limit,
-    });
+    const { items, total } = await this.jobsRepo.listActiveForCaregiver(
+      profile.id,
+      profile.gender,
+      profile.min_salary_per_day,
+      profile.min_salary_per_month,
+      { page: query.page, limit: query.limit },
+    );
     const meta: PaginationMeta = {
       page: query.page,
       limit: query.limit,

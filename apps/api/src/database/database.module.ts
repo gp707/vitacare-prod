@@ -4,6 +4,7 @@ import { UsersRepository } from './repositories/users.repository';
 import { CaregiverProfilesRepository } from './repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from './repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from './repositories/caregiver-preferred-cities.repository';
+import { CaregiverPreferredDutyTypesRepository } from './repositories/caregiver-preferred-duty-types.repository';
 import { RefreshTokensRepository } from './repositories/refresh-tokens.repository';
 import { AdminCaregiversRepository } from './repositories/admin-caregivers.repository';
 import { AdminNotesRepository } from './repositories/admin-notes.repository';
@@ -18,6 +19,7 @@ const repositories = [
   CaregiverProfilesRepository,
   CaregiverLanguagesRepository,
   CaregiverPreferredCitiesRepository,
+  CaregiverPreferredDutyTypesRepository,
   RefreshTokensRepository,
   AdminCaregiversRepository,
   AdminNotesRepository,

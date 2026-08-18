@@ -47,6 +47,9 @@ class _FakeProfileRepository extends ProfileRepository {
     List<String>? languages,
     String? highestQualification,
     List<String>? preferredCities,
+    List<String>? preferredDutyTypes,
+    int? minSalaryPerDay,
+    int? minSalaryPerMonth,
   }) async {
     editProfileCalled = true;
     captured = {
@@ -54,6 +57,9 @@ class _FakeProfileRepository extends ProfileRepository {
       'languages': languages,
       'highestQualification': highestQualification,
       'preferredCities': preferredCities,
+      'preferredDutyTypes': preferredDutyTypes,
+      'minSalaryPerDay': minSalaryPerDay,
+      'minSalaryPerMonth': minSalaryPerMonth,
     };
     return editProfileReturnStatus;
   }
@@ -137,6 +143,9 @@ void main() {
     expect(fakeRepo.captured['age'], isNull);
     expect(fakeRepo.captured['languages'], isNull);
     expect(fakeRepo.captured['preferredCities'], isNull);
+    expect(fakeRepo.captured['preferredDutyTypes'], isNull);
+    expect(fakeRepo.captured['minSalaryPerDay'], isNull);
+    expect(fakeRepo.captured['minSalaryPerMonth'], isNull);
   });
 
   testWidgets('Save sends age when changed', (tester) async {
@@ -174,6 +183,63 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeRepo.captured['preferredCities'], ['bangalore']);
+  });
+
+  testWidgets('Save sends preferredDutyTypes only when the selection actually changed', (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile());
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: EditProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilterChip, DutyType.displayNames[DutyType.dayDuty]!));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.captured['preferredDutyTypes'], [DutyType.dayDuty]);
+  });
+
+  testWidgets('Save sends min salary fields only when actually changed', (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile());
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: EditProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Minimum Salary — ₹/day (optional)'), '1500');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.captured['minSalaryPerDay'], 1500);
+    expect(fakeRepo.captured['minSalaryPerMonth'], isNull);
+  });
+
+  testWidgets('rejects a non-numeric minimum salary without calling the repository', (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile());
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: EditProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Minimum Salary — ₹/day (optional)'), 'abc');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.editProfileCalled, isFalse);
+    expect(find.text('Minimum salary per day must be a positive number'), findsOneWidget);
   });
 
   testWidgets('editing while rejected shows the resubmitted message', (tester) async {

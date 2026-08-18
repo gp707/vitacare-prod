@@ -1114,6 +1114,113 @@ describe('Jobs (e2e)', () => {
       const ids = res.body.data.map((j: { id: string }) => j.id);
       expect(ids).toContain(job.id);
     });
+
+    it("hides a job whose city is not in the caregiver's preferred_cities, and shows one that is", async () => {
+      const caregiver = await registerCaregiver('0034');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ preferred_cities: ['mumbai'] })
+        .expect(200);
+      const bangaloreJob = await createJob({ city: 'bangalore' });
+      const mumbaiJob = await createJob({ city: 'mumbai' });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).not.toContain(bangaloreJob.id);
+      expect(ids).toContain(mumbaiJob.id);
+    });
+
+    it('shows jobs in every city when the caregiver has no preferred_cities set (no filter)', async () => {
+      const caregiver = await registerCaregiver('0035');
+      const job = await createJob({ city: 'chennai' });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).toContain(job.id);
+    });
+
+    it("hides a job whose duty_type is not in the caregiver's preferred_duty_types, and shows one that is", async () => {
+      const caregiver = await registerCaregiver('0036');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ preferred_duty_types: ['day_duty'] })
+        .expect(200);
+      const liveInJob = await createJob({ duty_type: 'live_in' });
+      const dayDutyJob = await createJob({ duty_type: 'day_duty' });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).not.toContain(liveInJob.id);
+      expect(ids).toContain(dayDutyJob.id);
+    });
+
+    it("hides a daily job below the caregiver's min_salary_per_day, and shows one that meets it", async () => {
+      const caregiver = await registerCaregiver('0037');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ min_salary_per_day: 2000 })
+        .expect(200);
+      const belowThreshold = await createJob({ frequency_of_care: 'daily', salary_amount: 1500 });
+      const atThreshold = await createJob({ frequency_of_care: 'daily', salary_amount: 2000 });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).not.toContain(belowThreshold.id);
+      expect(ids).toContain(atThreshold.id);
+    });
+
+    it("hides a monthly job below the caregiver's min_salary_per_month, and shows one that meets it", async () => {
+      const caregiver = await registerCaregiver('0038');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ min_salary_per_month: 25000 })
+        .expect(200);
+      const belowThreshold = await createJob({ frequency_of_care: 'monthly', salary_amount: 20000 });
+      const atThreshold = await createJob({ frequency_of_care: 'monthly', salary_amount: 25000 });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).not.toContain(belowThreshold.id);
+      expect(ids).toContain(atThreshold.id);
+    });
+
+    it("a min_salary_per_day threshold never filters out monthly jobs, and vice versa — each threshold only applies to its own frequency", async () => {
+      const caregiver = await registerCaregiver('0039');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ min_salary_per_day: 5000 })
+        .expect(200);
+      // Well below the ₹5000/day threshold, but it's a monthly job — the
+      // per-day threshold must not apply to it.
+      const cheapMonthlyJob = await createJob({ frequency_of_care: 'monthly', salary_amount: 100 });
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).toContain(cheapMonthlyJob.id);
+    });
   });
 
   describe('POST /v1/caregiver/jobs/:id/apply', () => {

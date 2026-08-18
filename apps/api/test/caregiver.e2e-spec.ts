@@ -214,6 +214,88 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
+    it('replaces preferred_duty_types via a partial edit, without changing verification_status', async () => {
+      const created = await registerTestCaregiver('0040');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ preferred_duty_types: ['day_duty', 'night_duty'] })
+        .expect(200);
+      expect(res.body.data).toEqual({
+        message: 'Profile updated',
+        has_pending_edits: true,
+        verification_status: 'pending_call',
+      });
+
+      const profile = await request(app.getHttpServer())
+        .get('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(profile.body.data.preferred_duty_types.sort()).toEqual(['day_duty', 'night_duty']);
+    });
+
+    it('clears preferred_duty_types back to empty (no preference) via an empty array', async () => {
+      const created = await registerTestCaregiver('0041');
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ preferred_duty_types: ['live_in'] })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ preferred_duty_types: [] })
+        .expect(200);
+
+      const profile = await request(app.getHttpServer())
+        .get('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(profile.body.data.preferred_duty_types).toEqual([]);
+    });
+
+    it('rejects a preferred_duty_types value outside the 3 fixed shifts (GEN_001)', async () => {
+      const created = await registerTestCaregiver('0042');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ preferred_duty_types: ['weekend_only'] })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('updates min_salary_per_day and min_salary_per_month without changing verification_status', async () => {
+      const created = await registerTestCaregiver('0043');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ min_salary_per_day: 1500, min_salary_per_month: 25000 })
+        .expect(200);
+      expect(res.body.data).toEqual({
+        message: 'Profile updated',
+        has_pending_edits: true,
+        verification_status: 'pending_call',
+      });
+
+      const profile = await request(app.getHttpServer())
+        .get('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .expect(200);
+      expect(profile.body.data.min_salary_per_day).toBe(1500);
+      expect(profile.body.data.min_salary_per_month).toBe(25000);
+    });
+
+    it('rejects a min_salary_per_day of 0 (GEN_001)', async () => {
+      const created = await registerTestCaregiver('0044');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/caregiver/profile')
+        .set('Authorization', `Bearer ${created.access_token}`)
+        .send({ min_salary_per_day: 0 })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
     it('rejects an extra/admin-only field like salary (GEN_001, whitelist enforced)', async () => {
       const res = await request(app.getHttpServer())
         .patch('/v1/caregiver/profile')

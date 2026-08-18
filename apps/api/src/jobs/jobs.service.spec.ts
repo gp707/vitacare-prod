@@ -425,7 +425,12 @@ describe('JobsService', () => {
     });
 
     it('returns active jobs with pagination meta', async () => {
-      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1', gender: 'female' });
+      profilesRepo.findByUserId.mockResolvedValue({
+        id: 'profile-1',
+        gender: 'female',
+        min_salary_per_day: null,
+        min_salary_per_month: null,
+      });
       jobsRepo.listActiveForCaregiver.mockResolvedValue({
         items: [{ ...job, my_application: null }],
         total: 1,
@@ -435,14 +440,22 @@ describe('JobsService', () => {
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });
 
-    it("passes the caregiver's own gender through to the repository, so filtering happens in one place", async () => {
-      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1', gender: 'male' });
+    it("passes the caregiver's own gender and salary preferences through to the repository, so filtering happens in one place", async () => {
+      profilesRepo.findByUserId.mockResolvedValue({
+        id: 'profile-1',
+        gender: 'male',
+        min_salary_per_day: 1500,
+        min_salary_per_month: 25000,
+      });
       jobsRepo.listActiveForCaregiver.mockResolvedValue({ items: [], total: 0 });
       await service.listActiveJobsForCaregiver('user-1', { page: 1, limit: 20 } as any);
-      expect(jobsRepo.listActiveForCaregiver).toHaveBeenCalledWith('profile-1', 'male', {
-        page: 1,
-        limit: 20,
-      });
+      expect(jobsRepo.listActiveForCaregiver).toHaveBeenCalledWith(
+        'profile-1',
+        'male',
+        1500,
+        25000,
+        { page: 1, limit: 20 },
+      );
     });
   });
 

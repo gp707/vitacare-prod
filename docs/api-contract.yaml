@@ -583,7 +583,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/City"
-          description: Multi-select — zero or more preferred cities. Collected at registration; remains editable via the self-edit endpoint.
+          description: Multi-select — zero or more preferred cities. Collected at registration; remains editable via the self-edit endpoint. Also dynamically filters GET /caregiver/jobs (empty means no filter).
+        preferred_duty_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/DutyType"
+          description: Job search preference — zero or more of the 3 fixed shifts. Editable anytime via the self-edit endpoint, no approval needed. Dynamically filters GET /caregiver/jobs (empty means no filter).
+        min_salary_per_day:
+          type: integer
+          nullable: true
+          description: Job search preference — minimum ₹/day. Only ever compared against a job whose frequency_of_care is "daily". Null means no filter.
+        min_salary_per_month:
+          type: integer
+          nullable: true
+          description: Job search preference — minimum ₹/month. Only ever compared against a job whose frequency_of_care is "monthly". Null means no filter.
         created_at:
           type: string
           format: date-time
@@ -1244,6 +1257,9 @@ paths:
                   verification_status: "available"
                   rejection_message: null
                   preferred_cities: ["bangalore", "mumbai"]
+                  preferred_duty_types: ["day_duty", "night_duty"]
+                  min_salary_per_day: 1500
+                  min_salary_per_month: null
                   created_at: "2026-08-01T10:00:00Z"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
@@ -1267,6 +1283,14 @@ paths:
         action. Phone number and Aadhaar re-upload are handled by their own endpoints
         (`PATCH /caregiver/profile/phone`, document upload endpoints) since they are
         identity-sensitive and have different re-verification behavior.
+        `preferred_cities`, `preferred_duty_types`, `min_salary_per_day`, and
+        `min_salary_per_month` are job search preferences that dynamically filter
+        `GET /caregiver/jobs` — they share this endpoint's exact mechanics (editable
+        anytime, no approval needed, `verification_status` untouched except the
+        `rejected` auto-resubmit rule above) even though they aren't profile facts.
+        `preferred_duty_types: []` clears that preference back to "no filter"; there is
+        currently no way to explicitly clear a min_salary_per_day/min_salary_per_month
+        back to null once set.
       operationId: editProfile
       security:
         - BearerAuth: []
@@ -1295,9 +1319,27 @@ paths:
                   type: array
                   items:
                     $ref: "#/components/schemas/City"
+                preferred_duty_types:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/DutyType"
+                  description: Any subset of the 3 fixed shifts. Empty array clears the preference.
+                min_salary_per_day:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                  description: Compared only against jobs whose frequency_of_care is "daily".
+                min_salary_per_month:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                  description: Compared only against jobs whose frequency_of_care is "monthly".
             example:
               age: 33
               preferred_cities: ["bangalore", "mumbai"]
+              preferred_duty_types: ["day_duty", "night_duty"]
+              min_salary_per_day: 1500
+              min_salary_per_month: 25000
       responses:
         "200":
           description: Profile updated
@@ -1808,7 +1850,13 @@ paths:
         onboarding. Only applying is gated. Server-side filtered to jobs
         whose `preferred_gender` is unset or matches the caregiver's own
         gender — a caregiver never sees a job posted for the other gender.
-        Each item includes
+        Also dynamically filtered by the caregiver's own job search
+        preferences (set via PATCH /caregiver/profile): `city` must be in
+        `preferred_cities` (or that list is empty), `duty_type` must be in
+        `preferred_duty_types` (or that list is empty), and `salary_amount`
+        must meet `min_salary_per_day`/`min_salary_per_month` for the job's
+        own `frequency_of_care` — read fresh on every request, so a
+        preference change takes effect on the next fetch. Each item includes
         `my_application` (null if this caregiver hasn't applied yet) — the
         real per-transition timeline, not just a bare status, so the app
         can distinguish "you declined it" from "the employer declined you"

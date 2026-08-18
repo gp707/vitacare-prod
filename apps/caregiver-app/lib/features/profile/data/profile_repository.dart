@@ -78,6 +78,9 @@ class ProfileRepository {
     List<String>? languages,
     String? highestQualification,
     List<String>? preferredCities,
+    List<String>? preferredDutyTypes,
+    int? minSalaryPerDay,
+    int? minSalaryPerMonth,
   }) async {
     try {
       final res = await _dio.patch(ApiRoutes.caregiverProfile, data: {
@@ -85,6 +88,9 @@ class ProfileRepository {
         if (languages != null) 'languages': languages,
         if (highestQualification != null) 'highest_qualification': highestQualification,
         if (preferredCities != null) 'preferred_cities': preferredCities,
+        if (preferredDutyTypes != null) 'preferred_duty_types': preferredDutyTypes,
+        if (minSalaryPerDay != null) 'min_salary_per_day': minSalaryPerDay,
+        if (minSalaryPerMonth != null) 'min_salary_per_month': minSalaryPerMonth,
       });
       return res.data['data']['verification_status'] as String;
     } on DioException catch (e) {

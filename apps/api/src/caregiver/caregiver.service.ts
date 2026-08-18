@@ -8,6 +8,7 @@ import {
 } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
+import { CaregiverPreferredDutyTypesRepository } from '../database/repositories/caregiver-preferred-duty-types.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
@@ -34,6 +35,7 @@ export class CaregiverService {
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly languagesRepo: CaregiverLanguagesRepository,
     private readonly preferredCitiesRepo: CaregiverPreferredCitiesRepository,
+    private readonly preferredDutyTypesRepo: CaregiverPreferredDutyTypesRepository,
     private readonly uploadService: UploadService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
@@ -41,9 +43,10 @@ export class CaregiverService {
 
   async getProfile(userId: string) {
     const profile = await this.requireFullProfile(userId);
-    const [languages, preferredCities] = await Promise.all([
+    const [languages, preferredCities, preferredDutyTypes] = await Promise.all([
       this.languagesRepo.findByProfileId(profile.id),
       this.preferredCitiesRepo.findByProfileId(profile.id),
+      this.preferredDutyTypesRepo.findByProfileId(profile.id),
     ]);
 
     const [selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] = await Promise.all([
@@ -79,6 +82,9 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       preferred_cities: preferredCities,
+      preferred_duty_types: preferredDutyTypes,
+      min_salary_per_day: profile.min_salary_per_day,
+      min_salary_per_month: profile.min_salary_per_month,
       created_at: profile.created_at,
     };
   }
@@ -110,6 +116,20 @@ export class CaregiverService {
       before.highest_qualification = profile.highest_qualification;
       after.highest_qualification = dto.highest_qualification;
     }
+    if (
+      dto.min_salary_per_day !== undefined &&
+      dto.min_salary_per_day !== profile.min_salary_per_day
+    ) {
+      before.min_salary_per_day = profile.min_salary_per_day;
+      after.min_salary_per_day = dto.min_salary_per_day;
+    }
+    if (
+      dto.min_salary_per_month !== undefined &&
+      dto.min_salary_per_month !== profile.min_salary_per_month
+    ) {
+      before.min_salary_per_month = profile.min_salary_per_month;
+      after.min_salary_per_month = dto.min_salary_per_month;
+    }
 
     let languagesChanged = false;
     if (dto.languages !== undefined) {
@@ -135,20 +155,36 @@ export class CaregiverService {
       }
     }
 
+    let dutyTypesChanged = false;
+    if (dto.preferred_duty_types !== undefined) {
+      const previousDutyTypes = await this.preferredDutyTypesRepo.findByProfileId(profile.id);
+      const prevSorted = [...previousDutyTypes].sort();
+      const nextSorted = [...dto.preferred_duty_types].sort();
+      if (prevSorted.join(',') !== nextSorted.join(',')) {
+        before.preferred_duty_types = prevSorted;
+        after.preferred_duty_types = nextSorted;
+        dutyTypesChanged = true;
+      }
+    }
+
     const scalarFieldsChanged = Object.keys(after).some(
-      (field) => field !== 'preferred_cities' && field !== 'languages',
+      (field) =>
+        field !== 'preferred_cities' && field !== 'languages' && field !== 'preferred_duty_types',
     );
-    const anyChanged = scalarFieldsChanged || languagesChanged || citiesChanged;
+    const anyChanged = scalarFieldsChanged || languagesChanged || citiesChanged || dutyTypesChanged;
 
     await this.db.withTransaction(async (client) => {
       if (scalarFieldsChanged) {
         await this.profilesRepo.editFields(profile.id, {
           age: dto.age,
           highest_qualification: dto.highest_qualification,
+          min_salary_per_day: dto.min_salary_per_day,
+          min_salary_per_month: dto.min_salary_per_month,
         });
       } else if (anyChanged) {
-        // languages/preferred_cities-only change — editFields would be a
-        // no-op for an all-undefined input, so flag explicitly instead.
+        // languages/preferred_cities/preferred_duty_types-only change —
+        // editFields would be a no-op for an all-undefined input, so flag
+        // explicitly instead.
         await this.profilesRepo.flagPendingEdits(profile.id);
       }
       if (languagesChanged) {
@@ -156,6 +192,13 @@ export class CaregiverService {
       }
       if (citiesChanged) {
         await this.preferredCitiesRepo.replaceForProfile(profile.id, dto.preferred_cities!, client);
+      }
+      if (dutyTypesChanged) {
+        await this.preferredDutyTypesRepo.replaceForProfile(
+          profile.id,
+          dto.preferred_duty_types!,
+          client,
+        );
       }
     });
 

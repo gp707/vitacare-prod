@@ -1017,6 +1017,12 @@ CREATE TABLE caregiver_profiles (
   has_pending_edits BOOLEAN DEFAULT false,
   verified_at TIMESTAMPTZ,
   verified_by UUID REFERENCES users(id),      -- App validates this is admin/super_admin
+  -- Job search preferences (with preferred_cities/preferred_duty_types,
+  -- both in their own junction tables below) — dynamically filter
+  -- GET /caregiver/jobs, editable anytime via the self-edit endpoint,
+  -- never gate anything and never affect verification_status.
+  min_salary_per_day INTEGER CHECK (min_salary_per_day > 0),
+  min_salary_per_month INTEGER CHECK (min_salary_per_month > 0),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1053,6 +1059,31 @@ CREATE TABLE caregiver_preferred_cities (
 );
 
 CREATE INDEX idx_caregiver_preferred_cities_profile ON caregiver_preferred_cities(profile_id);
+
+-- ============================================
+-- CAREGIVER PREFERRED DUTY TYPES TABLE
+-- Job search preference (shift type): caregiver can select multiple
+-- preferred duty types, same many-to-many pattern as
+-- caregiver_preferred_cities / caregiver_languages. Dynamically filters
+-- GET /caregiver/jobs — see caregiver_profiles.min_salary_per_day/
+-- min_salary_per_month below, and "Caregiver job search preferences" in
+-- CLAUDE.md.
+-- ============================================
+CREATE TABLE caregiver_preferred_duty_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
+  duty_type VARCHAR(20) NOT NULL CHECK (duty_type IN ('live_in', 'day_duty', 'night_duty')),
+  UNIQUE(profile_id, duty_type)
+);
+
+CREATE INDEX idx_caregiver_preferred_duty_types_profile ON caregiver_preferred_duty_types(profile_id);
+
+-- caregiver_profiles also carries min_salary_per_day and
+-- min_salary_per_month (both nullable INTEGER, CHECK > 0) — see the
+-- caregiver_profiles table definition above for the full column list.
+-- Each is only ever compared against a job of the matching
+-- frequency_of_care (a daily job's salary is never compared against
+-- min_salary_per_month and vice versa).
 
 -- Admin-assigned work types, service modes, and salary (formerly
 -- caregiver_service_modes / caregiver_work_types tables + a caregiver_
@@ -1498,13 +1529,17 @@ Get own full profile.
     "verification_status": "available",
     "rejection_message": null,
     "preferred_cities": ["bangalore", "mumbai"],
+    "preferred_duty_types": ["day_duty", "night_duty"],
+    "min_salary_per_day": 1500,
+    "min_salary_per_month": null,
     "created_at": "2026-08-01T10:00:00Z"
   }
 }
 ```
 
 **Notes:**
-- All fields are always returned in the response. Fields not yet set return `null`. No fields are omitted.
+- All fields are always returned in the response. Fields not yet set return `null`. No fields are omitted (`preferred_cities`/`preferred_duty_types` return `[]` rather than `null` when unset).
+- `preferred_cities`, `preferred_duty_types`, `min_salary_per_day`, and `min_salary_per_month` are job search preferences (dynamically filter `GET /caregiver/jobs`, see 6.5 below) rather than profile facts — editable anytime via the self-edit endpoint below, no admin approval needed, never affect `verification_status`.
 - Document URLs are signed URLs with 1-hour expiry (or `null` if not uploaded).
 - `highest_qualification`, `religion`, and `terms_accepted` are always set from registration onward — there's no intermediate state where they're `null` for a normally-registered caregiver.
 
@@ -1523,7 +1558,10 @@ separate onboarding stage).
   "age": 33,
   "languages": ["hindi", "english", "kannada"],
   "highest_qualification": "rn_above_2_years",
-  "preferred_cities": ["bangalore", "mumbai"]
+  "preferred_cities": ["bangalore", "mumbai"],
+  "preferred_duty_types": ["day_duty", "night_duty"],
+  "min_salary_per_day": 1500,
+  "min_salary_per_month": 25000
 }
 ```
 
@@ -1532,6 +1570,18 @@ locked from self-edit past registration; only an admin can change them.
 Phone and the login code live on their own endpoints (`PATCH
 /caregiver/profile/phone`, `PATCH /caregiver/profile/code`) with different
 review-trigger semantics.
+
+`preferred_duty_types` accepts any subset of the 3 fixed duty types
+(`live_in`/`day_duty`/`night_duty`) — an empty array `[]` is valid and
+clears the preference back to "no filter". `min_salary_per_day` and
+`min_salary_per_month` are independent optional integers (1–1,000,000,
+same range as a job's own `salary_amount`); there is currently no way to
+explicitly clear one back to `null` once set — set it low enough to be a
+no-op filter, or contact the office. All four are job search preferences
+(see `GET /caregiver/jobs` in 6.5) — they share this endpoint's mechanics
+exactly (editable anytime, `has_pending_edits` flagged, `verification_status`
+untouched except the `rejected` auto-resubmit rule below) even though
+they're not profile facts.
 
 **Response (200):**
 ```json
@@ -2324,7 +2374,17 @@ there's no separate in-app caregiver "accept offer" step.
 List active job postings for caregiver to view and apply. Only jobs whose
 `preferred_gender` is unset (no preference) or matches the requesting
 caregiver's own `caregiver_profiles.gender` are returned — filtering is
-server-side, not a client-side hide. Each item
+server-side, not a client-side hide. Also filtered dynamically by the
+caregiver's own job search preferences (all optional, set via `PATCH
+/caregiver/profile` — see 6.4): a job is hidden unless its `city` is in the
+caregiver's `preferred_cities` (or that list is empty), its `duty_type` is
+in `preferred_duty_types` (or that list is empty), and its `salary_amount`
+meets the caregiver's threshold for its own `frequency_of_care`
+(`min_salary_per_day` for a `daily` job, `min_salary_per_month` for a
+`monthly` job — each independently nullable, never cross-applied to the
+other frequency). All of this is read fresh from the caregiver's current
+profile on every request — changing a preference takes effect on the very
+next fetch. Each item
 includes the full `care_receiver` (joined via `care_receiver_id`, not just
 on `GET /admin/jobs/:id`) — the caregiver-app renders it under the same
 two section labels as the admin form: **About Patient** (age, gender,

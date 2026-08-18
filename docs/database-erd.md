@@ -58,31 +58,40 @@
 │ has_pending_edits    │
 │ verified_at          │
 │ verified_by (FK→users)│
+│ min_salary_per_day   │  ◄── job search preference, nullable
+│ min_salary_per_month │  ◄── job search preference, nullable
 │ created_at           │
 │ updated_at           │
 └──────────┬───────────┘
            │
            │ 1
            │
-     ┌─────┼─────────────────────┐
-     │     │                     │
-     │ N   │ N                   │ 1
-     ▼     ▼                     ▼
-┌────────────────┐  ┌────────────────────────┐  ┌──────────────────┐
-│ caregiver_     │  │ caregiver_preferred_   │  │   admin_notes    │
-│ languages      │  │ cities                 │  │──────────────────│
-│────────────────│  │────────────────────────│  │ id (PK)          │
-│ id (PK)        │  │ id (PK)                │  │ profile_id       │
-│ profile_id     │  │ profile_id (FK→profiles)│  │   (FK→profiles)  │
-│   (FK→profiles)│  │ city                   │  │ admin_id         │
-│ language       │  └────────────────────────┘  │   (FK→users)     │
-└────────────────┘                              │ internal_notes   │
-                                                 │ availability_    │
-                                                 │   remarks        │
-                                                 │ created_at       │
-                                                 │ updated_at       │
-                                                 └──────────────────┘
+     ┌─────┼──────────────────────────────────────┐
+     │     │                     │                 │
+     │ N   │ N                   │ N               │ 1
+     ▼     ▼                     ▼                 ▼
+┌────────────────┐  ┌────────────────────────┐  ┌────────────────────────┐  ┌──────────────────┐
+│ caregiver_     │  │ caregiver_preferred_   │  │ caregiver_preferred_   │  │   admin_notes    │
+│ languages      │  │ cities                 │  │ duty_types             │  │──────────────────│
+│────────────────│  │────────────────────────│  │────────────────────────│  │ id (PK)          │
+│ id (PK)        │  │ id (PK)                │  │ id (PK)                │  │ profile_id       │
+│ profile_id     │  │ profile_id (FK→profiles)│  │ profile_id (FK→profiles)│  │   (FK→profiles)  │
+│   (FK→profiles)│  │ city                   │  │ duty_type              │  │ admin_id         │
+│ language       │  └────────────────────────┘  └────────────────────────┘  │   (FK→users)     │
+└────────────────┘                                                         │ internal_notes   │
+                                                                            │ availability_    │
+                                                                            │   remarks        │
+                                                                            │ created_at       │
+                                                                            │ updated_at       │
+                                                                            └──────────────────┘
 ```
+
+`min_salary_per_day`/`min_salary_per_month` and `caregiver_preferred_cities`/
+`caregiver_preferred_duty_types` are job search preferences — they
+dynamically filter `GET /caregiver/jobs`, are editable anytime via the
+self-edit endpoint, and never affect `verification_status`. A `daily` job's
+`salary_amount` is only ever compared against `min_salary_per_day`, never
+`min_salary_per_month`, and vice versa.
 
 Admin-assigned work types, service modes, and salary (formerly
 `caregiver_work_types` / `caregiver_service_modes` tables plus a
@@ -207,6 +216,7 @@ SPEC.md 6.9.
 | users | admin_notes (admin) | 1:N | admin_notes.admin_id | Admin who wrote the notes |
 | caregiver_profiles | caregiver_languages | 1:N | caregiver_languages.profile_id | A profile has 1+ languages |
 | caregiver_profiles | caregiver_preferred_cities | 1:N | caregiver_preferred_cities.profile_id | A profile has 0+ preferred cities (multi-select) |
+| caregiver_profiles | caregiver_preferred_duty_types | 1:N | caregiver_preferred_duty_types.profile_id | A profile has 0+ preferred shift/duty types (multi-select) |
 | caregiver_profiles | admin_notes | 1:1 | admin_notes.profile_id | One notes record per profile (upserted) |
 | users | jobs (posted_by) | 1:N | jobs.posted_by | Admin who posted the job |
 | care_receivers | jobs | 1:1 | jobs.care_receiver_id | Each job describes exactly one care receiver's needs |
@@ -221,8 +231,9 @@ SPEC.md 6.9.
 |-------|---------|
 | **users** | Core identity table for all user types (caregivers, admins, super_admins). Holds auth credentials, contact info, role, and FCM token for push notifications. |
 | **refresh_tokens** | Stores hashed refresh tokens for JWT rotation. Each token use generates a new one and revokes the old. Supports 30-day TTL. |
-| **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. |
+| **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. Also carries `min_salary_per_day`/`min_salary_per_month` — job search preferences that dynamically filter `GET /caregiver/jobs`, editable anytime, never affecting verification status. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
+| **caregiver_preferred_duty_types** | Junction table for a caregiver's preferred shift/duty types (job search preference, multi-select from the same 3 fixed shifts as a job's `duty_type`). Same pattern as `caregiver_preferred_cities`. Dynamically filters `GET /caregiver/jobs`; editable anytime via the self-edit endpoint. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
 | **care_receivers** | "About Patient" in the admin-web UI. Care-needs description (age, gender, weight, mobility, communication, feeding, toilet assistance, medical assistance/conditions, vital monitoring) for the person a job is posted for. 1:1 with a job; no full patient PII/identity record yet — a future "Patient" app is expected to eventually supply that. |
 | **jobs** | Admin-posted job listings sent to all caregivers as push notifications. Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required monthly salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has a short human-friendly `job_number` distinct from its UUID `id`, and a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost (editing a closed job back to active), not on a plain edit. |
