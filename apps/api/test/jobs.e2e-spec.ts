@@ -49,7 +49,7 @@ describe('Jobs (e2e)', () => {
     await db.query("DELETE FROM users WHERE phone LIKE '+91700002%'");
   }
 
-  async function registerCaregiver(phoneSuffix: string) {
+  async function registerCaregiver(phoneSuffix: string, overrides: Record<string, unknown> = {}) {
     const res = await request(app.getHttpServer())
       .post('/v1/auth/register')
       .send({
@@ -62,6 +62,7 @@ describe('Jobs (e2e)', () => {
         highest_qualification: 'rn_above_2_years',
         terms_accepted: true,
         code: '1234',
+        ...overrides,
       });
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
   }
@@ -1079,6 +1080,39 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       const listed = res.body.data.find((j: { id: string }) => j.id === job.id);
       expect(listed.job_poster).toBeUndefined();
+    });
+
+    it('shows a job with no preferred_gender to a caregiver of any gender', async () => {
+      const caregiver = await registerCaregiver('0031', { gender: 'male' });
+      const job = await createJob({ preferred_gender: undefined });
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).toContain(job.id);
+    });
+
+    it("hides a job whose preferred_gender doesn't match the caregiver's own gender", async () => {
+      const caregiver = await registerCaregiver('0032', { gender: 'male' });
+      const job = await createJob({ preferred_gender: 'female' });
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).not.toContain(job.id);
+    });
+
+    it("shows a job whose preferred_gender matches the caregiver's own gender", async () => {
+      const caregiver = await registerCaregiver('0033', { gender: 'male' });
+      const job = await createJob({ preferred_gender: 'male' });
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids).toContain(job.id);
     });
   });
 

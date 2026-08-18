@@ -348,7 +348,10 @@ components:
           type: string
           nullable: true
           enum: [male, female, null]
-          description: Preference only, never used as a filter. Null = no preference.
+          description: >
+            Null = no preference. Enforced server-side on GET /caregiver/jobs
+            — a caregiver only sees jobs where this is null or matches their
+            own gender.
         preferred_religion:
           type: string
           nullable: true
@@ -1802,7 +1805,10 @@ paths:
       summary: List active job postings
       description: |
         Viewable at ANY verification status — browsing motivates completing
-        onboarding. Only applying is gated. Each item includes
+        onboarding. Only applying is gated. Server-side filtered to jobs
+        whose `preferred_gender` is unset or matches the caregiver's own
+        gender — a caregiver never sees a job posted for the other gender.
+        Each item includes
         `my_application` (null if this caregiver hasn't applied yet) — the
         real per-transition timeline, not just a bare status, so the app
         can distinguish "you declined it" from "the employer declined you"

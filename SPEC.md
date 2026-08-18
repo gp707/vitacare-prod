@@ -2106,7 +2106,7 @@ notification to ALL caregivers.
 - `start_date`: Required (ISO date, previously optional). UI label: "Preferred Start Date".
 - `languages`: Required non-empty array, each item a valid language enum — a multi-select preference, shown to caregivers as informational.
 - `salary_amount`: Required integer, 1-1,000,000. Unit follows `frequency_of_care` (₹/day for `daily`, ₹/month for `monthly`) — shown highlighted at the top of the job card in caregiver-app, and dynamically labeled on the admin-web form/job list.
-- `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Never used as a filter.
+- `preferred_gender`: Optional, `male` or `female` — omitted means no preference. Enforced server-side on `GET /caregiver/jobs`: a caregiver only sees jobs where this is unset or matches their own `caregiver_profiles.gender`.
 - `preferred_religion`: Optional, `hindu`/`muslim`/`christian` only (`others` excluded — valid for a caregiver's own religion at registration, not offered as a job preference) — omitted means no preference. Never used as a filter.
 
 **Response (201):**
@@ -2321,7 +2321,10 @@ there's no separate in-app caregiver "accept offer" step.
 
 #### GET `/caregiver/jobs`
 
-List active job postings for caregiver to view and apply. Each item
+List active job postings for caregiver to view and apply. Only jobs whose
+`preferred_gender` is unset (no preference) or matches the requesting
+caregiver's own `caregiver_profiles.gender` are returned — filtering is
+server-side, not a client-side hide. Each item
 includes the full `care_receiver` (joined via `care_receiver_id`, not just
 on `GET /admin/jobs/:id`) — the caregiver-app renders it under the same
 two section labels as the admin form: **About Patient** (age, gender,

@@ -231,9 +231,12 @@ export class JobsRepository {
    *  and the full care_receiver joined in — lets the caregiver-app show
    *  "already applied" state and the About Patient / About Patient
    *  Condition details directly on the jobs list, without a second
-   *  round trip per job. */
+   *  round trip per job. Also filtered to jobs whose preferred_gender is
+   *  either unset (no preference) or matches the caregiver's own gender —
+   *  a caregiver never sees a job posted for the other gender. */
   async listActiveForCaregiver(
     profileId: string,
+    gender: Gender,
     page: ListPage,
   ): Promise<{ items: JobWithMyApplication[]; total: number }> {
     const offset = (page.page - 1) * page.limit;
@@ -251,12 +254,16 @@ export class JobsRepository {
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1
-         WHERE j.status = 'active'
+         WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $2)
          ORDER BY j.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [profileId, page.limit, offset],
+         LIMIT $3 OFFSET $4`,
+        [profileId, gender, page.limit, offset],
       ),
-      this.db.query<{ count: string }>(`SELECT COUNT(*) FROM jobs WHERE status = 'active'`),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*) FROM jobs j
+         WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $1)`,
+        [gender],
+      ),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
