@@ -14,6 +14,7 @@ import 'package:admin_web/features/organisations/screens/organisations_list_scre
 
 AdminOrganisationListItem _item({
   String userId = 'u1',
+  int? orgNumber = 500,
   String fullName = 'Dr. Rao',
   String organisationName = 'City Rehab Center',
   String organisationType = OrganisationType.hospital,
@@ -23,6 +24,7 @@ AdminOrganisationListItem _item({
 }) {
   return AdminOrganisationListItem(
     userId: userId,
+    orgNumber: orgNumber,
     fullName: fullName,
     phone: '+919876543210',
     organisationName: organisationName,
@@ -101,6 +103,7 @@ void main() {
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.text('Bangalore, Whitefield'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
+    expect(find.text('ORG-500'), findsOneWidget);
   });
 
   testWidgets('shows an empty state when there are no organisations', (tester) async {

@@ -21,6 +21,7 @@ AdminOrganisationRequirement _requirement({
   String? scheduleType,
   String? startDate,
   String? endDate,
+  String? scheduleRepeat,
   List<int>? specificDays,
   String? rejectionReason,
   bool accommodationProvided = true,
@@ -36,6 +37,7 @@ AdminOrganisationRequirement _requirement({
     scheduleType: scheduleType,
     startDate: startDate,
     endDate: endDate,
+    scheduleRepeat: scheduleRepeat,
     specificDays: specificDays,
     accommodationProvided: accommodationProvided,
     foodProvided: foodProvided,
@@ -74,6 +76,7 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   String? approvedScheduleType;
   String? approvedStartDate;
   String? approvedEndDate;
+  String? approvedScheduleRepeat;
   List<int>? approvedSpecificDays;
   String? rejectedId;
   String? rejectedReason;
@@ -101,6 +104,7 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
     required String scheduleType,
     String? startDate,
     String? endDate,
+    String? scheduleRepeat,
     List<int>? specificDays,
     required bool accommodationProvided,
     required bool foodProvided,
@@ -112,6 +116,7 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
     approvedScheduleType = scheduleType;
     approvedStartDate = startDate;
     approvedEndDate = endDate;
+    approvedScheduleRepeat = scheduleRepeat;
     approvedSpecificDays = specificDays;
   }
 
@@ -232,6 +237,7 @@ void main() {
         frequencyOfCare: FrequencyOfCare.monthly,
         salaryAmount: 25000,
         scheduleType: 'specific_days',
+        scheduleRepeat: 'monthly',
         specificDays: [3, 12, 20],
       ),
     ]);
@@ -244,9 +250,10 @@ void main() {
     expect(find.text('Monthly'), findsWidgets);
     final salaryField = tester.widget<TextField>(find.byType(TextField));
     expect(salaryField.controller!.text, '25000');
-    // Pre-filled from the existing specific_days schedule.
-    final dayThreeChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, '3'));
-    expect(dayThreeChip.selected, isTrue);
+    // Pre-filled from the existing specific_days/monthly schedule — 3
+    // pre-selected days show as 3 green check-circle markers on the
+    // calendar (no date-range checkmarks exist in this schedule mode).
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
 
     await tester.enterText(find.byType(TextField), '28000');
     await tester.pumpAndSettle();
@@ -257,10 +264,12 @@ void main() {
     expect(repo.approvedFrequency, FrequencyOfCare.monthly);
     expect(repo.approvedSalary, 28000);
     expect(repo.approvedScheduleType, 'specific_days');
+    expect(repo.approvedScheduleRepeat, 'monthly');
     expect(repo.approvedSpecificDays, [3, 12, 20]);
   });
 
-  testWidgets('approving with a specific_days schedule fills frequency/salary/days and calls the repository',
+  testWidgets(
+      'approving with a specific_days/monthly schedule fills frequency/salary/days (via the calendar) and calls the repository',
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
@@ -278,8 +287,11 @@ void main() {
 
     await tester.tap(find.text('Specific Days'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, '5'));
-    await tester.tap(find.widgetWithText(FilterChip, '15'));
+    await tester.tap(find.text('Monthly').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('5'));
+    await tester.tap(find.text('15'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Approve').last);
@@ -289,7 +301,69 @@ void main() {
     expect(repo.approvedFrequency, FrequencyOfCare.monthly);
     expect(repo.approvedSalary, 30000);
     expect(repo.approvedScheduleType, 'specific_days');
+    expect(repo.approvedScheduleRepeat, 'monthly');
     expect(repo.approvedSpecificDays, [5, 15]);
+  });
+
+  testWidgets(
+      'approving with a specific_days/weekly schedule picks weekday chips and calls the repository',
+      (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Approve'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monthly').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '30000');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Specific Days'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Weekly').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Mon'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Wed'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Fri'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Approve').last);
+    await tester.pumpAndSettle();
+
+    expect(repo.approvedId, 'r1');
+    expect(repo.approvedScheduleType, 'specific_days');
+    expect(repo.approvedScheduleRepeat, 'weekly');
+    expect(repo.approvedSpecificDays, [1, 3, 5]);
+  });
+
+  testWidgets('the Save/Approve button stays disabled until a repeat cadence is chosen for a specific_days schedule',
+      (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Approve'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monthly').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '30000');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Specific Days'));
+    await tester.pumpAndSettle();
+
+    // No repeat cadence chosen yet, so neither the weekday chips nor the
+    // calendar have rendered, and submit stays disabled.
+    final approveButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Approve').last);
+    expect(approveButton.onPressed, isNull);
   });
 
   testWidgets('approving with a date_range schedule requires both dates and calls the repository', (tester) async {

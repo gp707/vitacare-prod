@@ -5,6 +5,9 @@ import { DatabaseService, QueryRunner } from '../database.service';
 export interface OrganisationProfileRecord {
   id: string;
   user_id: string;
+  /** Human-friendly sequential id, e.g. org_number 500 displays as
+   *  "ORG-500" — see organisationDisplayId() in packages/vitacare_shared. */
+  org_number: number;
   organisation_name: string;
   contact_person_name: string;
   organisation_type: string;

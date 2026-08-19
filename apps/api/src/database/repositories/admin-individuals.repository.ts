@@ -4,6 +4,7 @@ import { ListPage } from './jobs.repository';
 
 export interface AdminIndividualListItem {
   user_id: string;
+  patient_number: number;
   full_name: string;
   phone: string;
   is_active: boolean;
@@ -24,7 +25,7 @@ export class AdminIndividualsRepository {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminIndividualListItem>(
-        `SELECT u.id AS user_id, u.full_name, u.phone, u.is_active,
+        `SELECT u.id AS user_id, ip.patient_number, u.full_name, u.phone, u.is_active,
                 ip.is_job_posting_blocked, ip.block_reason, u.created_at
          FROM users u
          JOIN individual_profiles ip ON ip.user_id = u.id
@@ -44,7 +45,7 @@ export class AdminIndividualsRepository {
 
   async findDetailByUserId(userId: string): Promise<AdminIndividualListItem | null> {
     const result = await this.db.query<AdminIndividualListItem>(
-      `SELECT u.id AS user_id, u.full_name, u.phone, u.is_active,
+      `SELECT u.id AS user_id, ip.patient_number, u.full_name, u.phone, u.is_active,
               ip.is_job_posting_blocked, ip.block_reason, u.created_at
        FROM users u
        JOIN individual_profiles ip ON ip.user_id = u.id

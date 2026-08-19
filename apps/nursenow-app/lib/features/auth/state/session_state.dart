@@ -27,6 +27,11 @@ class SessionAuthenticated extends SessionState {
   final String? organisationType;
   final String? city;
   final String? area;
+  /// Human-friendly sequential id — patientNumber for an individual,
+  /// orgNumber for an organisation (whichever applies is non-null).
+  /// Display via patientDisplayId()/organisationDisplayId().
+  final int? patientNumber;
+  final int? orgNumber;
 
   const SessionAuthenticated({
     required this.role,
@@ -37,6 +42,8 @@ class SessionAuthenticated extends SessionState {
     this.organisationType,
     this.city,
     this.area,
+    this.patientNumber,
+    this.orgNumber,
   });
 
   bool get isOrganisation => role == 'organisation';

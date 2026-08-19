@@ -73,6 +73,13 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                               textAlign: TextAlign.center,
                             ),
+                            if (caregiverDisplayId(profile.caregiverNumber) != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                caregiverDisplayId(profile.caregiverNumber)!,
+                                style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                              ),
+                            ],
                             if (profile.verificationStatus == VerificationStatus.available ||
                                 profile.verificationStatus == VerificationStatus.assigned) ...[
                               const SizedBox(height: AppSpacing.xs),

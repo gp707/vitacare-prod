@@ -23,6 +23,7 @@ OrganisationRequirementModel _requirement({
   String? scheduleType,
   String? startDate,
   String? endDate,
+  String? scheduleRepeat,
   List<int>? specificDays,
 }) {
   return OrganisationRequirementModel.fromJson({
@@ -35,6 +36,7 @@ OrganisationRequirementModel _requirement({
     'schedule_type': scheduleType,
     'start_date': startDate,
     'end_date': endDate,
+    'schedule_repeat': scheduleRepeat,
     'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
@@ -188,15 +190,30 @@ void main() {
     expect(find.text('2026-09-01 – 2026-09-10'), findsOneWidget);
   });
 
-  testWidgets('shows the admin-set schedule once approved — specific days', (tester) async {
+  testWidgets('shows the admin-set schedule once approved — specific days of the month', (tester) async {
     await _pump(
       tester,
       _FakeOrganisationRepository(
-        requirements: [_requirement(scheduleType: 'specific_days', specificDays: [3, 12, 20])],
+        requirements: [
+          _requirement(scheduleType: 'specific_days', scheduleRepeat: 'monthly', specificDays: [3, 12, 20]),
+        ],
       ),
     );
 
     expect(find.text('Days: 3, 12, 20'), findsOneWidget);
+  });
+
+  testWidgets('shows the admin-set schedule once approved — specific days of the week', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [
+          _requirement(scheduleType: 'specific_days', scheduleRepeat: 'weekly', specificDays: [1, 3, 5]),
+        ],
+      ),
+    );
+
+    expect(find.text('Every: Mon, Wed, Fri'), findsOneWidget);
   });
 
   testWidgets('shows the accepted caregiver on a closed requirement', (tester) async {

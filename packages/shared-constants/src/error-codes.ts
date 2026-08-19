@@ -77,7 +77,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_012: { status: 400, message: 'A reason is required when declining an applicant' },
 
   // Organisation errors (NurseNow)
-  ORG_001: { status: 400, message: 'Preferred start date is required when frequency of care is daily' },
+  ORG_001: { status: 400, message: 'End date cannot be before start date' },
+  ORG_002: { status: 400, message: 'Weekday values must be between 1 (Monday) and 7 (Sunday)' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

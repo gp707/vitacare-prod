@@ -68,6 +68,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
               fullName: 'Asha Patel',
               phone: '+919876543210',
               isJobPostingBlocked: isJobPostingBlocked,
+              patientNumber: 500,
             ),
         ),
       ],
@@ -86,6 +87,7 @@ void main() {
     expect(find.text('Asha Patel'), findsOneWidget);
     final phoneField = tester.widget<TextField>(find.widgetWithText(TextField, 'Phone number'));
     expect(phoneField.controller?.text, '+919876543210');
+    expect(find.text('PAT-500'), findsOneWidget);
   });
 
   testWidgets('shows a blocked-posting notice when is_job_posting_blocked is true', (tester) async {

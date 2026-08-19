@@ -13,16 +13,20 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { FrequencyOfCare, ScheduleType, TypeOfNurse } from '@vitacare/shared-constants';
+import { FrequencyOfCare, ScheduleRepeat, ScheduleType, TypeOfNurse } from '@vitacare/shared-constants';
 
 /** Admin's approve-via-edit body — same shape as create plus the
  *  admin-set fields. schedule_type picks exactly one scheduling mode —
  *  a continuous date range (start_date/end_date) or a set of specific
- *  calendar days of the month (specific_days) — deliberately
- *  organisation-only; regular jobs keep a single start_date. Only the
- *  fields for the chosen mode are required (ORG_001 otherwise); the other
- *  mode's fields are ignored/nulled server-side regardless of what's
- *  sent. */
+ *  recurring days (specific_days) — deliberately organisation-only;
+ *  regular jobs keep a single start_date. When schedule_type is
+ *  specific_days, schedule_repeat further picks whether specific_days
+ *  holds ISO weekdays (1-7, recurring weekly) or days-of-month (1-31,
+ *  recurring monthly) — range-checked against schedule_repeat in the
+ *  service layer (ORG_002), since the valid range depends on which repeat
+ *  mode was chosen. Only the fields for the chosen mode are required
+ *  (ORG_001 otherwise); the other mode's fields are ignored/nulled
+ *  server-side regardless of what's sent. */
 export class UpdateOrganisationRequirementDto {
   @IsIn(Object.values(TypeOfNurse), { message: 'GEN_001' })
   type_of_nurse!: string;
@@ -45,6 +49,10 @@ export class UpdateOrganisationRequirementDto {
   @ValidateIf((o) => o.schedule_type === ScheduleType.DATE_RANGE)
   @IsISO8601({ strict: true }, { message: 'ORG_001' })
   end_date?: string;
+
+  @ValidateIf((o) => o.schedule_type === ScheduleType.SPECIFIC_DAYS)
+  @IsIn(Object.values(ScheduleRepeat), { message: 'ORG_001' })
+  schedule_repeat?: string;
 
   @ValidateIf((o) => o.schedule_type === ScheduleType.SPECIFIC_DAYS)
   @IsArray({ message: 'ORG_001' })

@@ -5,6 +5,7 @@ export 'constants/validation.dart';
 export 'models/api_response_model.dart';
 export 'models/caregiver_profile_model.dart';
 export 'models/care_receiver_model.dart';
+export 'models/display_id.dart';
 export 'models/job_model.dart';
 export 'models/organisation_requirement_model.dart';
 export 'utils/validators.dart';

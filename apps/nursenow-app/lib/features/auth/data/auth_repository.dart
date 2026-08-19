@@ -58,12 +58,20 @@ class AuthRepository {
     }
   }
 
-  /// Same endpoint as caregiver login (POST /auth/login/code) — the
-  /// backend accepts either role's phone+code and issues the same kind of
-  /// non-expiring token either way.
+  /// Same endpoint as caregiver login (POST /auth/login/code), but phone
+  /// is unique per app bucket, not globally — the same phone can also
+  /// hold a separate, unlinked NurseJobs caregiver account. `app:
+  /// 'nursenow'` tells the backend to look this phone up among
+  /// individual/organisation accounts only (whichever this phone actually
+  /// registered as — this app doesn't know which ahead of login, that's
+  /// decoded from the JWT afterward), never a caregiver account on the
+  /// same number.
   Future<AuthResult> loginCode(String phone, String code) async {
     try {
-      final res = await _dio.post(ApiRoutes.loginCode, data: {'phone': phone, 'code': code});
+      final res = await _dio.post(
+        ApiRoutes.loginCode,
+        data: {'phone': phone, 'code': code, 'app': LoginApp.nursenow},
+      );
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

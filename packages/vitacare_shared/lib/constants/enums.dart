@@ -481,8 +481,43 @@ class ScheduleType {
 
   static const displayNames = {
     dateRange: 'Date Range',
-    specificDays: 'Specific Days of the Month',
+    specificDays: 'Specific Days',
   };
+}
+
+/// Only meaningful when scheduleType is ScheduleType.specificDays — picks
+/// whether specificDays holds ISO weekday numbers (1=Monday..7=Sunday,
+/// recurring every week) or day-of-month numbers (1-31, recurring every
+/// month).
+class ScheduleRepeat {
+  static const weekly = 'weekly';
+  static const monthly = 'monthly';
+
+  static const all = [weekly, monthly];
+
+  static const displayNames = {
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+  };
+
+  /// 1-indexed (Monday=1..Sunday=7), matching Dart's DateTime.weekday.
+  static const weekdayAbbreviations = {
+    1: 'Mon',
+    2: 'Tue',
+    3: 'Wed',
+    4: 'Thu',
+    5: 'Fri',
+    6: 'Sat',
+    7: 'Sun',
+  };
+}
+
+/// Which app is calling POST /auth/login/code — phone is unique per app
+/// bucket, not globally: NURSEJOBS -> role=caregiver only, NURSENOW ->
+/// role IN (individual, organisation).
+class LoginApp {
+  static const nursejobs = 'nursejobs';
+  static const nursenow = 'nursenow';
 }
 
 /// organisation_profiles.city is validated against City.all plus this one

@@ -3,6 +3,9 @@
 class CaregiverProfileModel {
   final String userId;
   final String profileId;
+  /// Human-friendly sequential id, e.g. 500 — display as "NUR-500" via
+  /// [caregiverDisplayId].
+  final int? caregiverNumber;
   final String fullName;
   final String phone;
   final String? email;
@@ -27,6 +30,7 @@ class CaregiverProfileModel {
   const CaregiverProfileModel({
     required this.userId,
     required this.profileId,
+    this.caregiverNumber,
     required this.fullName,
     required this.phone,
     this.email,
@@ -53,6 +57,7 @@ class CaregiverProfileModel {
     return CaregiverProfileModel(
       userId: json['user_id'] as String,
       profileId: json['profile_id'] as String,
+      caregiverNumber: json['caregiver_number'] as int?,
       fullName: json['full_name'] as String,
       phone: json['phone'] as String,
       email: json['email'] as String?,

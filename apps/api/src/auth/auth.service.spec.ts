@@ -30,7 +30,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     db = { withTransaction: jest.fn() };
-    usersRepo = { findByPhone: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
+    usersRepo = { findByPhoneAndRoles: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
     caregiverProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     caregiverLanguagesRepo = { createMany: jest.fn() };
     caregiverPreferredCitiesRepo = { createMany: jest.fn() };
@@ -72,7 +72,7 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('throws AUTH_001 when phone already registered', async () => {
-      usersRepo.findByPhone.mockResolvedValue(baseUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(baseUser);
       await expect(
         service.register({
           phone: baseUser.phone,
@@ -89,7 +89,7 @@ describe('AuthService', () => {
     });
 
     it('creates user + profile + languages in a transaction and returns pending_call', async () => {
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
       caregiverProfilesRepo.create.mockResolvedValue({
@@ -137,7 +137,7 @@ describe('AuthService', () => {
     });
 
     it('creates preferred cities when provided, skips when omitted', async () => {
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
       caregiverProfilesRepo.create.mockResolvedValue({
@@ -179,7 +179,7 @@ describe('AuthService', () => {
     });
 
     it('hashes the code and stores it on the new user row (login code is set from registration onward)', async () => {
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
       caregiverProfilesRepo.create.mockResolvedValue({
@@ -211,14 +211,14 @@ describe('AuthService', () => {
     const individualUser = { ...baseUser, role: UserRole.INDIVIDUAL };
 
     it('throws AUTH_001 when phone already registered', async () => {
-      usersRepo.findByPhone.mockResolvedValue(individualUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(individualUser);
       await expect(
         service.registerIndividual({ phone: individualUser.phone, full_name: 'Asha Patel', code: '1234' }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
     });
 
     it('creates user + individual_profiles in a transaction and returns no verification_status', async () => {
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [individualUser] }) };
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
 
@@ -253,12 +253,12 @@ describe('AuthService', () => {
     };
 
     it('throws AUTH_001 when phone already registered', async () => {
-      usersRepo.findByPhone.mockResolvedValue(orgUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(orgUser);
       await expect(service.registerOrganisation(orgDto)).rejects.toMatchObject({ code: 'AUTH_001' });
     });
 
     it('creates user (full_name = contact_person_name) + organisation_profiles, returns no verification_status', async () => {
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [orgUser] }) };
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
 
@@ -288,41 +288,62 @@ describe('AuthService', () => {
 
   describe('loginCode', () => {
     it('throws AUTH_008 when code_hash is null', async () => {
-      usersRepo.findByPhone.mockResolvedValue(baseUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(baseUser);
       await expect(
-        service.loginCode({ phone: baseUser.phone, code: '1234' }),
+        service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' }),
       ).rejects.toMatchObject({ code: 'AUTH_008' });
     });
 
     it('throws AUTH_008 when code does not match', async () => {
       const codeHash = await bcrypt.hash('1234', 4);
-      usersRepo.findByPhone.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
       await expect(
-        service.loginCode({ phone: baseUser.phone, code: '9999' }),
+        service.loginCode({ phone: baseUser.phone, code: '9999', app: 'nursejobs' }),
       ).rejects.toMatchObject({ code: 'AUTH_008' });
     });
 
     it('succeeds when code matches', async () => {
       const codeHash = await bcrypt.hash('1234', 4);
-      usersRepo.findByPhone.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
       caregiverProfilesRepo.findByUserId.mockResolvedValue({
         verification_status: VerificationStatus.AVAILABLE,
       });
-      const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
+      const result = await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' });
       expect((result as { verification_status: string }).verification_status).toBe('available');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: baseUser.id, action: 'login' }),
       );
     });
 
-    it('logs in an individual account, with no verification_status in the response', async () => {
+    it('passes only the caregiver role to findByPhoneAndRoles for app=nursejobs', async () => {
       const codeHash = await bcrypt.hash('1234', 4);
-      usersRepo.findByPhone.mockResolvedValue({
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+      await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' });
+      expect(usersRepo.findByPhoneAndRoles).toHaveBeenCalledWith(baseUser.phone, [UserRole.CAREGIVER]);
+    });
+
+    it('passes individual+organisation roles to findByPhoneAndRoles for app=nursenow', async () => {
+      const codeHash = await bcrypt.hash('1234', 4);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({
         ...baseUser,
         role: UserRole.INDIVIDUAL,
         code_hash: codeHash,
       });
-      const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
+      await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursenow' });
+      expect(usersRepo.findByPhoneAndRoles).toHaveBeenCalledWith(baseUser.phone, [
+        UserRole.INDIVIDUAL,
+        UserRole.ORGANISATION,
+      ]);
+    });
+
+    it('logs in an individual account, with no verification_status in the response', async () => {
+      const codeHash = await bcrypt.hash('1234', 4);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({
+        ...baseUser,
+        role: UserRole.INDIVIDUAL,
+        code_hash: codeHash,
+      });
+      const result = await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursenow' });
       expect(result.user_id).toBe(baseUser.id);
       expect(result).not.toHaveProperty('verification_status');
       expect(caregiverProfilesRepo.findByUserId).not.toHaveBeenCalled();
@@ -330,21 +351,21 @@ describe('AuthService', () => {
 
     it('logs in an organisation account, with no verification_status in the response', async () => {
       const codeHash = await bcrypt.hash('1234', 4);
-      usersRepo.findByPhone.mockResolvedValue({
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({
         ...baseUser,
         role: UserRole.ORGANISATION,
         code_hash: codeHash,
       });
-      const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
+      const result = await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursenow' });
       expect(result.user_id).toBe(baseUser.id);
       expect(result).not.toHaveProperty('verification_status');
       expect(caregiverProfilesRepo.findByUserId).not.toHaveBeenCalled();
     });
 
-    it('throws AUTH_002 for a role that cannot log in with a code (e.g. admin)', async () => {
-      usersRepo.findByPhone.mockResolvedValue({ ...baseUser, role: UserRole.ADMIN });
+    it('throws AUTH_002 when no account in the requested app bucket exists (e.g. an admin phone under app=nursejobs)', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       await expect(
-        service.loginCode({ phone: baseUser.phone, code: '1234' }),
+        service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' }),
       ).rejects.toMatchObject({ code: 'AUTH_002' });
     });
   });

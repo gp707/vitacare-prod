@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { AuditAction, Config, UserRole, VerificationStatus } from '@vitacare/shared-constants';
+import { AuditAction, Config, LoginApp, UserRole, VerificationStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { UsersRepository, UserRecord } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
@@ -23,8 +23,13 @@ import { LoginEmailDto } from './dto/login-email.dto';
 
 // Caregiver and both NurseNow account types (individual, organisation) log
 // in with phone + a bcrypt-hashed 4-digit code — same mechanism, different
-// profile table created at registration.
-const CODE_LOGIN_ROLES: UserRole[] = [UserRole.CAREGIVER, UserRole.INDIVIDUAL, UserRole.ORGANISATION];
+// profile table created at registration. Which roles are searched depends
+// on the caller's LoginApp (phone is unique per app bucket, not globally
+// — see migration 045).
+const CODE_LOGIN_ROLES_BY_APP: Record<string, UserRole[]> = {
+  [LoginApp.NURSEJOBS]: [UserRole.CAREGIVER],
+  [LoginApp.NURSENOW]: [UserRole.INDIVIDUAL, UserRole.ORGANISATION],
+};
 
 export interface IssuedTokens {
   access_token: string;
@@ -48,7 +53,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto, ipAddress: string | null = null) {
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.CAREGIVER]);
     if (existing) {
       throw new AppException('AUTH_001');
     }
@@ -114,8 +119,9 @@ export class AuthService {
   }
 
   async loginCode(dto: LoginCodeDto, ipAddress: string | null = null) {
-    const user = await this.usersRepo.findByPhone(dto.phone);
-    if (!user || !CODE_LOGIN_ROLES.includes(user.role)) {
+    const roles = CODE_LOGIN_ROLES_BY_APP[dto.app];
+    const user = await this.usersRepo.findByPhoneAndRoles(dto.phone, roles);
+    if (!user) {
       throw new AppException('AUTH_002');
     }
     if (!user.is_active) {
@@ -158,7 +164,10 @@ export class AuthService {
    *  qualification, no documents, no verification pipeline. Logs in the
    *  same way (phone + code) immediately after. */
   async registerIndividual(dto: RegisterIndividualDto, ipAddress: string | null = null) {
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+      UserRole.INDIVIDUAL,
+      UserRole.ORGANISATION,
+    ]);
     if (existing) {
       throw new AppException('AUTH_001');
     }
@@ -195,7 +204,10 @@ export class AuthService {
    *  since every requirement it later posts inherits city/area from here
    *  (no per-requirement location — see "NurseNow" in CLAUDE.md). */
   async registerOrganisation(dto: RegisterOrganisationDto, ipAddress: string | null = null) {
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+      UserRole.INDIVIDUAL,
+      UserRole.ORGANISATION,
+    ]);
     if (existing) {
       throw new AppException('AUTH_001');
     }

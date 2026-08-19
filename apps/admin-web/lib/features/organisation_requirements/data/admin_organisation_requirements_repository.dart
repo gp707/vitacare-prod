@@ -11,10 +11,12 @@ class AdminOrganisationRequirement {
   final int? salaryAmount;
   /// Admin-set scheduling — exactly one mode, picked via [scheduleType].
   /// 'date_range' uses [startDate]/[endDate]; 'specific_days' uses
-  /// [specificDays]. Null until approved.
+  /// [scheduleRepeat] + [specificDays] (weekdays 1-7 if weekly, days of
+  /// month 1-31 if monthly). Null until approved.
   final String? scheduleType;
   final String? startDate;
   final String? endDate;
+  final String? scheduleRepeat;
   final List<int>? specificDays;
   final bool accommodationProvided;
   final bool foodProvided;
@@ -37,6 +39,7 @@ class AdminOrganisationRequirement {
     this.scheduleType,
     this.startDate,
     this.endDate,
+    this.scheduleRepeat,
     this.specificDays,
     required this.accommodationProvided,
     required this.foodProvided,
@@ -60,6 +63,7 @@ class AdminOrganisationRequirement {
         scheduleType: json['schedule_type'] as String?,
         startDate: json['start_date'] as String?,
         endDate: json['end_date'] as String?,
+        scheduleRepeat: json['schedule_repeat'] as String?,
         specificDays:
             json['specific_days'] != null ? List<int>.from(json['specific_days'] as List) : null,
         accommodationProvided: json['accommodation_provided'] as bool,
@@ -116,9 +120,9 @@ class AdminOrganisationRequirementsRepository {
   /// Approves (if pending_review) or edits (if already active) — same
   /// endpoint either way, matching JobsService.updateJob's repost pattern.
   /// [scheduleType] picks exactly one mode: 'date_range' (needs
-  /// [startDate]/[endDate]) or 'specific_days' (needs [specificDays]) —
-  /// the other mode's fields are ignored server-side regardless of what's
-  /// sent.
+  /// [startDate]/[endDate]) or 'specific_days' (needs [scheduleRepeat] +
+  /// [specificDays]) — the other mode's fields are ignored server-side
+  /// regardless of what's sent.
   Future<void> approve(
     String id, {
     required String typeOfNurse,
@@ -127,6 +131,7 @@ class AdminOrganisationRequirementsRepository {
     required String scheduleType,
     String? startDate,
     String? endDate,
+    String? scheduleRepeat,
     List<int>? specificDays,
     required bool accommodationProvided,
     required bool foodProvided,
@@ -140,6 +145,7 @@ class AdminOrganisationRequirementsRepository {
         'schedule_type': scheduleType,
         if (startDate != null) 'start_date': startDate,
         if (endDate != null) 'end_date': endDate,
+        if (scheduleRepeat != null) 'schedule_repeat': scheduleRepeat,
         if (specificDays != null) 'specific_days': specificDays,
         'accommodation_provided': accommodationProvided,
         'food_provided': foodProvided,

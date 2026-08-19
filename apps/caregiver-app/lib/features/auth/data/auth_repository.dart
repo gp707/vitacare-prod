@@ -47,9 +47,17 @@ class AuthRepository {
     }
   }
 
+  /// Phone is unique per app bucket, not globally — the same phone can
+  /// also hold a separate, unlinked NurseNow account. `app: 'nursejobs'`
+  /// tells the backend to look this phone up among caregiver accounts
+  /// only, never a NurseNow individual/organisation account on the same
+  /// number.
   Future<AuthResult> loginCode(String phone, String code) async {
     try {
-      final res = await _dio.post(ApiRoutes.loginCode, data: {'phone': phone, 'code': code});
+      final res = await _dio.post(
+        ApiRoutes.loginCode,
+        data: {'phone': phone, 'code': code, 'app': LoginApp.nursejobs},
+      );
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

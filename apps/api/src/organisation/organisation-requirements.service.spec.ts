@@ -338,6 +338,7 @@ describe('OrganisationRequirementsService', () => {
       frequency_of_care: 'monthly',
       salary_amount: 40000,
       schedule_type: 'specific_days',
+      schedule_repeat: 'monthly',
       specific_days: [3, 12, 20],
       accommodation_provided: true,
       food_provided: true,
@@ -358,7 +359,12 @@ describe('OrganisationRequirementsService', () => {
 
       expect(requirementsRepo.update).toHaveBeenCalledWith(
         'req-1',
-        expect.objectContaining({ activate: true, schedule_type: 'specific_days', specific_days: [3, 12, 20] }),
+        expect.objectContaining({
+          activate: true,
+          schedule_type: 'specific_days',
+          schedule_repeat: 'monthly',
+          specific_days: [3, 12, 20],
+        }),
       );
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
@@ -390,19 +396,20 @@ describe('OrganisationRequirementsService', () => {
           schedule_type: 'date_range',
           start_date: '2026-09-01',
           end_date: '2026-09-10',
+          schedule_repeat: null,
           specific_days: null,
         }),
       );
     });
 
-    it('nulls start_date/end_date when schedule_type is specific_days, and persists specific_days', async () => {
+    it('nulls start_date/end_date when schedule_type is specific_days/monthly, and persists specific_days', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
       requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
 
       await service.updateRequirement(
         'admin-1',
         'req-1',
-        { ...editDto, schedule_type: 'specific_days', specific_days: [5, 15, 25] },
+        { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'monthly', specific_days: [5, 15, 25] },
         null,
       );
 
@@ -412,9 +419,45 @@ describe('OrganisationRequirementsService', () => {
           schedule_type: 'specific_days',
           start_date: null,
           end_date: null,
+          schedule_repeat: 'monthly',
           specific_days: [5, 15, 25],
         }),
       );
+    });
+
+    it('persists weekday numbers (1-7) when schedule_repeat is weekly', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
+      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      await service.updateRequirement(
+        'admin-1',
+        'req-1',
+        { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 3, 5] },
+        null,
+      );
+
+      expect(requirementsRepo.update).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({
+          schedule_type: 'specific_days',
+          schedule_repeat: 'weekly',
+          specific_days: [1, 3, 5],
+        }),
+      );
+    });
+
+    it('throws ORG_002 when a weekly specific_days value is outside 1-7', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      await expect(
+        service.updateRequirement(
+          'admin-1',
+          'req-1',
+          { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 12] },
+          null,
+        ),
+      ).rejects.toMatchObject({ code: 'ORG_002' });
+      expect(requirementsRepo.update).not.toHaveBeenCalled();
     });
 
     it('throws ORG_001 when end_date is before start_date for a date_range schedule', async () => {

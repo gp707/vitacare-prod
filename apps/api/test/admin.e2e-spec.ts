@@ -472,7 +472,7 @@ describe('Admin (e2e)', () => {
       const caregiver = await registerCaregiver('0008', 'Audit RBAC Subject');
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0008'), code: '1234' })
+        .send({ phone: testPhone('0008'), code: '1234', app: 'nursejobs' })
         .expect(200);
       const res = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
@@ -526,7 +526,7 @@ describe('Admin (e2e)', () => {
       const { profile_id: profileId } = await registerCaregiver('0010', 'Edit RBAC Subject');
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0010'), code: '1234' })
+        .send({ phone: testPhone('0010'), code: '1234', app: 'nursejobs' })
         .expect(200);
       const res = await request(app.getHttpServer())
         .put(`/v1/admin/caregivers/${profileId}`)
@@ -675,7 +675,7 @@ describe('Admin (e2e)', () => {
       const caregiver = await registerCaregiver('0016', 'Doc Upload RBAC Subject');
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0016'), code: '1234' })
+        .send({ phone: testPhone('0016'), code: '1234', app: 'nursejobs' })
         .expect(200);
       const res = await request(app.getHttpServer())
         .post(`/v1/admin/caregivers/${caregiver.profile_id}/selfie`)

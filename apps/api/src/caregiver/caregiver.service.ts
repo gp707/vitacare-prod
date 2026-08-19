@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, DocumentType, Validation } from '@vitacare/shared-constants';
+import { AuditAction, Config, DocumentType, UserRole, Validation } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import {
   CaregiverProfilesRepository,
@@ -66,6 +66,7 @@ export class CaregiverService {
     return {
       user_id: profile.user_id,
       profile_id: profile.id,
+      caregiver_number: profile.caregiver_number,
       full_name: profile.full_name,
       phone: profile.phone,
       email: profile.email,
@@ -114,6 +115,7 @@ export class CaregiverService {
     return {
       user_id: profile.user_id,
       profile_id: profile.id,
+      caregiver_number: profile.caregiver_number,
       full_name: profile.full_name,
       phone: profile.phone,
       gender: profile.gender,
@@ -277,7 +279,7 @@ export class CaregiverService {
       return { message: 'Phone number updated', verification_status: profile.verification_status };
     }
 
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.CAREGIVER]);
     if (existing) throw new AppException('AUTH_001');
 
     await this.usersRepo.updatePhone(userId, dto.phone);

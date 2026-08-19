@@ -302,6 +302,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(detail.fullName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      if (caregiverDisplayId(detail.caregiverNumber) != null)
+                        Text(caregiverDisplayId(detail.caregiverNumber)!,
+                            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                       Text(detail.phone, style: const TextStyle(color: AppColors.textSecondary)),
                     ],
                   ),

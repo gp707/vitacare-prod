@@ -21,6 +21,8 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 ## Key Decisions
 
 - **Auth:** Custom JWT for everyone. No Supabase Auth. bcrypt + jsonwebtoken. Access token TTL differs by app: caregiver-app tokens never expire (no `exp` claim — the mobile app has no re-login flow), admin-web tokens expire after `JWT_ACCESS_TOKEN_TTL` (default 6 months). Neither app currently uses the refresh-token flow (`POST /auth/refresh` exists server-side but no Dio interceptor calls it) — the access token alone governs session length.
+- **Phone number is unique per app bucket, not globally** (migration 045, `users_phone_app_bucket_key` — a Postgres expression unique index, not a plain column constraint): NurseJobs (`role = caregiver`), NurseNow (`role IN (individual, organisation)`), and admin (`role IN (admin, super_admin)`) are three independent buckets. The same phone number can hold one account in each bucket at once — e.g. a person can register as a NurseJobs caregiver AND, separately, as a NurseNow individual with the same phone number. These are fully independent, unlinked accounts (separate `users` rows, separate profile rows, separate login PINs) that merely happen to share a phone number — no data is shared or merged between them. Registering a second account within the SAME bucket (e.g. a second caregiver account, or an organisation account when that phone already has an individual account — individual and organisation share the NurseNow bucket) still 409s with `AUTH_001`, unchanged. `UsersRepository.findByPhoneAndRoles(phone, roles)` is the role-scoped lookup used everywhere a phone is checked (registration dedup, self-service phone-change dedup, admin phone-change dedup) — the old global `findByPhone` was removed. `POST /auth/login/code` (`LoginCodeDto`) gained a required `app` field (`'nursejobs'` | `'nursenow'`, the `LoginApp` enum) so the backend knows which bucket to search — caregiver-app always sends `nursejobs`, nursenow-app always sends `nursenow` (it doesn't know ahead of login whether the phone registered as individual or organisation — that's still decoded from the JWT afterward, same as before). Login can never accidentally authenticate into the wrong bucket's account even if both accounts happen to share the same 4-digit PIN, since the role-scoped lookup runs before the PIN is even compared.
+- **Human-friendly sequential display IDs** for organisations (`ORG-<n>`), NurseNow individuals/patients (`PAT-<n>`), and caregivers (`NUR-<n>`) — migration 046, one dedicated Postgres sequence per table (`organisation_profiles.org_number`, `individual_profiles.patient_number`, `caregiver_profiles.caregiver_number`), each starting at 500 (not 1). Same convention as `jobs.job_number`/`organisation_requirements.requirement_number`: the raw integer is what's stored and returned over the API (`org_number`/`patient_number`/`caregiver_number`, all nullable in API schemas only because older/edge-case responses may omit them, never actually null once a profile row exists); the `ORG-`/`PAT-`/`NUR-` prefix is applied purely at display time via `organisationDisplayId()`/`patientDisplayId()`/`caregiverDisplayId()` in `packages/vitacare_shared/lib/models/display_id.dart`, so all three Flutter apps render identical text. Shown in admin-web's Caregivers/Patients-Family/Rehab-Hospitals list tables (a leading "ID" column) and detail views, on a caregiver's own Profile screen (caregiver-app) and an individual/organisation's own Profile screen (nursenow-app), and on the applicant-profile view an individual/organisation sees when reviewing a caregiver's application (nursenow-app's `CaregiverProfileViewScreen`).
 - **Database:** Supabase PostgreSQL (used as a standard Postgres, no RLS for app tables).
 - **Storage:** Supabase Storage with signed URLs (1hr expiry). Files at `{profile_id}/filename.ext`.
 - **Realtime:** Supabase Realtime for admin dashboard only. Caregivers use FCM push.
@@ -184,19 +186,32 @@ reusing any of its tables.
   stamps `posted_at`. **`schedule_type` replaces the old single "Preferred Start Date" field for
   organisation requirements entirely** — admin picks exactly one of two modes: `date_range`
   (requires `start_date` + `end_date`, `end_date` must not be before `start_date` or the update
-  400s with `ORG_001`) or `specific_days` (requires a non-empty `specific_days` array of
-  day-of-month integers 1–31, e.g. `[3, 12, 20]` — meant as recurring days each month, not a
-  single calendar date). Exactly one mode's fields are required/persisted at a time —
-  `@ValidateIf` in `UpdateOrganisationRequirementDto` enforces `start_date`/`end_date` only when
-  `schedule_type === 'date_range'` and `specific_days` only when `schedule_type ===
-  'specific_days'`; the unused mode's columns are stored `null`. This is enforced in
-  `OrganisationRequirementsService.updateRequirement`/the DTO, not a DB constraint (the
-  `organisation_requirements` table just has nullable `schedule_type`/`end_date`/
-  `specific_days INTEGER[]` columns, migration 043). **Caregiver-facing display reuses the same
-  red blinking urgency badge** jobs use for "Preferred Start Date" (`BlinkingStartDateBadge`,
-  generalized from a raw `startDate` param to a pre-formatted `label` param for exactly this
-  reason) — showing `"<start> – <end>"` for a date range or `"Days: <n>, <n>, ..."` for specific
-  days, via the shared `organisationScheduleLabel()` helper in
+  400s with `ORG_001`) or `specific_days` (requires `schedule_repeat` + a non-empty `specific_days`
+  array). **`schedule_repeat` is a second, nested choice that only applies within `specific_days`**
+  — `weekly` (then `specific_days` holds ISO weekday numbers 1–7, Monday–Sunday, e.g. `[1, 3, 5]`
+  for Mon/Wed/Fri, recurring every week; a value outside 1–7 400s with `ORG_002`) or `monthly`
+  (then `specific_days` holds day-of-month numbers 1–31, e.g. `[3, 12, 20]`, recurring every
+  month). admin-web's edit dialog shows this as a nested "Repeat" `SegmentedButton` (Weekly /
+  Monthly) that only appears once `specific_days` is picked at the top level — Weekly reveals 7
+  weekday `FilterChip`s, Monthly reveals a real month-grid calendar (`_MonthCalendarPicker`,
+  weekday-aligned to the current real month purely for a familiar visual — only the tapped day
+  NUMBER is captured, since the selection recurs every month regardless of which weekday that
+  number falls on elsewhere) rather than a flat 1-31 chip list. Switching between Weekly and
+  Monthly clears any already-picked days (the two numbering schemes are incompatible — day "5" of
+  the month vs. weekday "5" = Friday). Every already-picked date/day/weekday in the edit dialog is
+  marked with a green checkmark (`AppColors.success`) for visual confirmation once selected.
+  Exactly one top-level mode's fields are required/persisted at a time — `@ValidateIf` in
+  `UpdateOrganisationRequirementDto` enforces `start_date`/`end_date` only when
+  `schedule_type === 'date_range'` and `schedule_repeat`/`specific_days` only when
+  `schedule_type === 'specific_days'`; the unused mode's columns are stored `null`. This is
+  enforced in `OrganisationRequirementsService.updateRequirement`/the DTO, not a DB constraint
+  (the `organisation_requirements` table just has nullable `schedule_type`/`end_date`/
+  `schedule_repeat`/`specific_days INTEGER[]` columns, migrations 043 and 044).
+  **Caregiver-facing display reuses the same red blinking urgency badge** jobs use for "Preferred
+  Start Date" (`BlinkingStartDateBadge`, generalized from a raw `startDate` param to a
+  pre-formatted `label` param for exactly this reason) — showing `"<start> – <end>"` for a date
+  range, `"Days: <n>, <n>, ..."` for monthly specific days, or `"Every: Mon, Wed, Fri"` for weekly
+  specific days, via the shared `organisationScheduleLabel()` helper in
   `packages/vitacare_shared/lib/models/organisation_requirement_model.dart` so caregiver-app,
   nursenow-app, and admin-web all render identical text. Admin can instead **reject** via
   `PATCH /admin/organisation-requirements/:id/reject` (`{ reason }`, reusing the same
@@ -278,9 +293,10 @@ reusing any of its tables.
   plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required
   dialog), and a single
   **Edit** action (dialog collecting Frequency of Care/Salary and a required schedule — a
-  `SegmentedButton` picking Date Range or Specific Days, then either a start/end date pair or a
-  31-chip day-of-month grid, see "Organisation" above) that doubles as "Approve" from
-  `pending_review` and as an ordinary edit from
+  `SegmentedButton` picking Date Range or Specific Days; Date Range shows a start/end date pair,
+  Specific Days reveals a nested Weekly/Monthly `SegmentedButton` that in turn shows either 7
+  weekday chips or a real month-grid calendar, see "Organisation" above) that doubles as "Approve"
+  from `pending_review` and as an ordinary edit from
   `active`/`closed` — admin can revisit and correct these same admin-set fields later, not just
   once at approval time; same `PATCH /admin/organisation-requirements/:id` endpoint either way,
   pre-filled with the requirement's current values when editing. Tapping a requirement row opens
@@ -403,9 +419,16 @@ registered_nurse ("Registered Nurse"), nursing_completed ("Nursing Completed Nur
 ### Schedule Type (organisation requirements only)
 Set by admin on approval/edit of an organisation requirement, alongside Frequency of Care/Salary — **replaces the "Preferred Start Date" field entirely for organisation requirements** (regular VitaCare/admin jobs and Individual/NurseNow requirements still use the single `start_date` field, unchanged). Admin picks exactly one:
 - `date_range` — "Date Range": requires `start_date` + `end_date` (`end_date` must not be before `start_date`, else `ORG_001`)
-- `specific_days` — "Specific Days of the Month": requires a non-empty `specific_days` array of day-of-month integers (1–31), recurring each month rather than a single calendar date
+- `specific_days` — "Specific Days": requires a second nested choice, `schedule_repeat` (see below), plus a non-empty `specific_days` array whose valid range depends on that choice
 
-Persisted on `organisation_requirements` (`schedule_type`, `end_date`, `specific_days INTEGER[]`, migration 043); only the active mode's columns are populated, the other stays `null`. Shown to caregivers via the same red blinking urgency badge used for jobs' Preferred Start Date, with text from the shared `organisationScheduleLabel()` helper ("<start> – <end>" or "Days: <n>, <n>, ...").
+Persisted on `organisation_requirements` (`schedule_type`, `end_date`, `schedule_repeat`, `specific_days INTEGER[]`, migrations 043 and 044); only the active mode's columns are populated, the other stays `null`. Shown to caregivers via the same red blinking urgency badge used for jobs' Preferred Start Date, with text from the shared `organisationScheduleLabel()` helper (`"<start> – <end>"`, `"Days: <n>, <n>, ..."`, or `"Every: Mon, Wed, Fri"`).
+
+### Schedule Repeat (organisation requirements only, `schedule_type: specific_days` only)
+A second, nested choice under `specific_days` — picks what `specific_days`' numbers mean:
+- `weekly` — "Weekly": `specific_days` holds ISO weekday numbers (1=Monday..7=Sunday, e.g. `[1, 3, 5]` for Mon/Wed/Fri), recurring every week. A value outside 1–7 400s with `ORG_002`.
+- `monthly` — "Monthly": `specific_days` holds day-of-month numbers (1–31, e.g. `[3, 12, 20]`), recurring every month regardless of what weekday that day falls on in a given month.
+
+admin-web's edit dialog surfaces this as a nested "Repeat" `SegmentedButton` shown only once `specific_days` is picked at the top level: Weekly reveals 7 weekday `FilterChip`s (Mon–Sun); Monthly reveals a real weekday-aligned month-grid calendar (`_MonthCalendarPicker`, laid out against the current real month purely for a familiar visual — only the tapped day *number* is captured, since the selection recurs every month independent of which weekday it falls on elsewhere). Switching between Weekly and Monthly clears any already-picked values, since the two numbering schemes are incompatible. Every picked date/day/weekday across the dialog (date-range dates, weekday chips, calendar days) shows a green checkmark (`AppColors.success`) once selected, for visual confirmation.
 
 ### Job Application Status
 applied, rejected, accepted, completed — `accepted` is admin-only (see "Job/Application Flow" below); a caregiver can only ever set `applied`/`rejected` on their own application via apply, and `completed` via the separate per-job complete endpoint (`accepted` → `completed` only, see "Job/Application Flow").

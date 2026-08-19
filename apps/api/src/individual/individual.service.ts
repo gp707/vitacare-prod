@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, JobApplicationStatus, JobStatus } from '@vitacare/shared-constants';
+import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
@@ -39,6 +39,7 @@ export class IndividualService {
     const profile = await this.individualProfilesRepo.findByUserId(userId);
     return {
       user_id: user.id,
+      patient_number: profile?.patient_number,
       full_name: user.full_name,
       phone: user.phone,
       is_job_posting_blocked: profile?.is_job_posting_blocked ?? false,
@@ -121,7 +122,10 @@ export class IndividualService {
     if (!user) throw new AppException('GEN_002');
     if (dto.phone === user.phone) return { message: 'Phone number updated' };
 
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+      UserRole.INDIVIDUAL,
+      UserRole.ORGANISATION,
+    ]);
     if (existing) throw new AppException('AUTH_001');
 
     await this.usersRepo.updatePhone(userId, dto.phone);

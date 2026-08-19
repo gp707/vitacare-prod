@@ -3,6 +3,7 @@ import {
   AuditAction,
   JobApplicationStatus,
   JobStatus,
+  ScheduleRepeat,
   ScheduleType,
   VerificationStatus,
 } from '@vitacare/shared-constants';
@@ -312,6 +313,12 @@ export class OrganisationRequirementsService {
       throw new AppException('ORG_001');
     }
 
+    const isSpecificDays = dto.schedule_type === ScheduleType.SPECIFIC_DAYS;
+    const isWeekly = isSpecificDays && dto.schedule_repeat === ScheduleRepeat.WEEKLY;
+    if (isWeekly && dto.specific_days?.some((day) => day < 1 || day > 7)) {
+      throw new AppException('ORG_002');
+    }
+
     const requirement = await this.requirementsRepo.update(id, {
       type_of_nurse: dto.type_of_nurse,
       frequency_of_care: dto.frequency_of_care,
@@ -319,7 +326,8 @@ export class OrganisationRequirementsService {
       schedule_type: dto.schedule_type,
       start_date: isDateRange ? (dto.start_date ?? null) : null,
       end_date: isDateRange ? (dto.end_date ?? null) : null,
-      specific_days: dto.schedule_type === ScheduleType.SPECIFIC_DAYS ? (dto.specific_days ?? null) : null,
+      schedule_repeat: isSpecificDays ? (dto.schedule_repeat ?? null) : null,
+      specific_days: isSpecificDays ? (dto.specific_days ?? null) : null,
       accommodation_provided: dto.accommodation_provided,
       food_provided: dto.food_provided,
       special_skills: dto.special_skills ?? null,

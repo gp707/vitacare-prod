@@ -162,7 +162,7 @@ describe('Individual (NurseNow) (e2e)', () => {
     it('logs back in with phone + code', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '1234' })
+        .send({ phone: testPhone('0001'), code: '1234', app: 'nursenow' })
         .expect(200);
       expect(res.body.data.access_token).toBeDefined();
     });
@@ -178,6 +178,9 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(res.body.data.full_name).toBe('Ravi Kumar');
       expect(res.body.data.is_job_posting_blocked).toBe(false);
       expect(res.body.data.verification_status).toBeUndefined();
+      // Human-friendly sequential id (migration 046), starts at 500 —
+      // displayed client-side as "PAT-<n>".
+      expect(res.body.data.patient_number).toBeGreaterThanOrEqual(500);
     });
 
     it('rejects a caregiver token (AUTH_007)', async () => {
@@ -597,7 +600,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       // Still logs in fine — only posting is blocked.
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0017'), code: '1234' })
+        .send({ phone: testPhone('0017'), code: '1234', app: 'nursenow' })
         .expect(200);
 
       await request(app.getHttpServer())
@@ -622,7 +625,7 @@ describe('Individual (NurseNow) (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0018'), code: '1234' })
+        .send({ phone: testPhone('0018'), code: '1234', app: 'nursenow' })
         .expect(401);
       expect(res.body.error.code).toBe('AUTH_004');
 
@@ -640,7 +643,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0018'), code: '1234' })
+        .send({ phone: testPhone('0018'), code: '1234', app: 'nursenow' })
         .expect(200);
     });
 
@@ -664,11 +667,11 @@ describe('Individual (NurseNow) (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0022'), code: '1234' })
+        .send({ phone: testPhone('0022'), code: '1234', app: 'nursenow' })
         .expect(200);
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0021'), code: '1234' })
+        .send({ phone: testPhone('0021'), code: '1234', app: 'nursenow' })
         .expect(404);
     });
 
@@ -693,11 +696,11 @@ describe('Individual (NurseNow) (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0025'), code: '4321' })
+        .send({ phone: testPhone('0025'), code: '4321', app: 'nursenow' })
         .expect(200);
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0025'), code: '1234' })
+        .send({ phone: testPhone('0025'), code: '1234', app: 'nursenow' })
         .expect(401);
     });
 

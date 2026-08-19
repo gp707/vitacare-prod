@@ -241,6 +241,27 @@ export const ScheduleType = {
 } as const;
 export type ScheduleType = (typeof ScheduleType)[keyof typeof ScheduleType];
 
+// Only meaningful when schedule_type is SPECIFIC_DAYS — picks whether
+// specific_days holds ISO weekday numbers (1=Monday..7=Sunday, recurring
+// every week) or day-of-month numbers (1-31, recurring every month).
+export const ScheduleRepeat = {
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+} as const;
+export type ScheduleRepeat = (typeof ScheduleRepeat)[keyof typeof ScheduleRepeat];
+
+// Which app is calling POST /auth/login/code — phone is unique per app
+// bucket, not globally (migration 045), so the backend needs to know
+// which bucket to look the phone up in: NURSEJOBS -> role=caregiver only,
+// NURSENOW -> role IN (individual, organisation). Neither caregiver-app
+// nor nursenow-app knows the other's account state, so this is purely a
+// "which app am I" flag, not a specific role choice.
+export const LoginApp = {
+  NURSEJOBS: 'nursejobs',
+  NURSENOW: 'nursenow',
+} as const;
+export type LoginApp = (typeof LoginApp)[keyof typeof LoginApp];
+
 // organisation_profiles.city is validated against City.all plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the
 // shared City enum (which stays caregiver/job-scoped, used for filtering

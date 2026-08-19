@@ -6,6 +6,7 @@ import { DatabaseService, QueryRunner } from '../database.service';
 export interface CaregiverProfileRecord {
   id: string;
   user_id: string;
+  caregiver_number: number;
   gender: Gender;
   age: number;
   verification_status: VerificationStatus;
@@ -16,6 +17,9 @@ export interface CaregiverProfileRecord {
 export interface CaregiverProfileFullRecord {
   id: string;
   user_id: string;
+  /** Human-friendly sequential id, e.g. caregiver_number 500 displays as
+   *  "NUR-500" — see caregiverDisplayId() in packages/vitacare_shared. */
+  caregiver_number: number;
   full_name: string;
   phone: string;
   email: string | null;
@@ -71,7 +75,7 @@ export interface EditProfileInput {
 }
 
 const FULL_PROFILE_COLUMNS = `
-  cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
+  cp.id, cp.user_id, cp.caregiver_number, u.full_name, u.phone, u.email, cp.gender, cp.age,
   cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
   cp.aadhaar_document_url, cp.other_document_urls, cp.religion,
   cp.terms_accepted,
@@ -92,7 +96,7 @@ export class CaregiverProfilesRepository {
     const result = await runner.query<CaregiverProfileRecord>(
       `INSERT INTO caregiver_profiles (user_id, gender, age, religion, highest_qualification, terms_accepted)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, user_id, gender, age, verification_status, min_salary_per_day, min_salary_per_month`,
+       RETURNING id, user_id, caregiver_number, gender, age, verification_status, min_salary_per_day, min_salary_per_month`,
       [
         input.user_id,
         input.gender,
@@ -107,7 +111,7 @@ export class CaregiverProfilesRepository {
 
   async findByUserId(userId: string): Promise<CaregiverProfileRecord | null> {
     const result = await this.db.query<CaregiverProfileRecord>(
-      `SELECT id, user_id, gender, age, verification_status, min_salary_per_day, min_salary_per_month
+      `SELECT id, user_id, caregiver_number, gender, age, verification_status, min_salary_per_day, min_salary_per_month
        FROM caregiver_profiles WHERE user_id = $1`,
       [userId],
     );

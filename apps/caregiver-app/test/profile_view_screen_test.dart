@@ -12,6 +12,7 @@ CaregiverProfileModel _profile({String status = 'pending_call'}) {
   return CaregiverProfileModel.fromJson({
     'user_id': 'u1',
     'profile_id': 'p1',
+    'caregiver_number': 500,
     'full_name': 'Test Caregiver',
     'phone': '+919876543210',
     'gender': 'male',
@@ -76,6 +77,7 @@ void main() {
 
     expect(find.text('Test Caregiver'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.text('NUR-500'), findsOneWidget);
   });
 
   testWidgets('Edit is always available, at any verification status', (tester) async {

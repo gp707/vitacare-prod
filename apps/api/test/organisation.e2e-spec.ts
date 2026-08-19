@@ -91,6 +91,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
     frequency_of_care: 'monthly',
     salary_amount: 40000,
     schedule_type: 'specific_days',
+    schedule_repeat: 'monthly',
     specific_days: [3, 12, 20],
     accommodation_provided: true,
     food_provided: false,
@@ -179,7 +180,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
     it('logs back in with phone + code', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '1234' })
+        .send({ phone: testPhone('0001'), code: '1234', app: 'nursenow' })
         .expect(200);
       expect(res.body.data.access_token).toBeDefined();
     });
@@ -196,6 +197,9 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(res.body.data.city).toBe('bangalore');
       expect(res.body.data.is_job_posting_blocked).toBe(false);
       expect(res.body.data.verification_status).toBeUndefined();
+      // Human-friendly sequential id (migration 046), starts at 500 —
+      // displayed client-side as "ORG-<n>".
+      expect(res.body.data.org_number).toBeGreaterThanOrEqual(500);
     });
 
     it('rejects a caregiver token (AUTH_007)', async () => {
@@ -337,12 +341,39 @@ describe('Organisation (NurseNow) (e2e)', () => {
       const approved = await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'specific_days', specific_days: [5, 15, 25] }))
+        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'monthly', specific_days: [5, 15, 25] }))
         .expect(200);
       expect(approved.body.data.schedule_type).toBe('specific_days');
+      expect(approved.body.data.schedule_repeat).toBe('monthly');
       expect(approved.body.data.specific_days).toEqual([5, 15, 25]);
       expect(approved.body.data.start_date).toBeNull();
       expect(approved.body.data.end_date).toBeNull();
+    });
+
+    it('specific_days/weekly schedule stores ISO weekday numbers and rejects a value outside 1-7 (ORG_002)', async () => {
+      const org = await registerOrganisation('0029');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+
+      const invalidWeekday = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 12] }))
+        .expect(400);
+      expect(invalidWeekday.body.error.code).toBe('ORG_002');
+
+      const approved = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 3, 5] }))
+        .expect(200);
+      expect(approved.body.data.schedule_type).toBe('specific_days');
+      expect(approved.body.data.schedule_repeat).toBe('weekly');
+      expect(approved.body.data.specific_days).toEqual([1, 3, 5]);
     });
 
     it('an approved (active) requirement shows up on GET /v1/caregiver/organisation-requirements, and a caregiver can apply', async () => {
@@ -647,7 +678,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0018'), code: '1234' })
+        .send({ phone: testPhone('0018'), code: '1234', app: 'nursenow' })
         .expect(401);
       expect(res.body.error.code).toBe('AUTH_004');
 
@@ -679,7 +710,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0022'), code: '1234' })
+        .send({ phone: testPhone('0022'), code: '1234', app: 'nursenow' })
         .expect(200);
     });
 
@@ -693,11 +724,11 @@ describe('Organisation (NurseNow) (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0025'), code: '4321' })
+        .send({ phone: testPhone('0025'), code: '4321', app: 'nursenow' })
         .expect(200);
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0025'), code: '1234' })
+        .send({ phone: testPhone('0025'), code: '1234', app: 'nursenow' })
         .expect(401);
     });
   });

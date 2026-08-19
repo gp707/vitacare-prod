@@ -70,6 +70,7 @@ OrganisationRequirementModel _requirement({
   String? scheduleType,
   String? startDate,
   String? endDate,
+  String? scheduleRepeat,
   List<int>? specificDays,
   Map<String, dynamic>? myApplication,
 }) {
@@ -83,6 +84,7 @@ OrganisationRequirementModel _requirement({
     'schedule_type': scheduleType,
     'start_date': startDate,
     'end_date': endDate,
+    'schedule_repeat': scheduleRepeat,
     'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
@@ -407,7 +409,7 @@ void main() {
   });
 
   testWidgets(
-      'shows a highlighted red day list for an organisation requirement on a specific_days schedule',
+      'shows a highlighted red day list for an organisation requirement on a specific_days/monthly schedule',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -417,7 +419,7 @@ void main() {
           jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([])),
           organisationOpeningsRepositoryProvider.overrideWithValue(
             _FakeOrganisationOpeningsRepository([
-              _requirement(scheduleType: 'specific_days', specificDays: [3, 12, 20]),
+              _requirement(scheduleType: 'specific_days', scheduleRepeat: 'monthly', specificDays: [3, 12, 20]),
             ]),
           ),
         ],
@@ -429,6 +431,32 @@ void main() {
 
     expect(find.text('Days: 3, 12, 20'), findsOneWidget);
     final scheduleStyle = tester.widget<Text>(find.text('Days: 3, 12, 20')).style!;
+    expect(scheduleStyle.color, AppColors.error);
+  });
+
+  testWidgets(
+      'shows a highlighted red weekday list for an organisation requirement on a specific_days/weekly schedule',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([])),
+          organisationOpeningsRepositoryProvider.overrideWithValue(
+            _FakeOrganisationOpeningsRepository([
+              _requirement(scheduleType: 'specific_days', scheduleRepeat: 'weekly', specificDays: [1, 3, 5]),
+            ]),
+          ),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Every: Mon, Wed, Fri'), findsOneWidget);
+    final scheduleStyle = tester.widget<Text>(find.text('Every: Mon, Wed, Fri')).style!;
     expect(scheduleStyle.color, AppColors.error);
   });
 

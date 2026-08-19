@@ -4,6 +4,7 @@ import { ListPage } from './jobs.repository';
 
 export interface AdminOrganisationListItem {
   user_id: string;
+  org_number: number;
   full_name: string;
   phone: string;
   organisation_name: string;
@@ -27,7 +28,7 @@ export class AdminOrganisationsRepository {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminOrganisationListItem>(
-        `SELECT u.id AS user_id, u.full_name, u.phone,
+        `SELECT u.id AS user_id, op.org_number, u.full_name, u.phone,
                 op.organisation_name, op.organisation_type, op.city, op.area,
                 u.is_active, op.is_job_posting_blocked, op.block_reason, u.created_at
          FROM users u
@@ -48,7 +49,7 @@ export class AdminOrganisationsRepository {
 
   async findDetailByUserId(userId: string): Promise<AdminOrganisationListItem | null> {
     const result = await this.db.query<AdminOrganisationListItem>(
-      `SELECT u.id AS user_id, u.full_name, u.phone,
+      `SELECT u.id AS user_id, op.org_number, u.full_name, u.phone,
               op.organisation_name, op.organisation_type, op.city, op.area,
               u.is_active, op.is_job_posting_blocked, op.block_reason, u.created_at
        FROM users u

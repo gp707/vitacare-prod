@@ -125,6 +125,7 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
+            DataColumn(label: Text('ID')),
             DataColumn(label: Text('Organisation')),
             DataColumn(label: Text('Contact')),
             DataColumn(label: Text('Phone')),
@@ -134,6 +135,7 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
             DataColumn(label: Text('Actions')),
           ],
           rows: _items.map((item) => DataRow(cells: [
+                DataCell(Text(organisationDisplayId(item.orgNumber) ?? '-')),
                 DataCell(Text(item.organisationName)),
                 DataCell(Text(item.fullName)),
                 DataCell(Text(item.phone)),

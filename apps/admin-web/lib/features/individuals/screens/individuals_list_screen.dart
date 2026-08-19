@@ -126,6 +126,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
+            DataColumn(label: Text('ID')),
             DataColumn(label: Text('Name')),
             DataColumn(label: Text('Phone')),
             DataColumn(label: Text('Status')),
@@ -133,6 +134,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             DataColumn(label: Text('Actions')),
           ],
           rows: _items.map((item) => DataRow(cells: [
+                DataCell(Text(patientDisplayId(item.patientNumber) ?? '-')),
                 DataCell(Text(item.fullName)),
                 DataCell(Text(item.phone)),
                 DataCell(_StatusCell(item: item)),

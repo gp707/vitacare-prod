@@ -130,6 +130,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     authenticated.isOrganisation ? authenticated.organisationName! : authenticated.fullName,
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
+                  if ((authenticated.isOrganisation
+                          ? organisationDisplayId(authenticated.orgNumber)
+                          : patientDisplayId(authenticated.patientNumber)) !=
+                      null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      (authenticated.isOrganisation
+                          ? organisationDisplayId(authenticated.orgNumber)
+                          : patientDisplayId(authenticated.patientNumber))!,
+                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
                   if (authenticated.isOrganisation) ...[
                     const SizedBox(height: 2),
                     Text('Contact: ${authenticated.fullName}', style: const TextStyle(color: AppColors.textSecondary)),

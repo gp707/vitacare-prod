@@ -880,6 +880,20 @@ All authentication is handled by the NestJS backend using custom JWT tokens. Sup
 - Do NOT reintroduce a phone-only login endpoint.
 - Do NOT reintroduce a separate "Advanced Details" submission step — everything is collected at registration.
 
+#### Phone uniqueness is per app bucket, not global (migration 045)
+
+`users.phone` is **not** a plain `UNIQUE` column — the original global constraint (`users_phone_key`) was dropped and replaced with a Postgres expression unique index (`users_phone_app_bucket_key`) on `(phone, bucket)`, where `bucket` is computed as `'nursejobs'` for `role = 'caregiver'`, `'nursenow'` for `role IN ('individual', 'organisation')`, and `'admin'` otherwise. Effectively there are three independent buckets:
+
+- **NurseJobs** — caregiver accounts only.
+- **NurseNow** — individual and organisation accounts share one bucket (an account is one or the other, never both, at a given phone — but a phone can hold at most one NurseNow account total, whichever type).
+- **Admin** — admin/super_admin accounts.
+
+A single phone number can hold **one account per bucket simultaneously** — e.g. the same person can be a NurseJobs caregiver AND, separately, a NurseNow individual with the exact same phone number. These are two fully independent, unlinked `users` rows (separate ids, separate profile rows, separate login PINs, separate audit trails) that merely happen to share a phone number; no data is shared or merged between them, and neither app is aware the other account exists. Registering a second account **within the same bucket** (e.g. a second caregiver account on the same phone, or an organisation account when that phone already holds an individual account) still 409s with `AUTH_001`, exactly as before this change.
+
+`UsersRepository.findByPhoneAndRoles(phone, roles)` is the single role-scoped lookup used everywhere a phone is checked — registration dedup (each registration endpoint passes its own bucket's role list), self-service phone-change dedup (`PATCH /caregiver|individual|organisation/profile/phone`), and admin phone-change dedup (`POST`/`PATCH /admin/users`). The old role-agnostic `findByPhone` was removed entirely once every call site was migrated.
+
+`POST /auth/login/code` (6.3 below) is called identically by caregiver-app and nursenow-app, but since a phone can now match more than one row, the request gained a required `app` field so the backend knows which bucket to search: `'nursejobs'` (caregiver-app always sends this) or `'nursenow'` (nursenow-app always sends this — it doesn't know ahead of login whether the account is individual or organisation; that's still decoded from the JWT's `role` claim client-side after a successful login, unchanged). The bucket-scoped lookup runs *before* the 4-digit code is even compared, so login can never accidentally authenticate into the wrong bucket's account even if both accounts happen to share the same PIN.
+
 #### Self-Edit and the Login Code
 
 - Admin can change a caregiver's code at any time via `/admin/caregivers/:id` (admin edit) or the caregiver can change it themselves via `PATCH /caregiver/profile/code`.
@@ -984,7 +998,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE,
-  phone VARCHAR(20) UNIQUE NOT NULL,
+  phone VARCHAR(20) NOT NULL,             -- NOT globally unique — see users_phone_app_bucket_key below (migration 045)
   password_hash VARCHAR(255),             -- NULL for caregivers, set for admins only
   code_hash VARCHAR(255),                 -- NULL for admins, set at registration for caregivers (4-digit numeric code)
   full_name VARCHAR(100) NOT NULL,
@@ -999,12 +1013,26 @@ CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_phone ON users(phone);
 CREATE INDEX idx_users_is_active ON users(is_active);
 
+-- Phone is unique PER APP BUCKET, not globally (migration 045) — a phone
+-- can hold one caregiver account, one individual/organisation account, and
+-- one admin/super_admin account, all at once, as three independent,
+-- unlinked accounts. See 3.1's "Phone uniqueness is per app bucket".
+CREATE UNIQUE INDEX users_phone_app_bucket_key ON users (
+  phone,
+  (CASE
+     WHEN role = 'caregiver' THEN 'nursejobs'
+     WHEN role IN ('individual', 'organisation') THEN 'nursenow'
+     ELSE 'admin'
+   END)
+);
+
 -- ============================================
 -- CAREGIVER PROFILES TABLE
 -- ============================================
 CREATE TABLE caregiver_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  caregiver_number INTEGER NOT NULL UNIQUE DEFAULT nextval('caregiver_profiles_caregiver_number_seq'),  -- human-friendly sequential id, starts at 500 (migration 046); displayed as "NUR-<n>"
   selfie_photo_url TEXT,
   gender VARCHAR(30) NOT NULL CHECK (gender IN ('male', 'female', 'other')),
   age INTEGER NOT NULL CHECK (age >= 18 AND age <= 65),
@@ -1123,6 +1151,7 @@ CREATE TABLE admin_notes (
 CREATE TABLE individual_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  patient_number INTEGER NOT NULL UNIQUE DEFAULT nextval('individual_profiles_patient_number_seq'),  -- human-friendly sequential id, starts at 500 (migration 046); displayed as "PAT-<n>"
   is_job_posting_blocked BOOLEAN NOT NULL DEFAULT false,  -- blocks new POST /individual/requirements only (JOB_010); existing live requirement/applications keep working
   block_reason TEXT,                      -- admin-entered, shown to the individual; also used for a full block (users.is_active = false)
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1229,6 +1258,7 @@ CREATE INDEX idx_job_applications_profile ON job_applications(profile_id);
 CREATE TABLE organisation_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  org_number INTEGER NOT NULL UNIQUE DEFAULT nextval('organisation_profiles_org_number_seq'),  -- human-friendly sequential id, starts at 500 (migration 046); displayed as "ORG-<n>"
   organisation_name VARCHAR(200) NOT NULL,
   contact_person_name VARCHAR(100) NOT NULL,
   organisation_type VARCHAR(20) NOT NULL CHECK (organisation_type IN ('hospital', 'rehab', 'clinic')),
@@ -1262,7 +1292,8 @@ CREATE TABLE organisation_requirements (
   schedule_type VARCHAR(20) CHECK (schedule_type IN ('date_range', 'specific_days')),  -- admin-set on approval; replaces the single "Preferred Start Date" field entirely for organisation requirements — admin picks exactly one mode
   start_date DATE,                          -- populated only when schedule_type = 'date_range'
   end_date DATE,                            -- populated only when schedule_type = 'date_range'; must not be before start_date (ORG_001)
-  specific_days INTEGER[],                  -- populated only when schedule_type = 'specific_days'; day-of-month integers 1-31, recurring each month
+  schedule_repeat VARCHAR(10) CHECK (schedule_repeat IN ('weekly', 'monthly')),  -- populated only when schedule_type = 'specific_days'; picks what specific_days' numbers mean
+  specific_days INTEGER[],                  -- populated only when schedule_type = 'specific_days'; ISO weekday numbers 1-7 (Mon-Sun) if schedule_repeat='weekly' (ORG_002 if out of range), else day-of-month numbers 1-31 if 'monthly'
   accommodation_provided BOOLEAN NOT NULL,
   food_provided BOOLEAN NOT NULL,
   special_skills TEXT,
@@ -1274,6 +1305,7 @@ CREATE TABLE organisation_requirements (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 -- migration 043_organisation_requirement_schedule.sql added schedule_type/end_date/specific_days
+-- migration 044_organisation_requirement_schedule_repeat.sql added schedule_repeat
 
 CREATE INDEX idx_organisation_requirements_status ON organisation_requirements(status);
 CREATE INDEX idx_organisation_requirements_posted_by ON organisation_requirements(posted_by);
@@ -1522,7 +1554,7 @@ immediately after, on the same Registration screen.
 ```
 
 **Validation Rules:**
-- `phone`: Required, must match `/^\+91[6-9]\d{9}$/`, must be unique.
+- `phone`: Required, must match `/^\+91[6-9]\d{9}$/`, must be unique **within the NurseJobs bucket** (role=caregiver) — see 3.1's "Phone uniqueness is per app bucket"; the same phone may already be registered as a NurseNow individual/organisation account without conflict.
 - `full_name`: Required, 1-100 characters, alphabetic + spaces only.
 - `gender`: Required, must be one of: `male`, `female`, `other`.
 - `age`: Required, integer, 18-65 inclusive.
@@ -1539,15 +1571,17 @@ immediately after, on the same Registration screen.
 
 #### POST `/auth/login/code`
 
-Login with phone + 4-digit code. The code is set at registration, so this is the only caregiver login endpoint — there is no phone-only login.
+Login with phone + 4-digit code. The code is set at registration, so this is the only caregiver login endpoint — there is no phone-only login. Shared identically by caregiver-app, and by nursenow-app for both its individual and organisation account types.
 
 **Request:**
 ```json
 {
   "phone": "+919876543210",
-  "code": "1234"
+  "code": "1234",
+  "app": "nursejobs"
 }
 ```
+- `app`: Required, one of `nursejobs` | `nursenow` — since phone is unique per app bucket, not globally (see 3.1's "Phone uniqueness is per app bucket"), this tells the backend which bucket to search: `nursejobs` looks up caregiver accounts only, `nursenow` looks up individual/organisation accounts only. caregiver-app always sends `nursejobs`; nursenow-app always sends `nursenow` regardless of whether the underlying account is individual or organisation.
 
 **Response (200):**
 ```json
@@ -2854,11 +2888,16 @@ reusing jobs/care_receivers — is documented separately in 6.11.
 
 Registration/login reuse the auth endpoints in 6.3: `POST /auth/register/individual`
 (`phone`, `full_name`, `code`) and `POST /auth/login/code` (shared with caregiver login, same
-phone+4-digit-code mechanic, non-expiring token).
+phone+4-digit-code mechanic, non-expiring token, called with `app: 'nursenow'` — see 3.1's
+"Phone uniqueness is per app bucket"). Phone dedup on registration checks only the NurseNow
+bucket (individual + organisation), so the same phone may already hold a separate NurseJobs
+caregiver account without conflict.
 
 #### GET `/individual/me`
 
-Returns the caller's own account: `{ user_id, full_name, phone, is_job_posting_blocked }`.
+Returns the caller's own account: `{ user_id, patient_number, full_name, phone,
+is_job_posting_blocked }`. `patient_number` is the raw integer backing the "PAT-<n>" display id
+(migration 046, starts at 500) — see CLAUDE.md's "Human-friendly sequential display IDs".
 
 #### POST `/individual/requirements`
 
@@ -2957,7 +2996,10 @@ scope difference (a hospital/rehab genuinely needs to fill several openings simu
 Registration/login reuse the auth endpoints in 6.3: `POST /auth/register/organisation`
 (`phone`, `code`, `organisation_name`, `contact_person_name`, `organisation_type`, `city`,
 `area`) and `POST /auth/login/code` (shared with caregiver/individual login, same
-phone+4-digit-code mechanic, non-expiring token). `organisation_type` is one of
+phone+4-digit-code mechanic, non-expiring token, called with `app: 'nursenow'` — see 3.1's
+"Phone uniqueness is per app bucket"). Phone dedup on registration checks only the NurseNow
+bucket (individual + organisation), so the same phone may already hold a separate NurseJobs
+caregiver account without conflict. `organisation_type` is one of
 `hospital`/`rehab`/`clinic`. `city` accepts the existing 7 cities plus `others`
 (`ORGANISATION_CITY_OTHERS`) — a separate org-scoped list validated at the DTO layer, not an
 extension of the shared `City` enum. Response on success: `{ user_id, access_token,
@@ -2965,8 +3007,10 @@ refresh_token }` — no `verification_status`, same as Individual registration.
 
 #### GET `/organisation/me`
 
-Returns the caller's own account: `{ user_id, organisation_name, contact_person_name,
-organisation_type, city, area, phone, is_job_posting_blocked }`.
+Returns the caller's own account: `{ user_id, org_number, organisation_name,
+contact_person_name, organisation_type, city, area, phone, is_job_posting_blocked }`.
+`org_number` is the raw integer backing the "ORG-<n>" display id (migration 046, starts at
+500) — see CLAUDE.md's "Human-friendly sequential display IDs".
 
 #### POST `/organisation/requirements`
 
@@ -3075,9 +3119,11 @@ only has to check one place — see 12.4/12.3).
   `special_skills`. `schedule_type` is `date_range` or `specific_days` — **replaces the old
   single "Preferred Start Date" field entirely for organisation requirements** — and gates which
   further fields are required: `date_range` requires `start_date` + `end_date` (`end_date` before
-  `start_date` → `ORG_001`); `specific_days` requires a non-empty `specific_days` array of
-  day-of-month integers 1-31. Only the active mode's fields are persisted; the other mode's
-  columns are stored/left `null` regardless of what's sent. Transitions `pending_review` (or a
+  `start_date` → `ORG_001`); `specific_days` requires `schedule_repeat` (`weekly` or `monthly`)
+  plus a non-empty `specific_days` array whose valid range depends on it — ISO weekday numbers
+  1-7 (Mon-Sun) if `weekly` (a value outside 1-7 → `ORG_002`), or day-of-month numbers 1-31 if
+  `monthly`. Only the active mode's fields are persisted; the other mode's columns are stored/left
+  `null` regardless of what's sent. Transitions `pending_review` (or a
   `closed` requirement) to `active` and stamps `posted_at` — activating sends the `"New
   Organisation Opening"` push to all caregivers; a plain edit of an already-`active` requirement
   does not resend it.
@@ -3105,8 +3151,8 @@ only has to check one place — see 12.4/12.3).
 
 | Code | HTTP Status | Message | When |
 |------|-------------|---------|------|
-| AUTH_001 | 409 | Phone number is already registered | Registration with existing phone |
-| AUTH_002 | 404 | No account found with this phone number | Login with unregistered phone |
+| AUTH_001 | 409 | Phone number is already registered | Registration with a phone that already has an account **in the same app bucket** — see 3.1's "Phone uniqueness is per app bucket". A phone with a NurseJobs caregiver account can still register a NurseNow account (or vice versa) without hitting this |
+| AUTH_002 | 404 | No account found with this phone number | Login with a phone that has no account **in the requested `app` bucket** (`POST /auth/login/code`'s `app` field) — e.g. a phone with only a NurseNow account gets this when logging in with `app: 'nursejobs'` |
 | AUTH_003 | 401 | Invalid email or password | Admin email login with wrong credentials |
 | AUTH_004 | 401 | Account is deactivated | Login to deactivated account |
 | AUTH_005 | 401 | Invalid or expired token | Expired/malformed JWT |
@@ -3179,6 +3225,7 @@ only has to check one place — see 12.4/12.3).
 | Code | HTTP Status | Message | When |
 |------|-------------|---------|------|
 | ORG_001 | 400 | End date cannot be before start date | `PATCH /admin/organisation-requirements/:id` (6.11) with `schedule_type: 'date_range'` and `end_date` earlier than `start_date` |
+| ORG_002 | 400 | Weekday values must be between 1 (Monday) and 7 (Sunday) | `PATCH /admin/organisation-requirements/:id` (6.11) with `schedule_type: 'specific_days'`, `schedule_repeat: 'weekly'`, and a `specific_days` value outside 1-7 |
 
 ### 7.6 General Errors (GEN_xxx)
 
@@ -3670,7 +3717,7 @@ as every other NurseNow form.
 - Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
 - Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
 - Rehab/Hospitals (`OrganisationsListScreen`) — NurseNow organisation (hospital/rehab/clinic) accounts; mirrors Patients/Family exactly — list + block/unblock at either level (`job_posting`/`full`), see "NurseNow" in CLAUDE.md and 6.11
-- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary and a required Schedule — `SegmentedButton` for Date Range vs Specific Days, then either a start/end date pair or a 31-chip day grid) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
+- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary and a required Schedule — `SegmentedButton` for Date Range vs Specific Days; Date Range shows a start/end date pair, Specific Days reveals a nested Weekly/Monthly `SegmentedButton` in turn showing either 7 weekday chips or a real month-grid calendar, with a green checkmark on every already-picked value) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

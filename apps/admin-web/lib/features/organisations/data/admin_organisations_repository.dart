@@ -4,6 +4,7 @@ import '../../../core/network/api_exception.dart';
 
 class AdminOrganisationListItem {
   final String userId;
+  final int? orgNumber;
   final String fullName;
   final String phone;
   final String organisationName;
@@ -17,6 +18,7 @@ class AdminOrganisationListItem {
 
   const AdminOrganisationListItem({
     required this.userId,
+    this.orgNumber,
     required this.fullName,
     required this.phone,
     required this.organisationName,
@@ -31,6 +33,7 @@ class AdminOrganisationListItem {
 
   factory AdminOrganisationListItem.fromJson(Map<String, dynamic> json) => AdminOrganisationListItem(
         userId: json['user_id'] as String,
+        orgNumber: json['org_number'] as int?,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
         organisationName: json['organisation_name'] as String,

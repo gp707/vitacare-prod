@@ -46,7 +46,7 @@ describe('CaregiverService', () => {
       updateCodeHash: jest.fn(),
       updateFcmToken: jest.fn(),
       updatePhone: jest.fn(),
-      findByPhone: jest.fn().mockResolvedValue(null),
+      findByPhoneAndRoles: jest.fn().mockResolvedValue(null),
     };
     profilesRepo = {
       findFullByUserId: jest.fn(),
@@ -525,7 +525,7 @@ describe('CaregiverService', () => {
   describe('updatePhone', () => {
     it('throws AUTH_001 when the phone is already registered to someone else', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
-      usersRepo.findByPhone.mockResolvedValue({ id: 'someone-else' });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ id: 'someone-else' });
       await expect(
         service.updatePhone('user-1', { phone: '+919999999999' }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
@@ -536,7 +536,7 @@ describe('CaregiverService', () => {
       profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
       const result = await service.updatePhone('user-1', { phone: fullProfile.phone });
       expect(usersRepo.updatePhone).not.toHaveBeenCalled();
-      expect(usersRepo.findByPhone).not.toHaveBeenCalled();
+      expect(usersRepo.findByPhoneAndRoles).not.toHaveBeenCalled();
       expect(result.verification_status).toBe(fullProfile.verification_status);
     });
 

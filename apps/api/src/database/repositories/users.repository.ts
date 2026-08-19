@@ -29,10 +29,16 @@ export interface CreateUserInput {
 export class UsersRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  async findByPhone(phone: string): Promise<UserRecord | null> {
-    const result = await this.db.query<UserRecord>('SELECT * FROM users WHERE phone = $1', [
-      phone,
-    ]);
+  /** Phone is unique per app bucket, not globally (see migration 045) —
+   *  caregiver ("NurseJobs"), individual+organisation ("NurseNow"), and
+   *  admin+super_admin are three independent buckets, so the same phone can
+   *  hold one account in each. Callers pass the role(s) making up the
+   *  relevant bucket; at most one row can ever match. */
+  async findByPhoneAndRoles(phone: string, roles: UserRole[]): Promise<UserRecord | null> {
+    const result = await this.db.query<UserRecord>(
+      'SELECT * FROM users WHERE phone = $1 AND role = ANY($2::text[])',
+      [phone, roles],
+    );
     return result.rows[0] ?? null;
   }
 

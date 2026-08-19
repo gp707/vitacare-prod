@@ -20,7 +20,7 @@ describe('AdminUsersService', () => {
     usersRepo = {
       listAdmins: jest.fn(),
       findByEmail: jest.fn(),
-      findByPhone: jest.fn(),
+      findByPhoneAndRoles: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
       updateAdmin: jest.fn(),
@@ -60,7 +60,7 @@ describe('AdminUsersService', () => {
 
     it('throws ADMIN_003 when the email is already taken', async () => {
       usersRepo.findByEmail.mockResolvedValue(adminUser);
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       await expect(service.createAdmin(dto as any, 'admin-1')).rejects.toMatchObject({
         code: 'ADMIN_003',
       });
@@ -68,7 +68,7 @@ describe('AdminUsersService', () => {
 
     it('throws ADMIN_009 when the phone is already taken', async () => {
       usersRepo.findByEmail.mockResolvedValue(null);
-      usersRepo.findByPhone.mockResolvedValue(adminUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(adminUser);
       await expect(service.createAdmin(dto as any, 'admin-1')).rejects.toMatchObject({
         code: 'ADMIN_009',
       });
@@ -76,7 +76,7 @@ describe('AdminUsersService', () => {
 
     it('creates the admin with role=admin and a hashed password', async () => {
       usersRepo.findByEmail.mockResolvedValue(null);
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       usersRepo.create.mockResolvedValue({ id: 'new-1', email: dto.email, role: 'admin' });
 
       const result = await service.createAdmin(dto as any, 'admin-1');
@@ -103,7 +103,7 @@ describe('AdminUsersService', () => {
 
     it('throws ADMIN_009 when the new phone belongs to a different user', async () => {
       usersRepo.findById.mockResolvedValue(adminUser);
-      usersRepo.findByPhone.mockResolvedValue({ ...adminUser, id: 'someone-else' });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...adminUser, id: 'someone-else' });
       await expect(
         service.updateAdmin('admin-1', { phone: '+919999900002' } as any),
       ).rejects.toMatchObject({ code: 'ADMIN_009' });
@@ -111,7 +111,7 @@ describe('AdminUsersService', () => {
 
     it('allows keeping the same phone on the same admin', async () => {
       usersRepo.findById.mockResolvedValue(adminUser);
-      usersRepo.findByPhone.mockResolvedValue(adminUser);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(adminUser);
       usersRepo.updateAdmin.mockResolvedValue(adminUser);
       await expect(
         service.updateAdmin('admin-1', { phone: adminUser.phone } as any),

@@ -193,6 +193,17 @@ components:
         - date_range
         - specific_days
 
+    ScheduleRepeat:
+      type: string
+      description: >
+        Only meaningful when schedule_type is 'specific_days' — picks what
+        specific_days' numbers mean: ISO weekday numbers 1-7 (Monday-Sunday,
+        recurring every week) if 'weekly', or day-of-month numbers 1-31
+        (recurring every month) if 'monthly'.
+      enum:
+        - weekly
+        - monthly
+
     Mobility:
       type: string
       enum: [walks_independently, walks_with_assistance, uses_walker, uses_wheelchair, bedridden]
@@ -601,6 +612,11 @@ components:
           format: date
           nullable: true
           description: Populated only when schedule_type is 'date_range'; never before start_date (ORG_001).
+        schedule_repeat:
+          allOf:
+            - $ref: "#/components/schemas/ScheduleRepeat"
+          nullable: true
+          description: Populated only when schedule_type is 'specific_days'. Picks what specific_days' numbers mean.
         specific_days:
           type: array
           nullable: true
@@ -608,7 +624,11 @@ components:
             type: integer
             minimum: 1
             maximum: 31
-          description: Populated only when schedule_type is 'specific_days'. Day-of-month integers, recurring each month.
+          description: >
+            Populated only when schedule_type is 'specific_days'. ISO
+            weekday numbers 1-7 (Mon-Sun) if schedule_repeat is 'weekly'
+            (a value outside 1-7 -> ORG_002), or day-of-month numbers 1-31
+            if 'monthly'.
         accommodation_provided:
           type: boolean
         food_provided:
@@ -658,6 +678,7 @@ components:
         schedule_type: "specific_days"
         start_date: null
         end_date: null
+        schedule_repeat: "monthly"
         specific_days: [3, 12, 20]
         accommodation_provided: true
         food_provided: false
@@ -819,6 +840,13 @@ components:
         profile_id:
           type: string
           format: uuid
+        caregiver_number:
+          type: integer
+          nullable: true
+          description: >
+            Human-friendly sequential id, starts at 500 (migration 046) — displayed as
+            "NUR-<n>" client-side.
+          example: 500
         full_name:
           type: string
           example: "Ramesh Kumar"
@@ -899,6 +927,13 @@ components:
         profile_id:
           type: string
           format: uuid
+        caregiver_number:
+          type: integer
+          nullable: true
+          description: >
+            Human-friendly sequential id, starts at 500 (migration 046) — displayed as
+            "NUR-<n>" client-side.
+          example: 500
         full_name:
           type: string
           example: "Ramesh Kumar"
@@ -1450,7 +1485,12 @@ paths:
       summary: Login with phone + 4-digit code
       description: |
         Phone + code login. The code is set at registration, so this is the only caregiver
-        login endpoint — there is no phone-only login.
+        login endpoint — there is no phone-only login. Shared identically by caregiver-app and
+        nursenow-app (individual and organisation accounts both). Phone is unique per app bucket,
+        not globally (see the users table's users_phone_app_bucket_key) — the `app` field tells
+        the backend which bucket to search, so a phone that holds both a caregiver account AND a
+        NurseNow account logs into the correct one every time, regardless of whether the two
+        accounts happen to share the same 4-digit code.
       operationId: loginCode
       requestBody:
         required: true
@@ -1458,7 +1498,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [phone, code]
+              required: [phone, code, app]
               properties:
                 phone:
                   type: string
@@ -1469,6 +1509,15 @@ paths:
                   pattern: '^\d{4}$'
                   description: "4-digit numeric code"
                   example: "1234"
+                app:
+                  type: string
+                  enum: [nursejobs, nursenow]
+                  description: >
+                    Which app is calling. 'nursejobs' searches caregiver accounts only;
+                    'nursenow' searches individual/organisation accounts only (nursenow-app
+                    doesn't know ahead of login which of the two this phone registered as — that's
+                    decoded from the JWT's role claim after a successful login).
+                  example: "nursejobs"
       responses:
         "200":
           description: Login successful
@@ -4794,6 +4843,12 @@ paths:
                     type: object
                     properties:
                       user_id: { type: string, format: uuid }
+                      patient_number:
+                        type: integer
+                        nullable: true
+                        description: >
+                          Human-friendly sequential id, starts at 500 (migration 046) —
+                          displayed as "PAT-<n>" client-side.
                       full_name: { type: string }
                       phone: { type: string }
                       is_job_posting_blocked: { type: boolean }
@@ -4801,6 +4856,7 @@ paths:
                 success: true
                 data:
                   user_id: "e4f5a6b7-c8d9-0123-ef01-456789012345"
+                  patient_number: 500
                   full_name: "Asha Patel"
                   phone: "+919876543210"
                   is_job_posting_blocked: false
@@ -5197,6 +5253,12 @@ paths:
                       type: object
                       properties:
                         user_id: { type: string, format: uuid }
+                        patient_number:
+                          type: integer
+                          nullable: true
+                          description: >
+                            Human-friendly sequential id, starts at 500 (migration 046) —
+                            displayed as "PAT-<n>" client-side.
                         full_name: { type: string }
                         phone: { type: string }
                         is_active: { type: boolean }
@@ -5353,6 +5415,12 @@ paths:
                     type: object
                     properties:
                       user_id: { type: string, format: uuid }
+                      org_number:
+                        type: integer
+                        nullable: true
+                        description: >
+                          Human-friendly sequential id, starts at 500 (migration 046) —
+                          displayed as "ORG-<n>" client-side.
                       organisation_name: { type: string }
                       contact_person_name: { type: string }
                       organisation_type:
@@ -5365,6 +5433,7 @@ paths:
                 success: true
                 data:
                   user_id: "f1a2b3c4-d5e6-7890-fabc-123456789012"
+                  org_number: 500
                   organisation_name: "Sunrise Rehab"
                   contact_person_name: "Ravi Sharma"
                   organisation_type: "rehab"
@@ -6040,8 +6109,11 @@ paths:
         food_provided, schedule_type. schedule_type replaces the single
         start_date field entirely for organisation requirements — admin
         picks exactly one mode: date_range (requires start_date + end_date,
-        end_date before start_date -> ORG_001) or specific_days (requires a
-        non-empty specific_days array, 1-31). Only the active mode's fields
+        end_date before start_date -> ORG_001) or specific_days (requires
+        schedule_repeat plus a non-empty specific_days array whose valid
+        range depends on it — weekday numbers 1-7 if schedule_repeat is
+        weekly, a value outside 1-7 -> ORG_002; day-of-month numbers 1-31
+        if schedule_repeat is monthly). Only the active mode's fields
         are persisted; the other mode's fields are ignored/nulled
         server-side regardless of what's sent. If the requirement was
         pending_review or closed, this activates it (stamps posted_at, and
@@ -6081,10 +6153,16 @@ paths:
                   type: string
                   format: date
                   description: Required when schedule_type is date_range; must not be before start_date (ORG_001).
+                schedule_repeat:
+                  $ref: "#/components/schemas/ScheduleRepeat"
+                  description: Required when schedule_type is specific_days.
                 specific_days:
                   type: array
                   items: { type: integer, minimum: 1, maximum: 31 }
-                  description: Required (non-empty) when schedule_type is specific_days.
+                  description: >
+                    Required (non-empty) when schedule_type is
+                    specific_days. Weekday numbers 1-7 if schedule_repeat
+                    is weekly, day-of-month numbers 1-31 if monthly.
                 accommodation_provided:
                   type: boolean
                 food_provided:
@@ -6104,7 +6182,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/OrganisationRequirement"
         "400":
-          description: Validation error, or end_date before start_date for a date_range schedule
+          description: >
+            Validation error, end_date before start_date for a date_range
+            schedule (ORG_001), or a specific_days value outside 1-7 for a
+            weekly schedule (ORG_002)
           content:
             application/json:
               schema:
@@ -6275,6 +6356,12 @@ paths:
                       type: object
                       properties:
                         user_id: { type: string, format: uuid }
+                        org_number:
+                          type: integer
+                          nullable: true
+                          description: >
+                            Human-friendly sequential id, starts at 500 (migration 046) —
+                            displayed as "ORG-<n>" client-side.
                         full_name: { type: string }
                         phone: { type: string }
                         organisation_name: { type: string }

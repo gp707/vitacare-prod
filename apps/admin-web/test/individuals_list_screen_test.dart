@@ -14,6 +14,7 @@ import 'package:admin_web/features/individuals/screens/individuals_list_screen.d
 
 AdminIndividualListItem _item({
   String userId = 'u1',
+  int? patientNumber = 500,
   String fullName = 'Asha Patel',
   bool isActive = true,
   bool isJobPostingBlocked = false,
@@ -21,6 +22,7 @@ AdminIndividualListItem _item({
 }) {
   return AdminIndividualListItem(
     userId: userId,
+    patientNumber: patientNumber,
     fullName: fullName,
     phone: '+919876543210',
     isActive: isActive,
@@ -95,6 +97,7 @@ void main() {
     expect(find.text('Asha Patel'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
+    expect(find.text('PAT-500'), findsOneWidget);
   });
 
   testWidgets('shows an empty state when there are no individuals', (tester) async {

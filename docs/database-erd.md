@@ -8,7 +8,7 @@
 │──────────────────────│
 │ id (PK)              │
 │ email                │
-│ phone                │
+│ phone                │  ◄── unique per app bucket, NOT globally (migration 045)
 │ password_hash        │
 │ code_hash            │
 │ full_name            │
@@ -45,6 +45,7 @@
 │──────────────────────│
 │ id (PK)              │
 │ user_id (FK→users)   │  ◄── 1:1 with users
+│ caregiver_number     │  ◄── sequential id starting at 500 (migration 046); "NUR-<n>"
 │ selfie_photo_url     │
 │ gender               │
 │ age                  │
@@ -201,6 +202,7 @@ that every one of the org's requirements inherits — there is no per-requiremen
 │──────────────────────│      accounts; role = 'organisation'
 │ id (PK)              │
 │ user_id (FK→users)   │  ◄── 1:1 with users
+│ org_number           │  ◄── sequential id starting at 500 (migration 046); "ORG-<n>"
 │ organisation_name    │
 │ contact_person_name  │
 │ organisation_type    │  ◄── hospital | rehab | clinic
@@ -232,7 +234,10 @@ that every one of the org's requirements inherits — there is no per-requiremen
 │                       │      replaces start_date-only design entirely (migration 043)
 │ start_date           │  ◄── only set when schedule_type='date_range'
 │ end_date             │  ◄── only set when schedule_type='date_range'
-│ specific_days        │  ◄── INTEGER[]; only set when schedule_type='specific_days'
+│ schedule_repeat      │  ◄── weekly | monthly; only set when schedule_type='specific_days'
+│                       │      (migration 044) — picks what specific_days' numbers mean
+│ specific_days        │  ◄── INTEGER[]; only set when schedule_type='specific_days';
+│                       │      weekdays 1-7 if schedule_repeat='weekly', else days 1-31
 │ accommodation_       │
 │   provided           │
 │ food_provided        │
@@ -330,11 +335,11 @@ SPEC.md 6.9.
 
 | Table | Purpose |
 |-------|---------|
-| **users** | Core identity table for all user types (caregivers, admins, super_admins, NurseNow individuals, and NurseNow organisations). Holds auth credentials, contact info, role, and FCM token for push notifications. |
+| **users** | Core identity table for all user types (caregivers, admins, super_admins, NurseNow individuals, and NurseNow organisations). Holds auth credentials, contact info, role, and FCM token for push notifications. `phone` is unique **per app bucket** (`users_phone_app_bucket_key`, migration 045), not globally — a phone can hold one caregiver account, one individual/organisation account, and one admin/super_admin account simultaneously, as fully independent, unlinked rows. See CLAUDE.md's "Phone number is unique per app bucket". |
 | **refresh_tokens** | Stores hashed refresh tokens for JWT rotation. Each token use generates a new one and revokes the old. Supports 30-day TTL. |
-| **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. Also carries `min_salary_per_day`/`min_salary_per_month` — job search preferences that dynamically filter `GET /caregiver/jobs`, editable anytime, never affecting verification status. |
-| **individual_profiles** | Role-specific data for a NurseNow patient/family account (`users.role = 'individual'`). No verification pipeline — just two independent admin block levers: `is_job_posting_blocked` (blocks new postings only) and the shared `users.is_active` (full login lockout), each with an admin-entered `block_reason`. See "NurseNow" in CLAUDE.md. |
-| **organisation_profiles** | Role-specific data for a NurseNow hospital/rehab/clinic account (`users.role = 'organisation'`). Mirrors `individual_profiles`' two block levers, plus registration-collected `organisation_name`/`contact_person_name`/`organisation_type`/`city`/`area` — every requirement the org posts inherits this location, since there's no per-requirement city/area. See "NurseNow" in CLAUDE.md. |
+| **caregiver_profiles** | Full onboarding profile for caregivers, collected in one registration call, including document URLs and verification workflow state (`pending_call`, `available`, `unavailable`, `assigned`, `rejected`). Central to the verification pipeline. Also carries `min_salary_per_day`/`min_salary_per_month` — job search preferences that dynamically filter `GET /caregiver/jobs`, editable anytime, never affecting verification status. `caregiver_number` (migration 046) is a sequential display id starting at 500, shown as "NUR-<n>". |
+| **individual_profiles** | Role-specific data for a NurseNow patient/family account (`users.role = 'individual'`). No verification pipeline — just two independent admin block levers: `is_job_posting_blocked` (blocks new postings only) and the shared `users.is_active` (full login lockout), each with an admin-entered `block_reason`. `patient_number` (migration 046) is a sequential display id starting at 500, shown as "PAT-<n>". See "NurseNow" in CLAUDE.md. |
+| **organisation_profiles** | Role-specific data for a NurseNow hospital/rehab/clinic account (`users.role = 'organisation'`). Mirrors `individual_profiles`' two block levers, plus registration-collected `organisation_name`/`contact_person_name`/`organisation_type`/`city`/`area` — every requirement the org posts inherits this location, since there's no per-requirement city/area. `org_number` (migration 046) is a sequential display id starting at 500, shown as "ORG-<n>". See "NurseNow" in CLAUDE.md. |
 | **caregiver_languages** | Junction table for languages a caregiver speaks. Constrained to a fixed enum of 9 Indian languages. |
 | **caregiver_preferred_duty_types** | Junction table for a caregiver's preferred shift/duty types (job search preference, multi-select from the same 3 fixed shifts as a job's `duty_type`). Same pattern as `caregiver_preferred_cities`. Dynamically filters `GET /caregiver/jobs`; editable anytime via the self-edit endpoint. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |

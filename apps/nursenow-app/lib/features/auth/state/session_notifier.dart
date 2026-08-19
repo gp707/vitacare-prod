@@ -48,6 +48,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
           organisationType: me.organisationType,
           city: me.city,
           area: me.area,
+          orgNumber: me.orgNumber,
         );
       } else {
         final me = await _individualRepository.getMe();
@@ -56,6 +57,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
           fullName: me.fullName,
           phone: me.phone,
           isJobPostingBlocked: me.isJobPostingBlocked,
+          patientNumber: me.patientNumber,
         );
       }
     } catch (_) {

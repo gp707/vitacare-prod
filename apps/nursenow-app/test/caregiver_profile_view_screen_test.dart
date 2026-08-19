@@ -8,6 +8,7 @@ import 'package:nursenow_app/features/caregiver_profile/screens/caregiver_profil
 CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileModel.fromJson({
       'user_id': 'user-1',
       'profile_id': 'profile-1',
+      'caregiver_number': 500,
       'full_name': 'Nurse Nita',
       'phone': '+919876543210',
       'gender': 'female',
@@ -32,6 +33,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nurse Nita'), findsWidgets);
+    expect(find.text('NUR-500'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.text('34 yrs'), findsOneWidget);
     expect(find.text('Female'), findsOneWidget);

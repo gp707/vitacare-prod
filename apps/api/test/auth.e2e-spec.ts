@@ -249,7 +249,7 @@ describe('Auth (e2e)', () => {
     it('logs in immediately after registration with the code set at registration', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '1234' })
+        .send({ phone: testPhone('0001'), code: '1234', app: 'nursejobs' })
         .expect(200);
 
       expect(res.body.data.access_token).toBeDefined();
@@ -259,7 +259,7 @@ describe('Auth (e2e)', () => {
     it('returns AUTH_002 / 404 for an unregistered phone', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('9999'), code: '1234' })
+        .send({ phone: testPhone('9999'), code: '1234', app: 'nursejobs' })
         .expect(404);
 
       expect(res.body.error.code).toBe('AUTH_002');
@@ -268,7 +268,7 @@ describe('Auth (e2e)', () => {
     it('returns PROFILE_007 / 400 for a malformed phone', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: '12345', code: '1234' })
+        .send({ phone: '12345', code: '1234', app: 'nursejobs' })
         .expect(400);
 
       expect(res.body.error.code).toBe('PROFILE_007');
@@ -277,7 +277,7 @@ describe('Auth (e2e)', () => {
     it('returns AUTH_008 / 401 for the wrong code', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '0000' })
+        .send({ phone: testPhone('0001'), code: '0000', app: 'nursejobs' })
         .expect(401);
 
       expect(res.body.error.code).toBe('AUTH_008');
@@ -286,10 +286,104 @@ describe('Auth (e2e)', () => {
     it('returns PROFILE_016 / 400 for a non-4-digit code', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: 'abcd' })
+        .send({ phone: testPhone('0001'), code: 'abcd', app: 'nursejobs' })
         .expect(400);
 
       expect(res.body.error.code).toBe('PROFILE_016');
+    });
+  });
+
+  describe('Cross-app account independence (phone unique per app bucket, migration 045)', () => {
+    it('the same phone can hold a NurseJobs caregiver account AND a NurseNow individual account — two separate, unlinked logins', async () => {
+      const phone = testPhone('0004');
+
+      const caregiver = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          phone,
+          full_name: 'Cross App Caregiver',
+          gender: 'male',
+          age: 35,
+          languages: ['hindi'],
+          religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
+          code: '1234',
+        })
+        .expect(201);
+
+      // Same phone, registering as a NurseNow individual — previously
+      // blocked by the global UNIQUE(phone) constraint (AUTH_001); now
+      // succeeds since caregiver and individual are separate app buckets.
+      const individual = await request(app.getHttpServer())
+        .post('/v1/auth/register/individual')
+        .send({ phone, full_name: 'Cross App Patient', code: '5678' })
+        .expect(201);
+
+      expect(individual.body.data.user_id).not.toBe(caregiver.body.data.user_id);
+
+      const nursejobsLogin = await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone, code: '1234', app: 'nursejobs' })
+        .expect(200);
+      expect(nursejobsLogin.body.data.user_id).toBe(caregiver.body.data.user_id);
+      expect(nursejobsLogin.body.data.verification_status).toBe('pending_call');
+
+      const nursenowLogin = await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone, code: '5678', app: 'nursenow' })
+        .expect(200);
+      expect(nursenowLogin.body.data.user_id).toBe(individual.body.data.user_id);
+      expect(nursenowLogin.body.data.verification_status).toBeUndefined();
+
+      // Same-bucket duplicates are still rejected: another caregiver
+      // account on this phone (AUTH_001)...
+      const dupeCaregiver = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          phone,
+          full_name: 'Someone Else',
+          gender: 'male',
+          age: 40,
+          languages: ['hindi'],
+          religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
+          code: '1111',
+        })
+        .expect(409);
+      expect(dupeCaregiver.body.error.code).toBe('AUTH_001');
+
+      // ...and another NurseNow account (organisation this time) on the
+      // same phone, since the nursenow bucket is already taken by the
+      // individual account above.
+      const dupeOrg = await request(app.getHttpServer())
+        .post('/v1/auth/register/organisation')
+        .send({
+          phone,
+          code: '2222',
+          organisation_name: 'Some Hospital',
+          contact_person_name: 'Someone Else',
+          organisation_type: 'hospital',
+          city: 'bangalore',
+          area: 'Indiranagar',
+        })
+        .expect(409);
+      expect(dupeOrg.body.error.code).toBe('AUTH_001');
+
+      // The nursejobs login can never authenticate into the nursenow
+      // account even with its correct code, and vice versa.
+      const wrongApp1 = await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone, code: '5678', app: 'nursejobs' })
+        .expect(401);
+      expect(wrongApp1.body.error.code).toBe('AUTH_008');
+
+      const wrongApp2 = await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone, code: '1234', app: 'nursenow' })
+        .expect(401);
+      expect(wrongApp2.body.error.code).toBe('AUTH_008');
     });
   });
 
@@ -338,7 +432,7 @@ describe('Auth (e2e)', () => {
     it('rotates the refresh token and rejects reuse of the old one', async () => {
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '1234' })
+        .send({ phone: testPhone('0001'), code: '1234', app: 'nursejobs' })
         .expect(200);
 
       const firstRefreshToken = login.body.data.refresh_token;
@@ -367,7 +461,7 @@ describe('Auth (e2e)', () => {
     it('logs out with a valid token, then that refresh token stops working', async () => {
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0001'), code: '1234' })
+        .send({ phone: testPhone('0001'), code: '1234', app: 'nursejobs' })
         .expect(200);
 
       const { access_token, refresh_token } = login.body.data;

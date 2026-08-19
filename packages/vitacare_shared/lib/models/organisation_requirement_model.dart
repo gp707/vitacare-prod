@@ -19,12 +19,15 @@ class OrganisationRequirementModel {
   final int? salaryAmount;
   /// Admin-set scheduling — exactly one mode, picked via [scheduleType].
   /// 'date_range' uses [startDate]/[endDate]; 'specific_days' uses
-  /// [specificDays] (calendar days of the month, e.g. [3, 12, 20]). Null
-  /// until approved. Organisation-only — JobModel keeps a single
+  /// [scheduleRepeat] + [specificDays] — weekday numbers 1-7 (Mon-Sun) if
+  /// [scheduleRepeat] is 'weekly' (recurs every week), or day-of-month
+  /// numbers 1-31 if 'monthly' (recurs every month, e.g. [3, 12, 20]).
+  /// Null until approved. Organisation-only — JobModel keeps a single
   /// startDate.
   final String? scheduleType;
   final String? startDate;
   final String? endDate;
+  final String? scheduleRepeat;
   final List<int>? specificDays;
   final bool accommodationProvided;
   final bool foodProvided;
@@ -55,6 +58,7 @@ class OrganisationRequirementModel {
     this.scheduleType,
     this.startDate,
     this.endDate,
+    this.scheduleRepeat,
     this.specificDays,
     required this.accommodationProvided,
     required this.foodProvided,
@@ -79,6 +83,7 @@ class OrganisationRequirementModel {
         scheduleType: json['schedule_type'] as String?,
         startDate: json['start_date'] as String?,
         endDate: json['end_date'] as String?,
+        scheduleRepeat: json['schedule_repeat'] as String?,
         specificDays:
             json['specific_days'] != null ? List<int>.from(json['specific_days'] as List) : null,
         accommodationProvided: json['accommodation_provided'] as bool,
@@ -110,6 +115,11 @@ String? organisationScheduleLabel(OrganisationRequirementModel requirement) {
     case ScheduleType.specificDays:
       final days = requirement.specificDays;
       if (days == null || days.isEmpty) return null;
+      if (requirement.scheduleRepeat == ScheduleRepeat.weekly) {
+        final sorted = [...days]..sort();
+        final names = sorted.map((d) => ScheduleRepeat.weekdayAbbreviations[d] ?? '$d').join(', ');
+        return 'Every: $names';
+      }
       return 'Days: ${days.join(', ')}';
     default:
       return null;

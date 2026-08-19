@@ -5,6 +5,9 @@ import { DatabaseService, QueryRunner } from '../database.service';
 export interface IndividualProfileRecord {
   id: string;
   user_id: string;
+  /** Human-friendly sequential id, e.g. patient_number 500 displays as
+   *  "PAT-500" — see patientDisplayId() in packages/vitacare_shared. */
+  patient_number: number;
   is_job_posting_blocked: boolean;
   block_reason: string | null;
   created_at: Date;

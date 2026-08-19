@@ -129,6 +129,9 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.data.highest_qualification).toBe('rn_above_2_years');
       expect(res.body.data.terms_accepted).toBe(true);
       expect(res.body.data.religion).toBe('hindu');
+      // Human-friendly sequential id (migration 046), starts at 500 —
+      // displayed client-side as "NUR-<n>".
+      expect(res.body.data.caregiver_number).toBeGreaterThanOrEqual(500);
     });
 
     it('rejects without a token (AUTH_005)', async () => {
@@ -467,12 +470,12 @@ describe('Caregiver (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0004'), code: '1234' })
+        .send({ phone: testPhone('0004'), code: '1234', app: 'nursejobs' })
         .expect(401);
 
       const login = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
-        .send({ phone: testPhone('0004'), code: '9999' })
+        .send({ phone: testPhone('0004'), code: '9999', app: 'nursejobs' })
         .expect(200);
       expect(login.body.data.verification_status).toBe('pending_call');
     });

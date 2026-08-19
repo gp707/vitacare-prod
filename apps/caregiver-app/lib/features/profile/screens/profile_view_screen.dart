@@ -127,6 +127,15 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         Center(child: VitaStatusBadge(status: profile.verificationStatus)),
+        if (caregiverDisplayId(profile.caregiverNumber) != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Center(
+            child: Text(
+              caregiverDisplayId(profile.caregiverNumber)!,
+              style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.sm),
         Text(
           statusMessageFor(profile.verificationStatus, profile.rejectionMessage),

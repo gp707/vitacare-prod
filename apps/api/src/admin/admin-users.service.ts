@@ -31,7 +31,7 @@ export class AdminUsersService {
   async createAdmin(dto: CreateAdminDto, currentUserId: string, ipAddress: string | null = null) {
     const [existingByEmail, existingByPhone] = await Promise.all([
       this.usersRepo.findByEmail(dto.email),
-      this.usersRepo.findByPhone(dto.phone),
+      this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.ADMIN, UserRole.SUPER_ADMIN]),
     ]);
     if (existingByEmail) throw new AppException('ADMIN_003');
     if (existingByPhone) throw new AppException('ADMIN_009');
@@ -64,7 +64,10 @@ export class AdminUsersService {
       throw new AppException('ADMIN_004');
     }
     if (dto.phone) {
-      const existing = await this.usersRepo.findByPhone(dto.phone);
+      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+        UserRole.ADMIN,
+        UserRole.SUPER_ADMIN,
+      ]);
       if (existing && existing.id !== targetId) throw new AppException('ADMIN_009');
     }
 

@@ -17,6 +17,7 @@ AdminCaregiverDetail _detail({String status = 'pending_call'}) {
   return AdminCaregiverDetail(
     userId: 'user-1',
     profileId: 'profile-1',
+    caregiverNumber: 500,
     fullName: 'Test Caregiver',
     phone: '+919876543210',
     gender: 'female',
@@ -93,6 +94,13 @@ void main() {
 
     expect(find.text('Admin Override:'), findsOneWidget);
     expect(find.text('Set status to...'), findsOneWidget);
+  });
+
+  testWidgets('shows the caregiver display id (NUR-<n>) next to the name', (tester) async {
+    final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
+    await _pump(tester, repo);
+
+    expect(find.text('NUR-500'), findsOneWidget);
   });
 
   testWidgets('picking a status not reachable via quick-action buttons and setting it calls updateStatus',

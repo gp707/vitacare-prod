@@ -4,6 +4,7 @@ import '../../../core/network/api_exception.dart';
 
 class AdminIndividualListItem {
   final String userId;
+  final int? patientNumber;
   final String fullName;
   final String phone;
   final bool isActive;
@@ -13,6 +14,7 @@ class AdminIndividualListItem {
 
   const AdminIndividualListItem({
     required this.userId,
+    this.patientNumber,
     required this.fullName,
     required this.phone,
     required this.isActive,
@@ -23,6 +25,7 @@ class AdminIndividualListItem {
 
   factory AdminIndividualListItem.fromJson(Map<String, dynamic> json) => AdminIndividualListItem(
         userId: json['user_id'] as String,
+        patientNumber: json['patient_number'] as int?,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
         isActive: json['is_active'] as bool,

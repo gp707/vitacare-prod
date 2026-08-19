@@ -161,6 +161,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
+            DataColumn(label: Text('ID')),
             DataColumn(label: Text('Name')),
             DataColumn(label: Text('Phone')),
             DataColumn(label: Text('Gender')),
@@ -175,6 +176,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                   onSelectChanged: (_) =>
                       Navigator.of(context).pushNamed('/caregiver-detail', arguments: item.profileId),
                   cells: [
+                    DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-')),
                     DataCell(Text(item.fullName)),
                     DataCell(Text(item.phone)),
                     DataCell(Text(item.gender)),

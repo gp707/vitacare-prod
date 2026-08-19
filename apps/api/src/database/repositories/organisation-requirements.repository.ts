@@ -12,11 +12,13 @@ export interface OrganisationRequirementRecord {
   salary_amount: number | null;
   /** Admin-set scheduling — exactly one of two modes, picked via
    *  schedule_type. date_range uses start_date/end_date; specific_days
-   *  uses specific_days. Null until approved. Organisation-only — regular
-   *  jobs keep a single start_date. */
+   *  uses schedule_repeat + specific_days (weekdays 1-7 if weekly,
+   *  days-of-month 1-31 if monthly). Null until approved. Organisation-
+   *  only — regular jobs keep a single start_date. */
   schedule_type: string | null;
   start_date: string | null;
   end_date: string | null;
+  schedule_repeat: string | null;
   specific_days: number[] | null;
   accommodation_provided: boolean;
   food_provided: boolean;
@@ -61,6 +63,7 @@ export interface UpdateOrganisationRequirementInput {
   schedule_type: string | null;
   start_date: string | null;
   end_date: string | null;
+  schedule_repeat: string | null;
   specific_days: number[] | null;
   accommodation_provided: boolean;
   food_provided: boolean;
@@ -199,12 +202,13 @@ export class OrganisationRequirementsRepository {
          schedule_type = $5,
          start_date = $6,
          end_date = $7,
-         specific_days = $8,
-         accommodation_provided = $9,
-         food_provided = $10,
-         special_skills = $11,
-         status = CASE WHEN $12::boolean THEN 'active' ELSE status END,
-         posted_at = CASE WHEN $12::boolean THEN NOW() ELSE posted_at END,
+         schedule_repeat = $8,
+         specific_days = $9,
+         accommodation_provided = $10,
+         food_provided = $11,
+         special_skills = $12,
+         status = CASE WHEN $13::boolean THEN 'active' ELSE status END,
+         posted_at = CASE WHEN $13::boolean THEN NOW() ELSE posted_at END,
          updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -216,6 +220,7 @@ export class OrganisationRequirementsRepository {
         input.schedule_type,
         input.start_date,
         input.end_date,
+        input.schedule_repeat,
         input.specific_days,
         input.accommodation_provided,
         input.food_provided,

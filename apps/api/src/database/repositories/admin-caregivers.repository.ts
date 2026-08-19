@@ -18,6 +18,7 @@ export interface DashboardStats {
 export interface AdminCaregiverListItem {
   user_id: string;
   profile_id: string;
+  caregiver_number: number;
   full_name: string;
   phone: string;
   gender: Gender;
@@ -46,6 +47,7 @@ export interface AdminCaregiverListSort {
 export interface AdminCaregiverDetail {
   id: string;
   user_id: string;
+  caregiver_number: number;
   full_name: string;
   phone: string;
   email: string | null;
@@ -147,7 +149,7 @@ export class AdminCaregiversRepository {
 
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminCaregiverListItem>(
-        `SELECT cp.id AS profile_id, cp.user_id, u.full_name, u.phone, cp.gender, cp.age,
+        `SELECT cp.id AS profile_id, cp.user_id, cp.caregiver_number, u.full_name, u.phone, cp.gender, cp.age,
                 cp.highest_qualification, cp.verification_status, cp.created_at
          FROM caregiver_profiles cp
          JOIN users u ON u.id = cp.user_id
@@ -167,7 +169,7 @@ export class AdminCaregiversRepository {
 
   async getDetailById(profileId: string): Promise<AdminCaregiverDetail | null> {
     const result = await this.db.query<AdminCaregiverDetail>(
-      `SELECT cp.id, cp.user_id, u.full_name, u.phone, u.email, cp.gender, cp.age,
+      `SELECT cp.id, cp.user_id, cp.caregiver_number, u.full_name, u.phone, u.email, cp.gender, cp.age,
               cp.selfie_photo_url, cp.highest_qualification, cp.qualification_document_url,
               cp.aadhaar_document_url, cp.other_document_urls, cp.religion,
               cp.terms_accepted,

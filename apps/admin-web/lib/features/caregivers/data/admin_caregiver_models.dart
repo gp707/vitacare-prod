@@ -3,6 +3,7 @@ export 'package:vitacare_shared/vitacare_shared.dart' show PaginationMeta;
 class AdminCaregiverListItem {
   final String userId;
   final String profileId;
+  final int? caregiverNumber;
   final String fullName;
   final String phone;
   final String gender;
@@ -14,6 +15,7 @@ class AdminCaregiverListItem {
   const AdminCaregiverListItem({
     required this.userId,
     required this.profileId,
+    this.caregiverNumber,
     required this.fullName,
     required this.phone,
     required this.gender,
@@ -26,6 +28,7 @@ class AdminCaregiverListItem {
   factory AdminCaregiverListItem.fromJson(Map<String, dynamic> json) => AdminCaregiverListItem(
         userId: json['user_id'] as String,
         profileId: json['profile_id'] as String,
+        caregiverNumber: json['caregiver_number'] as int?,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
         gender: json['gender'] as String,
@@ -54,6 +57,7 @@ class AdminNotes {
 class AdminCaregiverDetail {
   final String userId;
   final String profileId;
+  final int? caregiverNumber;
   final String fullName;
   final String phone;
   final String? email;
@@ -78,6 +82,7 @@ class AdminCaregiverDetail {
   const AdminCaregiverDetail({
     required this.userId,
     required this.profileId,
+    this.caregiverNumber,
     required this.fullName,
     required this.phone,
     this.email,
@@ -103,6 +108,7 @@ class AdminCaregiverDetail {
   factory AdminCaregiverDetail.fromJson(Map<String, dynamic> json) => AdminCaregiverDetail(
         userId: json['user_id'] as String,
         profileId: json['profile_id'] as String,
+        caregiverNumber: json['caregiver_number'] as int?,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
         email: json['email'] as String?,

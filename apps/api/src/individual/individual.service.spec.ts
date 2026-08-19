@@ -40,7 +40,7 @@ describe('IndividualService', () => {
     individualProfilesRepo = { findByUserId: jest.fn() };
     usersRepo = {
       findById: jest.fn(),
-      findByPhone: jest.fn(),
+      findByPhoneAndRoles: jest.fn(),
       updatePhone: jest.fn(),
       updateCodeHash: jest.fn(),
     };
@@ -167,7 +167,7 @@ describe('IndividualService', () => {
     it('throws AUTH_001 when the new phone is already taken', async () => {
       individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
       usersRepo.findById.mockResolvedValue({ id: 'user-1', phone: '+919876543210' });
-      usersRepo.findByPhone.mockResolvedValue({ id: 'someone-else' });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ id: 'someone-else' });
       await expect(
         service.updatePhone('user-1', { phone: '+919876500000' } as any, null),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
@@ -177,7 +177,7 @@ describe('IndividualService', () => {
     it('updates the phone and audit-logs it when it is new and unused', async () => {
       individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
       usersRepo.findById.mockResolvedValue({ id: 'user-1', phone: '+919876543210' });
-      usersRepo.findByPhone.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
 
       const result = await service.updatePhone('user-1', { phone: '+919876500000' } as any, '127.0.0.1');
 

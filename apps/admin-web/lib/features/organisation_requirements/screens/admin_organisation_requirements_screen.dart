@@ -88,7 +88,7 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
       context: context,
       builder: (dialogContext) => _EditRequirementDialog(
         requirement: requirement,
-        onSubmit: (frequency, salary, scheduleType, startDate, endDate, specificDays) async {
+        onSubmit: (frequency, salary, scheduleType, startDate, endDate, scheduleRepeat, specificDays) async {
           await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
                 requirement.id,
                 typeOfNurse: requirement.typeOfNurse,
@@ -97,6 +97,7 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
                 scheduleType: scheduleType,
                 startDate: startDate,
                 endDate: endDate,
+                scheduleRepeat: scheduleRepeat,
                 specificDays: specificDays,
                 accommodationProvided: requirement.accommodationProvided,
                 foodProvided: requirement.foodProvided,
@@ -303,6 +304,7 @@ class _EditRequirementDialog extends StatefulWidget {
     String scheduleType,
     String? startDate,
     String? endDate,
+    String? scheduleRepeat,
     List<int>? specificDays,
   ) onSubmit;
 
@@ -319,6 +321,7 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
   String? _scheduleType;
   DateTime? _startDate;
   DateTime? _endDate;
+  String? _scheduleRepeat;
   final Set<int> _specificDays = {};
   bool _submitting = false;
 
@@ -329,6 +332,7 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
     super.initState();
     _frequency = widget.requirement.frequencyOfCare;
     _scheduleType = widget.requirement.scheduleType;
+    _scheduleRepeat = widget.requirement.scheduleRepeat;
     final startDate = widget.requirement.startDate;
     final endDate = widget.requirement.endDate;
     if (startDate != null) _startDate = DateTime.tryParse(startDate);
@@ -344,10 +348,12 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
 
   bool get _isDateRange => _scheduleType == ScheduleType.dateRange;
   bool get _isSpecificDays => _scheduleType == ScheduleType.specificDays;
+  bool get _isWeekly => _scheduleRepeat == ScheduleRepeat.weekly;
+  bool get _isMonthly => _scheduleRepeat == ScheduleRepeat.monthly;
 
   bool get _scheduleValid {
     if (_isDateRange) return _startDate != null && _endDate != null && !_endDate!.isBefore(_startDate!);
-    if (_isSpecificDays) return _specificDays.isNotEmpty;
+    if (_isSpecificDays) return _scheduleRepeat != null && _specificDays.isNotEmpty;
     return false;
   }
 
@@ -357,6 +363,13 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
   String _formatDate(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+  void _setScheduleRepeat(String repeat) {
+    setState(() {
+      _scheduleRepeat = repeat;
+      _specificDays.clear();
+    });
+  }
+
   Future<void> _submit() async {
     setState(() => _submitting = true);
     await widget.onSubmit(
@@ -365,6 +378,7 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
       _scheduleType!,
       _isDateRange ? _formatDate(_startDate!) : null,
       _isDateRange ? _formatDate(_endDate!) : null,
+      _isSpecificDays ? _scheduleRepeat : null,
       _isSpecificDays ? (_specificDays.toList()..sort()) : null,
     );
     if (mounted) Navigator.of(context).pop();
@@ -437,6 +451,10 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
+                    if (_startDate != null) ...[
+                      const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
                     Expanded(
                       child: Text(_startDate == null ? 'Start date: not set' : 'Start date: ${_formatDate(_startDate!)}'),
                     ),
@@ -445,6 +463,10 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
                 ),
                 Row(
                   children: [
+                    if (_endDate != null) ...[
+                      const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
                     Expanded(
                       child: Text(_endDate == null ? 'End date: not set' : 'End date: ${_formatDate(_endDate!)}'),
                     ),
@@ -456,26 +478,60 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
               ],
               if (_isSpecificDays) ...[
                 const SizedBox(height: AppSpacing.sm),
-                const Text('Select the days of the month needed', style: TextStyle(color: AppColors.textSecondary)),
+                const Text('Repeat', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: AppSpacing.xs),
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    for (final day in List.generate(31, (i) => i + 1))
-                      FilterChip(
-                        label: Text('$day'),
-                        selected: _specificDays.contains(day),
-                        onSelected: (selected) => setState(() {
-                          if (selected) {
-                            _specificDays.add(day);
-                          } else {
-                            _specificDays.remove(day);
-                          }
-                        }),
-                      ),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: ScheduleRepeat.weekly, label: Text('Weekly')),
+                    ButtonSegment(value: ScheduleRepeat.monthly, label: Text('Monthly')),
                   ],
+                  selected: {if (_scheduleRepeat != null) _scheduleRepeat!},
+                  emptySelectionAllowed: true,
+                  onSelectionChanged: (selection) =>
+                      selection.isEmpty ? setState(() => _scheduleRepeat = null) : _setScheduleRepeat(selection.first),
                 ),
+                if (_isWeekly) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  const Text('Select the days of the week needed (repeats every week)',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (var weekday = 1; weekday <= 7; weekday++)
+                        FilterChip(
+                          label: Text(ScheduleRepeat.weekdayAbbreviations[weekday]!),
+                          selected: _specificDays.contains(weekday),
+                          selectedColor: AppColors.success.withValues(alpha: 0.2),
+                          checkmarkColor: AppColors.success,
+                          onSelected: (selected) => setState(() {
+                            if (selected) {
+                              _specificDays.add(weekday);
+                            } else {
+                              _specificDays.remove(weekday);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                ],
+                if (_isMonthly) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  const Text('Select the days of the month needed (repeats every month)',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: AppSpacing.xs),
+                  _MonthCalendarPicker(
+                    selectedDays: _specificDays,
+                    onToggle: (day) => setState(() {
+                      if (_specificDays.contains(day)) {
+                        _specificDays.remove(day);
+                      } else {
+                        _specificDays.add(day);
+                      }
+                    }),
+                  ),
+                ],
               ],
             ],
           ),
@@ -490,6 +546,103 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
               : Text(_isApproval ? 'Approve' : 'Save Changes'),
         ),
       ],
+    );
+  }
+}
+
+/// A real month-grid calendar (weekday-aligned, current month) for picking
+/// recurring days-of-month — only the tapped day NUMBER is captured (e.g.
+/// 15), not the specific date, since the selection recurs every month
+/// regardless of what weekday the 15th falls on in other months. Shown
+/// purely for a familiar, visual way to pick numbers rather than scanning a
+/// flat 1-31 list.
+class _MonthCalendarPicker extends StatelessWidget {
+  final Set<int> selectedDays;
+  final ValueChanged<int> onToggle;
+
+  const _MonthCalendarPicker({required this.selectedDays, required this.onToggle});
+
+  static const _monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final leadingBlanks = DateTime(now.year, now.month, 1).weekday - 1; // Monday=1 -> 0 blanks
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${_monthNames[now.month - 1]} ${now.year}',
+            style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            for (final label in const ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'])
+              Expanded(
+                child: Center(
+                  child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: AppSpacing.xs,
+          crossAxisSpacing: AppSpacing.xs,
+          children: [
+            for (var i = 0; i < leadingBlanks; i++) const SizedBox.shrink(),
+            for (final day in List.generate(daysInMonth, (i) => i + 1))
+              _CalendarDayCell(day: day, selected: selectedDays.contains(day), onTap: () => onToggle(day)),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        const Text('Selections recur every month, regardless of the day of the week.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  final int day;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CalendarDayCell({required this.day, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected ? AppColors.success.withValues(alpha: 0.2) : null,
+          border: Border.all(color: selected ? AppColors.success : AppColors.border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        alignment: Alignment.center,
+        child: selected
+            ? Stack(
+                alignment: Alignment.center,
+                children: [
+                  Text('$day', style: const TextStyle(fontSize: 12)),
+                  const Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Icon(Icons.check_circle, color: AppColors.success, size: 12),
+                  ),
+                ],
+              )
+            : Text('$day', style: const TextStyle(fontSize: 12)),
+      ),
     );
   }
 }
@@ -575,6 +728,27 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
   }
 }
 
+/// Same wording as the shared organisationScheduleLabel() helper — kept as
+/// a local copy since AdminOrganisationRequirement is admin-web's own
+/// model (not the shared OrganisationRequirementModel that helper expects).
+String _scheduleSummary(AdminOrganisationRequirement requirement) {
+  switch (requirement.scheduleType) {
+    case ScheduleType.dateRange:
+      return '${requirement.startDate} – ${requirement.endDate}';
+    case ScheduleType.specificDays:
+      final days = requirement.specificDays;
+      if (days == null || days.isEmpty) return 'Not set (admin sets on approval)';
+      if (requirement.scheduleRepeat == ScheduleRepeat.weekly) {
+        final sorted = [...days]..sort();
+        final names = sorted.map((d) => ScheduleRepeat.weekdayAbbreviations[d] ?? '$d').join(', ');
+        return 'Every: $names';
+      }
+      return 'Days: ${days.join(', ')}';
+    default:
+      return 'Not set (admin sets on approval)';
+  }
+}
+
 /// Read-only detail view opened by tapping a requirement row — every field
 /// as plain text, with an Edit button handing off to _EditRequirementDialog.
 class _RequirementReadOnlyDialog extends StatelessWidget {
@@ -626,14 +800,7 @@ class _RequirementReadOnlyDialog extends StatelessWidget {
                     ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
                     : 'Not set (admin sets on approval)',
               ),
-              _DetailRow(
-                'Schedule',
-                switch (requirement.scheduleType) {
-                  ScheduleType.dateRange => '${requirement.startDate} – ${requirement.endDate}',
-                  ScheduleType.specificDays => 'Days: ${requirement.specificDays?.join(', ')}',
-                  _ => 'Not set (admin sets on approval)',
-                },
-              ),
+              _DetailRow('Schedule', _scheduleSummary(requirement)),
               _DetailRow('Accommodation', requirement.accommodationProvided ? 'Provided' : 'Not provided'),
               _DetailRow('Food', requirement.foodProvided ? 'Provided' : 'Not provided'),
               if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty)

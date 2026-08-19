@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config } from '@vitacare/shared-constants';
+import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -28,6 +28,7 @@ export class OrganisationService {
     if (!profile) throw new AppException('GEN_002');
     return {
       user_id: user.id,
+      org_number: profile.org_number,
       organisation_name: profile.organisation_name,
       contact_person_name: profile.contact_person_name,
       organisation_type: profile.organisation_type,
@@ -45,7 +46,10 @@ export class OrganisationService {
     if (!user) throw new AppException('GEN_002');
     if (dto.phone === user.phone) return { message: 'Phone number updated' };
 
-    const existing = await this.usersRepo.findByPhone(dto.phone);
+    const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+      UserRole.INDIVIDUAL,
+      UserRole.ORGANISATION,
+    ]);
     if (existing) throw new AppException('AUTH_001');
 
     await this.usersRepo.updatePhone(userId, dto.phone);
