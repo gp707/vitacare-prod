@@ -20,6 +20,8 @@ class ApiRoutes {
       '/individual/requirements/$jobId/applications';
   static String individualRequirementApplicationDecide(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId';
+  static String individualRequirementApplicantProfile(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId/profile';
 
   // NurseNow organisation (hospital/rehab/clinic) — same phone+code login as
   // caregiver/individual. Unlike individual, an org may have many
@@ -32,10 +34,13 @@ class ApiRoutes {
       '/organisation/requirements/$requirementId/applications';
   static String organisationRequirementApplicationDecide(String requirementId, String applicationId) =>
       '/organisation/requirements/$requirementId/applications/$applicationId';
+  static String organisationRequirementApplicantProfile(String requirementId, String applicationId) =>
+      '/organisation/requirements/$requirementId/applications/$applicationId/profile';
 
-  // Caregiver-facing browse/apply for organisation requirements — a
-  // separate section from the regular caregiverJobs list (explicit
-  // decision: org openings are NOT merged into the existing Jobs tab).
+  // Caregiver-facing browse/apply for organisation requirements — merged
+  // client-side into the same Jobs/MyJobs list as regular jobs in
+  // caregiver-app (see jobs_screen.dart), even though the data still comes
+  // from this separate set of endpoints.
   static const caregiverOrganisationRequirements = '/caregiver/organisation-requirements';
   static String caregiverOrganisationRequirementApply(String requirementId) =>
       '/caregiver/organisation-requirements/$requirementId/apply';

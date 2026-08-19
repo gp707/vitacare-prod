@@ -129,6 +129,20 @@ class IndividualRepository {
     }
   }
 
+  /// Full profile of one applicant — same deliberately-trimmed shape as a
+  /// caregiver's own self-view minus email/document URLs/job-search
+  /// preferences (see CaregiverService.getApplicantProfile server-side).
+  /// Ownership-checked server-side: only viewable if this application
+  /// actually belongs to a requirement the caller posted.
+  Future<CaregiverProfileModel> getApplicantProfile(String jobId, String applicationId) async {
+    try {
+      final res = await _dio.get(ApiRoutes.individualRequirementApplicantProfile(jobId, applicationId));
+      return CaregiverProfileModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// [status] is 'accepted' or 'rejected' — has the exact same effect as
   /// admin deciding on it (closes the job, flips the caregiver to
   /// assigned/available). [reason] is required server-side (JOB_012) when

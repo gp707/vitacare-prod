@@ -7,6 +7,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
+import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import 'post_requirement_screen.dart';
 
 /// Statuses that count as "live" for the one-live-requirement-at-a-time
@@ -125,6 +126,18 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
+  /// The single candidate currently under review, per the forced
+  /// one-at-a-time flow — see _ApplicantsSection.
+  void _viewProfile(String jobId, String applicationId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaregiverProfileViewScreen(
+          fetchProfile: () => ref.read(individualRepositoryProvider).getApplicantProfile(jobId, applicationId),
+        ),
+      ),
+    );
+  }
+
   Future<void> _postRequirement() async {
     final posted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const PostRequirementScreen()),
@@ -182,6 +195,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           decidingApplicationId: _decidingApplicationId,
                           onAccept: (applicationId) => _accept(requirement.id, applicationId),
                           onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
+                          onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -236,6 +250,7 @@ class _RequirementCard extends StatelessWidget {
   final Set<String> decidingApplicationId;
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
+  final void Function(String applicationId) onViewProfile;
 
   const _RequirementCard({
     required this.requirement,
@@ -243,6 +258,7 @@ class _RequirementCard extends StatelessWidget {
     required this.decidingApplicationId,
     required this.onAccept,
     required this.onReject,
+    required this.onViewProfile,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
@@ -381,6 +397,7 @@ class _RequirementCard extends StatelessWidget {
               decidingApplicationId: decidingApplicationId,
               onAccept: onAccept,
               onReject: onReject,
+              onViewProfile: onViewProfile,
             ),
           ],
         ],
@@ -401,12 +418,14 @@ class _ApplicantsSection extends StatelessWidget {
   final Set<String> decidingApplicationId;
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
+  final void Function(String applicationId) onViewProfile;
 
   const _ApplicantsSection({
     required this.applications,
     required this.decidingApplicationId,
     required this.onAccept,
     required this.onReject,
+    required this.onViewProfile,
   });
 
   @override
@@ -437,6 +456,7 @@ class _ApplicantsSection extends StatelessWidget {
               isDeciding: decidingApplicationId.contains(undecided.first.id),
               onAccept: () => onAccept(undecided.first.id),
               onReject: () => onReject(undecided.first.id),
+              onViewProfile: () => onViewProfile(undecided.first.id),
             ),
             if (decided.isNotEmpty) const SizedBox(height: AppSpacing.md),
           ],
@@ -459,12 +479,14 @@ class _ReviewingApplicantTile extends StatelessWidget {
   final bool isDeciding;
   final VoidCallback onAccept;
   final VoidCallback onReject;
+  final VoidCallback onViewProfile;
 
   const _ReviewingApplicantTile({
     required this.application,
     required this.isDeciding,
     required this.onAccept,
     required this.onReject,
+    required this.onViewProfile,
   });
 
   @override
@@ -475,23 +497,33 @@ class _ReviewingApplicantTile extends StatelessWidget {
         border: Border.all(color: AppColors.primary),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              if (isDeciding) const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (!isDeciding)
+            Row(
               children: [
-                Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                OutlinedButton(onPressed: onViewProfile, child: const Text('View Profile')),
+                const Spacer(),
+                TextButton(onPressed: onAccept, child: const Text('Accept')),
+                TextButton(onPressed: onReject, child: const Text('Reject')),
               ],
             ),
-          ),
-          if (isDeciding)
-            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
-          else ...[
-            TextButton(onPressed: onAccept, child: const Text('Accept')),
-            TextButton(onPressed: onReject, child: const Text('Reject')),
-          ],
         ],
       ),
     );

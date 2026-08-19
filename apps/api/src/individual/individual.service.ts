@@ -10,6 +10,7 @@ import { IndividualProfilesRepository } from '../database/repositories/individua
 import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
+import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
@@ -26,6 +27,7 @@ export class IndividualService {
     private readonly usersRepo: UsersRepository,
     private readonly jobsService: JobsService,
     private readonly auditService: AuditService,
+    private readonly caregiverService: CaregiverService,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -155,6 +157,19 @@ export class IndividualService {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
     return this.jobApplicationsRepo.findByJobId(jobId);
+  }
+
+  /** Full profile of one applicant — ownership-checked both ways (the job
+   *  is the individual's own, and the application actually belongs to that
+   *  job) before delegating to CaregiverService's deliberately-trimmed
+   *  applicant-view shape (see getApplicantProfile there for what's
+   *  omitted and why). */
+  async getApplicantProfile(userId: string, jobId: string, applicationId: string) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    const application = await this.jobApplicationsRepo.findById(applicationId);
+    if (!application || application.job_id !== jobId) throw new AppException('GEN_002');
+    return this.caregiverService.getApplicantProfile(application.profile_id);
   }
 
   /** Reuses JobsService.decideApplication's full accept/reject logic

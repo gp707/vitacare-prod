@@ -86,11 +86,28 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Individual-side endpoints** (`@Roles(UserRole.INDIVIDUAL)`, `src/individual/`):
   `GET /individual/me`, `POST /individual/requirements`, `GET /individual/requirements`,
   `GET /individual/requirements/:id/applications`,
+  `GET /individual/requirements/:jobId/applications/:applicationId/profile` (an applicant's full
+  profile — ownership-checked both ways, the job must be this individual's own AND the
+  application must actually belong to it — delegates to
+  `CaregiverService.getApplicantProfile(profileId)`, a deliberately trimmed subset of a
+  caregiver's own self-view: no email, no Aadhaar/qualification-document links, no
+  `other_document_urls`, no job-search preferences, no `rejection_message` — none of that is an
+  outside viewer's business. Same JSON shape as `GET /caregiver/profile` for the fields it does
+  return, so nursenow-app parses either one with the same `CaregiverProfileModel`.),
   `PATCH /individual/requirements/:jobId/applications/:applicationId` (accept/reject an
   applicant — ownership-checked, then delegates to the same `JobsService.decideApplication` admin
   uses), `PATCH /individual/profile/phone` / `PATCH /individual/profile/code` (self-service phone
   and 4-digit PIN change, reusing caregiver's `UpdatePhoneDto`/`UpdateCodeDto` — no re-review
   logic, since an individual account has no verification pipeline to send back for review).
+  **Viewing a candidate's profile is scoped to the single candidate currently under forced
+  one-at-a-time review** (`_ReviewingApplicantTile`'s "View Profile" button in
+  `JobsPostedScreen` — see the applicant-review flow described further below); already-decided
+  candidates in the read-only history below it don't get a profile link. "View Profile" (both
+  here and on Organisation's equivalent) pushes `nursenow-app`'s new shared
+  `CaregiverProfileViewScreen` (`lib/features/caregiver_profile/`) — a deliberately lean
+  read-only page (photo, name, a "VitaCare-verified" badge if `available`/`assigned`, phone,
+  age, gender, qualification, religion, languages as chips) rather than a crowded document
+  viewer, matching what `CaregiverService.getApplicantProfile` actually sends over the wire.
   `GET /individual/requirements` returns the account's full requirement history (not just the
   current one), each with its `care_receiver` joined in, so a past requirement's full detail and
   its applicants (including who was accepted) stay visible after it closes — not just while live.
@@ -173,6 +190,12 @@ reusing any of its tables.
 - **Organisation-side endpoints** (`@Roles(UserRole.ORGANISATION)`, `src/organisation/`):
   `GET /organisation/me`, `POST /organisation/requirements`, `GET /organisation/requirements`
   (full history, not just current), `GET /organisation/requirements/:id/applications`,
+  `GET /organisation/requirements/:requirementId/applications/:applicationId/profile` (an
+  applicant's full profile — same ownership-check-both-ways pattern and same
+  `CaregiverService.getApplicantProfile` trimmed shape as Individual's equivalent above).
+  Since Organisation's review is a free list, not forced one-at-a-time, **every** applicant
+  gets a "View Profile" button in `RequirementsPostedScreen`'s `_ApplicantTile` — decided or
+  not, unlike Individual which only exposes it for the one candidate currently under review.
   `PATCH /organisation/requirements/:requirementId/applications/:applicationId` (accept/reject,
   ownership-checked, delegates to `OrganisationRequirementsService.decideApplication` — the same
   method admin's own decide-application endpoint calls), plus
@@ -233,8 +256,12 @@ reusing any of its tables.
   `.../unblock`) and **"Organisation Requirements"** (`/rehab-requirements` →
   `AdminOrganisationRequirementsScreen`, a dedicated screen — deliberately NOT folded into
   `AdminJobsScreen`, since organisation requirements are a wholly separate table/model — listing
-  every requirement via `GET /admin/organisation-requirements` with Applicants (Accept/Reject per
-  applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single
+  every requirement via `GET /admin/organisation-requirements` with Applicants (each applicant row
+  gets its own **Profile** button — `Navigator.pushNamed('/caregiver-detail', arguments:
+  application.profileId)`, the exact same admin-only full-detail screen `AdminJobsScreen`'s own
+  Applicants dialog already links to, so no new backend endpoint was needed for the admin case —
+  plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required
+  dialog), and a single
   **Edit** action (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when
   Daily is picked) that doubles as "Approve" from `pending_review` and as an ordinary edit from
   `active`/`closed` — admin can revisit and correct these same admin-set fields later, not just

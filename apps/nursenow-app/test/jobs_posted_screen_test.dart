@@ -86,6 +86,8 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? decidedApplicationId;
   String? decidedStatus;
   String? decidedReason;
+  String? profileFetchedJobId;
+  String? profileFetchedApplicationId;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}}) : super(Dio());
 
@@ -101,6 +103,26 @@ class _FakeIndividualRepository extends IndividualRepository {
     decidedApplicationId = applicationId;
     decidedStatus = status;
     decidedReason = reason;
+  }
+
+  @override
+  Future<CaregiverProfileModel> getApplicantProfile(String jobId, String applicationId) async {
+    profileFetchedJobId = jobId;
+    profileFetchedApplicationId = applicationId;
+    return CaregiverProfileModel.fromJson({
+      'user_id': 'user-1',
+      'profile_id': 'profile-1',
+      'full_name': 'Test Caregiver',
+      'phone': '+919876543210',
+      'gender': 'female',
+      'age': 30,
+      'languages': ['hindi', 'english'],
+      'highest_qualification': 'rn_above_2_years',
+      'religion': 'hindu',
+      'terms_accepted': true,
+      'verification_status': 'available',
+      'created_at': '2026-08-01T10:00:00Z',
+    });
   }
 }
 
@@ -254,6 +276,25 @@ void main() {
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets('tapping View Profile on the candidate under review opens their full profile', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement()],
+      applicationsByJobId: {
+        'job-1': [_application()],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
+    await tester.pumpAndSettle();
+
+    expect(repo.profileFetchedJobId, 'job-1');
+    expect(repo.profileFetchedApplicationId, 'app-1');
+    expect(find.text('30 yrs'), findsOneWidget);
+    expect(find.text('Registered Nurse above 2 years of experience'), findsOneWidget);
+    expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
   });
 
   testWidgets('rejecting requires a reason — Confirm stays disabled until something is typed', (tester) async {

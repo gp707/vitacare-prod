@@ -50,6 +50,7 @@ describe('CaregiverService', () => {
     };
     profilesRepo = {
       findFullByUserId: jest.fn(),
+      findFullById: jest.fn(),
       editFields: jest.fn(),
       flagPendingEdits: jest.fn(),
       markForReReview: jest.fn(),
@@ -125,6 +126,44 @@ describe('CaregiverService', () => {
       const result = await service.getProfile('user-1');
       expect(result.min_salary_per_day).toBe(1500);
       expect(result.min_salary_per_month).toBeNull();
+    });
+  });
+
+  describe('getApplicantProfile', () => {
+    it('throws GEN_002 when no profile exists for that id', async () => {
+      profilesRepo.findFullById.mockResolvedValue(null);
+      await expect(service.getApplicantProfile('profile-1')).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('omits email, document URLs, job-search preferences, and rejection_message', async () => {
+      profilesRepo.findFullById.mockResolvedValue({
+        ...fullProfile,
+        email: 'nita@example.com',
+        selfie_photo_url: 'profile-1/selfie.jpg',
+        qualification_document_url: 'profile-1/qual.pdf',
+        aadhaar_document_url: 'profile-1/aadhaar.pdf',
+        other_document_urls: ['profile-1/other.pdf'],
+        rejection_message: 'stale',
+      });
+      uploadService.getSignedUrlOrNull.mockResolvedValueOnce('https://signed/selfie');
+      languagesRepo.findByProfileId.mockResolvedValue(['hindi']);
+
+      const result = await service.getApplicantProfile('profile-1');
+      expect(result.selfie_photo_url).toBe('https://signed/selfie');
+      expect(result.languages).toEqual(['hindi']);
+      expect(result.full_name).toBe('Test Caregiver');
+      expect(result).not.toHaveProperty('email');
+      expect(result).not.toHaveProperty('qualification_document_url');
+      expect(result).not.toHaveProperty('aadhaar_document_url');
+      expect(result).not.toHaveProperty('other_document_urls');
+      expect(result).not.toHaveProperty('rejection_message');
+      expect(result).not.toHaveProperty('preferred_cities');
+      expect(result).not.toHaveProperty('preferred_duty_types');
+      expect(result).not.toHaveProperty('min_salary_per_day');
+      expect(result).not.toHaveProperty('min_salary_per_month');
+      // Only one signed-URL lookup (selfie) — unlike getProfile, which
+      // resolves qualification/aadhaar/other document URLs too.
+      expect(uploadService.getSignedUrlOrNull).toHaveBeenCalledTimes(1);
     });
   });
 

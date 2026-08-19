@@ -349,6 +349,60 @@ describe('Individual (NurseNow) (e2e)', () => {
       void applyRes;
     });
 
+    it("lets the individual view an applicant's full profile, ownership-checked, without leaking Aadhaar/qualification-document URLs", async () => {
+      const individual = await registerIndividual('0028');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0130');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      const profile = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(profile.body.data.profile_id).toBe(caregiver.profile_id);
+      expect(profile.body.data.full_name).toBeDefined();
+      expect(profile.body.data.email).toBeUndefined();
+      expect(profile.body.data.aadhaar_document_url).toBeUndefined();
+      expect(profile.body.data.qualification_document_url).toBeUndefined();
+      expect(profile.body.data.other_document_urls).toBeUndefined();
+
+      // Ownership check: another individual can't view this applicant via a job they don't own.
+      const outsider = await registerIndividual('0029');
+      const outsiderJob = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const forbidden = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${outsiderJob.body.data.id}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .expect(404);
+      expect(forbidden.body.error.code).toBe('GEN_002');
+    });
+
     it('requires a reason to reject an applicant (JOB_012), and stores it once given', async () => {
       const individual = await registerIndividual('0027');
       const created = await request(app.getHttpServer())

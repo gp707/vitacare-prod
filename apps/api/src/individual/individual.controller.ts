@@ -55,6 +55,15 @@ export class IndividualController {
     return this.individualService.getMyRequirementApplications(user.sub, id);
   }
 
+  @Get('requirements/:jobId/applications/:applicationId/profile')
+  getApplicantProfile(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+  ) {
+    return this.individualService.getApplicantProfile(user.sub, jobId, applicationId);
+  }
+
   @Patch('requirements/:jobId/applications/:applicationId')
   @HttpCode(HttpStatus.OK)
   decideApplication(

@@ -2885,6 +2885,18 @@ array (6.6). `GEN_002` if the requirement isn't found or isn't owned by the call
 regardless of the requirement's status — including `closed`, so the accepted (or declined)
 applicant list stays visible after the requirement closes, not just while it's `active`.
 
+#### GET `/individual/requirements/:jobId/applications/:applicationId/profile`
+
+An applicant's full profile — ownership-checked both ways (the requirement is this individual's
+own, and the application actually belongs to it; `GEN_002` otherwise). Delegates to
+`CaregiverService.getApplicantProfile`, which returns a deliberately trimmed subset of a
+caregiver's own `GET /caregiver/profile` shape: no `email`, no `aadhaar_document_url`/
+`qualification_document_url`/`other_document_urls`, no `preferred_cities`/
+`preferred_duty_types`/`min_salary_per_day`/`min_salary_per_month`, no `rejection_message` —
+none of that is an outside viewer's business. nursenow-app's `JobsPostedScreen` only exposes this
+via a "View Profile" button on the single candidate currently under forced one-at-a-time review
+(`_ReviewingApplicantTile`), pushing the new shared `CaregiverProfileViewScreen`.
+
 #### PATCH `/individual/requirements/:jobId/applications/:applicationId`
 
 Accept/reject an applicant — same body/behavior as the admin decide-application endpoint (6.6):
@@ -2980,6 +2992,13 @@ Applicants on the caller's own requirement — each item carries the caregiver's
 the requirement isn't found or isn't owned by the caller. Callable regardless of the
 requirement's status, so the applicant list (including who was accepted) stays visible after the
 requirement closes.
+
+#### GET `/organisation/requirements/:requirementId/applications/:applicationId/profile`
+
+An applicant's full profile — same trimmed shape and both-ways ownership check as Individual's
+equivalent endpoint above. Since Organisation's applicant review is a free list (not forced
+one-at-a-time), nursenow-app's `RequirementsPostedScreen` exposes a "View Profile" button on
+**every** applicant in `_ApplicantTile`, decided or not — not just one candidate at a time.
 
 #### PATCH `/organisation/requirements/:requirementId/applications/:applicationId`
 
@@ -3640,7 +3659,7 @@ as every other NurseNow form.
 - Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
 - Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
 - Rehab/Hospitals (`OrganisationsListScreen`) — NurseNow organisation (hospital/rehab/clinic) accounts; mirrors Patients/Family exactly — list + block/unblock at either level (`job_posting`/`full`), see "NurseNow" in CLAUDE.md and 6.11
-- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when Daily is picked) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
+- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when Daily is picked) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

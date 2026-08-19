@@ -65,6 +65,19 @@ class OrganisationRepository {
     }
   }
 
+  /// Full profile of one applicant — same trimmed shape as Individual's
+  /// equivalent (see IndividualRepository.getApplicantProfile). Since
+  /// Organisation's review is a free list, this can be called for any/
+  /// every applicant, not just the one candidate currently under review.
+  Future<CaregiverProfileModel> getApplicantProfile(String requirementId, String applicationId) async {
+    try {
+      final res = await _dio.get(ApiRoutes.organisationRequirementApplicantProfile(requirementId, applicationId));
+      return CaregiverProfileModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// [status] is 'accepted' or 'rejected' — has the exact same effect as
   /// admin deciding on it. Unlike the individual side, a reason is never
   /// required here (matches admin's own reject flow).

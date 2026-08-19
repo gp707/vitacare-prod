@@ -429,6 +429,10 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  void _viewProfile(OrganisationRequirementApplicationModel application) {
+    Navigator.of(context).pushNamed('/caregiver-detail', arguments: application.profileId);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -456,17 +460,23 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
                           ),
                           if (_decidingId == application.id)
                             const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
-                          else if (application.status == JobApplicationStatus.applied) ...[
+                          else ...[
                             TextButton(
-                              onPressed: () => _decide(application.id, JobApplicationStatus.accepted),
-                              child: const Text('Accept'),
+                              onPressed: () => _viewProfile(application),
+                              child: const Text('Profile'),
                             ),
-                            TextButton(
-                              onPressed: () => _decide(application.id, JobApplicationStatus.rejected),
-                              child: const Text('Reject'),
-                            ),
-                          ] else
-                            Text(application.status),
+                            if (application.status == JobApplicationStatus.applied) ...[
+                              TextButton(
+                                onPressed: () => _decide(application.id, JobApplicationStatus.accepted),
+                                child: const Text('Accept'),
+                              ),
+                              TextButton(
+                                onPressed: () => _decide(application.id, JobApplicationStatus.rejected),
+                                child: const Text('Reject'),
+                              ),
+                            ] else
+                              Text(application.status),
+                          ],
                         ],
                       ),
                     ),

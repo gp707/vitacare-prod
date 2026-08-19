@@ -7,6 +7,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
+import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import 'post_organisation_requirement_screen.dart';
 
 /// An organisation's full requirement history — unlike Individual, there is
@@ -69,6 +70,20 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     }
   }
 
+  /// Unlike Individual's forced one-at-a-time flow, Organisation's review
+  /// is a free list — any applicant's profile can be viewed, not just one
+  /// at a time.
+  void _viewProfile(String requirementId, String applicationId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaregiverProfileViewScreen(
+          fetchProfile: () =>
+              ref.read(organisationRepositoryProvider).getApplicantProfile(requirementId, applicationId),
+        ),
+      ),
+    );
+  }
+
   Future<void> _postRequirement() async {
     final posted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const PostOrganisationRequirementScreen()),
@@ -122,6 +137,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                           applications: _applicationsByRequirementId[requirement.id] ?? const [],
                           decidingApplicationId: _decidingApplicationId,
                           onDecide: (applicationId, status) => _decide(requirement.id, applicationId, status),
+                          onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -159,12 +175,14 @@ class _RequirementCard extends StatelessWidget {
   final List<OrganisationRequirementApplicationModel> applications;
   final Set<String> decidingApplicationId;
   final void Function(String applicationId, String status) onDecide;
+  final void Function(String applicationId) onViewProfile;
 
   const _RequirementCard({
     required this.requirement,
     required this.applications,
     required this.decidingApplicationId,
     required this.onDecide,
+    required this.onViewProfile,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
@@ -252,6 +270,7 @@ class _RequirementCard extends StatelessWidget {
                   application: application,
                   isDeciding: decidingApplicationId.contains(application.id),
                   onDecide: (status) => onDecide(application.id, status),
+                  onViewProfile: () => onViewProfile(application.id),
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
@@ -266,8 +285,14 @@ class _ApplicantTile extends StatelessWidget {
   final OrganisationRequirementApplicationModel application;
   final bool isDeciding;
   final void Function(String status) onDecide;
+  final VoidCallback onViewProfile;
 
-  const _ApplicantTile({required this.application, required this.isDeciding, required this.onDecide});
+  const _ApplicantTile({
+    required this.application,
+    required this.isDeciding,
+    required this.onDecide,
+    required this.onViewProfile,
+  });
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
 
@@ -280,38 +305,51 @@ class _ApplicantTile extends StatelessWidget {
         border: Border.all(color: _isAccepted ? AppColors.success : AppColors.border),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    if (_isAccepted) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      const Icon(Icons.check_circle, color: AppColors.success, size: 16),
-                    ],
+                    Row(
+                      children: [
+                        Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        if (_isAccepted) ...[
+                          const SizedBox(width: AppSpacing.xs),
+                          const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                        ],
+                      ],
+                    ),
+                    Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
                   ],
                 ),
-                Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+              ),
+              if (isDeciding) const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
+            ],
+          ),
+          if (!isDeciding) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                OutlinedButton(onPressed: onViewProfile, child: const Text('View Profile')),
+                const Spacer(),
+                if (application.status == JobApplicationStatus.applied) ...[
+                  TextButton(onPressed: () => onDecide(JobApplicationStatus.accepted), child: const Text('Accept')),
+                  TextButton(onPressed: () => onDecide(JobApplicationStatus.rejected), child: const Text('Reject')),
+                ] else
+                  Text(
+                    _isAccepted ? 'Accepted' : (application.status[0].toUpperCase() + application.status.substring(1)),
+                    style: TextStyle(
+                      color: _isAccepted ? AppColors.success : AppColors.textSecondary,
+                      fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
               ],
             ),
-          ),
-          if (isDeciding)
-            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
-          else if (application.status == JobApplicationStatus.applied) ...[
-            TextButton(onPressed: () => onDecide(JobApplicationStatus.accepted), child: const Text('Accept')),
-            TextButton(onPressed: () => onDecide(JobApplicationStatus.rejected), child: const Text('Reject')),
-          ] else
-            Text(
-              _isAccepted ? 'Accepted' : (application.status[0].toUpperCase() + application.status.substring(1)),
-              style: TextStyle(
-                color: _isAccepted ? AppColors.success : AppColors.textSecondary,
-                fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
+          ],
         ],
       ),
     );

@@ -10,6 +10,7 @@ describe('OrganisationRequirementsService', () => {
   let organisationProfilesRepo: any;
   let fcmService: any;
   let auditService: any;
+  let caregiverService: any;
 
   const createDto = {
     type_of_nurse: 'registered_nurse',
@@ -45,6 +46,7 @@ describe('OrganisationRequirementsService', () => {
     organisationProfilesRepo = { findByUserId: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
     auditService = { log: jest.fn() };
+    caregiverService = { getApplicantProfile: jest.fn() };
 
     service = new OrganisationRequirementsService(
       db,
@@ -55,6 +57,7 @@ describe('OrganisationRequirementsService', () => {
       organisationProfilesRepo,
       fcmService,
       auditService,
+      caregiverService,
     );
   });
 
@@ -110,6 +113,38 @@ describe('OrganisationRequirementsService', () => {
       applicationsRepo.findByRequirementId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getRequirementApplications('org-1', 'req-1');
       expect(result).toEqual([{ id: 'app-1' }]);
+    });
+  });
+
+  describe('getApplicantProfile', () => {
+    it('throws GEN_002 when the requirement belongs to someone else', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'someone-else' });
+      await expect(service.getApplicantProfile('org-1', 'req-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+
+    it('throws GEN_002 when the application does not belong to this requirement', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      applicationsRepo.findById.mockResolvedValue({
+        id: 'app-1',
+        requirement_id: 'some-other-req',
+        profile_id: 'p-1',
+      });
+      await expect(service.getApplicantProfile('org-1', 'req-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+
+    it("delegates to CaregiverService.getApplicantProfile with the application's profile_id", async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      applicationsRepo.findById.mockResolvedValue({ id: 'app-1', requirement_id: 'req-1', profile_id: 'profile-1' });
+      caregiverService.getApplicantProfile.mockResolvedValue({ full_name: 'Nurse Nita' });
+      const result = await service.getApplicantProfile('org-1', 'req-1', 'app-1');
+      expect(caregiverService.getApplicantProfile).toHaveBeenCalledWith('profile-1');
+      expect(result).toEqual({ full_name: 'Nurse Nita' });
     });
   });
 

@@ -292,6 +292,20 @@ void main() {
     expect(repo.decidedStatus, JobApplicationStatus.accepted);
   });
 
+  testWidgets('Applicants dialog shows a Profile button for every applicant, decided or not', (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository(
+      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [_application(status: JobApplicationStatus.accepted)],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nurse Nita'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Profile'), findsOneWidget);
+  });
+
   testWidgets('Applicants dialog shows no actions for an already-decided application', (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
       [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],

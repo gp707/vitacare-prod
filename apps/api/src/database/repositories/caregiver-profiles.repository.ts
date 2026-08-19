@@ -125,6 +125,21 @@ export class CaregiverProfilesRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Keyed by profile id (not user id) — used when the caller only has a
+   *  job_applications/organisation_requirement_applications row's
+   *  profile_id in hand, e.g. an individual/organisation viewing an
+   *  applicant's profile. */
+  async findFullById(profileId: string): Promise<CaregiverProfileFullRecord | null> {
+    const result = await this.db.query<CaregiverProfileFullRecord>(
+      `SELECT ${FULL_PROFILE_COLUMNS}
+       FROM caregiver_profiles cp
+       JOIN users u ON u.id = cp.user_id
+       WHERE cp.id = $1`,
+      [profileId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   /** Partial update — only fields present (not undefined) on `input` are written.
    *  preferred_cities is NOT one of these fields — see CaregiverPreferredCitiesRepository. */
   async adminUpdate(

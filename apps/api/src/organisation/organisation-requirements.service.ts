@@ -14,6 +14,7 @@ import { AdminCaregiversRepository } from '../database/repositories/admin-caregi
 import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
+import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
 import { UpdateOrganisationRequirementDto } from './dto/update-organisation-requirement.dto';
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
@@ -45,6 +46,7 @@ export class OrganisationRequirementsService {
     private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly fcmService: FcmService,
     private readonly auditService: AuditService,
+    private readonly caregiverService: CaregiverService,
   ) {}
 
   async createRequirement(orgUserId: string, dto: CreateOrganisationRequirementDto, ipAddress: string | null) {
@@ -81,6 +83,20 @@ export class OrganisationRequirementsService {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
     return this.applicationsRepo.findByRequirementId(requirementId);
+  }
+
+  /** Full profile of one applicant — ownership-checked both ways (the
+   *  requirement is this org's own, and the application actually belongs
+   *  to that requirement) before delegating to CaregiverService's
+   *  deliberately-trimmed applicant-view shape. Organisation's review is a
+   *  free list (unlike Individual's forced one-at-a-time), so this can be
+   *  called for any/every applicant, not just one at a time. */
+  async getApplicantProfile(orgUserId: string, requirementId: string, applicationId: string) {
+    const requirement = await this.requirementsRepo.findById(requirementId);
+    if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
+    const application = await this.applicationsRepo.findById(applicationId);
+    if (!application || application.requirement_id !== requirementId) throw new AppException('GEN_002');
+    return this.caregiverService.getApplicantProfile(application.profile_id);
   }
 
   /** Ownership-checked wrapper for the org's own decision — delegates to

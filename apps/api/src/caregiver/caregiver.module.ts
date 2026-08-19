@@ -7,5 +7,6 @@ import { CaregiverService } from './caregiver.service';
   imports: [UploadModule],
   controllers: [CaregiverController],
   providers: [CaregiverService],
+  exports: [CaregiverService],
 })
 export class CaregiverModule {}

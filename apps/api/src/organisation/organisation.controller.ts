@@ -47,6 +47,15 @@ export class OrganisationController {
     return this.requirementsService.getRequirementApplications(user.sub, id);
   }
 
+  @Get('requirements/:requirementId/applications/:applicationId/profile')
+  getApplicantProfile(
+    @CurrentUser() user: JwtPayload,
+    @Param('requirementId') requirementId: string,
+    @Param('applicationId') applicationId: string,
+  ) {
+    return this.requirementsService.getApplicantProfile(user.sub, requirementId, applicationId);
+  }
+
   @Patch('requirements/:requirementId/applications/:applicationId')
   @HttpCode(HttpStatus.OK)
   decideApplication(

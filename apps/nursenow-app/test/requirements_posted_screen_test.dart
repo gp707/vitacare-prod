@@ -59,6 +59,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? decidedRequirementId;
   String? decidedApplicationId;
   String? decidedStatus;
+  String? profileFetchedRequirementId;
+  String? profileFetchedApplicationId;
 
   _FakeOrganisationRepository({this.requirements = const [], this.applicationsByRequirementId = const {}})
       : super(Dio());
@@ -75,6 +77,26 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     decidedRequirementId = requirementId;
     decidedApplicationId = applicationId;
     decidedStatus = status;
+  }
+
+  @override
+  Future<CaregiverProfileModel> getApplicantProfile(String requirementId, String applicationId) async {
+    profileFetchedRequirementId = requirementId;
+    profileFetchedApplicationId = applicationId;
+    return CaregiverProfileModel.fromJson({
+      'user_id': 'user-1',
+      'profile_id': 'profile-1',
+      'full_name': 'Test Caregiver',
+      'phone': '+919876543210',
+      'gender': 'female',
+      'age': 30,
+      'languages': ['hindi'],
+      'highest_qualification': 'gda_non_nursing',
+      'religion': 'hindu',
+      'terms_accepted': true,
+      'verification_status': 'available',
+      'created_at': '2026-08-01T10:00:00Z',
+    });
   }
 }
 
@@ -179,6 +201,39 @@ void main() {
     expect(repo.decidedRequirementId, 'req-1');
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets('tapping View Profile on an undecided applicant opens their full profile', (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement()],
+      applicationsByRequirementId: {
+        'req-1': [_application()],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
+    await tester.pumpAndSettle();
+
+    expect(repo.profileFetchedRequirementId, 'req-1');
+    expect(repo.profileFetchedApplicationId, 'app-1');
+    expect(find.text('30 yrs'), findsOneWidget);
+  });
+
+  testWidgets('View Profile is also available for an already-decided (accepted) applicant', (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      applicationsByRequirementId: {
+        'req-1': [_application(status: 'accepted')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
+    await tester.pumpAndSettle();
+
+    expect(repo.profileFetchedApplicationId, 'app-1');
+    expect(find.text('30 yrs'), findsOneWidget);
   });
 
   testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {

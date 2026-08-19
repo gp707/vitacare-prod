@@ -387,6 +387,60 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(assigned.body.data[0].my_application.status).toBe('completed');
     });
 
+    it("lets the organisation view an applicant's full profile, ownership-checked, without leaking Aadhaar/qualification-document URLs", async () => {
+      const org = await registerOrganisation('0026');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(approvalPayload())
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0130');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      const profile = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      expect(profile.body.data.profile_id).toBe(caregiver.profile_id);
+      expect(profile.body.data.full_name).toBeDefined();
+      expect(profile.body.data.email).toBeUndefined();
+      expect(profile.body.data.aadhaar_document_url).toBeUndefined();
+      expect(profile.body.data.qualification_document_url).toBeUndefined();
+      expect(profile.body.data.other_document_urls).toBeUndefined();
+
+      // Ownership check: another organisation can't view this applicant.
+      const outsider = await registerOrganisation('0027');
+      const outsiderReq = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const forbidden = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${outsiderReq.body.data.id}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .expect(404);
+      expect(forbidden.body.error.code).toBe('GEN_002');
+    });
+
     it("rejects deciding on another organisation's requirement (ownership check, GEN_002)", async () => {
       const owner = await registerOrganisation('0010');
       const outsider = await registerOrganisation('0011');

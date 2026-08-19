@@ -4911,6 +4911,65 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /individual/requirements/{jobId}/applications/{applicationId}/profile:
+    get:
+      tags: [NurseNow - Individual]
+      summary: An applicant's full profile
+      description: >
+        Ownership-checked both ways — the requirement must be this
+        individual's own AND the application must actually belong to it
+        (GEN_002 otherwise). Returns a deliberately trimmed subset of
+        CaregiverProfile: no email, no aadhaar_document_url/
+        qualification_document_url, no other_document_urls, no
+        preferred_cities/preferred_duty_types/min_salary_per_day/
+        min_salary_per_month, no rejection_message — none of that is this
+        viewer's business. Same field names/types as GET /caregiver/profile
+        for everything it does return.
+      operationId: getMyRequirementApplicantProfile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Applicant's trimmed profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/CaregiverProfile"
+                    description: >
+                      email, aadhaar_document_url,
+                      qualification_document_url, other_document_urls,
+                      preferred_cities, preferred_duty_types,
+                      min_salary_per_day, min_salary_per_month, and
+                      rejection_message are all omitted from this response
+                      even though CaregiverProfile lists them.
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement/application not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /individual/requirements/{jobId}/applications/{applicationId}:
     patch:
       tags: [NurseNow - Individual]
@@ -5413,6 +5472,57 @@ paths:
           $ref: "#/components/responses/UnauthorizedError"
         "404":
           description: Requirement not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/requirements/{requirementId}/applications/{applicationId}/profile:
+    get:
+      tags: [NurseNow - Organisation]
+      summary: An applicant's full profile
+      description: >
+        Ownership-checked both ways — the requirement must be this org's
+        own AND the application must actually belong to it (GEN_002
+        otherwise). Same trimmed CaregiverProfile subset as Individual's
+        equivalent endpoint (see
+        /individual/requirements/{jobId}/applications/{applicationId}/profile
+        for exactly what's omitted and why). Organisation's applicant
+        review is a free list, so this is callable for any/every applicant,
+        not just one at a time.
+      operationId: getOrganisationRequirementApplicantProfile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Applicant's trimmed profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/CaregiverProfile"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement/application not found, or not owned by the caller
           content:
             application/json:
               schema:

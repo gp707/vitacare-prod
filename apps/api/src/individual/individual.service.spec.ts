@@ -10,6 +10,7 @@ describe('IndividualService', () => {
   let usersRepo: any;
   let jobsService: any;
   let auditService: any;
+  let caregiverService: any;
 
   const careReceiverDto = {
     age: 70,
@@ -34,7 +35,7 @@ describe('IndividualService', () => {
       listByPostedBy: jest.fn(),
       findLiveByPostedBy: jest.fn(),
     };
-    jobApplicationsRepo = { findByJobId: jest.fn() };
+    jobApplicationsRepo = { findByJobId: jest.fn(), findById: jest.fn() };
     careReceiversRepo = { create: jest.fn().mockResolvedValue({ id: 'cr-1' }), findById: jest.fn() };
     individualProfilesRepo = { findByUserId: jest.fn() };
     usersRepo = {
@@ -45,6 +46,7 @@ describe('IndividualService', () => {
     };
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
+    caregiverService = { getApplicantProfile: jest.fn() };
 
     service = new IndividualService(
       db,
@@ -55,6 +57,7 @@ describe('IndividualService', () => {
       usersRepo,
       jobsService,
       auditService,
+      caregiverService,
     );
   });
 
@@ -231,6 +234,34 @@ describe('IndividualService', () => {
       jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getMyRequirementApplications('user-1', 'job-1');
       expect(result).toEqual([{ id: 'app-1' }]);
+    });
+  });
+
+  describe('getApplicantProfile', () => {
+    it('throws GEN_002 when the job belongs to someone else', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
+      await expect(service.getApplicantProfile('user-1', 'job-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+
+    it('throws GEN_002 when the application does not belong to this job', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'some-other-job', profile_id: 'p-1' });
+      await expect(service.getApplicantProfile('user-1', 'job-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+
+    it("delegates to CaregiverService.getApplicantProfile with the application's profile_id", async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'profile-1' });
+      caregiverService.getApplicantProfile.mockResolvedValue({ full_name: 'Nurse Nita' });
+      const result = await service.getApplicantProfile('user-1', 'job-1', 'app-1');
+      expect(caregiverService.getApplicantProfile).toHaveBeenCalledWith('profile-1');
+      expect(result).toEqual({ full_name: 'Nurse Nita' });
     });
   });
 

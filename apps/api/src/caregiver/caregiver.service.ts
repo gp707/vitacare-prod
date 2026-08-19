@@ -89,6 +89,45 @@ export class CaregiverService {
     };
   }
 
+  /** The profile shown to an individual/organisation reviewing a caregiver
+   *  who applied to their job/requirement — deliberately a smaller subset
+   *  than getProfile()/admin's own caregiver detail: no email, no
+   *  Aadhaar/qualification-document links, no other_document_urls, no
+   *  job-search preferences (preferred_cities/duty_types/min_salary) or
+   *  rejection_message — none of that is this viewer's business, and
+   *  keeping the payload lean keeps the profile screen from feeling
+   *  crowded. Same JSON shape as getProfile() for the fields it does
+   *  return, so CaregiverProfileModel.fromJson on the client parses either
+   *  one unchanged (the omitted fields are all nullable/list-defaulted on
+   *  that model). Callers (IndividualService/OrganisationRequirementsService)
+   *  do their own job/requirement + application ownership check before
+   *  calling this — this method itself doesn't know who's asking. */
+  async getApplicantProfile(profileId: string) {
+    const profile = await this.profilesRepo.findFullById(profileId);
+    if (!profile) throw new AppException('GEN_002');
+    const languages = await this.languagesRepo.findByProfileId(profile.id);
+    const selfieUrl = await this.uploadService.getSignedUrlOrNull(
+      Config.STORAGE_BUCKET,
+      profile.selfie_photo_url,
+    );
+
+    return {
+      user_id: profile.user_id,
+      profile_id: profile.id,
+      full_name: profile.full_name,
+      phone: profile.phone,
+      gender: profile.gender,
+      age: profile.age,
+      selfie_photo_url: selfieUrl,
+      languages,
+      highest_qualification: profile.highest_qualification,
+      religion: profile.religion,
+      terms_accepted: profile.terms_accepted,
+      verification_status: profile.verification_status,
+      created_at: profile.created_at,
+    };
+  }
+
   /** Single self-edit endpoint for every caregiver-editable field — age,
    *  languages, highest_qualification, preferred_cities. full_name, gender,
    *  and religion are intentionally absent — locked from self-edit once set
