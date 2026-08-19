@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 
 /// Read-only "who applied" view for an individual/organisation reviewing a
-/// caregiver applicant. Deliberately lean — see
-/// CaregiverService.getApplicantProfile server-side for what's
-/// intentionally left out (no email, no Aadhaar/qualification-document
-/// links, no job-search preferences) so this stays a quick, clean glance
-/// rather than a crowded document viewer.
+/// caregiver applicant — the full profile, same data CaregiverService
+/// .getApplicantProfile returns server-side, including email and
+/// Aadhaar/qualification/other-document links.
 class CaregiverProfileViewScreen extends StatefulWidget {
   final Future<CaregiverProfileModel> Function() fetchProfile;
 
@@ -87,6 +86,15 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                             ],
                             const SizedBox(height: AppSpacing.lg),
                             _InfoCard(profile: profile),
+                            const SizedBox(height: AppSpacing.md),
+                            _DocumentsCard(profile: profile),
+                            if (profile.preferredCities.isNotEmpty ||
+                                profile.preferredDutyTypes.isNotEmpty ||
+                                profile.minSalaryPerDay != null ||
+                                profile.minSalaryPerMonth != null) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              _PreferencesCard(profile: profile),
+                            ],
                           ],
                         ),
                       ),
@@ -156,6 +164,7 @@ class _InfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _InfoRow('Phone', profile.phone),
+          if (profile.email != null) _InfoRow('Email', profile.email!),
           _InfoRow('Age', '${profile.age} yrs'),
           _InfoRow('Gender', capitalize(profile.gender)),
           if (profile.highestQualification != null)
@@ -208,6 +217,107 @@ class _InfoRow extends StatelessWidget {
             child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocumentsCard extends StatelessWidget {
+  final CaregiverProfileModel profile;
+
+  const _DocumentsCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: AppSpacing.xs),
+          _DocumentLink('Aadhaar Card', profile.aadhaarDocumentUrl),
+          _DocumentLink('Qualification Document', profile.qualificationDocumentUrl),
+          for (var i = 0; i < profile.otherDocumentUrls.length; i++)
+            _DocumentLink('Other Document ${i + 1}', profile.otherDocumentUrls[i]),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocumentLink extends StatelessWidget {
+  final String label;
+  final String? url;
+
+  const _DocumentLink(this.label, this.url);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 160,
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          ),
+          Expanded(
+            child: url == null
+                ? const Text('Not uploaded', style: TextStyle(color: AppColors.textSecondary))
+                : TextButton.icon(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
+                    onPressed: () => launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: const Text('View'),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreferencesCard extends StatelessWidget {
+  final CaregiverProfileModel profile;
+
+  const _PreferencesCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final salaryParts = <String>[
+      if (profile.minSalaryPerDay != null) '₹${profile.minSalaryPerDay}/day',
+      if (profile.minSalaryPerMonth != null) '₹${profile.minSalaryPerMonth}/month',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Job Search Preferences', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: AppSpacing.xs),
+          if (profile.preferredCities.isNotEmpty)
+            _InfoRow(
+              'Preferred Cities',
+              profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', '),
+            ),
+          if (profile.preferredDutyTypes.isNotEmpty)
+            _InfoRow(
+              'Hours Care Needed',
+              profile.preferredDutyTypes.map((d) => DutyType.displayNames[d] ?? d).join(', '),
+            ),
+          if (salaryParts.isNotEmpty) _InfoRow('Min. Salary', salaryParts.join(', ')),
         ],
       ),
     );

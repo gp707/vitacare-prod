@@ -94,10 +94,11 @@ export class OrganisationRequirementsService {
 
   /** Full profile of one applicant — ownership-checked both ways (the
    *  requirement is this org's own, and the application actually belongs
-   *  to that requirement) before delegating to CaregiverService's
-   *  deliberately-trimmed applicant-view shape. Organisation's review is a
-   *  free list (unlike Individual's forced one-at-a-time), so this can be
-   *  called for any/every applicant, not just one at a time. */
+   *  to that requirement) before delegating to CaregiverService's full
+   *  applicant-view shape, including Aadhaar/qualification-document URLs.
+   *  Organisation's review is a free list (unlike Individual's forced
+   *  one-at-a-time), so this can be called for any/every applicant, not
+   *  just one at a time. */
   async getApplicantProfile(orgUserId: string, requirementId: string, applicationId: string) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');

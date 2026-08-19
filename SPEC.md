@@ -2947,13 +2947,14 @@ applicant list stays visible after the requirement closes, not just while it's `
 
 An applicant's full profile — ownership-checked both ways (the requirement is this individual's
 own, and the application actually belongs to it; `GEN_002` otherwise). Delegates to
-`CaregiverService.getApplicantProfile`, which returns a deliberately trimmed subset of a
-caregiver's own `GET /caregiver/profile` shape: no `email`, no `aadhaar_document_url`/
-`qualification_document_url`/`other_document_urls`, no `preferred_cities`/
-`preferred_duty_types`/`min_salary_per_day`/`min_salary_per_month`, no `rejection_message` —
-none of that is an outside viewer's business. nursenow-app's `JobsPostedScreen` only exposes this
-via a "View Profile" button on the single candidate currently under forced one-at-a-time review
-(`_ReviewingApplicantTile`), pushing the new shared `CaregiverProfileViewScreen`.
+`CaregiverService.getApplicantProfile`, which returns the caregiver's complete
+`GET /caregiver/profile` shape: `email`, signed `aadhaar_document_url`/
+`qualification_document_url`/`other_document_urls`, `preferred_cities`/`preferred_duty_types`/
+`min_salary_per_day`/`min_salary_per_month`, and `rejection_message` are all included — an
+individual reviewing a caregiver who applied is meant to see their full details, including
+identity documents, before deciding. nursenow-app's `JobsPostedScreen` exposes this via a
+"View Profile" button on the single candidate currently under forced one-at-a-time review
+(`_ReviewingApplicantTile`), pushing the shared `CaregiverProfileViewScreen`.
 
 #### PATCH `/individual/requirements/:jobId/applications/:applicationId`
 
@@ -3058,8 +3059,8 @@ requirement closes.
 
 #### GET `/organisation/requirements/:requirementId/applications/:applicationId/profile`
 
-An applicant's full profile — same trimmed shape and both-ways ownership check as Individual's
-equivalent endpoint above. Since Organisation's applicant review is a free list (not forced
+An applicant's full profile — same full-profile shape and both-ways ownership check as
+Individual's equivalent endpoint above. Since Organisation's applicant review is a free list (not forced
 one-at-a-time), nursenow-app's `RequirementsPostedScreen` exposes a "View Profile" button on
 **every** applicant in `_ApplicantTile`, decided or not — not just one candidate at a time.
 

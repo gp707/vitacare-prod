@@ -166,9 +166,8 @@ export class IndividualService {
 
   /** Full profile of one applicant — ownership-checked both ways (the job
    *  is the individual's own, and the application actually belongs to that
-   *  job) before delegating to CaregiverService's deliberately-trimmed
-   *  applicant-view shape (see getApplicantProfile there for what's
-   *  omitted and why). */
+   *  job) before delegating to CaregiverService's full applicant-view shape,
+   *  including Aadhaar/qualification-document URLs. */
   async getApplicantProfile(userId: string, jobId: string, applicationId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');

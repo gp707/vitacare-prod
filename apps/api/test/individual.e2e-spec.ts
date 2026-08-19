@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { Client } from 'pg';
 import * as bcrypt from 'bcrypt';
+import { createClient } from '@supabase/supabase-js';
 import { AppModule } from '../src/app.module';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
@@ -24,6 +25,10 @@ describe('Individual (NurseNow) (e2e)', () => {
   let db: Client;
   let superAdminToken: string;
   let fcmService: { sendToUser: jest.Mock; sendToAllCaregivers: jest.Mock };
+  const storage = createClient(
+    process.env.SUPABASE_URL as string,
+    process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  );
 
   const testPhone = (suffix: string) => `+91700003${suffix}`;
   // Caregivers created by this suite share the same +91700003 prefix (so
@@ -357,7 +362,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       void applyRes;
     });
 
-    it("lets the individual view an applicant's full profile, ownership-checked, without leaking Aadhaar/qualification-document URLs", async () => {
+    it("lets the individual view an applicant's full profile, ownership-checked, including Aadhaar/qualification-document URLs", async () => {
       const individual = await registerIndividual('0028');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -372,6 +377,12 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
 
       const caregiver = await registerCaregiver('0130');
+      await request(app.getHttpServer())
+        .post('/v1/caregiver/profile/documents')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .field('document_type', 'aadhaar')
+        .attach('file', Buffer.from('fake aadhaar'), 'aadhaar.pdf')
+        .expect(200);
       await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
         caregiver.user_id,
       ]);
@@ -392,10 +403,10 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
       expect(profile.body.data.profile_id).toBe(caregiver.profile_id);
       expect(profile.body.data.full_name).toBeDefined();
-      expect(profile.body.data.email).toBeUndefined();
-      expect(profile.body.data.aadhaar_document_url).toBeUndefined();
-      expect(profile.body.data.qualification_document_url).toBeUndefined();
-      expect(profile.body.data.other_document_urls).toBeUndefined();
+      expect(profile.body.data.aadhaar_document_url).toContain('aadhaar');
+      const aadhaarContent = await fetch(profile.body.data.aadhaar_document_url).then((r) => r.text());
+      expect(aadhaarContent).toBe('fake aadhaar');
+      await storage.storage.from('caregiver-documents').remove([`${caregiver.profile_id}/aadhaar.pdf`]);
 
       // Ownership check: another individual can't view this applicant via a job they don't own.
       const outsider = await registerIndividual('0029');
@@ -409,7 +420,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         .set('Authorization', `Bearer ${outsider.access_token}`)
         .expect(404);
       expect(forbidden.body.error.code).toBe('GEN_002');
-    });
+    }, 30000);
 
     it('requires a reason to reject an applicant (JOB_012), and stores it once given', async () => {
       const individual = await registerIndividual('0027');

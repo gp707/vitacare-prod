@@ -5038,13 +5038,12 @@ paths:
       description: >
         Ownership-checked both ways — the requirement must be this
         individual's own AND the application must actually belong to it
-        (GEN_002 otherwise). Returns a deliberately trimmed subset of
-        CaregiverProfile: no email, no aadhaar_document_url/
-        qualification_document_url, no other_document_urls, no
-        preferred_cities/preferred_duty_types/min_salary_per_day/
-        min_salary_per_month, no rejection_message — none of that is this
-        viewer's business. Same field names/types as GET /caregiver/profile
-        for everything it does return.
+        (GEN_002 otherwise). Returns the caregiver's complete
+        CaregiverProfile: email, aadhaar_document_url,
+        qualification_document_url, other_document_urls,
+        preferred_cities, preferred_duty_types, min_salary_per_day,
+        min_salary_per_month, and rejection_message are all included — same
+        field names/types as GET /caregiver/profile.
       operationId: getMyRequirementApplicantProfile
       security:
         - BearerAuth: []
@@ -5059,7 +5058,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200":
-          description: Applicant's trimmed profile
+          description: Applicant's full profile
           content:
             application/json:
               schema:
@@ -5067,15 +5066,7 @@ paths:
                 properties:
                   success: { type: boolean, enum: [true] }
                   data:
-                    allOf:
-                      - $ref: "#/components/schemas/CaregiverProfile"
-                    description: >
-                      email, aadhaar_document_url,
-                      qualification_document_url, other_document_urls,
-                      preferred_cities, preferred_duty_types,
-                      min_salary_per_day, min_salary_per_month, and
-                      rejection_message are all omitted from this response
-                      even though CaregiverProfile lists them.
+                    $ref: "#/components/schemas/CaregiverProfile"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "404":
@@ -5622,12 +5613,11 @@ paths:
       description: >
         Ownership-checked both ways — the requirement must be this org's
         own AND the application must actually belong to it (GEN_002
-        otherwise). Same trimmed CaregiverProfile subset as Individual's
-        equivalent endpoint (see
-        /individual/requirements/{jobId}/applications/{applicationId}/profile
-        for exactly what's omitted and why). Organisation's applicant
-        review is a free list, so this is callable for any/every applicant,
-        not just one at a time.
+        otherwise). Same full CaregiverProfile as Individual's equivalent
+        endpoint (see
+        /individual/requirements/{jobId}/applications/{applicationId}/profile).
+        Organisation's applicant review is a free list, so this is callable
+        for any/every applicant, not just one at a time.
       operationId: getOrganisationRequirementApplicantProfile
       security:
         - BearerAuth: []
@@ -5642,7 +5632,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200":
-          description: Applicant's trimmed profile
+          description: Applicant's full profile
           content:
             application/json:
               schema:
@@ -5650,8 +5640,7 @@ paths:
                 properties:
                   success: { type: boolean, enum: [true] }
                   data:
-                    allOf:
-                      - $ref: "#/components/schemas/CaregiverProfile"
+                    $ref: "#/components/schemas/CaregiverProfile"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "404":

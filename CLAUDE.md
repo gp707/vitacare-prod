@@ -91,11 +91,12 @@ location) that didn't fit the Individual/admin jobs-table model.
   `GET /individual/requirements/:jobId/applications/:applicationId/profile` (an applicant's full
   profile — ownership-checked both ways, the job must be this individual's own AND the
   application must actually belong to it — delegates to
-  `CaregiverService.getApplicantProfile(profileId)`, a deliberately trimmed subset of a
-  caregiver's own self-view: no email, no Aadhaar/qualification-document links, no
-  `other_document_urls`, no job-search preferences, no `rejection_message` — none of that is an
-  outside viewer's business. Same JSON shape as `GET /caregiver/profile` for the fields it does
-  return, so nursenow-app parses either one with the same `CaregiverProfileModel`.),
+  `CaregiverService.getApplicantProfile(profileId)`, which returns the caregiver's complete
+  profile: email, signed Aadhaar/qualification/other-document URLs, and job-search preferences
+  are all included, same as the caregiver's own self-view. An individual/organisation reviewing
+  a caregiver who applied is meant to see their full details, including identity documents, before
+  deciding. Exact same JSON shape as `GET /caregiver/profile`, so nursenow-app parses either one
+  with the same `CaregiverProfileModel`.),
   `PATCH /individual/requirements/:jobId/applications/:applicationId` (accept/reject an
   applicant — ownership-checked, then delegates to the same `JobsService.decideApplication` admin
   uses), `PATCH /individual/profile/phone` / `PATCH /individual/profile/code` (self-service phone
@@ -105,11 +106,13 @@ location) that didn't fit the Individual/admin jobs-table model.
   one-at-a-time review** (`_ReviewingApplicantTile`'s "View Profile" button in
   `JobsPostedScreen` — see the applicant-review flow described further below); already-decided
   candidates in the read-only history below it don't get a profile link. "View Profile" (both
-  here and on Organisation's equivalent) pushes `nursenow-app`'s new shared
-  `CaregiverProfileViewScreen` (`lib/features/caregiver_profile/`) — a deliberately lean
-  read-only page (photo, name, a "VitaCare-verified" badge if `available`/`assigned`, phone,
-  age, gender, qualification, religion, languages as chips) rather than a crowded document
-  viewer, matching what `CaregiverService.getApplicantProfile` actually sends over the wire.
+  here and on Organisation's equivalent) pushes `nursenow-app`'s shared
+  `CaregiverProfileViewScreen` (`lib/features/caregiver_profile/`) — a read-only page showing the
+  caregiver's full profile (photo, name, a "VitaCare-verified" badge if `available`/`assigned`,
+  phone, email, age, gender, qualification, religion, languages as chips, Aadhaar/qualification/
+  other-document links each opened via `url_launcher`, and job-search preferences — preferred
+  cities, hours-care-needed, min. salary — when set), matching everything
+  `CaregiverService.getApplicantProfile` sends over the wire.
   `GET /individual/requirements` returns the account's full requirement history (not just the
   current one), each with its `care_receiver` joined in, so a past requirement's full detail and
   its applicants (including who was accepted) stay visible after it closes — not just while live.
@@ -222,7 +225,7 @@ reusing any of its tables.
   (full history, not just current), `GET /organisation/requirements/:id/applications`,
   `GET /organisation/requirements/:requirementId/applications/:applicationId/profile` (an
   applicant's full profile — same ownership-check-both-ways pattern and same
-  `CaregiverService.getApplicantProfile` trimmed shape as Individual's equivalent above).
+  `CaregiverService.getApplicantProfile` full-profile shape as Individual's equivalent above).
   Since Organisation's review is a free list, not forced one-at-a-time, **every** applicant
   gets a "View Profile" button in `RequirementsPostedScreen`'s `_ApplicantTile` — decided or
   not, unlike Individual which only exposes it for the one candidate currently under review.

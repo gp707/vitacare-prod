@@ -91,26 +91,36 @@ export class CaregiverService {
   }
 
   /** The profile shown to an individual/organisation reviewing a caregiver
-   *  who applied to their job/requirement — deliberately a smaller subset
-   *  than getProfile()/admin's own caregiver detail: no email, no
-   *  Aadhaar/qualification-document links, no other_document_urls, no
-   *  job-search preferences (preferred_cities/duty_types/min_salary) or
-   *  rejection_message — none of that is this viewer's business, and
-   *  keeping the payload lean keeps the profile screen from feeling
-   *  crowded. Same JSON shape as getProfile() for the fields it does
-   *  return, so CaregiverProfileModel.fromJson on the client parses either
-   *  one unchanged (the omitted fields are all nullable/list-defaulted on
-   *  that model). Callers (IndividualService/OrganisationRequirementsService)
+   *  who applied to their job/requirement — the full profile, same shape
+   *  as getProfile()/admin's own caregiver detail, including email,
+   *  signed Aadhaar/qualification/other-document URLs, and job-search
+   *  preferences. Callers (IndividualService/OrganisationRequirementsService)
    *  do their own job/requirement + application ownership check before
-   *  calling this — this method itself doesn't know who's asking. */
+   *  calling this — this method itself doesn't know who's asking, but
+   *  every caller is already scoped to "this caregiver applied to my own
+   *  posting", not an arbitrary lookup. */
   async getApplicantProfile(profileId: string) {
     const profile = await this.profilesRepo.findFullById(profileId);
     if (!profile) throw new AppException('GEN_002');
-    const languages = await this.languagesRepo.findByProfileId(profile.id);
-    const selfieUrl = await this.uploadService.getSignedUrlOrNull(
-      Config.STORAGE_BUCKET,
-      profile.selfie_photo_url,
-    );
+    const [languages, preferredCities, preferredDutyTypes] = await Promise.all([
+      this.languagesRepo.findByProfileId(profile.id),
+      this.preferredCitiesRepo.findByProfileId(profile.id),
+      this.preferredDutyTypesRepo.findByProfileId(profile.id),
+    ]);
+
+    const [selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] = await Promise.all([
+      this.uploadService.getSignedUrlOrNull(Config.STORAGE_BUCKET, profile.selfie_photo_url),
+      this.uploadService.getSignedUrlOrNull(
+        Config.STORAGE_BUCKET,
+        profile.qualification_document_url,
+      ),
+      this.uploadService.getSignedUrlOrNull(Config.STORAGE_BUCKET, profile.aadhaar_document_url),
+      Promise.all(
+        (profile.other_document_urls ?? []).map((path) =>
+          this.uploadService.getSignedUrl(Config.STORAGE_BUCKET, path),
+        ),
+      ),
+    ]);
 
     return {
       user_id: profile.user_id,
@@ -118,14 +128,23 @@ export class CaregiverService {
       caregiver_number: profile.caregiver_number,
       full_name: profile.full_name,
       phone: profile.phone,
+      email: profile.email,
       gender: profile.gender,
       age: profile.age,
       selfie_photo_url: selfieUrl,
       languages,
       highest_qualification: profile.highest_qualification,
+      qualification_document_url: qualificationUrl,
+      aadhaar_document_url: aadhaarUrl,
+      other_document_urls: otherUrls,
       religion: profile.religion,
       terms_accepted: profile.terms_accepted,
       verification_status: profile.verification_status,
+      rejection_message: profile.rejection_message,
+      preferred_cities: preferredCities,
+      preferred_duty_types: preferredDutyTypes,
+      min_salary_per_day: profile.min_salary_per_day,
+      min_salary_per_month: profile.min_salary_per_month,
       created_at: profile.created_at,
     };
   }

@@ -11,14 +11,21 @@ CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileMode
       'caregiver_number': 500,
       'full_name': 'Nurse Nita',
       'phone': '+919876543210',
+      'email': 'nita@example.com',
       'gender': 'female',
       'age': 34,
       'selfie_photo_url': selfiePhotoUrl,
       'languages': ['hindi', 'kannada'],
       'highest_qualification': 'rn_below_2_years',
+      'qualification_document_url': 'https://signed/qual.pdf',
+      'aadhaar_document_url': 'https://signed/aadhaar.pdf',
+      'other_document_urls': ['https://signed/other1.pdf'],
       'religion': 'christian',
       'terms_accepted': true,
       'verification_status': 'assigned',
+      'preferred_cities': ['bangalore'],
+      'preferred_duty_types': ['day_duty'],
+      'min_salary_per_day': 1500,
       'created_at': '2026-08-01T10:00:00Z',
     });
 
@@ -43,6 +50,15 @@ void main() {
     expect(find.text('Kannada'), findsOneWidget);
     // assigned counts as verified too, not just available.
     expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
+    expect(find.text('nita@example.com'), findsOneWidget);
+    // Aadhaar/qualification/other documents and job-search preferences are
+    // now shown in full, not trimmed.
+    expect(find.text('Aadhaar Card'), findsOneWidget);
+    expect(find.text('Qualification Document'), findsOneWidget);
+    expect(find.text('Other Document 1'), findsOneWidget);
+    expect(find.text('View'), findsNWidgets(3));
+    expect(find.text('Bangalore'), findsOneWidget);
+    expect(find.textContaining('₹1500/day'), findsOneWidget);
   });
 
   testWidgets('shows a person icon placeholder when there is no selfie photo', (tester) async {
