@@ -267,7 +267,7 @@ class _RequirementCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Requirement #${requirement.requirementNumber}',
+          Text(organisationJobDisplayId(requirement),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
           const SizedBox(height: 2),
           Text(

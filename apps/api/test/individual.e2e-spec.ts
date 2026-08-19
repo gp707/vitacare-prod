@@ -203,6 +203,11 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(res.body.data.status).toBe('pending_review');
       expect(res.body.data.frequency_of_care).toBeNull();
       expect(res.body.data.salary_amount).toBeNull();
+      // patient_job_number backs the "PAT-JOB-<n>" display id (migration
+      // 047, starts at 500) — never admin_job_number for an individual
+      // posting.
+      expect(res.body.data.patient_job_number).toBeGreaterThanOrEqual(500);
+      expect(res.body.data.admin_job_number).toBeNull();
 
       const mine = await request(app.getHttpServer())
         .get('/v1/individual/requirements')

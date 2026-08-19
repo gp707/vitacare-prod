@@ -1197,7 +1197,9 @@ CREATE TABLE care_receivers (
 -- ============================================
 CREATE TABLE jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_number SERIAL UNIQUE,               -- short sequential id shown as "Job #<n>" to everyone; distinct from id (UUID)
+  job_number SERIAL UNIQUE,               -- internal only, no longer displayed (see admin_job_number/patient_job_number below); distinct from id (UUID)
+  admin_job_number INTEGER UNIQUE,        -- set only for an admin-posted job; sequence starts at 500 (migration 047); shown as "ADMIN-JOB-<n>"
+  patient_job_number INTEGER UNIQUE,      -- set only for a NurseNow individual-posted job; sequence starts at 500 (migration 047); shown as "PAT-JOB-<n>"
   care_receiver_id UUID NOT NULL REFERENCES care_receivers(id),
   city VARCHAR(30) NOT NULL CHECK (city IN ('bangalore', 'mumbai', 'hyderabad', 'chennai', 'pune', 'delhi', 'gurgaon')),
   area TEXT,                              -- free text; required via API (DTO), nullable at DB level only for rows that predate this being required
@@ -1284,7 +1286,7 @@ CREATE TABLE organisation_profiles (
 -- ============================================
 CREATE TABLE organisation_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  requirement_number SERIAL UNIQUE,        -- short sequential id, distinct from id (UUID) — same "Job #<n>"-style pattern as jobs.job_number
+  requirement_number SERIAL UNIQUE,        -- short sequential id, distinct from id (UUID); sequence rebased to start at 500 (migration 047), shown as "ORG-JOB-<n>"
   posted_by UUID NOT NULL REFERENCES users(id),  -- always users.role = 'organisation'
   type_of_nurse VARCHAR(40) NOT NULL,      -- validated at the DTO layer against a fixed 7-value list (TypeOfNurse), not a DB CHECK, so it can be adjusted without a migration; distinct from a caregiver's own Qualification
   frequency_of_care VARCHAR(10) CHECK (frequency_of_care IN ('daily', 'monthly')),  -- nullable: created null, admin sets it on approval — same null-until-approved pattern as jobs.frequency_of_care for an individual's posting
@@ -2321,6 +2323,8 @@ notification to ALL caregivers.
   "data": {
     "id": "uuid",
     "job_number": 42,
+    "admin_job_number": 542,
+    "patient_job_number": null,
     "care_receiver_id": "uuid",
     "salary_amount": 30000,
     "posted_at": "2026-08-16T10:00:00Z",
@@ -2355,6 +2359,8 @@ List all job postings (paginated).
     {
       "id": "uuid",
       "job_number": 42,
+      "admin_job_number": 542,
+      "patient_job_number": null,
       "care_receiver_id": "uuid",
       "city": "bangalore",
       "area": "Indiranagar",
@@ -2453,8 +2459,9 @@ on every minor edit. Doubles as the "view full job details" surface in
 admin-web — the edit form is pre-filled with every current field. A repost
 also bumps `posted_at` to NOW(), restarting the caregiver-facing 3-day
 apply-by urgency window (a plain edit of an already-active job leaves
-`posted_at`, and therefore the window, untouched). `job_number` never
-changes.
+`posted_at`, and therefore the window, untouched). `job_number`/
+`admin_job_number`/`patient_job_number` never change — set once at
+creation, same on every edit or repost.
 
 **Request:** identical shape to `POST /admin/jobs`'s request body (see above).
 
@@ -2548,7 +2555,8 @@ condition(s) + info, toilet assistance, vital monitoring), and **About
 Nurse/Caregiver Requirement** (duty type, area,
 language/gender/religion preferences) — so every detail admin entered is
 visible directly on the jobs list, no separate detail screen. The
-caregiver-app also shows `job_number` ("Job #<n>") and `salary_amount`
+caregiver-app also shows the job's display id (`jobDisplayId()` —
+"ADMIN-JOB-<n>"/"PAT-JOB-<n>" depending on who posted it) and `salary_amount`
 (unit — ₹/day or ₹/month — follows `frequency_of_care`) highlighted at the
 top of each card, plus a 3-day apply-by urgency message
 computed client-side from `posted_at` (`posted_at + 3 days`, shown as days
@@ -2562,6 +2570,8 @@ remaining — purely informational, never blocks applying).
     {
       "id": "uuid",
       "job_number": 42,
+      "admin_job_number": 542,
+      "patient_job_number": null,
       "city": "bangalore",
       "area": "Indiranagar",
       "description": "Elderly patient...",
@@ -2757,6 +2767,8 @@ Deactivate admin account (soft delete — sets `is_active = false`).
       "entity_type": "caregiver_profiles",
       "entity_id": "uuid",
       "job_number": null,
+      "admin_job_number": null,
+      "patient_job_number": null,
       "job_id": null,
       "before_value": { "verification_status": "pending_call" },
       "after_value": { "verification_status": "available" },
@@ -2768,14 +2780,17 @@ Deactivate admin account (soft delete — sets `is_active = false`).
 }
 ```
 
-`job_number`/`job_id` are resolved server-side (not stored columns — a
-query-time join in `AuditLogsRepository.list`), so admin-web can render
-"Job #<n>" and link straight to that job instead of a bare
-entity_type/entity_id UUID, which was otherwise unreadable. Both are `null`
-for every entity_type except two: `entity_type = 'jobs'` (entity_id is the
-job itself — `job_posted`/`job_updated`/`job_closed`/`job_reminder_sent`)
-and `entity_type = 'job_applications'` (entity_id is the application;
-resolved one hop further via `job_applications.job_id` —
+`job_number`/`admin_job_number`/`patient_job_number`/`job_id` are resolved
+server-side (not stored columns — a query-time join in
+`AuditLogsRepository.list`), so admin-web can render the job's display id
+("ADMIN-JOB-<n>"/"PAT-JOB-<n>", picking whichever of
+`admin_job_number`/`patient_job_number` is non-null) and link straight to
+that job instead of a bare entity_type/entity_id UUID, which was otherwise
+unreadable. All three number fields are `null` for every entity_type
+except two: `entity_type = 'jobs'` (entity_id is the job itself —
+`job_posted`/`job_updated`/`job_closed`/`job_reminder_sent`) and
+`entity_type = 'job_applications'` (entity_id is the application; resolved
+one hop further via `job_applications.job_id` —
 `job_response`/`job_application_decided`).
 
 **DO NOT:**
@@ -3767,7 +3782,7 @@ as every other NurseNow form.
 
 #### Audit Logs (`/audit-logs`)
 - Data table: Timestamp, Actor, Action, Entity, Job, Target, Before, After, IP.
-- The Job column renders "Job #<n>" (from the resolved `job_number`, see 6.8) as a link for any job-related entry — tapping it opens that job's applicants dialog (`JobDetailDialog`, fetched fresh by id, independent of whatever page the Jobs list happens to be on). Every other entry shows "-".
+- The Job column renders the job's display id ("ADMIN-JOB-<n>"/"PAT-JOB-<n>", from the resolved `admin_job_number`/`patient_job_number`, see 6.8) as a link for any job-related entry — tapping it opens that job's applicants dialog (`JobDetailDialog`, fetched fresh by id, independent of whatever page the Jobs list happens to be on). Every other entry shows "-".
 - Filters: Action type, date range (target_user_id is settable via the caregiver detail screen's "view audit history" link).
 - No export functionality.
 

@@ -192,7 +192,7 @@ void main() {
   testWidgets('lists requirements with requirement number, status, and org name', (tester) async {
     await _pump(tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
 
-    expect(find.text('Requirement #101'), findsOneWidget);
+    expect(find.text('ORG-JOB-101'), findsOneWidget);
     expect(find.text('Pending Review'), findsOneWidget);
     expect(find.text('City Rehab Center'), findsOneWidget);
   });
@@ -246,7 +246,7 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit requirement #101'), findsOneWidget);
+    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.text('Monthly'), findsWidgets);
     final salaryField = tester.widget<TextField>(find.byType(TextField));
     expect(salaryField.controller!.text, '25000');
@@ -469,7 +469,7 @@ void main() {
       ]),
     );
 
-    await tester.tap(find.text('Requirement #101'));
+    await tester.tap(find.text('ORG-JOB-101'));
     await tester.pumpAndSettle();
 
     final dialog = find.byType(AlertDialog);
@@ -478,7 +478,7 @@ void main() {
     expect(find.descendant(of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')), findsOneWidget);
     expect(find.descendant(of: dialog, matching: find.text('Close')), findsOneWidget);
     // Read-only: not the edit form.
-    expect(find.text('Edit requirement #101'), findsNothing);
+    expect(find.text('Edit ORG-JOB-101'), findsNothing);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
   });
 
@@ -490,14 +490,14 @@ void main() {
       ]),
     );
 
-    await tester.tap(find.text('Requirement #101'));
+    await tester.tap(find.text('ORG-JOB-101'));
     await tester.pumpAndSettle();
 
     final readOnlyDialog = find.byType(AlertDialog);
     await tester.tap(find.descendant(of: readOnlyDialog, matching: find.widgetWithText(ElevatedButton, 'Edit')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit requirement #101'), findsOneWidget);
+    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
   });

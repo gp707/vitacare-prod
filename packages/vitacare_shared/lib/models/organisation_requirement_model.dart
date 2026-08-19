@@ -102,6 +102,14 @@ class OrganisationRequirementModel {
       );
 }
 
+/// Human-friendly display id for an organisation requirement —
+/// "ORG-JOB-<n>" (migration 047 rebased requirementNumber's own sequence
+/// to start at 500), replacing the old generic "Requirement #<n>" label
+/// everywhere. Kept here, not duplicated per app, same convention as
+/// [organisationScheduleLabel] below.
+String organisationJobDisplayId(OrganisationRequirementModel requirement) =>
+    'ORG-JOB-${requirement.requirementNumber}';
+
 /// Human-readable schedule text for an organisation requirement's
 /// admin-set schedule — null if not yet approved (schedule_type still
 /// null). Kept here (not duplicated per app) so caregiver-app,

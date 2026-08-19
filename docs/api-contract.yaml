@@ -374,8 +374,23 @@ components:
         job_number:
           type: integer
           description: >
-            Short sequential id, auto-assigned, distinct from `id` — shown
-            as "Job #<n>" prominently to both admin and caregivers.
+            Internal only, no longer displayed — kept for audit-log job
+            resolution. Use admin_job_number/patient_job_number for the
+            user-facing display id.
+        admin_job_number:
+          type: integer
+          nullable: true
+          description: >
+            Set only when this job was posted by an admin. Sequential,
+            starts at 500 (migration 047). Shown as "ADMIN-JOB-<n>".
+        patient_job_number:
+          type: integer
+          nullable: true
+          description: >
+            Set only when this job was posted by a NurseNow individual.
+            Sequential, starts at 500 (migration 047). Shown as
+            "PAT-JOB-<n>". Exactly one of admin_job_number/patient_job_number
+            is non-null on any given job.
         care_receiver_id:
           type: string
           format: uuid
@@ -488,6 +503,8 @@ components:
       example:
         id: "c3d4e5f6-a7b8-9012-cdef-345678901234"
         job_number: 42
+        admin_job_number: 542
+        patient_job_number: null
         care_receiver_id: "d3e4f5a6-b7c8-9012-def0-345678901234"
         city: "bangalore"
         area: "Indiranagar"
@@ -575,7 +592,9 @@ components:
           format: uuid
         requirement_number:
           type: integer
-          description: Short sequential id, auto-assigned, distinct from `id` — same "#<n>" pattern as Job.job_number.
+          description: >
+            Short sequential id, auto-assigned, distinct from `id`. Starts
+            at 500 (migration 047). Shown as "ORG-JOB-<n>".
         posted_by:
           type: string
           format: uuid
@@ -1002,10 +1021,24 @@ components:
           type: integer
           nullable: true
           description: >
+            Internal only, no longer displayed — see admin_job_number/patient_job_number.
+            Resolved server-side under the same conditions as those two fields.
+        admin_job_number:
+          type: integer
+          nullable: true
+          description: >
             Resolved server-side (not a stored column) whenever entity_type is 'jobs' (entity_id
             is the job) or 'job_applications' (entity_id is the application, resolved one hop
-            further via job_applications.job_id). Null for every other entity_type. Lets
-            admin-web show "Job #<n>" and link to it instead of a bare entity_id UUID.
+            further via job_applications.job_id) AND the job was posted by an admin. Null
+            otherwise. Lets admin-web show "ADMIN-JOB-<n>" and link to it instead of a bare
+            entity_id UUID.
+        patient_job_number:
+          type: integer
+          nullable: true
+          description: >
+            Same resolution as admin_job_number, but only when the job was posted by a NurseNow
+            individual. Lets admin-web show "PAT-JOB-<n>" instead. Exactly one of
+            admin_job_number/patient_job_number is non-null for a resolved job-related entry.
         job_id:
           type: string
           format: uuid
@@ -2387,7 +2420,8 @@ paths:
         can distinguish "you declined it" from "the employer declined you"
         (an admin rejecting a still-applied application, or undoing a
         prior acceptance, both set decided_by_admin: true).
-        The caregiver-app highlights `job_number` ("Job #<n>") and
+        The caregiver-app highlights the job's display id
+        ("ADMIN-JOB-<n>"/"PAT-JOB-<n>", from admin_job_number/patient_job_number) and
         `salary_amount` (unit — ₹/day or ₹/month — follows
         `frequency_of_care`) at the top of each card, plus a 3-day apply-by
         urgency message computed client-side from `posted_at` — purely
@@ -4025,6 +4059,8 @@ paths:
                     entity_type: "caregiver_profiles"
                     entity_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                     job_number: null
+                    admin_job_number: null
+                    patient_job_number: null
                     job_id: null
                     before_value:
                       verification_status: "pending_call"

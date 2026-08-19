@@ -163,8 +163,8 @@ void main() {
     expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsOneWidget);
     final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post a Requirement'));
     expect(button.onPressed, isNotNull);
-    expect(find.text('Requirement #1'), findsOneWidget);
-    expect(find.text('Requirement #2'), findsOneWidget);
+    expect(find.text('ORG-JOB-1'), findsOneWidget);
+    expect(find.text('ORG-JOB-2'), findsOneWidget);
   });
 
   testWidgets('shows requirement details: type of nurse, salary, accommodation/food, special skills',

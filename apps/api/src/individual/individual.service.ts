@@ -85,6 +85,7 @@ export class IndividualService {
           preferred_religion: dto.preferred_religion,
           posted_by: userId,
           status: JobStatus.PENDING_REVIEW,
+          posted_by_role: 'individual',
         },
         client,
       );

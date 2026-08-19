@@ -25,6 +25,7 @@ JobModel _requirement({
   return JobModel.fromJson({
     'id': id,
     'job_number': jobNumber,
+    'patient_job_number': jobNumber + 500,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Needs help with daily routine.',
@@ -206,8 +207,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Job #43'), findsOneWidget);
-    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('PAT-JOB-543'), findsOneWidget);
+    expect(find.text('PAT-JOB-542'), findsOneWidget);
   });
 
   testWidgets('shows the accepted caregiver on a closed requirement, not just while active', (tester) async {

@@ -60,7 +60,16 @@ class MyApplicationModel {
 /// only present on GET /caregiver/jobs/assigned.
 class JobModel {
   final String id;
+  /// Internal only — no longer displayed; use [jobDisplayId] instead.
   final int jobNumber;
+  /// Set only when this job was posted by an admin — backs the
+  /// "ADMIN-JOB-<n>" display id (migration 047, starts at 500). Exactly
+  /// one of [adminJobNumber]/[patientJobNumber] is non-null; use
+  /// [jobDisplayId] rather than reading these directly.
+  final int? adminJobNumber;
+  /// Set only when this job was posted by a NurseNow individual — backs
+  /// the "PAT-JOB-<n>" display id (migration 047, starts at 500).
+  final int? patientJobNumber;
   final String city;
   final String? area;
   final String? description;
@@ -96,6 +105,8 @@ class JobModel {
   const JobModel({
     required this.id,
     required this.jobNumber,
+    this.adminJobNumber,
+    this.patientJobNumber,
     required this.city,
     this.area,
     this.description,
@@ -123,6 +134,8 @@ class JobModel {
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
         id: json['id'] as String,
         jobNumber: json['job_number'] as int,
+        adminJobNumber: json['admin_job_number'] as int?,
+        patientJobNumber: json['patient_job_number'] as int?,
         city: json['city'] as String,
         area: json['area'] as String?,
         description: json['description'] as String?,
@@ -162,6 +175,17 @@ class JobModel {
   /// Whole calendar days left until [applyByDate]. 0 means "last day", a
   /// negative number means the window has passed.
   int get daysLeftToApply => applyByDate.difference(DateTime.now()).inDays;
+}
+
+/// Human-friendly display id for a job — "ADMIN-JOB-<n>" or "PAT-JOB-<n>"
+/// depending on which of [JobModel.adminJobNumber]/[JobModel.patientJobNumber]
+/// is set, replacing the old generic "Job #<n>" label everywhere (kept
+/// here, not duplicated per app, so admin-web/caregiver-app/nursenow-app
+/// all render identical text — same convention as [organisationScheduleLabel]).
+String jobDisplayId(JobModel job) {
+  if (job.adminJobNumber != null) return 'ADMIN-JOB-${job.adminJobNumber}';
+  if (job.patientJobNumber != null) return 'PAT-JOB-${job.patientJobNumber}';
+  return 'JOB-${job.jobNumber}';
 }
 
 /// A single caregiver's application to a job, as returned in

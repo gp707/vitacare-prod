@@ -16,6 +16,17 @@ String formatAuditValue(Map<String, dynamic>? value) {
   return value.entries.map((e) => '${e.key}: ${e.value}').join(', ');
 }
 
+/// Same convention as the shared jobDisplayId() helper — kept as a local
+/// equivalent since AuditLogEntry only carries the two raw resolved
+/// numbers, not a full JobModel. Only called once entry.jobId is known
+/// non-null (see the DataCell above), so exactly one of
+/// adminJobNumber/patientJobNumber is always set here.
+String _auditJobDisplayId(AuditLogEntry entry) {
+  if (entry.adminJobNumber != null) return 'ADMIN-JOB-${entry.adminJobNumber}';
+  if (entry.patientJobNumber != null) return 'PAT-JOB-${entry.patientJobNumber}';
+  return 'JOB-${entry.jobNumber}';
+}
+
 class AuditLogsScreen extends ConsumerStatefulWidget {
   /// Optional pre-filter, used when navigating here from a caregiver's
   /// "view full history" link.
@@ -166,8 +177,8 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          // Default fixed row height clips the two-line Job cell (Job #<n> +
-          // the selectable UUID below it) — give rows room to grow.
+          // Default fixed row height clips the two-line Job cell (display
+          // id + the selectable UUID below it) — give rows room to grow.
           dataRowMinHeight: 56,
           dataRowMaxHeight: 88,
           columns: const [
@@ -203,12 +214,12 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
                                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   onPressed: () => _openJob(entry.jobId!),
-                                  child: Text('Job #${entry.jobNumber}'),
+                                  child: Text(_auditJobDisplayId(entry)),
                                 ),
                                 // The raw UUID, selectable so it can be copied
                                 // straight into a DB query or support ticket —
-                                // "Job #<n>" alone isn't enough when you need
-                                // the exact id.
+                                // the display id alone isn't enough when you
+                                // need the exact id.
                                 SelectableText(
                                   entry.jobId!,
                                   style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),

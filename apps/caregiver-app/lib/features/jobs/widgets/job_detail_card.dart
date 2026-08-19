@@ -63,7 +63,7 @@ class Tag extends StatelessWidget {
   }
 }
 
-/// Job header (Job #, urgency, salary), the About Patient / About
+/// Job header (display id, urgency, salary), the About Patient / About
 /// Nurse-Caregiver Requirement sections, and the free-text description —
 /// everything about a job except caregiver-action
 /// controls. Shared between the Jobs list card (which appends Apply/Reject)
@@ -99,7 +99,7 @@ class _JobDetailCardState extends State<JobDetailCard> {
           children: [
             Flexible(
               child: Text(
-                'Job #${job.jobNumber}',
+                jobDisplayId(job),
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 12,

@@ -305,7 +305,7 @@ class _RequirementCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Job #${requirement.jobNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(jobDisplayId(requirement), style: const TextStyle(fontWeight: FontWeight.bold)),
               Text(_statusLabel, style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
             ],
           ),

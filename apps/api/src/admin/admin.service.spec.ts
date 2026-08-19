@@ -279,7 +279,7 @@ describe('AdminService', () => {
       expect(result.data).toEqual([row]);
     });
 
-    it('passes through the repository-resolved job_number/job_id for job-related entries', async () => {
+    it('passes through the repository-resolved job_number/admin_job_number/patient_job_number/job_id for job-related entries', async () => {
       const row = {
         id: 'log-2',
         user_id: 'admin-1',
@@ -290,6 +290,8 @@ describe('AdminService', () => {
         entity_type: 'jobs',
         entity_id: 'job-1',
         job_number: 42,
+        admin_job_number: 512,
+        patient_job_number: null,
         job_id: 'job-1',
         before_value: null,
         after_value: { status: 'active' },
@@ -305,7 +307,12 @@ describe('AdminService', () => {
         order: 'desc',
       } as any);
 
-      expect(result.data[0]).toMatchObject({ job_number: 42, job_id: 'job-1' });
+      expect(result.data[0]).toMatchObject({
+        job_number: 42,
+        admin_job_number: 512,
+        patient_job_number: null,
+        job_id: 'job-1',
+      });
     });
   });
 

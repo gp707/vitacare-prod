@@ -145,6 +145,14 @@ describe('JobsService', () => {
       );
     });
 
+    it("passes posted_by_role: 'admin' to jobsRepo.create so it advances admin_job_number, not patient_job_number", async () => {
+      await service.createJob('admin-1', dto, null);
+      expect(jobsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ posted_by_role: 'admin' }),
+        expect.anything(),
+      );
+    });
+
     it('derives start/end time from duty_type instead of accepting them as input', async () => {
       await service.createJob('admin-1', { ...dto, duty_type: 'day_duty' as any }, null);
       expect(jobsRepo.create).toHaveBeenCalledWith(

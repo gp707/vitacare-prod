@@ -102,6 +102,8 @@ describe('Jobs (e2e)', () => {
     return res.body.data as {
       id: string;
       job_number: number;
+      admin_job_number: number | null;
+      patient_job_number: number | null;
       status: string;
       care_receiver_id: string;
       salary_amount: number;
@@ -178,9 +180,11 @@ describe('Jobs (e2e)', () => {
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_posted');
 
-      // GET /admin/audit-logs resolves job_number/job_id for entity_type
-      // 'jobs' rows too, not just the raw entity_id UUID — this is what
-      // lets admin-web show "Job #<n>" and link to it from the audit log.
+      // GET /admin/audit-logs resolves job_number/admin_job_number/
+      // patient_job_number/job_id for entity_type 'jobs' rows too, not
+      // just the raw entity_id UUID — this is what lets admin-web link
+      // back to the job (as "ADMIN-JOB-<n>"/"PAT-JOB-<n>") from the audit
+      // log, consistent with wherever else the job is shown.
       const auditList = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
         .query({ action: 'job_posted', limit: 50 })
@@ -188,6 +192,8 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       const auditEntry = auditList.body.data.find((e: { entity_id: string }) => e.entity_id === job.id);
       expect(auditEntry.job_number).toBe(job.job_number);
+      expect(auditEntry.admin_job_number).toBe(job.admin_job_number);
+      expect(auditEntry.patient_job_number).toBeNull();
       expect(auditEntry.job_id).toBe(job.id);
 
       const careReceiver = await db.query('SELECT * FROM care_receivers WHERE id = $1', [
@@ -211,6 +217,15 @@ describe('Jobs (e2e)', () => {
 
       const row = await db.query('SELECT created_at, posted_at FROM jobs WHERE id = $1', [jobA.id]);
       expect(row.rows[0].posted_at.getTime()).toBe(row.rows[0].created_at.getTime());
+    });
+
+    it('assigns admin_job_number (starting at 500), not patient_job_number, for an admin-posted job', async () => {
+      const jobA = await createJob({ salary_amount: 28000 });
+      const jobB = await createJob({ salary_amount: 31000 });
+      expect(jobA.admin_job_number).toBeGreaterThanOrEqual(500);
+      expect(jobB.admin_job_number).toBeGreaterThan(jobA.admin_job_number!);
+      expect(jobA.patient_job_number).toBeNull();
+      expect(jobB.patient_job_number).toBeNull();
     });
 
     it('rejects a missing/invalid salary_amount (GEN_001)', async () => {

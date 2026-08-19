@@ -9,7 +9,11 @@ class AuditLogEntry {
   final String action;
   final String entityType;
   final String? entityId;
+  /// Internal only — no longer displayed; use [adminJobNumber]/
+  /// [patientJobNumber] instead (see jobDisplayIdFromParts below).
   final int? jobNumber;
+  final int? adminJobNumber;
+  final int? patientJobNumber;
   final String? jobId;
   final Map<String, dynamic>? beforeValue;
   final Map<String, dynamic>? afterValue;
@@ -26,6 +30,8 @@ class AuditLogEntry {
     required this.entityType,
     this.entityId,
     this.jobNumber,
+    this.adminJobNumber,
+    this.patientJobNumber,
     this.jobId,
     this.beforeValue,
     this.afterValue,
@@ -43,6 +49,8 @@ class AuditLogEntry {
         entityType: json['entity_type'] as String,
         entityId: json['entity_id'] as String?,
         jobNumber: json['job_number'] as int?,
+        adminJobNumber: json['admin_job_number'] as int?,
+        patientJobNumber: json['patient_job_number'] as int?,
         jobId: json['job_id'] as String?,
         beforeValue: json['before_value'] as Map<String, dynamic>?,
         afterValue: json['after_value'] as Map<String, dynamic>?,

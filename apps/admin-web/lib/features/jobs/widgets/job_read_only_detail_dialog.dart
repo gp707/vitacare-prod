@@ -26,7 +26,7 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Job #${job.jobNumber}'),
+          Text(jobDisplayId(job)),
           const SizedBox(width: AppSpacing.sm),
           _StatusChip(status: job.status),
         ],

@@ -231,6 +231,8 @@ export class AdminService {
       entity_type: item.entity_type,
       entity_id: item.entity_id,
       job_number: item.job_number,
+      admin_job_number: item.admin_job_number,
+      patient_job_number: item.patient_job_number,
       job_id: item.job_id,
       before_value: item.before_value,
       after_value: item.after_value,

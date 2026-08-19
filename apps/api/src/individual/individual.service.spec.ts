@@ -117,6 +117,7 @@ describe('IndividualService', () => {
           status: 'pending_review',
           frequency_of_care: null,
           salary_amount: null,
+          posted_by_role: 'individual',
         }),
         client,
       );

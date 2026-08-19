@@ -70,7 +70,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Mark job as complete?'),
         content: Text(
-          "This marks Job #${job.jobNumber} as finished. If you don't have any other accepted jobs, "
+          "This marks ${jobDisplayId(job)} as finished. If you don't have any other accepted jobs, "
           "you'll be shown as available for new ones again.",
         ),
         actions: [
@@ -92,8 +92,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               stillAssigned
-                  ? 'Job #${job.jobNumber} marked complete.'
-                  : "Job #${job.jobNumber} marked complete. You're now available for new jobs.",
+                  ? '${jobDisplayId(job)} marked complete.'
+                  : "${jobDisplayId(job)} marked complete. You're now available for new jobs.",
             ),
           ),
         );
@@ -114,7 +114,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Mark requirement as complete?'),
         content: Text(
-          "This marks Requirement #${requirement.requirementNumber} as finished. If you don't have any other "
+          "This marks ${organisationJobDisplayId(requirement)} as finished. If you don't have any other "
           "accepted jobs or requirements, you'll be shown as available for new ones again.",
         ),
         actions: [
@@ -136,8 +136,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               verificationStatus == VerificationStatus.assigned
-                  ? 'Requirement #${requirement.requirementNumber} marked complete.'
-                  : "Requirement #${requirement.requirementNumber} marked complete. You're now available for new jobs.",
+                  ? '${organisationJobDisplayId(requirement)} marked complete.'
+                  : "${organisationJobDisplayId(requirement)} marked complete. You're now available for new jobs.",
             ),
           ),
         );
@@ -344,7 +344,7 @@ class _AssignedRequirementCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Requirement #${requirement.requirementNumber}',
+          Text(organisationJobDisplayId(requirement),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
           const SizedBox(height: 2),
           Text(

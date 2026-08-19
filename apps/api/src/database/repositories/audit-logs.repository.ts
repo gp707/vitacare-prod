@@ -15,13 +15,19 @@ export interface AuditLogListItem {
   after_value: Record<string, unknown> | null;
   ip_address: string | null;
   created_at: Date;
-  // Resolved so admin-web can show "Job #<n>" and link to it instead of a
-  // bare entity_type/entity_id UUID — the only two entity_types this
-  // applies to are 'jobs' (entity_id is the job itself) and
-  // 'job_applications' (entity_id is the application; resolved one hop
-  // further via job_applications.job_id). Every other entity_type (e.g.
-  // caregiver_profiles, app_min_versions) leaves both null.
+  // Resolved so admin-web can link to the job instead of a bare
+  // entity_type/entity_id UUID — the only two entity_types this applies
+  // to are 'jobs' (entity_id is the job itself) and 'job_applications'
+  // (entity_id is the application; resolved one hop further via
+  // job_applications.job_id). Every other entity_type (e.g.
+  // caregiver_profiles, app_min_versions) leaves all three null.
+  // admin_job_number/patient_job_number back the "ADMIN-JOB-<n>"/
+  // "PAT-JOB-<n>" display id (migration 047) — exactly one is non-null,
+  // matching whichever role posted the job. job_number itself is no
+  // longer displayed, kept only as an internal fallback.
   job_number: number | null;
+  admin_job_number: number | null;
+  patient_job_number: number | null;
   job_id: string | null;
 }
 
@@ -93,6 +99,8 @@ export class AuditLogsRepository {
                 al.action, al.entity_type, al.entity_id,
                 al.before_value, al.after_value, al.ip_address, al.created_at,
                 COALESCE(job_direct.job_number, job_via_app.job_number) AS job_number,
+                COALESCE(job_direct.admin_job_number, job_via_app.admin_job_number) AS admin_job_number,
+                COALESCE(job_direct.patient_job_number, job_via_app.patient_job_number) AS patient_job_number,
                 COALESCE(job_direct.id, job_via_app.id) AS job_id
          FROM audit_logs al
          LEFT JOIN users actor ON actor.id = al.user_id

@@ -27,6 +27,7 @@ JobModel _job({
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
+    'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': description,
@@ -213,7 +214,7 @@ void main() {
 
     // Collapsed: header (job #, salary, duty type + city, posted date) is
     // visible, but the tag-heavy detail sections are not.
-    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
@@ -294,6 +295,7 @@ void main() {
     final job = JobModel.fromJson({
       'id': 'job-1',
       'job_number': 42,
+      'admin_job_number': 542,
       'city': 'bangalore',
       'area': 'Indiranagar',
       'description': 'Need a caregiver for an elderly patient',
@@ -332,7 +334,7 @@ void main() {
   testWidgets('shows the job number and salary highlighted at the top', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('₹30000/day'), findsOneWidget);
   });
@@ -624,8 +626,8 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Requirement #7'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('Hospital · Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('₹40000/month'), findsOneWidget);
@@ -642,8 +644,8 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement(postedAt: '2026-08-15T10:00:00Z')]),
     );
 
-    final jobCenter = tester.getCenter(find.text('Job #42'));
-    final requirementCenter = tester.getCenter(find.text('Requirement #7'));
+    final jobCenter = tester.getCenter(find.text('ADMIN-JOB-542'));
+    final requirementCenter = tester.getCenter(find.text('ORG-JOB-7'));
     expect(requirementCenter.dy, lessThan(jobCenter.dy));
   });
 

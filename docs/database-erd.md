@@ -137,7 +137,11 @@ job postings are no longer built around a "work type" category; see
 │         jobs          │
 │──────────────────────│
 │ id (PK)              │
-│ job_number            │  ◄── SERIAL, shown as "Job #<n>" everywhere
+│ job_number            │  ◄── SERIAL; internal only, no longer displayed
+│ admin_job_number      │  ◄── set only for admin-posted jobs; seq. from 500
+│                       │      (migration 047); "ADMIN-JOB-<n>"
+│ patient_job_number    │  ◄── set only for individual-posted jobs; seq.
+│                       │      from 500 (migration 047); "PAT-JOB-<n>"
 │ care_receiver_id     │
 │   (FK→care_receivers)│
 │ city                 │
@@ -225,7 +229,8 @@ that every one of the org's requirements inherits — there is no per-requiremen
 │    requirements       │  ◄── NOT a jobs row — separate table/codepath,
 │──────────────────────│      no care_receiver, no one-live-requirement limit
 │ id (PK)              │
-│ requirement_number   │  ◄── SERIAL, "Requirement #<n>"-style short id
+│ requirement_number   │  ◄── SERIAL, seq. rebased to start at 500
+│                       │      (migration 047); "ORG-JOB-<n>"
 │ posted_by (FK→users) │  ◄── always role='organisation'
 │ type_of_nurse        │  ◄── 7-value enum; distinct from Qualification
 │ frequency_of_care    │  ◄── daily/monthly; NULL until admin approves
@@ -344,9 +349,9 @@ SPEC.md 6.9.
 | **caregiver_preferred_duty_types** | Junction table for a caregiver's preferred shift/duty types (job search preference, multi-select from the same 3 fixed shifts as a job's `duty_type`). Same pattern as `caregiver_preferred_cities`. Dynamically filters `GET /caregiver/jobs`; editable anytime via the self-edit endpoint. |
 | **admin_notes** | Internal-only notes attached to a caregiver profile. Never exposed to caregivers. Upserted per profile. |
 | **care_receivers** | "About Patient" in the admin-web UI. Care-needs description (age, gender, weight, mobility, communication, feeding, toilet assistance, medical assistance/conditions, vital monitoring) for the person a job is posted for. 1:1 with a job; no full patient PII/identity record yet — a future "Patient" app is expected to eventually supply that. |
-| **jobs** | Job listings sent to all caregivers as push notifications — posted either by an admin (straight to `active`) or by a NurseNow individual (`POST /individual/requirements`, created `pending_review` with `frequency_of_care`/`salary_amount` null until admin approves-by-editing, or declines via `PATCH /admin/jobs/:id/reject` with `rejection_reason`). Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has a short human-friendly `job_number` distinct from its UUID `id`, and a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost/approval (editing a closed or pending_review job to active), not on a plain edit. |
+| **jobs** | Job listings sent to all caregivers as push notifications — posted either by an admin (straight to `active`) or by a NurseNow individual (`POST /individual/requirements`, created `pending_review` with `frequency_of_care`/`salary_amount` null until admin approves-by-editing, or declines via `PATCH /admin/jobs/:id/reject` with `rejection_reason`). Built around the linked care receiver's needs plus location, duty type (one of 3 fixed shifts, with derived timings), a required salary, and multi-select language / gender / religion (`others` excluded) *preferences* (not eligibility filters). Has `admin_job_number`/`patient_job_number` (migration 047, sequences from 500, exactly one set per row depending on who posted it — "ADMIN-JOB-<n>"/"PAT-JOB-<n>") as the human-friendly display id distinct from its UUID `id`; the original `job_number` still exists but is internal-only now. Also has a `posted_at` timestamp (separate from immutable `created_at`) that drives a caregiver-facing 3-day apply-by urgency window — `posted_at` restarts on repost/approval (editing a closed or pending_review job to active), not on a plain edit. |
 | **job_applications** | Caregiver applications (applied/rejected) to job postings, and the admin's accept/reject decision on each. One application per caregiver per job. Accepting closes the job and assigns the caregiver; rejecting a prior acceptance reopens the job. |
-| **organisation_requirements** | An organisation's posted requirement — deliberately not a `jobs` row (separate table/codepath, see "NurseNow" in CLAUDE.md). No `care_receiver`, no `city`/`area`/`duty_type` (inherited from the posting org's `organisation_profiles` row). Posted by an admin/super_admin edit-to-approve, same `pending_review → active → closed` lifecycle as `jobs`, but with **no one-live-requirement limit** (an org can have many simultaneous postings). Has its own short `requirement_number` and `posted_at` (same repost-on-approval semantics as `jobs.posted_at`). |
+| **organisation_requirements** | An organisation's posted requirement — deliberately not a `jobs` row (separate table/codepath, see "NurseNow" in CLAUDE.md). No `care_receiver`, no `city`/`area`/`duty_type` (inherited from the posting org's `organisation_profiles` row). Posted by an admin/super_admin edit-to-approve, same `pending_review → active → closed` lifecycle as `jobs`, but with **no one-live-requirement limit** (an org can have many simultaneous postings). Has its own short `requirement_number` (sequence rebased to start at 500 in migration 047, displayed as "ORG-JOB-<n>") and `posted_at` (same repost-on-approval semantics as `jobs.posted_at`). |
 | **organisation_requirement_applications** | Caregiver applications to an organisation requirement — a separate table from `job_applications`, shaped identically (including `completed` status and `decline_reason` from day one). Accepting closes the requirement and assigns the caregiver; rejecting a prior acceptance reopens it — sharing `caregiver_profiles.verification_status` with the regular jobs pipeline. |
 | **app_min_versions** | Force-upgrade config: one row per platform (`android`/`ios`), admin-editable. The caregiver app checks this on every launch and blocks with an "Update Required" screen if its installed build is below `min_version`. |
-| **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. `GET /admin/audit-logs` additionally resolves `job_number`/`job_id` at query time (not stored columns) for job-related entries — see SPEC.md 6.8. |
+| **audit_logs** | Immutable append-only log of all significant actions (registrations, status changes, edits, admin actions). Used for compliance and debugging. `GET /admin/audit-logs` additionally resolves `job_number`/`admin_job_number`/`patient_job_number`/`job_id` at query time (not stored columns) for job-related entries — see SPEC.md 6.8. |

@@ -19,6 +19,8 @@ AuditLogEntry _entry({
   String action = 'status_changed',
   String entityType = 'caregiver_profiles',
   int? jobNumber,
+  int? adminJobNumber,
+  int? patientJobNumber,
   String? jobId,
 }) {
   return AuditLogEntry.fromJson({
@@ -31,6 +33,8 @@ AuditLogEntry _entry({
     'entity_type': entityType,
     'entity_id': jobId,
     'job_number': jobNumber,
+    'admin_job_number': adminJobNumber,
+    'patient_job_number': patientJobNumber,
     'job_id': jobId,
     'before_value': null,
     'after_value': null,
@@ -43,6 +47,7 @@ JobModel _jobWithCareReceiver() {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
+    'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
@@ -128,28 +133,30 @@ void main() {
     await _pump(tester, _FakeAuditLogsRepository([_entry()]));
 
     expect(find.text('-'), findsWidgets);
-    expect(find.textContaining('Job #'), findsNothing);
+    expect(find.textContaining('ADMIN-JOB-'), findsNothing);
+    expect(find.textContaining('PAT-JOB-'), findsNothing);
   });
 
-  testWidgets('shows "Job #<n>" for a job-related entry, and tapping it opens that job\'s detail dialog',
+  testWidgets('shows "ADMIN-JOB-<n>" for a job-related entry, and tapping it opens that job\'s detail dialog',
       (tester) async {
     final jobsRepo = _FakeAdminJobsRepository();
     await _pump(
       tester,
       _FakeAuditLogsRepository([
-        _entry(action: 'job_posted', entityType: 'jobs', jobNumber: 42, jobId: 'job-1'),
+        _entry(action: 'job_posted', entityType: 'jobs', jobNumber: 42, adminJobNumber: 542, jobId: 'job-1'),
       ]),
       jobsRepo: jobsRepo,
     );
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('job-1'), findsOneWidget, reason: 'the exact job id (UUID) must be visible, not just Job #<n>');
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('job-1'), findsOneWidget,
+        reason: 'the exact job id (UUID) must be visible, not just ADMIN-JOB-<n>');
 
-    await tester.tap(find.text('Job #42'));
+    await tester.tap(find.text('ADMIN-JOB-542'));
     await tester.pumpAndSettle();
 
     expect(jobsRepo.getDetailCalled, isTrue);
     expect(jobsRepo.requestedJobId, 'job-1');
-    expect(find.textContaining('Applicants — Job #42'), findsOneWidget);
+    expect(find.textContaining('Applicants — ADMIN-JOB-542'), findsOneWidget);
   });
 }

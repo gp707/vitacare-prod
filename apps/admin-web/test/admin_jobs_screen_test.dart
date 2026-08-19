@@ -22,6 +22,7 @@ JobModel _job({
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
+    'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
@@ -46,6 +47,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
+    'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
@@ -315,7 +317,7 @@ void main() {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
 
-    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('24Hrs - Live In · Bangalore'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('₹30000/day'), findsOneWidget);
@@ -953,7 +955,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit Job #42'), findsOneWidget);
+    expect(find.text('Edit ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
@@ -1029,7 +1031,7 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit Job #42'), findsOneWidget);
+    expect(find.text('Edit ADMIN-JOB-542'), findsOneWidget);
     final descriptionField = tester.widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
     expect(descriptionField.controller!.text, 'Updated details for the caregiver');
     expect(repo.updatedJobId, isNull);
@@ -1120,7 +1122,7 @@ void main() {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Job #42'));
+    await tester.tap(find.text('ADMIN-JOB-542'));
     await tester.pumpAndSettle();
 
     final dialog = find.byType(AlertDialog);
@@ -1130,9 +1132,9 @@ void main() {
     expect(find.descendant(of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')), findsOneWidget);
     expect(find.descendant(of: dialog, matching: find.text('Close')), findsOneWidget);
     // Read-only: no editable form fields, no Save Changes button, no
-    // "Edit Job #42" dialog title (that's the editable form's title).
+    // "Edit ADMIN-JOB-542" dialog title (that's the editable form's title).
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
-    expect(find.text('Edit Job #42'), findsNothing);
+    expect(find.text('Edit ADMIN-JOB-542'), findsNothing);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsNothing);
   });
 
@@ -1140,14 +1142,14 @@ void main() {
     final repo = _FakeAdminJobsRepository([_job()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Job #42'));
+    await tester.tap(find.text('ADMIN-JOB-542'));
     await tester.pumpAndSettle();
 
     final readOnlyDialog = find.byType(AlertDialog);
     await tester.tap(find.descendant(of: readOnlyDialog, matching: find.widgetWithText(ElevatedButton, 'Edit')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit Job #42'), findsOneWidget);
+    expect(find.text('Edit ADMIN-JOB-542'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     // Exactly one dialog on screen — the read-only one was popped first,
     // not left stacked underneath the editable form.

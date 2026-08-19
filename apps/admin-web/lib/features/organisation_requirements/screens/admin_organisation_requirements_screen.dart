@@ -219,7 +219,7 @@ class _RequirementRow extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Requirement #${requirement.requirementNumber}',
+                  Text(_requirementDisplayId(requirement),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                   _StatusBadge(status: requirement.status),
                 ],
@@ -407,8 +407,8 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
     return AlertDialog(
       title: Text(
         _isApproval
-            ? 'Approve requirement #${widget.requirement.requirementNumber}'
-            : 'Edit requirement #${widget.requirement.requirementNumber}',
+            ? 'Approve ${_requirementDisplayId(widget.requirement)}'
+            : 'Edit ${_requirementDisplayId(widget.requirement)}',
       ),
       content: SizedBox(
         width: 400,
@@ -674,7 +674,7 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Applicants — Requirement #${widget.requirement.requirementNumber}'),
+      title: Text('Applicants — ${_requirementDisplayId(widget.requirement)}'),
       content: SizedBox(
         width: 400,
         child: widget.applications.isEmpty
@@ -728,6 +728,12 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
   }
 }
 
+/// Same wording as the shared organisationJobDisplayId() helper — kept as
+/// a local copy since AdminOrganisationRequirement is admin-web's own
+/// model (not the shared OrganisationRequirementModel that helper expects).
+String _requirementDisplayId(AdminOrganisationRequirement requirement) =>
+    'ORG-JOB-${requirement.requirementNumber}';
+
 /// Same wording as the shared organisationScheduleLabel() helper — kept as
 /// a local copy since AdminOrganisationRequirement is admin-web's own
 /// model (not the shared OrganisationRequirementModel that helper expects).
@@ -763,7 +769,7 @@ class _RequirementReadOnlyDialog extends StatelessWidget {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Requirement #${requirement.requirementNumber}'),
+          Text(_requirementDisplayId(requirement)),
           const SizedBox(width: AppSpacing.sm),
           _StatusBadge(status: requirement.status),
         ],

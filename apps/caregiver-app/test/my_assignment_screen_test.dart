@@ -19,6 +19,7 @@ JobModel _assignedJob({
   return JobModel.fromJson({
     'id': id,
     'job_number': jobNumber,
+    'admin_job_number': jobNumber + 500,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver for an elderly patient',
@@ -170,7 +171,7 @@ void main() {
   testWidgets('shows the assigned job details, including care receiver', (tester) async {
     await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
 
-    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
 
     // JobDetailCard's About Patient/Requirement detail is collapsed by
@@ -202,8 +203,8 @@ void main() {
       ]),
     );
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Job #43'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
     // Only the accepted job gets the action button; the completed one shows a badge instead.
     expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsOneWidget);
     expect(find.text('Completed'), findsOneWidget);
@@ -228,20 +229,20 @@ void main() {
 
     final toggle = find.widgetWithText(SwitchListTile, 'Hide completed jobs');
     expect(toggle, findsOneWidget);
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Job #43'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Job #43'), findsNothing);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-543'), findsNothing);
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Job #43'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
   });
 
   testWidgets('shows a message instead of the empty state when every job is completed and hidden', (tester) async {
@@ -306,8 +307,8 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
     );
 
-    expect(find.text('Job #42'), findsOneWidget);
-    expect(find.text('Requirement #7'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('You were accepted for this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsNWidgets(2));
@@ -320,8 +321,8 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(acceptedAt: '2026-08-01T10:00:00Z')]),
     );
 
-    final jobCenter = tester.getCenter(find.text('Job #42'));
-    final requirementCenter = tester.getCenter(find.text('Requirement #7'));
+    final jobCenter = tester.getCenter(find.text('ADMIN-JOB-542'));
+    final requirementCenter = tester.getCenter(find.text('ORG-JOB-7'));
     expect(requirementCenter.dy, lessThan(jobCenter.dy));
   });
 

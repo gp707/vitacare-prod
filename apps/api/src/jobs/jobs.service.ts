@@ -143,6 +143,7 @@ export class JobsService {
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
           posted_by: adminId,
+          posted_by_role: 'admin',
         },
         client,
       );

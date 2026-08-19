@@ -75,7 +75,7 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
       title: Text(
         job == null
             ? 'Job'
-            : 'Applicants — Job #${job.jobNumber} · '
+            : 'Applicants — ${jobDisplayId(job)} · '
                 '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
                 '${City.displayNames[job.city] ?? job.city}',
       ),

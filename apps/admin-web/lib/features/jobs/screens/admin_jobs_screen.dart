@@ -418,7 +418,7 @@ class _JobRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Job #${job.jobNumber}',
+                  jobDisplayId(job),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
@@ -843,7 +843,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEditing ? 'Edit Job #${widget.job!.jobNumber}' : 'Post New Job'),
+      title: Text(_isEditing ? 'Edit ${jobDisplayId(widget.job!)}' : 'Post New Job'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(

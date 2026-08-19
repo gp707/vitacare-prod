@@ -14,7 +14,18 @@ import { CareReceiverRecord } from './care-receivers.repository';
 
 export interface JobRecord {
   id: string;
+  /** Internal only — no longer the user-facing display id (see
+   *  admin_job_number/patient_job_number below); still used for
+   *  audit-log job resolution. */
   job_number: number;
+  /** Set only when this job was posted by an admin — the raw integer
+   *  backing the "ADMIN-JOB-<n>" display id (migration 047, starts at
+   *  500). Exactly one of admin_job_number/patient_job_number is set. */
+  admin_job_number: number | null;
+  /** Set only when this job was posted by a NurseNow individual — the
+   *  raw integer backing the "PAT-JOB-<n>" display id (migration 047,
+   *  starts at 500). */
+  patient_job_number: number | null;
   care_receiver_id: string;
   city: City;
   area: string | null;
@@ -106,6 +117,9 @@ export interface CreateJobInput {
   /** Omitted defaults to 'active' (admin's own postings, unchanged
    *  behavior). A NurseNow individual posting passes 'pending_review'. */
   status?: JobStatus;
+  /** Which display-id sequence to advance — 'admin' populates
+   *  admin_job_number, 'individual' populates patient_job_number. */
+  posted_by_role: 'admin' | 'individual';
 }
 
 export interface UpdateJobInput {
@@ -190,8 +204,11 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, frequency_of_care, start_time, end_time,
-          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, 'active'))
+          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by, status,
+          admin_job_number, patient_job_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, 'active'),
+          CASE WHEN $16 = 'admin' THEN nextval('jobs_admin_job_number_seq') ELSE NULL END,
+          CASE WHEN $16 = 'individual' THEN nextval('jobs_patient_job_number_seq') ELSE NULL END)
        RETURNING *`,
       [
         input.care_receiver_id,
@@ -209,6 +226,7 @@ export class JobsRepository {
         input.preferred_religion ?? null,
         input.posted_by,
         input.status ?? null,
+        input.posted_by_role,
       ],
     );
     return result.rows[0];
