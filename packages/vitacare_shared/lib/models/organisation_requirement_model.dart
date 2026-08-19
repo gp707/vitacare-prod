@@ -1,3 +1,5 @@
+import 'job_model.dart';
+
 /// Mirrors a row from GET /caregiver/organisation-requirements or
 /// GET /organisation/requirements — the "exclusive" org posting shape (no
 /// care_receiver, no city/area/duty_type of its own; city/area/
@@ -27,6 +29,12 @@ class OrganisationRequirementModel {
   final String? organisationType;
   final String? city;
   final String? area;
+  /// The caregiver's own application to this requirement, if any — present
+  /// on GET /caregiver/organisation-requirements (nullable, per-caregiver
+  /// join) and GET /caregiver/organisation-requirements/assigned (always
+  /// non-null there). Reuses JobModel's MyApplicationModel — identical
+  /// shape, same underlying job_applications-style timeline columns.
+  final MyApplicationModel? myApplication;
 
   const OrganisationRequirementModel({
     required this.id,
@@ -46,6 +54,7 @@ class OrganisationRequirementModel {
     this.organisationType,
     this.city,
     this.area,
+    this.myApplication,
   });
 
   factory OrganisationRequirementModel.fromJson(Map<String, dynamic> json) => OrganisationRequirementModel(
@@ -66,6 +75,9 @@ class OrganisationRequirementModel {
         organisationType: json['organisation_type'] as String?,
         city: json['city'] as String?,
         area: json['area'] as String?,
+        myApplication: json['my_application'] != null
+            ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
+            : null,
       );
 }
 

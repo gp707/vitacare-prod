@@ -10,14 +10,18 @@ import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 
-/// Every job the caregiver is currently accepted onto or has completed. A
-/// caregiver can hold more than one accepted job at once, so this is a
-/// list, not a single job — GET /caregiver/jobs only lists active jobs, and
-/// an accepted job closes immediately, so without this screen an assigned
-/// caregiver would have no way to see their own jobs' details again. The
-/// "MyJobs" bottom-nav tab, reachable regardless of current verification
-/// status, so it still shows past assignments even after the caregiver has
-/// completed every job (durable history — completed jobs stay listed).
+/// Every job AND organisation requirement the caregiver is currently
+/// accepted onto or has completed, merged into one list — the same "one
+/// section covers both" merge as JobsScreen (see "NurseNow" in CLAUDE.md
+/// for why the underlying data still lives in two separate backend
+/// tables). A caregiver can hold more than one accepted job/requirement at
+/// once, so this is a list, not a single item — the browse endpoints only
+/// list active postings, and an accepted one closes immediately, so
+/// without this screen an assigned caregiver would have no way to see its
+/// details again or mark it complete. The "MyJobs" bottom-nav tab,
+/// reachable regardless of current verification status, so it still shows
+/// past assignments even after the caregiver has completed everything
+/// (durable history — completed items stay listed).
 class MyAssignmentScreen extends ConsumerStatefulWidget {
   const MyAssignmentScreen({super.key});
 
@@ -27,9 +31,10 @@ class MyAssignmentScreen extends ConsumerStatefulWidget {
 
 class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   List<JobModel> _jobs = [];
+  List<OrganisationRequirementModel> _requirements = [];
   bool _loading = true;
   String? _errorMessage;
-  String? _completingJobId;
+  String? _completingId;
   bool _hideCompleted = false;
 
   @override
@@ -45,7 +50,13 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     });
     try {
       final jobs = await ref.read(jobsRepositoryProvider).getAssignedJobs();
-      if (mounted) setState(() => _jobs = jobs);
+      final requirements = await ref.read(organisationOpeningsRepositoryProvider).getAssigned();
+      if (mounted) {
+        setState(() {
+          _jobs = jobs;
+          _requirements = requirements;
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -73,7 +84,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _completingJobId = job.id);
+    setState(() => _completingId = job.id);
     try {
       final stillAssigned = await ref.read(jobsRepositoryProvider).completeJob(job.id);
       if (mounted) {
@@ -93,16 +104,68 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
-      if (mounted) setState(() => _completingJobId = null);
+      if (mounted) setState(() => _completingId = null);
     }
+  }
+
+  Future<void> _completeRequirement(OrganisationRequirementModel requirement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mark requirement as complete?'),
+        content: Text(
+          "This marks Requirement #${requirement.requirementNumber} as finished. If you don't have any other "
+          "accepted jobs or requirements, you'll be shown as available for new ones again.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Mark Complete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _completingId = requirement.id);
+    try {
+      final verificationStatus = await ref.read(organisationOpeningsRepositoryProvider).complete(requirement.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              verificationStatus == VerificationStatus.assigned
+                  ? 'Requirement #${requirement.requirementNumber} marked complete.'
+                  : "Requirement #${requirement.requirementNumber} marked complete. You're now available for new jobs.",
+            ),
+          ),
+        );
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _completingId = null);
+    }
+  }
+
+  List<_Assignment> _mergedAssignments() {
+    final assignments = <_Assignment>[
+      ..._jobs.map(_JobAssignment.new),
+      ..._requirements.map(_RequirementAssignment.new),
+    ];
+    assignments.sort((a, b) => a.decidedAt.compareTo(b.decidedAt));
+    return assignments;
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasCompleted = _jobs.any((j) => j.myApplication?.status == JobApplicationStatus.completed);
-    final visibleJobs = _hideCompleted
-        ? _jobs.where((j) => j.myApplication?.status != JobApplicationStatus.completed).toList()
-        : _jobs;
+    final assignments = _mergedAssignments();
+    final hasCompleted = assignments.any((a) => a.isCompleted);
+    final visible = _hideCompleted ? assignments.where((a) => !a.isCompleted).toList() : assignments;
     return Scaffold(
       appBar: AppBar(
         title: const Text('MyJobs'),
@@ -138,7 +201,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                         value: _hideCompleted,
                         onChanged: (value) => setState(() => _hideCompleted = value),
                       ),
-                    if (_jobs.isEmpty && _errorMessage == null)
+                    if (assignments.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
@@ -147,7 +210,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
-                    else if (visibleJobs.isEmpty && _errorMessage == null)
+                    else if (visible.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
@@ -156,12 +219,19 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
-                    for (final job in visibleJobs) ...[
-                      _AssignedJobCard(
-                        job: job,
-                        completing: _completingJobId == job.id,
-                        onMarkComplete: () => _completeJob(job),
-                      ),
+                    for (final assignment in visible) ...[
+                      if (assignment is _JobAssignment)
+                        _AssignedJobCard(
+                          job: assignment.job,
+                          completing: _completingId == assignment.job.id,
+                          onMarkComplete: () => _completeJob(assignment.job),
+                        )
+                      else if (assignment is _RequirementAssignment)
+                        _AssignedRequirementCard(
+                          requirement: assignment.requirement,
+                          completing: _completingId == assignment.requirement.id,
+                          onMarkComplete: () => _completeRequirement(assignment.requirement),
+                        ),
                       const SizedBox(height: AppSpacing.md),
                     ],
                   ],
@@ -170,6 +240,33 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       ),
     );
   }
+}
+
+/// Common shape the merged list sorts/filters by.
+abstract class _Assignment {
+  DateTime get decidedAt;
+  bool get isCompleted;
+}
+
+class _JobAssignment extends _Assignment {
+  final JobModel job;
+  _JobAssignment(this.job);
+  @override
+  DateTime get decidedAt =>
+      DateTime.parse(job.myApplication?.acceptedAt ?? job.myApplication?.appliedAt ?? job.postedAt);
+  @override
+  bool get isCompleted => job.myApplication?.status == JobApplicationStatus.completed;
+}
+
+class _RequirementAssignment extends _Assignment {
+  final OrganisationRequirementModel requirement;
+  _RequirementAssignment(this.requirement);
+  @override
+  DateTime get decidedAt => DateTime.parse(
+        requirement.myApplication?.acceptedAt ?? requirement.myApplication?.appliedAt ?? requirement.postedAt,
+      );
+  @override
+  bool get isCompleted => requirement.myApplication?.status == JobApplicationStatus.completed;
 }
 
 class _AssignedJobCard extends StatelessWidget {
@@ -221,6 +318,75 @@ class _AssignedJobCard extends StatelessWidget {
           if (job.jobPoster != null) ...[
             const SizedBox(height: AppSpacing.md),
             JobPosterContactCard(poster: job.jobPoster!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AssignedRequirementCard extends StatelessWidget {
+  final OrganisationRequirementModel requirement;
+  final bool completing;
+  final VoidCallback onMarkComplete;
+
+  const _AssignedRequirementCard({required this.requirement, required this.completing, required this.onMarkComplete});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompleted = requirement.myApplication?.status == JobApplicationStatus.completed;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Requirement #${requirement.requirementNumber}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+          const SizedBox(height: 2),
+          Text(
+            requirement.organisationName ?? '',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          if (requirement.salaryAmount != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (isCompleted)
+            const Text(
+              'Completed',
+              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+            )
+          else ...[
+            const Text(
+              'You were accepted for this requirement',
+              style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: completing ? null : onMarkComplete,
+                child: completing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Mark Complete'),
+              ),
+            ),
           ],
         ],
       ),

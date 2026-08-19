@@ -66,9 +66,11 @@ tags:
   - name: Caregiver - Organisation Requirements
     description: >
       Caregiver-facing browse/apply/complete endpoints for organisation
-      (hospital/rehab/clinic) postings — backs caregiver-app's separate
-      "Organisation Openings" bottom-nav tab (deliberately not merged into
-      Caregiver Jobs).
+      (hospital/rehab/clinic) postings — still a separate backend
+      table/codepath from Jobs, but caregiver-app merges the two into one
+      Jobs/MyJobs UI rather than a dedicated tab (an earlier iteration had
+      a separate "Organisation Openings" bottom-nav tab; merged on
+      request).
   - name: Admin - Organisations
     description: Admin management of NurseNow organisation (hospital/rehab/clinic) accounts
   - name: Admin - Organisation Requirements
@@ -643,7 +645,15 @@ components:
 
     OrganisationRequirementApplication:
       type: object
-      description: Mirrors JobApplication exactly, against organisation_requirement_applications instead of job_applications.
+      description: >
+        Mirrors JobApplication exactly, against
+        organisation_requirement_applications instead of job_applications.
+        Used by the org/admin-facing applicant list (GET
+        /organisation/requirements/{id}/applications, GET
+        /admin/organisation-requirements/{id}) — NOT by the
+        caregiver-facing assigned endpoint, which returns full
+        OrganisationRequirement records with an embedded my_application
+        instead (see GET /caregiver/organisation-requirements/assigned).
       properties:
         id:
           type: string
@@ -668,12 +678,7 @@ components:
           description: The deciding user's full_name, resolved server-side via a join. Null under the same conditions as decided_by.
         full_name:
           type: string
-          description: >
-            On org/admin-facing responses this is the applicant caregiver's
-            name. On GET /caregiver/organisation-requirements/assigned this
-            field is the caregiver's own name (that endpoint does not
-            additionally join in the posting organisation's contact info
-            the way GET /caregiver/jobs/assigned's job_poster does).
+          description: The applicant caregiver's name.
         phone:
           type: string
         applied_at:
@@ -5601,11 +5606,16 @@ paths:
       summary: Browse active organisation requirements
       description: >
         Every active requirement, joined with the posting organisation's
-        name/type/city/area. Backs caregiver-app's separate "Organisation
-        Openings" tab. Unlike GET /caregiver/jobs, there is no
-        per-caregiver filtering yet (no gender/preferred-city/
-        preferred-duty-type/salary equivalent) — every caregiver sees every
-        active requirement.
+        name/type/city/area. caregiver-app merges this into the same Jobs
+        tab as GET /caregiver/jobs (sorted together by posted_at) rather
+        than a separate screen — an earlier iteration had a dedicated
+        "Organisation Openings" tab; that was merged into Jobs on request.
+        Each item includes my_application (null if this caregiver hasn't
+        applied yet — same shape as GET /caregiver/jobs's my_application),
+        added specifically to support that merge. Unlike GET
+        /caregiver/jobs, there is no per-caregiver filtering yet (no
+        gender/preferred-city/preferred-duty-type/salary equivalent) —
+        every caregiver sees every active requirement.
       operationId: listActiveOrganisationRequirementsForCaregiver
       security:
         - BearerAuth: []
@@ -5621,7 +5631,18 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: "#/components/schemas/OrganisationRequirement"
+                      allOf:
+                        - $ref: "#/components/schemas/OrganisationRequirement"
+                        - type: object
+                          properties:
+                            my_application:
+                              type: object
+                              nullable: true
+                              description: >
+                                Null if the caregiver has never applied.
+                                Same shape as GET /caregiver/jobs's
+                                my_application (status/applied_at/
+                                accepted_at/rejected_at/decided_by_admin).
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "500":
@@ -5630,19 +5651,23 @@ paths:
   /caregiver/organisation-requirements/assigned:
     get:
       tags: [Caregiver - Organisation Requirements]
-      summary: The caller's currently held / completed organisation requirement applications
+      summary: The caller's currently held / completed organisation requirements
       description: >
-        Mirrors GET /caregiver/jobs/assigned's array-of-accepted-or-completed
-        shape, oldest-decision-first by updated_at — the durable history an
-        "Organisation Openings" MyJobs-style list renders. Does not
-        additionally join in the posting organisation's own contact info
-        the way GET /caregiver/jobs/assigned's job_poster does for jobs.
+        Mirrors GET /caregiver/jobs/assigned's shape exactly: each item is a
+        full OrganisationRequirement record (not a bare application row)
+        with a non-null my_application embedded, so caregiver-app's merged
+        MyJobs list can render a job and an assigned requirement with the
+        same card-rendering logic. Array-of-accepted-or-completed,
+        oldest-decision-first by updated_at — the durable history the
+        merged MyJobs tab renders. Does not additionally join in the
+        posting organisation's own contact info the way
+        GET /caregiver/jobs/assigned's job_poster does for jobs.
       operationId: listMyAssignedOrganisationRequirements
       security:
         - BearerAuth: []
       responses:
         "200":
-          description: Held/completed applications
+          description: Held/completed requirements
           content:
             application/json:
               schema:
@@ -5652,7 +5677,18 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: "#/components/schemas/OrganisationRequirementApplication"
+                      allOf:
+                        - $ref: "#/components/schemas/OrganisationRequirement"
+                        - type: object
+                          properties:
+                            my_application:
+                              type: object
+                              description: >
+                                Never null here (only rows with an
+                                accepted/completed application are
+                                returned). Same shape as GET
+                                /caregiver/organisation-requirements's
+                                my_application.
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "500":

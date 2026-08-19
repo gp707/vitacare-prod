@@ -19,8 +19,8 @@ export class CaregiverOrganisationRequirementsController {
   constructor(private readonly requirementsService: OrganisationRequirementsService) {}
 
   @Get()
-  list() {
-    return this.requirementsService.listActiveForCaregiver();
+  list(@CurrentUser() user: JwtPayload) {
+    return this.requirementsService.listActiveForCaregiver(user.sub);
   }
 
   @Get('assigned')

@@ -3007,21 +3007,28 @@ audit-log (`phone_changed`/`code_changed`, `entity_type: 'organisation_profiles'
 
 #### Caregiver-facing (`src/organisation/caregiver-organisation-requirements.controller.ts`, `@Roles(UserRole.CAREGIVER)`)
 
-A **deliberately separate section from the regular Jobs tab** — product decision confirmed
-explicitly, not merged in. Backs caregiver-app's 4th bottom-nav tab, "Organisation Openings".
+Backs caregiver-app's Jobs/MyJobs tabs, **merged into the same list as admin/individual jobs** —
+not a separate tab (an earlier iteration gave organisation requirements their own 4th
+"Organisation Openings" bottom-nav tab; reversed on explicit follow-up request so a caregiver
+only has to check one place — see 12.4/12.3).
 
 - **GET `/caregiver/organisation-requirements`** — every `active` requirement, joined with its
-  posting org's `organisation_name`/`organisation_type`/`city`/`area`. Unlike
-  `GET /caregiver/jobs`, there is **no per-caregiver filtering yet** (no gender/preferred-city/
+  posting org's `organisation_name`/`organisation_type`/`city`/`area`, plus (as of the Jobs/
+  Openings merge) a per-caregiver `my_application` LEFT JOIN identical to
+  `GET /caregiver/jobs`'s — `null` if the caller hasn't applied, otherwise the same
+  `{status, applied_at, accepted_at, rejected_at, completed_at, decided_by_admin}` shape. Unlike
+  `GET /caregiver/jobs`, there is still **no per-caregiver filtering** (no gender/preferred-city/
   preferred-duty-type/salary filtering equivalent) — every caregiver sees every active
   requirement.
-- **GET `/caregiver/organisation-requirements/assigned`** — mirrors `GET /caregiver/jobs/
-  assigned`'s array-of-`accepted`-or-`completed` shape (oldest-decision-first by `updated_at`),
-  backing the "Organisation Openings" tab's own held/completed list. Each item is an
-  `organisation_requirement_applications` row plus the caregiver's own `full_name`/`phone`
-  (joined for parity with the org/admin-facing applicant list query) — it does **not** additionally
-  join in the posting organisation's own contact info the way `GET /caregiver/jobs/assigned`'s
-  `job_poster` does for jobs.
+- **GET `/caregiver/organisation-requirements/assigned`** — as of the Jobs/Openings merge,
+  reshaped to mirror `GET /caregiver/jobs/assigned`'s shape exactly: each item is a full
+  requirement record (not a bare `organisation_requirement_applications` row) with a non-null
+  `my_application` embedded, joined with the posting org's identity/location — this lets
+  caregiver-app's merged MyJobs list render a job and an assigned requirement with the same
+  timeline-rendering logic. Same array-of-`accepted`-or-`completed` shape/ordering as before
+  (oldest-decision-first by `updated_at`). Still does **not** additionally join in the posting
+  organisation's own contact info the way `GET /caregiver/jobs/assigned`'s `job_poster` does for
+  jobs — that gap wasn't part of this merge.
 - **POST `/caregiver/organisation-requirements/:id/apply`** — same `ApplyJobDto` body
   (`{ status: 'applied' | 'rejected' }`) and eligibility rule as jobs (`available`/`assigned`
   only, `JOB_001` otherwise); `JOB_002` if the requirement isn't `active`. Response:
@@ -3395,8 +3402,7 @@ Implemented as a NestJS interceptor that wraps every mutating request.
 | 4 | Pending Call | `/pending-call` | Authenticated, status = pending_call |
 | 8 | Rejection Details | `/rejection` | Authenticated, status = rejected |
 | 9 | Home | `/home` | Authenticated, status = available/assigned |
-| 9a | Jobs Dashboard | `/jobs` | Authenticated, any status (view jobs; respond only if available/assigned) |
-| 9b | Organisation Openings | `/organisation-openings` | Authenticated, any status — bottom nav tab 4; browse/apply against NurseNow Organisation-posted requirements, a separate table from jobs (see 6.11) |
+| 9a | Jobs Dashboard | `/jobs` | Authenticated, any status (view jobs; respond only if available/assigned) — lists admin/individual jobs AND NurseNow Organisation-posted requirements together (separate backend table, merged client-side; see 6.11) |
 | 10 | Profile View | `/profile` | Authenticated, any status |
 | 11 | Edit Profile (incl. document upload) | `/profile/edit` | Authenticated, any status |
 | 14 | Settings | `/settings` | Authenticated |
@@ -3479,18 +3485,24 @@ Route by verification_status:
 - Navigation to: Profile, Jobs, Settings.
 
 #### Jobs Dashboard (`/jobs`)
-- List of all active job postings.
+- List of all active job postings AND active NurseNow Organisation requirements (`GET
+  /caregiver/organisation-requirements`), **merged into one list, sorted by post date (newest
+  first)** — not a separate tab. (An earlier iteration gave organisation requirements their own
+  4th "Organisation Openings" bottom-nav tab, a deliberate separate-section decision; reversed on
+  explicit follow-up request so a caregiver only has to check one place.)
 - Each job card shows: Duty Type + City, Area, Language/Gender/Religion preference tags, Description.
-- Action buttons per job: **Apply**, **Reject**.
-- Already-applied jobs show the application status ("You applied" / "You declined" / "You were accepted") instead of buttons.
-- Pull-to-refresh for new jobs.
-- Gear icon (`Icons.tune`) in the app bar → Job Search Preferences screen (preferred city, preferred shift/duty type, minimum salary per day/month — all dynamically filter this list, see `GET /caregiver/jobs` in 6.5). Saving pops back here and immediately reloads the list.
-
-#### Organisation Openings (`/organisation-openings`)
-- A **deliberately separate section from the Jobs tab** — bottom-nav tab 4, not merged into Jobs Dashboard (explicit product decision, see "NurseNow" in CLAUDE.md and 6.11).
-- List of every `active` NurseNow Organisation requirement (`GET /caregiver/organisation-requirements`), each card showing the posting org's name/type/city/area, Type of Nurse, Accommodation/Food, Special Skills, and (once admin-approved) Frequency of Care/Salary/Preferred Start Date.
-- Action buttons per requirement: **Apply**, **Reject** — same mechanic as Jobs Dashboard (`POST .../:id/apply`). No preference-based filtering yet (unlike the Jobs tab's gear-icon preferences).
-- Held/completed requirements (`GET .../assigned`) with a per-requirement **"Mark Complete"** button (`POST .../:id/complete`), mirroring MyJobs' behavior exactly — the two accepted-jobs pools (regular jobs and organisation requirements) share the same `verification_status`, so a caregiver already `assigned` to one can still accept the other.
+- Each organisation requirement card shows the posting org's name/type/city/area, Type of Nurse,
+  Accommodation/Food, Special Skills, and (once admin-approved) Frequency of Care/Salary/
+  Preferred Start Date — a visually distinct card from a job card (they share no fields worth
+  unifying), just interleaved in the same scrollable list.
+- Action buttons per job/requirement: **Apply**, **Reject** (same `POST .../:id/apply` mechanic
+  either way, dispatched to the right endpoint per item's type).
+- Already-applied jobs/requirements show the application status ("You applied" / "You declined" /
+  "You were accepted") instead of buttons — for a requirement this needs `GET
+  /caregiver/organisation-requirements`'s per-caregiver `my_application` join (added for this
+  merge; the endpoint never returned it while Organisation Openings was its own tab).
+- Pull-to-refresh for new jobs/requirements.
+- Gear icon (`Icons.tune`) in the app bar → Job Search Preferences screen (preferred city, preferred shift/duty type, minimum salary per day/month — all dynamically filter this list, see `GET /caregiver/jobs` in 6.5). This only filters jobs, not organisation requirements (no preference-based filtering exists for those yet). Saving pops back here and immediately reloads the list.
 
 #### Profile View (`/profile`)
 - Display all profile information (read-only).
@@ -3519,7 +3531,7 @@ Route by verification_status:
 ### 12.4 Navigation Rules
 
 **DO NOT:**
-- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding. 4 tabs: Profile, Jobs, MyJobs (the caregiver's own assigned/completed jobs — see `GET /caregiver/jobs/assigned`), and Organisation Openings (`/organisation-openings` — the NurseNow Organisation-posted requirements a caregiver can browse/apply/hold, a fully parallel state machine to Jobs/MyJobs against a separate table; see 6.11).
+- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding. 3 tabs: Profile, Jobs (also lists NurseNow Organisation-posted requirements, merged in — see 12.3 and 6.11), MyJobs (the caregiver's own assigned/completed jobs AND organisation requirements together — see `GET /caregiver/jobs/assigned` and `GET /caregiver/organisation-requirements/assigned`).
 - Do NOT allow back navigation from Pending Call to Registration (registration is complete).
 
 ---

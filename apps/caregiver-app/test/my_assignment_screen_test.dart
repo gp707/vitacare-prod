@@ -7,11 +7,13 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/my_assignment_screen.dart';
+import 'package:caregiver_app/features/organisation_openings/data/organisation_openings_repository.dart';
 
 JobModel _assignedJob({
   String id = 'job-1',
   int jobNumber = 42,
   String applicationStatus = 'accepted',
+  String acceptedAt = '2026-08-02T10:00:00Z',
 }) {
   return JobModel.fromJson({
     'id': id,
@@ -31,7 +33,7 @@ JobModel _assignedJob({
     'my_application': {
       'status': applicationStatus,
       'applied_at': '2026-08-01T10:00:00Z',
-      'accepted_at': '2026-08-02T10:00:00Z',
+      'accepted_at': acceptedAt,
       'rejected_at': null,
       'completed_at': applicationStatus == 'completed' ? '2026-08-03T10:00:00Z' : null,
       'decided_by_admin': true,
@@ -58,11 +60,45 @@ JobModel _assignedJob({
   });
 }
 
+OrganisationRequirementModel _assignedRequirement({
+  String id = 'req-1',
+  int requirementNumber = 7,
+  String applicationStatus = 'accepted',
+  String acceptedAt = '2026-08-04T10:00:00Z',
+}) {
+  return OrganisationRequirementModel.fromJson({
+    'id': id,
+    'requirement_number': requirementNumber,
+    'posted_by': 'org-1',
+    'type_of_nurse': 'registered_nurse',
+    'frequency_of_care': 'monthly',
+    'salary_amount': 40000,
+    'start_date': null,
+    'accommodation_provided': true,
+    'food_provided': false,
+    'special_skills': 'Post-surgery wound care',
+    'status': 'closed',
+    'posted_at': '2026-08-01T10:00:00Z',
+    'organisation_name': 'City Hospital',
+    'organisation_type': 'hospital',
+    'city': 'bangalore',
+    'area': 'Indiranagar',
+    'my_application': {
+      'status': applicationStatus,
+      'applied_at': '2026-08-03T10:00:00Z',
+      'accepted_at': acceptedAt,
+      'rejected_at': null,
+      'completed_at': applicationStatus == 'completed' ? '2026-08-05T10:00:00Z' : null,
+      'decided_by_admin': true,
+    },
+  });
+}
+
 class _FakeJobsRepository extends JobsRepository {
   List<JobModel> jobs;
   String? completedJobId;
   bool completeStillAssigned;
-  _FakeJobsRepository(this.jobs, {this.completeStillAssigned = false}) : super(Dio());
+  _FakeJobsRepository([this.jobs = const [], this.completeStillAssigned = false]) : super(Dio());
 
   @override
   Future<List<JobModel>> getAssignedJobs() async => jobs;
@@ -77,23 +113,52 @@ class _FakeJobsRepository extends JobsRepository {
   }
 }
 
-Future<void> _pumpTall(WidgetTester tester, Widget child) async {
+class _FakeOrganisationOpeningsRepository extends OrganisationOpeningsRepository {
+  List<OrganisationRequirementModel> requirements;
+  String? completedRequirementId;
+  String completeReturnsVerificationStatus;
+  _FakeOrganisationOpeningsRepository([
+    this.requirements = const [],
+    this.completeReturnsVerificationStatus = 'available',
+  ]) : super(Dio());
+
+  @override
+  Future<List<OrganisationRequirementModel>> getAssigned() async => requirements;
+
+  @override
+  Future<String> complete(String requirementId) async {
+    completedRequirementId = requirementId;
+    requirements = requirements
+        .map((r) => r.id == requirementId
+            ? _assignedRequirement(id: r.id, requirementNumber: r.requirementNumber, applicationStatus: 'completed')
+            : r)
+        .toList();
+    return completeReturnsVerificationStatus;
+  }
+}
+
+Future<void> _pump(
+  WidgetTester tester, {
+  _FakeJobsRepository? jobsRepo,
+  _FakeOrganisationOpeningsRepository? orgRepo,
+}) async {
   await tester.binding.setSurfaceSize(const Size(400, 2800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(child);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        jobsRepositoryProvider.overrideWithValue(jobsRepo ?? _FakeJobsRepository()),
+        organisationOpeningsRepositoryProvider.overrideWithValue(orgRepo ?? _FakeOrganisationOpeningsRepository()),
+      ],
+      child: const MaterialApp(home: MyAssignmentScreen()),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
   testWidgets('shows the assigned job details, including care receiver', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_assignedJob()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
 
     expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
@@ -112,33 +177,20 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsOneWidget);
   });
 
-  testWidgets("shows an empty state when there are no accepted jobs", (tester) async {
-    final fakeRepo = _FakeJobsRepository([]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets("shows an empty state when there are no accepted jobs or requirements", (tester) async {
+    await _pump(tester);
 
     expect(find.text("You don't have any accepted jobs yet."), findsOneWidget);
   });
 
   testWidgets('lists every accepted/completed job — a caregiver can hold more than one at once', (tester) async {
-    final fakeRepo = _FakeJobsRepository([
-      _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
-      _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
-    ]);
-    await _pumpTall(
+    await _pump(
       tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
+      jobsRepo: _FakeJobsRepository([
+        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+      ]),
     );
-    await tester.pumpAndSettle();
 
     expect(find.text('Job #42'), findsOneWidget);
     expect(find.text('Job #43'), findsOneWidget);
@@ -149,33 +201,20 @@ void main() {
   });
 
   testWidgets('does not show the "Hide completed jobs" toggle when there are no completed jobs', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_assignedJob()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
 
     expect(find.text('Hide completed jobs'), findsNothing);
   });
 
   testWidgets('toggling "Hide completed jobs" hides completed cards but keeps accepted ones, and can be undone',
       (tester) async {
-    final fakeRepo = _FakeJobsRepository([
-      _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
-      _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
-    ]);
-    await _pumpTall(
+    await _pump(
       tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
+      jobsRepo: _FakeJobsRepository([
+        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+      ]),
     );
-    await tester.pumpAndSettle();
 
     final toggle = find.widgetWithText(SwitchListTile, 'Hide completed jobs');
     expect(toggle, findsOneWidget);
@@ -196,15 +235,7 @@ void main() {
   });
 
   testWidgets('shows a message instead of the empty state when every job is completed and hidden', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]));
 
     await tester.tap(find.widgetWithText(SwitchListTile, 'Hide completed jobs'));
     await tester.pumpAndSettle();
@@ -215,14 +246,7 @@ void main() {
 
   testWidgets('tapping Mark Complete, confirming, calls completeJob and refreshes the list', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, jobsRepo: fakeRepo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Mark Complete'));
     await tester.pumpAndSettle();
@@ -239,14 +263,7 @@ void main() {
 
   testWidgets('cancelling the confirmation dialog does not call completeJob', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()]);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, jobsRepo: fakeRepo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Mark Complete'));
     await tester.pumpAndSettle();
@@ -258,15 +275,81 @@ void main() {
   });
 
   testWidgets('shows a snackbar mentioning availability when completing the last accepted job', (tester) async {
-    final fakeRepo = _FakeJobsRepository([_assignedJob()], completeStillAssigned: false);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [jobsRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
+    final fakeRepo = _FakeJobsRepository([_assignedJob()], false);
+    await _pump(tester, jobsRepo: fakeRepo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Mark Complete'));
     await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Complete'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining("now available for new jobs"), findsOneWidget);
+  });
+
+  // --- Merged organisation requirements ---
+
+  testWidgets('shows an assigned organisation requirement alongside assigned jobs — no separate tab',
+      (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([_assignedJob()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
+    );
+
+    expect(find.text('Job #42'), findsOneWidget);
+    expect(find.text('Requirement #7'), findsOneWidget);
+    expect(find.text('City Hospital'), findsOneWidget);
+    expect(find.text('You were accepted for this requirement'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsNWidgets(2));
+  });
+
+  testWidgets('sorts assigned jobs and requirements together by accepted date, oldest first', (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([_assignedJob(acceptedAt: '2026-08-10T10:00:00Z')]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(acceptedAt: '2026-08-01T10:00:00Z')]),
+    );
+
+    final jobCenter = tester.getCenter(find.text('Job #42'));
+    final requirementCenter = tester.getCenter(find.text('Requirement #7'));
+    expect(requirementCenter.dy, lessThan(jobCenter.dy));
+  });
+
+  testWidgets('a completed requirement shows a badge instead of the action button', (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(applicationStatus: 'completed')]),
+    );
+
+    expect(find.text('Completed'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsNothing);
+  });
+
+  testWidgets(
+      'tapping Mark Complete on a requirement, confirming, calls complete() and refreshes the list',
+      (tester) async {
+    final orgRepo = _FakeOrganisationOpeningsRepository([_assignedRequirement()]);
+    await _pump(tester, orgRepo: orgRepo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Mark Complete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark requirement as complete?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Mark Complete'));
+    await tester.pumpAndSettle();
+
+    expect(orgRepo.completedRequirementId, 'req-1');
+    expect(find.text('Completed'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Mark Complete'), findsNothing);
+  });
+
+  testWidgets('shows a snackbar mentioning availability when completing the last accepted requirement',
+      (tester) async {
+    final orgRepo = _FakeOrganisationOpeningsRepository(
+      [_assignedRequirement()],
+      'available',
+    );
+    await _pump(tester, orgRepo: orgRepo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Mark Complete'));
     await tester.pumpAndSettle();

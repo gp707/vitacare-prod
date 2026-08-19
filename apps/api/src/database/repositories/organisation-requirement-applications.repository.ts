@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { JobApplicationStatus } from '@vitacare/shared-constants';
 import { DatabaseService, QueryRunner } from '../database.service';
+import { MyApplicationSummary } from './jobs.repository';
+import { OrganisationRequirementWithOrg } from './organisation-requirements.repository';
 
 export interface OrganisationRequirementApplicationRecord {
   id: string;
@@ -23,6 +25,17 @@ export interface OrganisationRequirementApplicationWithCaregiver
   full_name: string;
   phone: string;
   decided_by_name: string | null;
+}
+
+/** An organisation requirement the caregiver is (or was) accepted onto —
+ *  GET /caregiver/organisation-requirements/assigned's shape. Shaped like
+ *  OrganisationRequirementWithOrg (not the bare application row) so
+ *  caregiver-app can render it with the exact same card it uses for the
+ *  browse list — see JobAssignedRecord for the identical pattern on the
+ *  jobs side. my_application is never null here (the query only returns
+ *  rows the caregiver has an accepted/completed application for). */
+export interface OrganisationRequirementAssignedRecord extends OrganisationRequirementWithOrg {
+  my_application: MyApplicationSummary;
 }
 
 /** Mirrors JobApplicationsRepository exactly, against
@@ -134,13 +147,20 @@ export class OrganisationRequirementApplicationsRepository {
     return result.rows;
   }
 
-  async findAssignedByProfileId(profileId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
-    const result = await this.db.query<OrganisationRequirementApplicationWithCaregiver>(
-      `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name
+  async findAssignedByProfileId(profileId: string): Promise<OrganisationRequirementAssignedRecord[]> {
+    const result = await this.db.query<OrganisationRequirementAssignedRecord>(
+      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
+         jsonb_build_object(
+           'status', ora.status,
+           'applied_at', ora.applied_at,
+           'accepted_at', ora.accepted_at,
+           'rejected_at', ora.rejected_at,
+           'completed_at', ora.completed_at,
+           'decided_by_admin', ora.decided_by IS NOT NULL
+         ) AS my_application
        FROM organisation_requirement_applications ora
-       JOIN caregiver_profiles cp ON cp.id = ora.profile_id
-       JOIN users u ON u.id = cp.user_id
-       LEFT JOIN users decider ON decider.id = ora.decided_by
+       JOIN organisation_requirements r ON r.id = ora.requirement_id
+       JOIN organisation_profiles op ON op.user_id = r.posted_by
        WHERE ora.profile_id = $1 AND ora.status IN ('accepted', 'completed')
        ORDER BY ora.updated_at ASC`,
       [profileId],

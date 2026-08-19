@@ -184,19 +184,32 @@ reusing any of its tables.
   scope creep, so `OrganisationRequirementsService`'s reject path stays reason-optional,
   matching admin's own applicant-decision UX. Documented here so the asymmetry between the two
   NurseNow account types reads as intentional, not inconsistent.
-- **Caregiver-facing:** a deliberately **separate** section from the regular Jobs tab — product
-  decision confirmed explicitly, not merged in. `apps/caregiver-app`'s bottom nav gained a 4th
-  tab, **"Organisation Openings"** (`OrganisationOpeningsScreen`), backed by
-  `GET /caregiver/organisation-requirements` (browse/apply — `POST
-  /caregiver/organisation-requirements/:id/apply`) and `GET
-  /caregiver/organisation-requirements/assigned` (mirrors `GET /caregiver/jobs/assigned`'s
-  array-of-active-or-completed shape) plus a per-requirement `POST
-  /caregiver/organisation-requirements/:id/complete` — the entire accept/assign/complete state
-  machine is a parallel copy of the jobs one, operating on `caregiver_profiles
-  .verification_status` exactly the same way (accepting an org requirement also flips a
-  caregiver to `assigned`; both an admin-jobs `assigned` and an org-requirement `assigned` share
-  the same status field, so a caregiver already `assigned` to one can still be accepted onto the
-  other, same as being accepted onto two regular jobs at once).
+- **Caregiver-facing:** organisation requirements are shown **merged into the same Jobs / MyJobs
+  tabs as admin/individual jobs** — `apps/caregiver-app`'s bottom nav stays at 3 tabs (Profile,
+  Jobs, MyJobs), not 4. (An earlier iteration gave organisation requirements their own 4th
+  "Organisation Openings" tab as a deliberate separate-section decision; that was reversed on
+  explicit follow-up request — a caregiver should only have to check one place.) `JobsScreen`
+  fetches both `GET /caregiver/jobs` and `GET /caregiver/organisation-requirements` and renders
+  them in one list sorted by post date (newest first), each with its own card
+  (`_JobCard`/`_RequirementCard` in `jobs_screen.dart`) — a job and a requirement have too
+  little in common to unify into one card, so only the sort/merge wrapper (`_Listing`) is shared.
+  `MyAssignmentScreen` (the MyJobs tab) does the same merge for
+  `GET /caregiver/jobs/assigned` and `GET /caregiver/organisation-requirements/assigned`, sorted
+  oldest-accepted-first, so an accepted organisation requirement is still visible and completable
+  (`POST /caregiver/organisation-requirements/:id/complete`) without a dedicated screen. To make
+  this merge possible, `GET /caregiver/organisation-requirements` gained a per-caregiver
+  `my_application` join (previously absent — the tab existed but never showed "already applied"
+  state) and `GET /caregiver/organisation-requirements/assigned` was reshaped from bare
+  `organisation_requirement_applications` rows into full requirement records with an embedded
+  `my_application` (mirroring `GET /caregiver/jobs`/`.../assigned`'s existing `JobModel`/
+  `MyApplicationModel` shape exactly, via a new `OrganisationRequirementWithMyApplication`
+  /`OrganisationRequirementAssignedRecord` repository return type) — this is a real backend
+  response-shape change, not just a frontend rearrangement. Applying, accepting, and completing
+  still hit the exact same organisation-specific endpoints and state machine as before (accepting
+  an org requirement flips `caregiver_profiles.verification_status` to `assigned`, sharing the
+  field with regular jobs — a caregiver already `assigned` to one can still be accepted onto the
+  other, same as being accepted onto two regular jobs at once); only the caregiver-app UI and the
+  two GET endpoints' response shapes changed.
 - **nursenow-app:** registration branches on account type (Individual vs Organisation) on the
   same `RegistrationScreen`, revealing `organisation_name`/`organisation_type` (dropdown)/
   `city` (dropdown, incl. `others`)/`area` fields only for the Organisation branch, submitting

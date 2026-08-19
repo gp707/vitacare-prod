@@ -10,11 +10,15 @@ import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
 import 'job_preferences_screen.dart';
 
-/// List of active job postings, viewable at any verification status
-/// (browsing motivates onboarding). Applying is gated server-side
-/// (JOB_001) to available/assigned caregivers only; a caregiver in any
-/// other status sees the server's rejection message when they try, rather
-/// than the buttons being hidden entirely.
+/// Unified list of active postings — admin/individual jobs AND organisation
+/// (hospital/rehab/clinic) requirements shown together, sorted by post
+/// date. Organisation requirements previously lived on their own separate
+/// "Openings" tab; merged into one Jobs section on explicit request so a
+/// caregiver only has to check one place. Applying is gated server-side
+/// (JOB_001 for jobs, the same eligibility rule for requirements) to
+/// available/assigned caregivers only; a caregiver in any other status sees
+/// the server's rejection message when they try, rather than the buttons
+/// being hidden entirely.
 class JobsScreen extends ConsumerStatefulWidget {
   const JobsScreen({super.key});
 
@@ -24,9 +28,10 @@ class JobsScreen extends ConsumerStatefulWidget {
 
 class _JobsScreenState extends ConsumerState<JobsScreen> {
   List<JobModel> _jobs = [];
+  List<OrganisationRequirementModel> _requirements = [];
   bool _loading = true;
   String? _errorMessage;
-  final Set<String> _applyingJobId = {};
+  final Set<String> _applyingId = {};
 
   @override
   void initState() {
@@ -41,7 +46,13 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     });
     try {
       final jobs = await ref.read(jobsRepositoryProvider).listActiveJobs();
-      if (mounted) setState(() => _jobs = jobs);
+      final requirements = await ref.read(organisationOpeningsRepositoryProvider).listActive();
+      if (mounted) {
+        setState(() {
+          _jobs = jobs;
+          _requirements = requirements;
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -56,8 +67,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     if (saved == true) await _load();
   }
 
-  Future<void> _apply(JobModel job, String status) async {
-    setState(() => _applyingJobId.add(job.id));
+  Future<void> _applyToJob(JobModel job, String status) async {
+    setState(() => _applyingId.add(job.id));
     try {
       await ref.read(jobsRepositoryProvider).applyToJob(job.id, status);
       await _load();
@@ -66,12 +77,36 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
-      if (mounted) setState(() => _applyingJobId.remove(job.id));
+      if (mounted) setState(() => _applyingId.remove(job.id));
     }
+  }
+
+  Future<void> _applyToRequirement(OrganisationRequirementModel requirement, String status) async {
+    setState(() => _applyingId.add(requirement.id));
+    try {
+      await ref.read(organisationOpeningsRepositoryProvider).apply(requirement.id, status);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _applyingId.remove(requirement.id));
+    }
+  }
+
+  List<_Listing> _mergedListings() {
+    final listings = <_Listing>[
+      ..._jobs.map(_JobListing.new),
+      ..._requirements.map(_RequirementListing.new),
+    ];
+    listings.sort((a, b) => b.postedAt.compareTo(a.postedAt));
+    return listings;
   }
 
   @override
   Widget build(BuildContext context) {
+    final listings = _mergedListings();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jobs'),
@@ -105,7 +140,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                    if (_jobs.isEmpty && _errorMessage == null)
+                    if (listings.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
@@ -114,13 +149,21 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
-                    for (final job in _jobs) ...[
-                      _JobCard(
-                        job: job,
-                        isApplying: _applyingJobId.contains(job.id),
-                        onApply: () => _apply(job, JobApplicationStatus.applied),
-                        onReject: () => _apply(job, JobApplicationStatus.rejected),
-                      ),
+                    for (final listing in listings) ...[
+                      if (listing is _JobListing)
+                        _JobCard(
+                          job: listing.job,
+                          isApplying: _applyingId.contains(listing.job.id),
+                          onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
+                          onReject: () => _applyToJob(listing.job, JobApplicationStatus.rejected),
+                        )
+                      else if (listing is _RequirementListing)
+                        _RequirementCard(
+                          requirement: listing.requirement,
+                          isApplying: _applyingId.contains(listing.requirement.id),
+                          onApply: () => _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
+                          onReject: () => _applyToRequirement(listing.requirement, JobApplicationStatus.rejected),
+                        ),
                       const SizedBox(height: AppSpacing.md),
                     ],
                   ],
@@ -129,6 +172,27 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       ),
     );
   }
+}
+
+/// Common shape the merged list sorts by — a job and an organisation
+/// requirement have nothing else in common worth abstracting over (see
+/// _JobCard/_RequirementCard below, which stay entirely separate widgets).
+abstract class _Listing {
+  DateTime get postedAt;
+}
+
+class _JobListing extends _Listing {
+  final JobModel job;
+  _JobListing(this.job);
+  @override
+  DateTime get postedAt => DateTime.parse(job.postedAt);
+}
+
+class _RequirementListing extends _Listing {
+  final OrganisationRequirementModel requirement;
+  _RequirementListing(this.requirement);
+  @override
+  DateTime get postedAt => DateTime.parse(requirement.postedAt);
 }
 
 class _JobCard extends StatelessWidget {
@@ -179,11 +243,120 @@ class _JobCard extends StatelessWidget {
   }
 }
 
+class _RequirementCard extends StatelessWidget {
+  final OrganisationRequirementModel requirement;
+  final bool isApplying;
+  final VoidCallback onApply;
+  final VoidCallback onReject;
+
+  const _RequirementCard({
+    required this.requirement,
+    required this.isApplying,
+    required this.onApply,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Requirement #${requirement.requirementNumber}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+          const SizedBox(height: 2),
+          Text(
+            requirement.organisationName ?? '',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          if (requirement.organisationType != null || requirement.city != null)
+            Text(
+              [
+                if (requirement.organisationType != null)
+                  OrganisationType.displayNames[requirement.organisationType] ?? requirement.organisationType!,
+                if (requirement.city != null) City.displayNames[requirement.city] ?? requirement.city!,
+                if (requirement.area != null && requirement.area!.isNotEmpty) requirement.area!,
+              ].join(' · '),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          if (requirement.salaryAmount != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                border: Border.all(color: AppColors.success),
+              ),
+              child: Text(
+                '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _Tag(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
+              if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
+              _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
+              _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+            ],
+          ),
+          if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(requirement.specialSkills!),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (isApplying)
+            const Center(child: VitaLoadingIndicator())
+          else if (requirement.myApplication != null)
+            _ApplicationTimeline(requirement.myApplication!)
+          else
+            Row(
+              children: [
+                Expanded(child: ElevatedButton(onPressed: onApply, child: const Text('Apply'))),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: OutlinedButton(onPressed: onReject, child: const Text('Reject'))),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  final String label;
+
+  const _Tag(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+}
+
 /// Shows what actually happened to this application and when, instead of a
 /// single bare status word — in particular this is what tells "you
 /// declined it" (self) apart from "the employer declined you" (admin
 /// rejected a still-applied application, or undid a prior acceptance —
-/// both read the same to the caregiver: the employer said no).
+/// both read the same to the caregiver: the employer said no). Shared by
+/// both _JobCard and _RequirementCard — MyApplicationModel is the same
+/// shape either way.
 class _ApplicationTimeline extends StatelessWidget {
   final MyApplicationModel application;
 

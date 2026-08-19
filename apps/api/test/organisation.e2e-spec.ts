@@ -383,7 +383,8 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .expect(200);
       expect(assigned.body.data).toHaveLength(1);
-      expect(assigned.body.data[0].status).toBe('completed');
+      expect(assigned.body.data[0].id).toBe(requirementId);
+      expect(assigned.body.data[0].my_application.status).toBe('completed');
     });
 
     it("rejects deciding on another organisation's requirement (ownership check, GEN_002)", async () => {

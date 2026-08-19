@@ -167,8 +167,10 @@ export class OrganisationRequirementsService {
 
   // ---- Caregiver-facing ----
 
-  async listActiveForCaregiver() {
-    return this.requirementsRepo.listActiveForCaregiver();
+  async listActiveForCaregiver(userId: string) {
+    const profile = await this.caregiverProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('PROFILE_019');
+    return this.requirementsRepo.listActiveForCaregiver(profile.id);
   }
 
   async listMyAssignedRequirements(userId: string) {

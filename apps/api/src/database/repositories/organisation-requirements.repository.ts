@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
+import { MyApplicationSummary } from './jobs.repository';
 
 export interface OrganisationRequirementRecord {
   id: string;
@@ -27,6 +28,14 @@ export interface OrganisationRequirementWithOrg extends OrganisationRequirementR
   organisation_type: string;
   city: string;
   area: string;
+}
+
+/** GET /caregiver/organisation-requirements' shape — mirrors
+ *  JobWithMyApplication's per-caregiver my_application join, so
+ *  caregiver-app's merged Jobs list can render "already applied" state
+ *  identically for both jobs and organisation requirements. */
+export interface OrganisationRequirementWithMyApplication extends OrganisationRequirementWithOrg {
+  my_application: MyApplicationSummary | null;
 }
 
 export interface CreateOrganisationRequirementInput {
@@ -106,13 +115,23 @@ export class OrganisationRequirementsRepository {
   /** Every active requirement, joined with its org's identity/location —
    *  the caregiver-facing browse list (no per-caregiver filtering yet,
    *  unlike GET /caregiver/jobs's preference filters). */
-  async listActiveForCaregiver(): Promise<OrganisationRequirementWithOrg[]> {
-    const result = await this.db.query<OrganisationRequirementWithOrg>(
-      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area
+  async listActiveForCaregiver(profileId: string): Promise<OrganisationRequirementWithMyApplication[]> {
+    const result = await this.db.query<OrganisationRequirementWithMyApplication>(
+      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
+         CASE WHEN ora.id IS NULL THEN NULL ELSE jsonb_build_object(
+           'status', ora.status,
+           'applied_at', ora.applied_at,
+           'accepted_at', ora.accepted_at,
+           'rejected_at', ora.rejected_at,
+           'completed_at', ora.completed_at,
+           'decided_by_admin', ora.decided_by IS NOT NULL
+         ) END AS my_application
        FROM organisation_requirements r
        JOIN organisation_profiles op ON op.user_id = r.posted_by
+       LEFT JOIN organisation_requirement_applications ora ON ora.requirement_id = r.id AND ora.profile_id = $1
        WHERE r.status = 'active'
        ORDER BY r.posted_at DESC`,
+      [profileId],
     );
     return result.rows;
   }
