@@ -9,6 +9,8 @@ import '../features/audit_logs/screens/audit_logs_screen.dart';
 import '../features/jobs/screens/admin_jobs_screen.dart';
 import '../features/app_versions/screens/app_versions_screen.dart';
 import '../features/individuals/screens/individuals_list_screen.dart';
+import '../features/organisations/screens/organisations_list_screen.dart';
+import '../features/organisation_requirements/screens/admin_organisation_requirements_screen.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
 /// /caregivers accepts an optional status filter, /caregiver-detail a
@@ -25,6 +27,8 @@ Map<String, WidgetBuilder> buildRoutes() {
     '/jobs': (context) => const AdminJobsScreen(),
     '/app-versions': (context) => const AppVersionsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
+    '/rehab-hospitals': (context) => const OrganisationsListScreen(),
+    '/rehab-requirements': (context) => const AdminOrganisationRequirementsScreen(),
   };
 }
 

@@ -131,12 +131,17 @@ class IndividualRepository {
 
   /// [status] is 'accepted' or 'rejected' — has the exact same effect as
   /// admin deciding on it (closes the job, flips the caregiver to
-  /// assigned/available).
-  Future<void> decideApplication(String jobId, String applicationId, String status) async {
+  /// assigned/available). [reason] is required server-side (JOB_012) when
+  /// rejecting — the one-at-a-time candidate review flow always supplies
+  /// one before calling this for a reject.
+  Future<void> decideApplication(String jobId, String applicationId, String status, {String? reason}) async {
     try {
       await _dio.patch(
         ApiRoutes.individualRequirementApplicationDecide(jobId, applicationId),
-        data: {'status': status},
+        data: {
+          'status': status,
+          if (reason != null) 'reason': reason,
+        },
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

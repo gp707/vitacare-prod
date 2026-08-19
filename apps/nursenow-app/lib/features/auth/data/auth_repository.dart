@@ -30,6 +30,34 @@ class AuthRepository {
     }
   }
 
+  /// Organisation (hospital/rehab/clinic) registration — collects identity/
+  /// location fields up front since every requirement it later posts
+  /// inherits city/area from here (no per-requirement location).
+  Future<AuthResult> registerOrganisation({
+    required String phone,
+    required String code,
+    required String organisationName,
+    required String contactPersonName,
+    required String organisationType,
+    required String city,
+    required String area,
+  }) async {
+    try {
+      final res = await _dio.post(ApiRoutes.registerOrganisation, data: {
+        'phone': phone,
+        'code': code,
+        'organisation_name': organisationName,
+        'contact_person_name': contactPersonName,
+        'organisation_type': organisationType,
+        'city': city,
+        'area': area,
+      });
+      return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Same endpoint as caregiver login (POST /auth/login/code) — the
   /// backend accepts either role's phone+code and issues the same kind of
   /// non-expiring token either way.

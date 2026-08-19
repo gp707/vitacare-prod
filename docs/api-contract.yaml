@@ -47,12 +47,35 @@ tags:
   - name: NurseNow - Individual
     description: >
       Patient/family account endpoints for the separate NurseNow app
-      (apps/nursenow-app). Only the Individual account type is implemented;
-      Organisation is a later phase. Requirements reuse the jobs/
-      care_receivers/job_applications tables and the caregiver-facing job
-      endpoints above — see "NurseNow" in CLAUDE.md.
+      (apps/nursenow-app). Requirements reuse the jobs/care_receivers/
+      job_applications tables and the caregiver-facing job endpoints above
+      — see "NurseNow" in CLAUDE.md. Compare with NurseNow - Organisation
+      below, which is built on entirely separate dedicated tables.
   - name: Admin - Individuals
     description: Admin management of NurseNow individual (patient/family) accounts
+  - name: NurseNow - Organisation
+    description: >
+      Hospital/rehab/clinic account endpoints for the separate NurseNow app
+      (apps/nursenow-app). Entirely separate tables/codepath from jobs/
+      care_receivers/job_applications (which NurseNow - Individual reuses)
+      — organisation_profiles/organisation_requirements/
+      organisation_requirement_applications (migration 041). No
+      per-requirement city/area (inherited from the org's own registration)
+      and, unlike Individual, no one-live-requirement limit. See "NurseNow"
+      in CLAUDE.md.
+  - name: Caregiver - Organisation Requirements
+    description: >
+      Caregiver-facing browse/apply/complete endpoints for organisation
+      (hospital/rehab/clinic) postings — backs caregiver-app's separate
+      "Organisation Openings" bottom-nav tab (deliberately not merged into
+      Caregiver Jobs).
+  - name: Admin - Organisations
+    description: Admin management of NurseNow organisation (hospital/rehab/clinic) accounts
+  - name: Admin - Organisation Requirements
+    description: >
+      Admin approval/rejection/applicant-decision endpoints for
+      organisation-posted requirements — a dedicated screen/table, not
+      folded into Admin - Jobs.
 
 components:
   securitySchemes:
@@ -135,6 +158,32 @@ components:
       type: string
       description: How often care is needed, alongside Hours Care Needed.
       enum: [daily, monthly]
+
+    OrganisationType:
+      type: string
+      description: Set once at organisation registration (POST /auth/register/organisation), shown alongside the org's name everywhere admin-web lists it.
+      enum: [hospital, rehab, clinic]
+
+    TypeOfNurse:
+      type: string
+      description: >
+        The category an organisation requests when posting a requirement —
+        distinct from Qualification (a caregiver's own self-reported
+        credential). Validated at the DTO layer (@IsIn), not a DB CHECK, so
+        the list can be adjusted without a migration.
+      enum:
+        - registered_nurse
+        - staff_nurse
+        - icu_nurse
+        - icu_trained_attendant
+        - gnm_nurse
+        - anm_nurse
+        - gda
+        - patient_care_assistant
+        - home_health_aide
+        - physiotherapist
+        - elderly_care_attendant
+        - post_operative_care_nurse
 
     Mobility:
       type: string
@@ -481,6 +530,176 @@ components:
           format: date-time
           nullable: true
           description: Set on self-decline or admin reject/undo-accept.
+        decline_reason:
+          type: string
+          nullable: true
+          description: >
+            Optional on admin's own reject; mandatory (JOB_012) when a NurseNow individual
+            rejects an applicant via PATCH /individual/requirements/{jobId}/applications/
+            {applicationId}. Null otherwise, including on accept.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OrganisationRequirement:
+      type: object
+      description: >
+        Entirely separate from Job — no care_receiver, no city/area/
+        duty_type (inherited from the posting organisation's own
+        organisation_profiles row). See "NurseNow" in CLAUDE.md.
+      properties:
+        id:
+          type: string
+          format: uuid
+        requirement_number:
+          type: integer
+          description: Short sequential id, auto-assigned, distinct from `id` — same "#<n>" pattern as Job.job_number.
+        posted_by:
+          type: string
+          format: uuid
+          description: Always a user with role organisation.
+        type_of_nurse:
+          $ref: "#/components/schemas/TypeOfNurse"
+        frequency_of_care:
+          allOf:
+            - $ref: "#/components/schemas/FrequencyOfCare"
+          nullable: true
+          description: Null until admin approves (sets this alongside salary_amount/start_date).
+        salary_amount:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 1000000
+          description: Admin-set on approval. Unit follows frequency_of_care, same convention as Job.salary_amount.
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Admin-set on approval; only ever persisted when
+            frequency_of_care is 'daily' (ORG_001 if missing in that case)
+            — always null for 'monthly', regardless of what's sent.
+        accommodation_provided:
+          type: boolean
+        food_provided:
+          type: boolean
+        special_skills:
+          type: string
+          nullable: true
+          maxLength: 1000
+        status:
+          type: string
+          enum: [pending_review, active, closed]
+          description: Reuses JobStatus's exact 3 values independently — not a foreign key into jobs.
+        rejection_reason:
+          type: string
+          nullable: true
+          description: Set only when admin rejects a pending_review requirement via PATCH /admin/organisation-requirements/{id}/reject.
+        organisation_name:
+          type: string
+          description: Joined from organisation_profiles — present on caregiver-facing list/admin list/admin detail responses, absent on the org's own plain create/update/list responses.
+        organisation_type:
+          allOf:
+            - $ref: "#/components/schemas/OrganisationType"
+          description: Same joined-field availability as organisation_name.
+        city:
+          type: string
+          description: The posting organisation's own registered city (joined from organisation_profiles) — same joined-field availability as organisation_name.
+        area:
+          type: string
+          description: Same joined-field availability as organisation_name.
+        posted_at:
+          type: string
+          format: date-time
+          description: Starts equal to created_at; bumped to NOW() only when a pending_review or closed requirement is approved/reposted.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: "f1a2b3c4-d5e6-7890-fabc-123456789012"
+        requirement_number: 7
+        posted_by: "e4f5a6b7-c8d9-0123-ef01-456789012345"
+        type_of_nurse: "registered_nurse"
+        frequency_of_care: "monthly"
+        salary_amount: 40000
+        start_date: null
+        accommodation_provided: true
+        food_provided: false
+        special_skills: null
+        status: "active"
+        organisation_name: "City Hospital"
+        organisation_type: "hospital"
+        city: "bangalore"
+        area: "Indiranagar"
+        posted_at: "2026-08-16T10:00:00Z"
+        created_at: "2026-08-16T09:00:00Z"
+        updated_at: "2026-08-16T10:00:00Z"
+
+    OrganisationRequirementApplication:
+      type: object
+      description: Mirrors JobApplication exactly, against organisation_requirement_applications instead of job_applications.
+      properties:
+        id:
+          type: string
+          format: uuid
+        requirement_id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [applied, rejected, accepted, completed]
+        decided_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: Org (or admin) who accepted/rejected; null while status is 'applied' or the caregiver self-declined.
+        decided_by_name:
+          type: string
+          nullable: true
+          description: The deciding user's full_name, resolved server-side via a join. Null under the same conditions as decided_by.
+        full_name:
+          type: string
+          description: >
+            On org/admin-facing responses this is the applicant caregiver's
+            name. On GET /caregiver/organisation-requirements/assigned this
+            field is the caregiver's own name (that endpoint does not
+            additionally join in the posting organisation's contact info
+            the way GET /caregiver/jobs/assigned's job_poster does).
+        phone:
+          type: string
+        applied_at:
+          type: string
+          format: date-time
+          nullable: true
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        rejected_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set by POST /caregiver/organisation-requirements/{id}/complete.
+        decline_reason:
+          type: string
+          nullable: true
+          description: >
+            Optional (unlike NurseNow Individual's mandatory JOB_012 rule)
+            — Organisation's applicant review is a free list, not a forced
+            one-at-a-time/mandatory-reason flow.
         created_at:
           type: string
           format: date-time
@@ -1066,6 +1285,110 @@ paths:
                 success: true
                 data:
                   user_id: "e4f5a6b7-c8d9-0123-ef01-456789012345"
+                  access_token: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error:
+                  code: "AUTH_001"
+                  message: "Phone number is already registered"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/register/organisation:
+    post:
+      tags: [Auth, NurseNow - Organisation]
+      summary: Register a new NurseNow Organisation (hospital/rehab/clinic) account
+      description: |
+        Creates a `users` row with role `organisation` plus a 1:1
+        `organisation_profiles` row. Like Individual, no account-level
+        approval gate — the org can post a requirement immediately after
+        registering. Unlike Individual, collects identity/location fields
+        up front (`organisation_name`, `contact_person_name`,
+        `organisation_type`, `city`, `area`) since every requirement it
+        later posts inherits city/area from here — there is no
+        per-requirement location. Issues a non-expiring JWT (same as
+        caregiver/individual registration). Shares `POST /auth/login/code`
+        with caregivers and individuals for subsequent logins.
+      operationId: registerOrganisation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code, organisation_name, contact_person_name, organisation_type, city, area]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+91[6-9]\d{9}$'
+                  description: "Indian mobile number with +91 prefix. Must be unique across all roles."
+                  example: "+919876543211"
+                code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: "4-digit numeric login code, set once at registration."
+                  example: "1234"
+                organisation_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "City Hospital"
+                contact_person_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '^[a-zA-Z\s]+$'
+                  example: "Ravi Sharma"
+                organisation_type:
+                  $ref: "#/components/schemas/OrganisationType"
+                city:
+                  type: string
+                  description: The existing 7-city list plus 'others' — a separate org-scoped list, not an extension of the shared City enum.
+                  enum: [bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon, others]
+                  example: "bangalore"
+                area:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  example: "Indiranagar"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                        format: uuid
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+              example:
+                success: true
+                data:
+                  user_id: "f1a2b3c4-d5e6-7890-fabc-123456789012"
                   access_token: "eyJhbGciOiJIUzI1NiIs..."
                   refresh_token: "dGhpcyBpcyBhIHJlZnJlc2g..."
         "400":
@@ -4359,6 +4682,13 @@ paths:
                 status:
                   type: string
                   enum: [accepted, rejected]
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: >
+                    Optional here (admin's reject doesn't require one) — a NurseNow individual's
+                    equivalent decision at PATCH /individual/requirements/{jobId}/applications/
+                    {applicationId} does require it. Stored in decline_reason either way.
             example:
               status: "accepted"
       responses:
@@ -4586,7 +4916,10 @@ paths:
         rejecting a still-applied applicant just declines them.
         Ownership-checked (GEN_002 if not the requirement's owner); admin
         can make the identical decision via
-        PATCH /admin/jobs/{jobId}/applications/{applicationId}.
+        PATCH /admin/jobs/{jobId}/applications/{applicationId}. Unlike
+        admin's flow, rejecting here requires a non-blank `reason` — JOB_012
+        otherwise. The reason is stored in decline_reason and returned on
+        subsequent GET .../applications calls.
       operationId: decideMyRequirementApplication
       security:
         - BearerAuth: []
@@ -4610,6 +4943,10 @@ paths:
                 status:
                   type: string
                   enum: [accepted, rejected]
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: Required when status is rejected (JOB_012 otherwise); ignored/optional when accepting.
       responses:
         "200":
           description: Decision recorded
@@ -4621,6 +4958,15 @@ paths:
                   success: { type: boolean, enum: [true] }
                   data:
                     $ref: "#/components/schemas/JobApplication"
+        "400":
+          description: Rejecting without a reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_012", message: "A reason is required when declining an applicant" }
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "404":
@@ -4859,6 +5205,994 @@ paths:
       tags: [Admin - Individuals]
       summary: Unblock an individual account
       operationId: unblockIndividual
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level]
+              properties:
+                level:
+                  type: string
+                  enum: [job_posting, full]
+      responses:
+        "200":
+          description: Account unblocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/me:
+    get:
+      tags: [NurseNow - Organisation]
+      summary: Get the caller's own NurseNow organisation account
+      operationId: getOrganisationMe
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      organisation_name: { type: string }
+                      contact_person_name: { type: string }
+                      organisation_type:
+                        $ref: "#/components/schemas/OrganisationType"
+                      city: { type: string }
+                      area: { type: string }
+                      phone: { type: string }
+                      is_job_posting_blocked: { type: boolean }
+              example:
+                success: true
+                data:
+                  user_id: "f1a2b3c4-d5e6-7890-fabc-123456789012"
+                  organisation_name: "Sunrise Rehab"
+                  contact_person_name: "Ravi Sharma"
+                  organisation_type: "rehab"
+                  city: "bangalore"
+                  area: "Indiranagar"
+                  phone: "+919876543211"
+                  is_job_posting_blocked: false
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/requirements:
+    post:
+      tags: [NurseNow - Organisation]
+      summary: Post a new organisation requirement
+      description: >
+        No care_receiver, no city/area/duty_type (inherited from the org's
+        own organisation_profiles row), and no frequency_of_care/
+        salary_amount/start_date, which admin sets on approval. Always
+        created with status pending_review. Unlike Individual, there is NO
+        one-live-requirement limit — an org can have many simultaneous
+        pending_review/active requirements.
+      operationId: createOrganisationRequirement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type_of_nurse, accommodation_provided, food_provided]
+              properties:
+                type_of_nurse:
+                  $ref: "#/components/schemas/TypeOfNurse"
+                accommodation_provided:
+                  type: boolean
+                food_provided:
+                  type: boolean
+                special_skills:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "201":
+          description: Requirement created (pending_review)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/OrganisationRequirement"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          description: Account is blocked from posting new requirements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_010", message: "Your account is blocked from posting new requirements" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [NurseNow - Organisation]
+      summary: List the caller's own requirement history
+      description: >
+        The account's full requirement history, newest first — every past
+        posting stays visible, not just current ones. frequency_of_care/
+        salary_amount/start_date are null until admin approves;
+        rejection_reason is set only on a rejected (closed) requirement.
+      operationId: listMyOrganisationRequirements
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: The caller's requirement history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganisationRequirement"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/requirements/{id}/applications:
+    get:
+      tags: [NurseNow - Organisation]
+      summary: List applicants on the caller's own requirement
+      description: >
+        Ownership-checked — GEN_002 if the requirement isn't found or isn't
+        owned by the caller. Callable regardless of the requirement's
+        status, so the applicant list (including who was accepted) stays
+        visible after the requirement closes.
+      operationId: listOrganisationRequirementApplications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Applicants list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganisationRequirementApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/requirements/{requirementId}/applications/{applicationId}:
+    patch:
+      tags: [NurseNow - Organisation]
+      summary: Accept or reject an applicant on the caller's own requirement
+      description: >
+        Ownership-checked (GEN_002 if not the requirement's owner), then
+        delegates to the same OrganisationRequirementsService.decideApplication
+        method admin's own decide-application endpoint calls: accepting
+        closes the requirement and assigns the caregiver; rejecting a
+        still-applied applicant just declines them; rejecting a previously
+        accepted applicant reopens the requirement and returns the
+        caregiver to available. Unlike NurseNow - Individual's equivalent
+        endpoint, `reason` is optional here — Organisation's applicant
+        review is a free list, not a forced one-at-a-time/mandatory-reason
+        flow (a deliberate asymmetry, see "NurseNow" in CLAUDE.md).
+      operationId: decideMyOrganisationRequirementApplication
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: Optional here (unlike NurseNow - Individual's mandatory JOB_012 rule).
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string, enum: [accepted, rejected] }
+        "400":
+          description: Application has already been decided, or an invalid status value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_007", message: "Application has already been decided" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Requirement or application not found, or not owned by the caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "GEN_002", message: "Resource not found" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/profile/phone:
+    patch:
+      tags: [NurseNow - Organisation]
+      summary: Change phone number
+      description: >
+        Self-service phone change, reusing caregiver's UpdatePhoneDto unchanged. No re-review
+        reset — an organisation account has no verification pipeline. No-op (still 200) if the
+        phone is unchanged.
+      operationId: updateOrganisationPhone
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  pattern: "^\\+91[6-9]\\d{9}$"
+                  example: "+919876500098"
+      responses:
+        "200":
+          description: Phone number updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+              example:
+                success: true
+                data: { message: "Phone number updated" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "409":
+          description: Phone number already registered to another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "AUTH_001", message: "Phone number is already registered" }
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /organisation/profile/code:
+    patch:
+      tags: [NurseNow - Organisation]
+      summary: Change login PIN
+      description: Self-service 4-digit login PIN change, reusing caregiver's UpdateCodeDto unchanged.
+      operationId: updateOrganisationCode
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: "^\\d{4}$"
+                  example: "4321"
+      responses:
+        "200":
+          description: Login code updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+              example:
+                success: true
+                data: { message: "Login code updated" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/organisation-requirements:
+    get:
+      tags: [Caregiver - Organisation Requirements]
+      summary: Browse active organisation requirements
+      description: >
+        Every active requirement, joined with the posting organisation's
+        name/type/city/area. Backs caregiver-app's separate "Organisation
+        Openings" tab. Unlike GET /caregiver/jobs, there is no
+        per-caregiver filtering yet (no gender/preferred-city/
+        preferred-duty-type/salary equivalent) — every caregiver sees every
+        active requirement.
+      operationId: listActiveOrganisationRequirementsForCaregiver
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active requirements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganisationRequirement"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/organisation-requirements/assigned:
+    get:
+      tags: [Caregiver - Organisation Requirements]
+      summary: The caller's currently held / completed organisation requirement applications
+      description: >
+        Mirrors GET /caregiver/jobs/assigned's array-of-accepted-or-completed
+        shape, oldest-decision-first by updated_at — the durable history an
+        "Organisation Openings" MyJobs-style list renders. Does not
+        additionally join in the posting organisation's own contact info
+        the way GET /caregiver/jobs/assigned's job_poster does for jobs.
+      operationId: listMyAssignedOrganisationRequirements
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Held/completed applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganisationRequirementApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/organisation-requirements/{id}/apply:
+    post:
+      tags: [Caregiver - Organisation Requirements]
+      summary: Apply or self-decline on an organisation requirement
+      description: >
+        Same eligibility rule as jobs (available/assigned only, JOB_001
+        otherwise); JOB_002 if the requirement isn't active.
+      operationId: applyToOrganisationRequirement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [applied, rejected]
+      responses:
+        "200":
+          description: Application recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string, enum: [applied, rejected] }
+              example:
+                success: true
+                data: { message: "Application recorded", status: "applied" }
+        "400":
+          description: Requirement is closed and no longer accepting applications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_002", message: "Job is closed and no longer accepting applications" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Caregiver's profile is not verified/available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_001", message: "Cannot apply to jobs until your profile is verified" }
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /caregiver/organisation-requirements/{id}/complete:
+    post:
+      tags: [Caregiver - Organisation Requirements]
+      summary: Mark one held organisation requirement complete
+      description: >
+        Caregiver-only, no body. Mirrors POST /caregiver/jobs/{id}/complete
+        exactly: flips that one application to completed (completed_at
+        stamped) and drops verification_status back to available only once
+        no other accepted applications remain — across both jobs and
+        organisation requirements, since they share the same
+        caregiver_profiles.verification_status field.
+      operationId: completeOrganisationRequirement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Marked complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      verification_status:
+                        type: string
+                        enum: [available, assigned]
+              example:
+                success: true
+                data: { message: "Requirement marked complete", verification_status: "available" }
+        "400":
+          description: No active accepted application found for this requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_008", message: "No active accepted application found for this job" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisation-requirements:
+    get:
+      tags: [Admin - Organisation Requirements]
+      summary: List every organisation requirement
+      operationId: listAdminOrganisationRequirements
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending_review, active, closed] }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Paginated requirements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganisationRequirement"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisation-requirements/{id}:
+    get:
+      tags: [Admin - Organisation Requirements]
+      summary: Get an organisation requirement's full detail, including applicants
+      operationId: getAdminOrganisationRequirementDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Requirement detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/OrganisationRequirement"
+                      - type: object
+                        properties:
+                          applications:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganisationRequirementApplication"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      tags: [Admin - Organisation Requirements]
+      summary: Edit (and, from pending_review or closed, approve/repost) an organisation requirement
+      description: >
+        The approval path — same "edit with full shape" pattern as
+        NurseNow - Individual's equivalent. Requires type_of_nurse,
+        frequency_of_care, salary_amount, accommodation_provided,
+        food_provided; start_date is required only when frequency_of_care
+        is daily (ORG_001 otherwise) and is ignored/nulled server-side for
+        monthly regardless of what's sent. If the requirement was
+        pending_review or closed, this activates it (stamps posted_at, and
+        push-broadcasts "New Organisation Opening" to all caregivers); a
+        plain edit of an already-active requirement does not resend it.
+      operationId: updateAdminOrganisationRequirement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type_of_nurse, frequency_of_care, salary_amount, accommodation_provided, food_provided]
+              properties:
+                type_of_nurse:
+                  $ref: "#/components/schemas/TypeOfNurse"
+                frequency_of_care:
+                  $ref: "#/components/schemas/FrequencyOfCare"
+                salary_amount:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000
+                start_date:
+                  type: string
+                  format: date
+                  description: Required (ORG_001) only when frequency_of_care is daily.
+                accommodation_provided:
+                  type: boolean
+                food_provided:
+                  type: boolean
+                special_skills:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Requirement updated (and activated, if it was pending_review/closed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    $ref: "#/components/schemas/OrganisationRequirement"
+        "400":
+          description: Validation error, or missing start_date for a daily requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "ORG_001", message: "Preferred start date is required when frequency of care is daily" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisation-requirements/{id}/reject:
+    patch:
+      tags: [Admin - Organisation Requirements]
+      summary: Reject a pending-review organisation requirement
+      description: >
+        Declines a pending_review requirement: status closed,
+        rejection_reason set, visible to the org on their own GET
+        /organisation/requirements. JOB_011 if not currently pending_review.
+      operationId: rejectAdminOrganisationRequirement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Requirement rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string, enum: [closed] }
+              example:
+                success: true
+                data: { message: "Requirement rejected", status: "closed" }
+        "400":
+          description: Requirement is not pending_review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_011", message: "Only a pending-review requirement can be rejected" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisation-requirements/{requirementId}/applications/{applicationId}:
+    patch:
+      tags: [Admin - Organisation Requirements]
+      summary: Accept or reject an applicant on any organisation-posted requirement
+      description: >
+        Admin has full parity with the organisation's own decision — both
+        call the same OrganisationRequirementsService.decideApplication.
+      operationId: decideAdminOrganisationRequirementApplication
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: requirementId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: Optional — admin's own reject flow stays reason-optional, same as NurseNow - Organisation's own decision endpoint.
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+                      status: { type: string, enum: [accepted, rejected] }
+        "400":
+          description: Application has already been decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: { code: "JOB_007", message: "Application has already been decided" }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisations:
+    get:
+      tags: [Admin - Organisations]
+      summary: List NurseNow organisation (hospital/rehab/clinic) accounts
+      operationId: listAdminOrganisations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Paginated organisation accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id: { type: string, format: uuid }
+                        full_name: { type: string }
+                        phone: { type: string }
+                        organisation_name: { type: string }
+                        organisation_type:
+                          $ref: "#/components/schemas/OrganisationType"
+                        city: { type: string }
+                        area: { type: string }
+                        is_active: { type: boolean }
+                        is_job_posting_blocked: { type: boolean }
+                        block_reason: { type: string, nullable: true }
+                        created_at: { type: string, format: date-time }
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisations/{id}:
+    get:
+      tags: [Admin - Organisations]
+      summary: Get a NurseNow organisation account's detail
+      operationId: getAdminOrganisationDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Organisation account detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisations/{id}/block:
+    patch:
+      tags: [Admin - Organisations]
+      summary: Block an organisation account
+      description: >
+        level=job_posting only stops new POST /organisation/requirements
+        (JOB_010) — existing live requirements and their applications keep
+        working, and login still succeeds. level=full sets users.is_active
+        to false — a total login lockout (AUTH_004), same as a deactivated
+        admin/caregiver/individual. Reuses the same BlockIndividualDto
+        NurseNow - Individual's block endpoint uses (role-agnostic).
+      operationId: blockOrganisation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level, reason]
+              properties:
+                level:
+                  type: string
+                  enum: [job_posting, full]
+                reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Account blocked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, enum: [true] }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/organisations/{id}/unblock:
+    patch:
+      tags: [Admin - Organisations]
+      summary: Unblock an organisation account
+      operationId: unblockOrganisation
       security:
         - BearerAuth: []
       parameters:

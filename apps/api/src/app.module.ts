@@ -10,6 +10,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
 import { AdminModule } from './admin/admin.module';
 import { JobsModule } from './jobs/jobs.module';
 import { IndividualModule } from './individual/individual.module';
+import { OrganisationModule } from './organisation/organisation.module';
 import { AppConfigModule } from './app-config/app-config.module';
 import { validateEnv } from './config/env.validation';
 
@@ -29,6 +30,7 @@ import { validateEnv } from './config/env.validation';
     AdminModule,
     JobsModule,
     IndividualModule,
+    OrganisationModule,
     AppConfigModule,
   ],
 })

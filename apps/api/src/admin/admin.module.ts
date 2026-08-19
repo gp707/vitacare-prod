@@ -6,10 +6,17 @@ import { AdminUsersController } from './admin-users.controller';
 import { AdminUsersService } from './admin-users.service';
 import { AdminIndividualsController } from './admin-individuals.controller';
 import { AdminIndividualsService } from './admin-individuals.service';
+import { AdminOrganisationsController } from './admin-organisations.controller';
+import { AdminOrganisationsService } from './admin-organisations.service';
 
 @Module({
   imports: [UploadModule],
-  controllers: [AdminController, AdminUsersController, AdminIndividualsController],
-  providers: [AdminService, AdminUsersService, AdminIndividualsService],
+  controllers: [
+    AdminController,
+    AdminUsersController,
+    AdminIndividualsController,
+    AdminOrganisationsController,
+  ],
+  providers: [AdminService, AdminUsersService, AdminIndividualsService, AdminOrganisationsService],
 })
 export class AdminModule {}

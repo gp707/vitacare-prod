@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterIndividualDto } from './dto/register-individual.dto';
+import { RegisterOrganisationDto } from './dto/register-organisation.dto';
 import { LoginCodeDto } from './dto/login-code.dto';
 import { LoginEmailDto } from './dto/login-email.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -24,6 +25,12 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   registerIndividual(@Body() dto: RegisterIndividualDto, @ClientIp() ip: string | null) {
     return this.authService.registerIndividual(dto, ip);
+  }
+
+  @Post('register/organisation')
+  @HttpCode(HttpStatus.CREATED)
+  registerOrganisation(@Body() dto: RegisterOrganisationDto, @ClientIp() ip: string | null) {
+    return this.authService.registerOrganisation(dto, ip);
   }
 
   @Post('login/code')

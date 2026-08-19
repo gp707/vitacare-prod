@@ -6,7 +6,11 @@ import { CaregiverLanguagesRepository } from './repositories/caregiver-languages
 import { CaregiverPreferredCitiesRepository } from './repositories/caregiver-preferred-cities.repository';
 import { CaregiverPreferredDutyTypesRepository } from './repositories/caregiver-preferred-duty-types.repository';
 import { IndividualProfilesRepository } from './repositories/individual-profiles.repository';
+import { OrganisationProfilesRepository } from './repositories/organisation-profiles.repository';
+import { OrganisationRequirementsRepository } from './repositories/organisation-requirements.repository';
+import { OrganisationRequirementApplicationsRepository } from './repositories/organisation-requirement-applications.repository';
 import { AdminIndividualsRepository } from './repositories/admin-individuals.repository';
+import { AdminOrganisationsRepository } from './repositories/admin-organisations.repository';
 import { RefreshTokensRepository } from './repositories/refresh-tokens.repository';
 import { AdminCaregiversRepository } from './repositories/admin-caregivers.repository';
 import { AdminNotesRepository } from './repositories/admin-notes.repository';
@@ -23,7 +27,11 @@ const repositories = [
   CaregiverPreferredCitiesRepository,
   CaregiverPreferredDutyTypesRepository,
   IndividualProfilesRepository,
+  OrganisationProfilesRepository,
+  OrganisationRequirementsRepository,
+  OrganisationRequirementApplicationsRepository,
   AdminIndividualsRepository,
+  AdminOrganisationsRepository,
   RefreshTokensRepository,
   AdminCaregiversRepository,
   AdminNotesRepository,

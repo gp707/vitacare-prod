@@ -8,6 +8,7 @@ import { CaregiverProfilesRepository } from '../database/repositories/caregiver-
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
+import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
@@ -16,13 +17,14 @@ import { TokenService } from './token.service';
 import { RefreshTokenPayload } from '../common/interfaces/jwt-payload.interface';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterIndividualDto } from './dto/register-individual.dto';
+import { RegisterOrganisationDto } from './dto/register-organisation.dto';
 import { LoginCodeDto } from './dto/login-code.dto';
 import { LoginEmailDto } from './dto/login-email.dto';
 
-// Both caregiver and NurseNow individual accounts log in with phone + a
-// bcrypt-hashed 4-digit code — same mechanism, different profile table
-// created at registration.
-const CODE_LOGIN_ROLES: UserRole[] = [UserRole.CAREGIVER, UserRole.INDIVIDUAL];
+// Caregiver and both NurseNow account types (individual, organisation) log
+// in with phone + a bcrypt-hashed 4-digit code — same mechanism, different
+// profile table created at registration.
+const CODE_LOGIN_ROLES: UserRole[] = [UserRole.CAREGIVER, UserRole.INDIVIDUAL, UserRole.ORGANISATION];
 
 export interface IssuedTokens {
   access_token: string;
@@ -38,6 +40,7 @@ export class AuthService {
     private readonly caregiverLanguagesRepo: CaregiverLanguagesRepository,
     private readonly caregiverPreferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly individualProfilesRepo: IndividualProfilesRepository,
+    private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly refreshTokensRepo: RefreshTokensRepository,
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
@@ -135,10 +138,10 @@ export class AuthService {
     });
 
     // verification_status is a caregiver-only concept (the 5-state
-    // pending_call/available/... pipeline) — individual accounts have no
-    // such workflow, so it's simply omitted rather than defaulted to a
-    // caregiver status that wouldn't mean anything for them.
-    if (user.role === UserRole.INDIVIDUAL) {
+    // pending_call/available/... pipeline) — individual/organisation
+    // accounts have no such workflow, so it's simply omitted rather than
+    // defaulted to a caregiver status that wouldn't mean anything for them.
+    if (user.role === UserRole.INDIVIDUAL || user.role === UserRole.ORGANISATION) {
       return { user_id: user.id, ...tokens };
     }
 
@@ -180,6 +183,58 @@ export class AuthService {
       entityType: 'users',
       entityId: user.id,
       afterValue: { full_name: dto.full_name, phone: dto.phone, role: UserRole.INDIVIDUAL },
+      ipAddress,
+    });
+
+    return { user_id: user.id, ...tokens };
+  }
+
+  /** Organisation (hospital/rehab/clinic) registration — like individual,
+   *  no account-level approval gate, logs in the same way immediately
+   *  after. Unlike individual, collects identity/location fields up front
+   *  since every requirement it later posts inherits city/area from here
+   *  (no per-requirement location — see "NurseNow" in CLAUDE.md). */
+  async registerOrganisation(dto: RegisterOrganisationDto, ipAddress: string | null = null) {
+    const existing = await this.usersRepo.findByPhone(dto.phone);
+    if (existing) {
+      throw new AppException('AUTH_001');
+    }
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+
+    const user = await this.db.withTransaction(async (client) => {
+      const userResult = await client.query<UserRecord>(
+        `INSERT INTO users (phone, full_name, role, code_hash) VALUES ($1, $2, $3, $4) RETURNING *`,
+        [dto.phone, dto.contact_person_name, UserRole.ORGANISATION, codeHash],
+      );
+      const user = userResult.rows[0];
+      await this.organisationProfilesRepo.create(
+        user.id,
+        {
+          organisation_name: dto.organisation_name,
+          contact_person_name: dto.contact_person_name,
+          organisation_type: dto.organisation_type,
+          city: dto.city,
+          area: dto.area,
+        },
+        client,
+      );
+      return user;
+    });
+
+    const tokens = await this.issueTokens(user);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: AuditAction.REGISTRATION,
+      entityType: 'users',
+      entityId: user.id,
+      afterValue: {
+        organisation_name: dto.organisation_name,
+        contact_person_name: dto.contact_person_name,
+        phone: dto.phone,
+        role: UserRole.ORGANISATION,
+      },
       ipAddress,
     });
 

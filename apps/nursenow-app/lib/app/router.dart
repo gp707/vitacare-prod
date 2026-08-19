@@ -5,13 +5,19 @@ import '../features/auth/screens/registration_screen.dart';
 import '../features/individual/screens/jobs_posted_screen.dart';
 import '../features/individual/screens/post_requirement_screen.dart';
 import '../features/individual/screens/profile_screen.dart';
+import '../features/organisation/screens/requirements_posted_screen.dart';
+import '../features/organisation/screens/post_organisation_requirement_screen.dart';
 
-/// Individual-only for this phase — Organisation registration/screens are a
-/// later phase (the account-type selector on RegistrationScreen stubs that
-/// branch out). No verification-status routing like caregiver-app has: an
-/// individual account is either logged in (-> /home, the Jobs Posted tab)
-/// or it isn't (-> /login). Bottom nav (NurseNowBottomNav) switches between
-/// /profile and /home directly, both top-level routes.
+/// Two account types, one app: Individual and Organisation both log in
+/// through the same Splash/Login/Register flow, but land on a different
+/// "home" tab post-auth (SessionAuthenticated.homeRoute decides which) —
+/// /home (JobsPostedScreen) for Individual, /org-home
+/// (RequirementsPostedScreen) for Organisation. /profile is shared (
+/// ProfileScreen branches internally on session.isOrganisation). No
+/// status-gated routing like the caregiver app's `verification_status` —
+/// neither account type has a verification pipeline, just the two
+/// independent block levers described in the NurseNow section of
+/// CLAUDE.md.
 Map<String, WidgetBuilder> buildRoutes() {
   return {
     '/': (context) => const SplashScreen(),
@@ -20,5 +26,7 @@ Map<String, WidgetBuilder> buildRoutes() {
     '/home': (context) => const JobsPostedScreen(),
     '/profile': (context) => const ProfileScreen(),
     '/post-requirement': (context) => const PostRequirementScreen(),
+    '/org-home': (context) => const RequirementsPostedScreen(),
+    '/org-post-requirement': (context) => const PostOrganisationRequirementScreen(),
   };
 }

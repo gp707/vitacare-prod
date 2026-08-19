@@ -723,7 +723,13 @@ describe('JobsService', () => {
         null,
       );
 
-      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', expect.anything());
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'accepted',
+        'admin-1',
+        expect.anything(),
+        undefined,
+      );
       expect(jobsRepo.close).toHaveBeenCalledWith('job-1', expect.anything());
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
         'profile-1',
@@ -748,10 +754,37 @@ describe('JobsService', () => {
 
       await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
 
-      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-1', 'rejected', 'admin-1', expect.anything());
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'rejected',
+        'admin-1',
+        expect.anything(),
+        undefined,
+      );
       expect(jobsRepo.close).not.toHaveBeenCalled();
       expect(jobsRepo.reopen).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('passes a supplied reason through to the repository (e.g. a NurseNow individual decline)', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue(application);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      await service.decideApplication(
+        'admin-1',
+        'job-1',
+        'app-1',
+        { status: 'rejected' as any, reason: 'Not a good fit for the schedule' },
+        null,
+      );
+
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'rejected',
+        'admin-1',
+        expect.anything(),
+        'Not a good fit for the schedule',
+      );
     });
 
     it('rejecting a previously-accepted application reopens the job and un-assigns the caregiver', async () => {
@@ -760,7 +793,13 @@ describe('JobsService', () => {
 
       await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
 
-      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-1', 'rejected', 'admin-1', expect.anything());
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'rejected',
+        'admin-1',
+        expect.anything(),
+        undefined,
+      );
       expect(jobsRepo.reopen).toHaveBeenCalledWith('job-1', expect.anything());
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
         'profile-1',

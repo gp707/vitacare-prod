@@ -8,9 +8,12 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 
-/// Identity + self-service account settings. No verification pipeline to
-/// show (an individual account has none) — just who's logged in, whether
-/// job-posting is currently blocked, and phone/PIN change, each an
+/// Identity + self-service account settings — shared by both Individual and
+/// Organisation accounts (branches internally on `session.isOrganisation`
+/// for which repository's phone/code endpoints to call, and for a couple
+/// of organisation-only display fields). No verification pipeline to show
+/// (neither account type has one) — just who's logged in, whether job-
+/// posting is currently blocked, and phone/PIN change, each an
 /// independently-saved section (same pattern as caregiver-app's
 /// EditProfileScreen) since they map to two different backend endpoints.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -40,7 +43,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _savePhone() async {
+  Future<void> _savePhone(bool isOrganisation) async {
     final phone = _phoneController.text.trim();
     if (!Validators.isValidPhone(phone)) {
       setState(() => _phoneError = 'Enter a valid phone number, e.g. +919876543210');
@@ -52,7 +55,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _phoneSuccess = null;
     });
     try {
-      await ref.read(individualRepositoryProvider).updatePhone(phone);
+      if (isOrganisation) {
+        await ref.read(organisationRepositoryProvider).updatePhone(phone);
+      } else {
+        await ref.read(individualRepositoryProvider).updatePhone(phone);
+      }
       await ref.read(sessionProvider.notifier).loadSession();
       if (mounted) setState(() => _phoneSuccess = 'Phone number updated.');
     } on ApiException catch (e) {
@@ -62,7 +69,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Future<void> _saveCode() async {
+  Future<void> _saveCode(bool isOrganisation) async {
     final code = _codeController.text.trim();
     if (!Validators.isValidCode(code)) {
       setState(() => _codeError = 'PIN must be exactly 4 digits');
@@ -74,7 +81,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _codeSuccess = null;
     });
     try {
-      await ref.read(individualRepositoryProvider).updateCode(code);
+      if (isOrganisation) {
+        await ref.read(organisationRepositoryProvider).updateCode(code);
+      } else {
+        await ref.read(individualRepositoryProvider).updateCode(code);
+      }
       if (mounted) {
         _codeController.clear();
         setState(() => _codeSuccess = 'PIN updated.');
@@ -115,7 +126,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
-                  Text(authenticated.fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    authenticated.isOrganisation ? authenticated.organisationName! : authenticated.fullName,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  if (authenticated.isOrganisation) ...[
+                    const SizedBox(height: 2),
+                    Text('Contact: ${authenticated.fullName}', style: const TextStyle(color: AppColors.textSecondary)),
+                    Text(
+                      [
+                        OrganisationType.displayNames[authenticated.organisationType] ?? authenticated.organisationType!,
+                        City.displayNames[authenticated.city] ?? authenticated.city!,
+                        authenticated.area!,
+                      ].join(' · '),
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xs),
                   Text(authenticated.phone, style: const TextStyle(color: AppColors.textSecondary)),
                   if (authenticated.isJobPostingBlocked) ...[
@@ -140,7 +166,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Text(_phoneSuccess!, style: const TextStyle(color: AppColors.success)),
                     ),
                   ElevatedButton(
-                    onPressed: _savingPhone ? null : _savePhone,
+                    onPressed: _savingPhone ? null : () => _savePhone(authenticated.isOrganisation),
                     child: _savingPhone
                         ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
                         : const Text('Save Phone Number'),
@@ -161,7 +187,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Text(_codeSuccess!, style: const TextStyle(color: AppColors.success)),
                     ),
                   ElevatedButton(
-                    onPressed: _savingCode ? null : _saveCode,
+                    onPressed: _savingCode ? null : () => _saveCode(authenticated.isOrganisation),
                     child: _savingCode
                         ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
                         : const Text('Save PIN'),

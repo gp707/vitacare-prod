@@ -7,6 +7,7 @@ import 'version/app_version_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
+import '../features/organisation_openings/data/organisation_openings_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -31,6 +32,10 @@ final fcmServiceProvider = Provider<FcmService>((ref) {
 
 final jobsRepositoryProvider = Provider<JobsRepository>((ref) {
   return JobsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final organisationOpeningsRepositoryProvider = Provider<OrganisationOpeningsRepository>((ref) {
+  return OrganisationOpeningsRepository(ref.watch(apiClientProvider).dio);
 });
 
 final appVersionRepositoryProvider = Provider<AppVersionRepository>((ref) {

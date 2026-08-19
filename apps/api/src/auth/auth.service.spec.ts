@@ -11,6 +11,7 @@ describe('AuthService', () => {
   let caregiverLanguagesRepo: any;
   let caregiverPreferredCitiesRepo: any;
   let individualProfilesRepo: any;
+  let organisationProfilesRepo: any;
   let refreshTokensRepo: any;
   let tokenService: any;
   let emailService: any;
@@ -34,6 +35,7 @@ describe('AuthService', () => {
     caregiverLanguagesRepo = { createMany: jest.fn() };
     caregiverPreferredCitiesRepo = { createMany: jest.fn() };
     individualProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
+    organisationProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     refreshTokensRepo = {
       create: jest.fn(),
       findActiveById: jest.fn(),
@@ -60,6 +62,7 @@ describe('AuthService', () => {
       caregiverLanguagesRepo,
       caregiverPreferredCitiesRepo,
       individualProfilesRepo,
+      organisationProfilesRepo,
       refreshTokensRepo,
       tokenService,
       emailService,
@@ -237,6 +240,52 @@ describe('AuthService', () => {
     });
   });
 
+  describe('registerOrganisation', () => {
+    const orgUser = { ...baseUser, role: UserRole.ORGANISATION, full_name: 'Ravi Sharma' };
+    const orgDto = {
+      phone: orgUser.phone,
+      code: '1234',
+      organisation_name: 'City Hospital',
+      contact_person_name: 'Ravi Sharma',
+      organisation_type: 'hospital',
+      city: 'bangalore',
+      area: 'Indiranagar',
+    };
+
+    it('throws AUTH_001 when phone already registered', async () => {
+      usersRepo.findByPhone.mockResolvedValue(orgUser);
+      await expect(service.registerOrganisation(orgDto)).rejects.toMatchObject({ code: 'AUTH_001' });
+    });
+
+    it('creates user (full_name = contact_person_name) + organisation_profiles, returns no verification_status', async () => {
+      usersRepo.findByPhone.mockResolvedValue(null);
+      const client = { query: jest.fn().mockResolvedValue({ rows: [orgUser] }) };
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      const result = await service.registerOrganisation(orgDto);
+
+      expect(result.user_id).toBe(orgUser.id);
+      expect(result).not.toHaveProperty('verification_status');
+      expect(organisationProfilesRepo.create).toHaveBeenCalledWith(
+        orgUser.id,
+        {
+          organisation_name: 'City Hospital',
+          contact_person_name: 'Ravi Sharma',
+          organisation_type: 'hospital',
+          city: 'bangalore',
+          area: 'Indiranagar',
+        },
+        client,
+      );
+      const [insertQuery, insertParams] = client.query.mock.calls[0];
+      expect(insertQuery).toContain('code_hash');
+      expect(insertParams).toEqual([orgUser.phone, 'Ravi Sharma', UserRole.ORGANISATION, expect.any(String)]);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: orgUser.id, action: 'registration' }),
+      );
+    });
+  });
+
   describe('loginCode', () => {
     it('throws AUTH_008 when code_hash is null', async () => {
       usersRepo.findByPhone.mockResolvedValue(baseUser);
@@ -271,6 +320,19 @@ describe('AuthService', () => {
       usersRepo.findByPhone.mockResolvedValue({
         ...baseUser,
         role: UserRole.INDIVIDUAL,
+        code_hash: codeHash,
+      });
+      const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });
+      expect(result.user_id).toBe(baseUser.id);
+      expect(result).not.toHaveProperty('verification_status');
+      expect(caregiverProfilesRepo.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('logs in an organisation account, with no verification_status in the response', async () => {
+      const codeHash = await bcrypt.hash('1234', 4);
+      usersRepo.findByPhone.mockResolvedValue({
+        ...baseUser,
+        role: UserRole.ORGANISATION,
         code_hash: codeHash,
       });
       const result = await service.loginCode({ phone: baseUser.phone, code: '1234' });

@@ -251,5 +251,36 @@ describe('IndividualService', () => {
       expect(jobsService.decideApplication).toHaveBeenCalledWith('user-1', 'job-1', 'app-1', dto2, '127.0.0.1');
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
+
+    it('throws JOB_012 when rejecting without a reason', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      await expect(
+        service.decideMyApplication('user-1', 'job-1', 'app-1', { status: 'rejected' } as any, null),
+      ).rejects.toMatchObject({ code: 'JOB_012' });
+      expect(jobsService.decideApplication).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_012 when rejecting with a blank/whitespace-only reason', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      await expect(
+        service.decideMyApplication('user-1', 'job-1', 'app-1', { status: 'rejected', reason: '   ' } as any, null),
+      ).rejects.toMatchObject({ code: 'JOB_012' });
+      expect(jobsService.decideApplication).not.toHaveBeenCalled();
+    });
+
+    it('accepting never requires a reason', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobsService.decideApplication.mockResolvedValue({ message: 'Application updated', status: 'accepted' });
+      await service.decideMyApplication('user-1', 'job-1', 'app-1', { status: 'accepted' } as any, null);
+      expect(jobsService.decideApplication).toHaveBeenCalled();
+    });
+
+    it('rejecting with a reason delegates through, reason intact', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobsService.decideApplication.mockResolvedValue({ message: 'Application updated', status: 'rejected' });
+      const dto2 = { status: 'rejected', reason: 'Schedule does not match' } as any;
+      await service.decideMyApplication('user-1', 'job-1', 'app-1', dto2, '127.0.0.1');
+      expect(jobsService.decideApplication).toHaveBeenCalledWith('user-1', 'job-1', 'app-1', dto2, '127.0.0.1');
+    });
   });
 });

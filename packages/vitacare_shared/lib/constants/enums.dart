@@ -374,6 +374,10 @@ class AuditAction {
   static const jobReminderSent = 'job_reminder_sent';
   static const jobUpdated = 'job_updated';
   static const jobCompleted = 'job_completed';
+  static const orgRequirementPosted = 'org_requirement_posted';
+  static const orgRequirementUpdated = 'org_requirement_updated';
+  static const orgRequirementRejected = 'org_requirement_rejected';
+  static const orgRequirementApplicationDecided = 'org_requirement_application_decided';
 
   static const all = [
     registration,
@@ -397,6 +401,10 @@ class AuditAction {
     jobReminderSent,
     jobUpdated,
     jobCompleted,
+    orgRequirementPosted,
+    orgRequirementUpdated,
+    orgRequirementRejected,
+    orgRequirementApplicationDecided,
   ];
 }
 
@@ -404,12 +412,79 @@ class UserRole {
   static const superAdmin = 'super_admin';
   static const admin = 'admin';
   static const caregiver = 'caregiver';
-  // NurseNow patient/family account. Organisation isn't added yet — a
-  // later phase's enum change.
+  // NurseNow patient/family account.
   static const individual = 'individual';
+  // NurseNow hospital/rehab/clinic account.
+  static const organisation = 'organisation';
 
-  static const all = [superAdmin, admin, caregiver, individual];
+  static const all = [superAdmin, admin, caregiver, individual, organisation];
 }
+
+class OrganisationType {
+  static const hospital = 'hospital';
+  static const rehab = 'rehab';
+  static const clinic = 'clinic';
+
+  static const all = [hospital, rehab, clinic];
+  static const displayNames = {
+    hospital: 'Hospital',
+    rehab: 'Rehab',
+    clinic: 'Clinic',
+  };
+}
+
+/// Distinct from Qualification (a caregiver's own self-reported credential)
+/// — this is the category an organisation requests when posting a
+/// requirement.
+class TypeOfNurse {
+  static const registeredNurse = 'registered_nurse';
+  static const staffNurse = 'staff_nurse';
+  static const icuNurse = 'icu_nurse';
+  static const icuTrainedAttendant = 'icu_trained_attendant';
+  static const gnmNurse = 'gnm_nurse';
+  static const anmNurse = 'anm_nurse';
+  static const gda = 'gda';
+  static const patientCareAssistant = 'patient_care_assistant';
+  static const homeHealthAide = 'home_health_aide';
+  static const physiotherapist = 'physiotherapist';
+  static const elderlyCareAttendant = 'elderly_care_attendant';
+  static const postOperativeCareNurse = 'post_operative_care_nurse';
+
+  static const all = [
+    registeredNurse,
+    staffNurse,
+    icuNurse,
+    icuTrainedAttendant,
+    gnmNurse,
+    anmNurse,
+    gda,
+    patientCareAssistant,
+    homeHealthAide,
+    physiotherapist,
+    elderlyCareAttendant,
+    postOperativeCareNurse,
+  ];
+
+  static const displayNames = {
+    registeredNurse: 'Registered Nurse (RN)',
+    staffNurse: 'Staff Nurse',
+    icuNurse: 'ICU Nurse',
+    icuTrainedAttendant: 'ICU Trained Attendant',
+    gnmNurse: 'GNM Nurse',
+    anmNurse: 'ANM Nurse',
+    gda: 'General Duty Assistant (GDA)',
+    patientCareAssistant: 'Patient Care Assistant',
+    homeHealthAide: 'Home Health Aide',
+    physiotherapist: 'Physiotherapist',
+    elderlyCareAttendant: 'Elderly Care Attendant',
+    postOperativeCareNurse: 'Post-Operative Care Nurse',
+  };
+}
+
+/// organisation_profiles.city is validated against City.all plus this one
+/// extra sentinel — a separate org-scoped list, not an extension of the
+/// shared City enum.
+const organisationCityOthers = 'others';
 
 class DocumentType {
   static const qualification = 'qualification';

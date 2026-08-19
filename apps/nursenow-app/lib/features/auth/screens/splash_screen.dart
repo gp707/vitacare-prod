@@ -26,7 +26,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (next is SessionUnauthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is SessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(next.homeRoute, (route) => false);
       }
     });
 

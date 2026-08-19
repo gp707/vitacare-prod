@@ -1,0 +1,254 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
+
+import 'package:admin_web/core/providers.dart';
+import 'package:admin_web/core/storage/local_storage.dart';
+import 'package:admin_web/features/auth/state/session_notifier.dart';
+import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
+import 'package:admin_web/features/organisation_requirements/screens/admin_organisation_requirements_screen.dart';
+
+AdminOrganisationRequirement _requirement({
+  String id = 'r1',
+  int requirementNumber = 101,
+  String status = JobStatus.pendingReview,
+  String? frequencyOfCare,
+  int? salaryAmount,
+  String? rejectionReason,
+  bool accommodationProvided = true,
+  bool foodProvided = false,
+}) {
+  return AdminOrganisationRequirement(
+    id: id,
+    requirementNumber: requirementNumber,
+    postedBy: 'org-user-1',
+    typeOfNurse: TypeOfNurse.gda,
+    frequencyOfCare: frequencyOfCare,
+    salaryAmount: salaryAmount,
+    accommodationProvided: accommodationProvided,
+    foodProvided: foodProvided,
+    status: status,
+    rejectionReason: rejectionReason,
+    postedAt: '2026-08-01T10:00:00Z',
+    organisationName: 'City Rehab Center',
+    organisationType: OrganisationType.rehab,
+    city: City.bangalore,
+    area: 'Whitefield',
+  );
+}
+
+JobApplicationModel _application({
+  String id = 'app1',
+  String status = JobApplicationStatus.applied,
+  String fullName = 'Nurse Nita',
+}) {
+  return JobApplicationModel(
+    id: id,
+    jobId: 'r1',
+    profileId: 'profile-1',
+    status: status,
+    fullName: fullName,
+    phone: '+919876500000',
+    updatedAt: '2026-08-01T10:00:00Z',
+  );
+}
+
+class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequirementsRepository {
+  List<AdminOrganisationRequirement> items;
+  List<JobApplicationModel> applications;
+  String? approvedId;
+  String? approvedFrequency;
+  int? approvedSalary;
+  String? rejectedId;
+  String? rejectedReason;
+  String? decidedRequirementId;
+  String? decidedApplicationId;
+  String? decidedStatus;
+
+  _FakeAdminOrganisationRequirementsRepository(this.items, [this.applications = const []]) : super(Dio());
+
+  @override
+  Future<List<AdminOrganisationRequirement>> list({String? status}) async => items;
+
+  @override
+  Future<(AdminOrganisationRequirement, List<JobApplicationModel>)> getDetail(String id) async {
+    final requirement = items.firstWhere((item) => item.id == id);
+    return (requirement, applications);
+  }
+
+  @override
+  Future<void> approve(
+    String id, {
+    required String typeOfNurse,
+    required String frequencyOfCare,
+    required int salaryAmount,
+    String? startDate,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+  }) async {
+    approvedId = id;
+    approvedFrequency = frequencyOfCare;
+    approvedSalary = salaryAmount;
+  }
+
+  @override
+  Future<void> reject(String id, String reason) async {
+    rejectedId = id;
+    rejectedReason = reason;
+  }
+
+  @override
+  Future<void> decideApplication(String requirementId, String applicationId, String status) async {
+    decidedRequirementId = requirementId;
+    decidedApplicationId = applicationId;
+    decidedStatus = status;
+  }
+}
+
+Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsRepository repo) async {
+  await tester.binding.setSurfaceSize(const Size(1200, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  // ignore: invalid_use_of_visible_for_testing_member
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        localStorageProvider.overrideWithValue(localStorage),
+        adminOrganisationRequirementsRepositoryProvider.overrideWithValue(repo),
+        sessionProvider.overrideWith(
+          (ref) => SessionNotifier(localStorage)
+            ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+        ),
+      ],
+      child: const MaterialApp(home: AdminOrganisationRequirementsScreen()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('lists requirements with requirement number, status, and org name', (tester) async {
+    await _pump(tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
+
+    expect(find.text('Requirement #101'), findsOneWidget);
+    expect(find.text('Pending Review'), findsOneWidget);
+    expect(find.text('City Rehab Center'), findsOneWidget);
+  });
+
+  testWidgets('shows an empty state when there are no requirements', (tester) async {
+    await _pump(tester, _FakeAdminOrganisationRequirementsRepository([]));
+
+    expect(find.text('No organisation requirements posted yet.'), findsOneWidget);
+  });
+
+  testWidgets('shows the rejection reason for a rejected requirement', (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.closed, rejectionReason: 'Incomplete details'),
+      ]),
+    );
+
+    expect(find.text('Reason: Incomplete details'), findsOneWidget);
+  });
+
+  testWidgets('Approve and Reject only show for a pending_review requirement', (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.monthly, salaryAmount: 25000),
+      ]),
+    );
+
+    expect(find.text('Approve'), findsNothing);
+    expect(find.text('Reject'), findsNothing);
+    expect(find.text('Applicants'), findsOneWidget);
+  });
+
+  testWidgets('approving fills frequency and salary and calls the repository', (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Approve'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monthly').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '30000');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Approve').last);
+    await tester.pumpAndSettle();
+
+    expect(repo.approvedId, 'r1');
+    expect(repo.approvedFrequency, FrequencyOfCare.monthly);
+    expect(repo.approvedSalary, 30000);
+  });
+
+  testWidgets('rejecting requires a reason before Confirm is enabled', (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Reject'));
+    await tester.pumpAndSettle();
+
+    final confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
+    expect(confirmButton.onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Missing accommodation details');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.rejectedId, 'r1');
+    expect(repo.rejectedReason, 'Missing accommodation details');
+  });
+
+  testWidgets('Applicants dialog shows Accept/Reject for an applied application and calls decideApplication', (
+    tester,
+  ) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository(
+      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [_application()],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nurse Nita'), findsOneWidget);
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedRequirementId, 'r1');
+    expect(repo.decidedApplicationId, 'app1');
+    expect(repo.decidedStatus, JobApplicationStatus.accepted);
+  });
+
+  testWidgets('Applicants dialog shows no actions for an already-decided application', (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository(
+      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [_application(status: JobApplicationStatus.accepted)],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nurse Nita'), findsOneWidget);
+    expect(find.text('Accept'), findsNothing);
+    expect(find.text('Reject'), findsNothing);
+    expect(find.text(JobApplicationStatus.accepted), findsOneWidget);
+  });
+}

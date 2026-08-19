@@ -68,15 +68,58 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
-  Future<void> _decide(String jobId, String applicationId, String status) async {
+  Future<void> _accept(String jobId, String applicationId) async {
     setState(() => _decidingApplicationId.add(applicationId));
     try {
-      await ref.read(individualRepositoryProvider).decideApplication(jobId, applicationId, status);
+      await ref.read(individualRepositoryProvider).decideApplication(jobId, applicationId, JobApplicationStatus.accepted);
       await _load();
     } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
+    }
+  }
+
+  /// A reason is mandatory (JOB_012 is the server-side backstop) — the
+  /// dialog's Confirm button stays disabled until something is typed, so
+  /// there's no way to submit a reject without one.
+  Future<void> _rejectWithReason(String jobId, String applicationId) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Decline this candidate'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 1000,
+            maxLines: 3,
+            onChanged: (_) => setDialogState(() {}),
+            decoration: const InputDecoration(labelText: 'Reason (required, shown to no one but you)'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: controller.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || reason.isEmpty) return;
+
+    setState(() => _decidingApplicationId.add(applicationId));
+    try {
+      await ref
+          .read(individualRepositoryProvider)
+          .decideApplication(jobId, applicationId, JobApplicationStatus.rejected, reason: reason);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
     }
@@ -137,7 +180,8 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           requirement: requirement,
                           applications: _applicationsByJobId[requirement.id] ?? const [],
                           decidingApplicationId: _decidingApplicationId,
-                          onDecide: (applicationId, status) => _decide(requirement.id, applicationId, status),
+                          onAccept: (applicationId) => _accept(requirement.id, applicationId),
+                          onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -190,13 +234,15 @@ class _RequirementCard extends StatelessWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
-  final void Function(String applicationId, String status) onDecide;
+  final void Function(String applicationId) onAccept;
+  final void Function(String applicationId) onReject;
 
   const _RequirementCard({
     required this.requirement,
     required this.applications,
     required this.decidingApplicationId,
-    required this.onDecide,
+    required this.onAccept,
+    required this.onReject,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
@@ -309,6 +355,9 @@ class _RequirementCard extends StatelessWidget {
           Wrap(
             children: [
               _Tag(DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
+              // Always set on an active job (only ever null for a still
+              // pending_review posting, which has no applicants section
+              // shown at all — see below).
               if (requirement.frequencyOfCare != null)
                 _Tag(FrequencyOfCare.displayNames[requirement.frequencyOfCare!] ?? requirement.frequencyOfCare!),
               if (requirement.area != null && requirement.area!.isNotEmpty) _Tag(requirement.area!),
@@ -327,19 +376,12 @@ class _RequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
-            Text('Applicants (${applications.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: AppSpacing.sm),
-            if (applications.isEmpty)
-              const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
-            else
-              for (final application in applications) ...[
-                _ApplicantTile(
-                  application: application,
-                  isDeciding: decidingApplicationId.contains(application.id),
-                  onDecide: (status) => onDecide(application.id, status),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
+            _ApplicantsSection(
+              applications: applications,
+              decidingApplicationId: decidingApplicationId,
+              onAccept: onAccept,
+              onReject: onReject,
+            ),
           ],
         ],
       ),
@@ -347,12 +389,119 @@ class _RequirementCard extends StatelessWidget {
   }
 }
 
-class _ApplicantTile extends StatelessWidget {
+/// Shows the total applicant count up front, then forces a one-at-a-time
+/// review of anyone still `applied` (undecided) before revealing the next
+/// — a patient/family can't skip past a candidate without deciding, and
+/// rejecting always requires a reason (see _rejectWithReason). Already-
+/// decided candidates (from this or an earlier session) stay visible in a
+/// read-only list below, including who was accepted — that list is never
+/// hidden once the requirement closes.
+class _ApplicantsSection extends StatelessWidget {
+  final List<JobApplicationModel> applications;
+  final Set<String> decidingApplicationId;
+  final void Function(String applicationId) onAccept;
+  final void Function(String applicationId) onReject;
+
+  const _ApplicantsSection({
+    required this.applications,
+    required this.decidingApplicationId,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final undecided = applications.where((a) => a.status == JobApplicationStatus.applied).toList()
+      ..sort((a, b) => (a.appliedAt ?? '').compareTo(b.appliedAt ?? ''));
+    final decided = applications.where((a) => a.status != JobApplicationStatus.applied).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${applications.length} candidate${applications.length == 1 ? '' : 's'} applied in total',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: AppSpacing.sm),
+        if (applications.isEmpty)
+          const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
+        else ...[
+          if (undecided.isNotEmpty) ...[
+            Text(
+              undecided.length == 1
+                  ? 'Reviewing 1 candidate awaiting your decision'
+                  : 'Reviewing candidate 1 of ${undecided.length} awaiting your decision',
+              style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _ReviewingApplicantTile(
+              application: undecided.first,
+              isDeciding: decidingApplicationId.contains(undecided.first.id),
+              onAccept: () => onAccept(undecided.first.id),
+              onReject: () => onReject(undecided.first.id),
+            ),
+            if (decided.isNotEmpty) const SizedBox(height: AppSpacing.md),
+          ],
+          if (decided.isNotEmpty) ...[
+            Text('Decided (${decided.length})', style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpacing.sm),
+            for (final application in decided) ...[
+              _DecidedApplicantTile(application: application),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ],
+        ],
+      ],
+    );
+  }
+}
+
+class _ReviewingApplicantTile extends StatelessWidget {
   final JobApplicationModel application;
   final bool isDeciding;
-  final void Function(String status) onDecide;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
 
-  const _ApplicantTile({required this.application, required this.isDeciding, required this.onDecide});
+  const _ReviewingApplicantTile({
+    required this.application,
+    required this.isDeciding,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.primary),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          if (isDeciding)
+            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+          else ...[
+            TextButton(onPressed: onAccept, child: const Text('Accept')),
+            TextButton(onPressed: onReject, child: const Text('Reject')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DecidedApplicantTile extends StatelessWidget {
+  final JobApplicationModel application;
+
+  const _DecidedApplicantTile({required this.application});
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
 
@@ -365,38 +514,42 @@ class _ApplicantTile extends StatelessWidget {
         border: Border.all(color: _isAccepted ? AppColors.success : AppColors.border),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              Expanded(
+                child: Row(
                   children: [
-                    Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Flexible(
+                      child: Text(application.fullName,
+                          overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
                     if (_isAccepted) ...[
                       const SizedBox(width: AppSpacing.xs),
                       const Icon(Icons.check_circle, color: AppColors.success, size: 16),
                     ],
                   ],
                 ),
-                Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
-              ],
-            ),
-          ),
-          if (isDeciding)
-            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
-          else if (application.status == JobApplicationStatus.applied) ...[
-            TextButton(onPressed: () => onDecide(JobApplicationStatus.accepted), child: const Text('Accept')),
-            TextButton(onPressed: () => onDecide(JobApplicationStatus.rejected), child: const Text('Reject')),
-          ] else
-            Text(
-              _isAccepted ? 'Accepted' : _capitalize(application.status),
-              style: TextStyle(
-                color: _isAccepted ? AppColors.success : AppColors.textSecondary,
-                fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
               ),
+              Text(
+                _isAccepted ? 'Accepted' : _capitalize(application.status),
+                style: TextStyle(
+                  color: _isAccepted ? AppColors.success : AppColors.textSecondary,
+                  fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+          Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+          if (!_isAccepted && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Your reason: ${application.declineReason!}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
             ),
+          ],
         ],
       ),
     );

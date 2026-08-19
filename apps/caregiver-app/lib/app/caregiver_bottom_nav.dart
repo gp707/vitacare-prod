@@ -12,7 +12,7 @@ class CaregiverBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const routes = ['/profile', '/jobs', '/my-jobs'];
+    const routes = ['/profile', '/jobs', '/my-jobs', '/organisation-openings'];
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
@@ -24,6 +24,10 @@ class CaregiverBottomNav extends StatelessWidget {
         BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Jobs'),
         BottomNavigationBarItem(icon: Icon(Icons.assignment_ind), label: 'MyJobs'),
+        // A deliberately separate tab from Jobs — organisation openings are
+        // NOT merged into the regular Jobs list (explicit product decision,
+        // see "NurseNow" in CLAUDE.md).
+        BottomNavigationBarItem(icon: Icon(Icons.local_hospital), label: 'Openings'),
       ],
     );
   }

@@ -178,6 +178,7 @@ class JobApplicationModel {
   final String? appliedAt;
   final String? acceptedAt;
   final String? rejectedAt;
+  final String? declineReason;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -192,6 +193,7 @@ class JobApplicationModel {
     this.appliedAt,
     this.acceptedAt,
     this.rejectedAt,
+    this.declineReason,
     required this.updatedAt,
   });
 
@@ -207,6 +209,7 @@ class JobApplicationModel {
         appliedAt: json['applied_at'] as String?,
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
+        declineReason: json['decline_reason'] as String?,
         updatedAt: json['updated_at'] as String,
       );
 }

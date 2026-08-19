@@ -67,49 +67,97 @@ Future<void> _pumpTall(WidgetTester tester, _FakeIndividualRepository repo) asyn
   await tester.pumpAndSettle();
 }
 
+Future<void> _fillMandatoryFields(WidgetTester tester) async {
+  await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '74');
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender (Mandatory)"));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Female').last);
+  await tester.pumpAndSettle();
+  await tester.enterText(find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)"), '58');
+
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Bangalore').last);
+  await tester.pumpAndSettle();
+  await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('24Hrs - Live In').last);
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('blocks submission without the required About Patient fields, without calling the repository',
+  testWidgets(
+      'Submit is always tappable; tapping it with every mandatory field empty highlights all of them in red and does not submit',
       (tester) async {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
     await tester.tap(find.text('Submit for Review'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text("Patient's age, gender, and weight are required"), findsOneWidget);
+    expect(find.text('Age is required (1-120)'), findsOneWidget);
+    expect(find.text('Please select a gender'), findsOneWidget);
+    expect(find.text('Weight is required (1-300 kg)'), findsOneWidget);
+    expect(find.text('Please select a city'), findsOneWidget);
+    expect(find.text('Area is required'), findsOneWidget);
+    expect(find.text('Please select duty hours'), findsOneWidget);
+    expect(find.text('Select a preferred start date'), findsOneWidget);
+    expect(find.text('Select at least one language'), findsOneWidget);
     expect(repo.createCalled, isFalse);
+  });
+
+  testWidgets('tapping Submit with only Area missing does not submit and moves focus into Area', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '74');
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender (Mandatory)"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Female').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)"), '58');
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bangalore').last);
+    await tester.pumpAndSettle();
+    // Area deliberately left empty.
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('24Hrs - Live In').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Area is required'), findsOneWidget);
+    expect(repo.createCalled, isFalse);
+    // Area is the only thing missing, so it's the one that gets focused —
+    // the literal cursor-to-first-invalid behavior.
+    final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
+    expect(areaField.focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('submits with the hard-required fields filled, defaulting the rest server-side', (tester) async {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, "Patient's Age"), '74');
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender"));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Female').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, "Patient's Weight (kg)"), '58');
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Bangalore').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('24Hrs - Live In').last);
-    await tester.pumpAndSettle();
-
-    // Preferred Start Date via the date picker.
-    await tester.tap(find.widgetWithText(TextField, 'Preferred Start Date (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
+    await _fillMandatoryFields(tester);
 
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
@@ -130,31 +178,7 @@ void main() {
     );
     await _pumpTall(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, "Patient's Age"), '74');
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender"));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Female').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, "Patient's Weight (kg)"), '58');
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Bangalore').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('24Hrs - Live In').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextField, 'Preferred Start Date (Mandatory)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
+    await _fillMandatoryFields(tester);
 
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();

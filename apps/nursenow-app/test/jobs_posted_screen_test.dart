@@ -11,6 +11,7 @@ import 'package:nursenow_app/features/auth/state/session_notifier.dart';
 import 'package:nursenow_app/features/auth/state/session_state.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/jobs_posted_screen.dart';
+import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 
 JobModel _requirement({
   String id = 'job-1',
@@ -57,14 +58,23 @@ final _careReceiverJson = {
   'vital_monitoring_types': [],
 };
 
-JobApplicationModel _application({String id = 'app-1', String jobId = 'job-1', String status = 'applied'}) {
+JobApplicationModel _application({
+  String id = 'app-1',
+  String jobId = 'job-1',
+  String status = 'applied',
+  String fullName = 'Test Caregiver',
+  String appliedAt = '2026-08-01T10:00:00Z',
+  String? declineReason,
+}) {
   return JobApplicationModel.fromJson({
     'id': id,
     'job_id': jobId,
     'profile_id': 'profile-1',
     'status': status,
-    'full_name': 'Test Caregiver',
+    'full_name': fullName,
     'phone': '+919876543210',
+    'applied_at': appliedAt,
+    'decline_reason': declineReason,
     'updated_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -75,6 +85,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? decidedJobId;
   String? decidedApplicationId;
   String? decidedStatus;
+  String? decidedReason;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}}) : super(Dio());
 
@@ -85,10 +96,11 @@ class _FakeIndividualRepository extends IndividualRepository {
   Future<List<JobApplicationModel>> listApplications(String jobId) async => applicationsByJobId[jobId] ?? const [];
 
   @override
-  Future<void> decideApplication(String jobId, String applicationId, String status) async {
+  Future<void> decideApplication(String jobId, String applicationId, String status, {String? reason}) async {
     decidedJobId = jobId;
     decidedApplicationId = applicationId;
     decidedStatus = status;
+    decidedReason = reason;
   }
 }
 
@@ -103,8 +115,9 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, repo)
+          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
             ..state = SessionAuthenticated(
+              role: 'individual',
               fullName: 'Asha Patel',
               phone: '+919876543210',
               isJobPostingBlocked: isJobPostingBlocked,
@@ -187,7 +200,7 @@ void main() {
     );
 
     expect(find.text('Closed — caregiver assigned'), findsOneWidget);
-    expect(find.text('Applicants (1)'), findsOneWidget);
+    expect(find.text('1 candidate applied in total'), findsOneWidget);
     expect(find.text('Test Caregiver'), findsOneWidget);
     expect(find.text('Accepted'), findsOneWidget);
   });
@@ -202,6 +215,28 @@ void main() {
     expect(find.text('74 yrs'), findsOneWidget);
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
+  });
+
+  testWidgets('with multiple applicants, only the first undecided one is shown for review', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [
+            _application(id: 'app-1', fullName: 'Ramesh Kumar', appliedAt: '2026-08-01T10:00:00Z'),
+            _application(id: 'app-2', fullName: 'Sita Devi', appliedAt: '2026-08-02T10:00:00Z'),
+          ],
+        },
+      ),
+    );
+
+    expect(find.text('2 candidates applied in total'), findsOneWidget);
+    expect(find.text('Reviewing candidate 1 of 2 awaiting your decision'), findsOneWidget);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    expect(find.text('Sita Devi'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right job and application id', (tester) async {
@@ -219,6 +254,67 @@ void main() {
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets('rejecting requires a reason — Confirm stays disabled until something is typed', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement()],
+      applicationsByJobId: {
+        'job-1': [_application()],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Decline this candidate'), findsOneWidget);
+    var confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
+    expect(confirmButton.onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Schedule does not match');
+    await tester.pump();
+    confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
+    expect(confirmButton.onPressed, isNotNull);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedJobId, 'job-1');
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'rejected');
+    expect(repo.decidedReason, 'Schedule does not match');
+  });
+
+  testWidgets('cancelling the reject dialog does not call the repository', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement()],
+      applicationsByJobId: {
+        'job-1': [_application()],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedApplicationId, isNull);
+  });
+
+  testWidgets('a decided/rejected applicant shows the reason underneath in the read-only history', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not available on weekends')],
+        },
+      ),
+    );
+
+    expect(find.text('Your reason: Not available on weekends'), findsOneWidget);
   });
 
   testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {

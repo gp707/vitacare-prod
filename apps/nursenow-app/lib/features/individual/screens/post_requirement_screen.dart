@@ -6,9 +6,22 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
 
+class _MandatoryField {
+  final GlobalKey key;
+  final bool isValid;
+  final FocusNode? focusNode;
+
+  const _MandatoryField(this.key, this.isValid, {this.focusNode});
+}
+
 /// Same About Patient / location / duty-type / language-preference fields
 /// as admin's job-posting form — minus Frequency of Care and Salary, which
 /// an admin sets later on approval. Creates a pending_review requirement.
+///
+/// Submit is always tappable (mirrors admin-web's AdminJobsScreen form): if
+/// a mandatory field is missing, tapping it flags every missing mandatory
+/// field red and scrolls/focuses straight to the first one instead of
+/// submitting — rather than a single generic top-of-form error message.
 class PostRequirementScreen extends ConsumerStatefulWidget {
   const PostRequirementScreen({super.key});
 
@@ -36,13 +49,34 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _areaController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _dutyType;
-  final _startDateController = TextEditingController();
+  DateTime? _startDate;
   final List<String> _languages = [];
   String? _preferredGender;
   String? _preferredReligion;
 
   bool _saving = false;
   String? _error;
+
+  // Only text-based mandatory fields need a FocusNode — that's what lets
+  // Submit literally put the cursor in the first one that's missing.
+  final _ageFocusNode = FocusNode();
+  final _weightFocusNode = FocusNode();
+  final _areaFocusNode = FocusNode();
+
+  // One key per mandatory field, in the order they appear on the form, so
+  // Submit can scroll to whichever one is first still-invalid.
+  final _ageKey = GlobalKey();
+  final _genderKey = GlobalKey();
+  final _weightKey = GlobalKey();
+  final _cityKey = GlobalKey();
+  final _areaKey = GlobalKey();
+  final _dutyTypeKey = GlobalKey();
+  final _startDateKey = GlobalKey();
+  final _languagesKey = GlobalKey();
+
+  // Only turns true once Submit has been pressed with something missing —
+  // before that, fields don't show red just because they're empty.
+  bool _showValidationErrors = false;
 
   @override
   void dispose() {
@@ -52,20 +86,91 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     _toiletAssistanceOtherController.dispose();
     _areaController.dispose();
     _descriptionController.dispose();
-    _startDateController.dispose();
+    _ageFocusNode.dispose();
+    _weightFocusNode.dispose();
+    _areaFocusNode.dispose();
     super.dispose();
   }
 
+  int? get _age => int.tryParse(_ageController.text.trim());
+  int? get _weightKg => int.tryParse(_weightController.text.trim());
+
+  bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
+  bool get _isGenderValid => _gender != null;
+  bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
+  bool get _isCityValid => _city != null;
+  bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
+  bool get _isDutyTypeValid => _dutyType != null;
+  bool get _isStartDateValid => _startDate != null;
+  bool get _isLanguagesValid => _languages.isNotEmpty;
+
+  bool get _canSubmit =>
+      !_saving &&
+      _isAgeValid &&
+      _isGenderValid &&
+      _isWeightValid &&
+      _isCityValid &&
+      _isAreaValid &&
+      _isDutyTypeValid &&
+      _isStartDateValid &&
+      _isLanguagesValid;
+
+  /// In on-form order, so the first invalid one found here is genuinely the
+  /// first one the patient/family sees when Submit scrolls them to it.
+  List<_MandatoryField> get _mandatoryFieldsInOrder => [
+        _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
+        _MandatoryField(_genderKey, _isGenderValid),
+        _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+        _MandatoryField(_cityKey, _isCityValid),
+        _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
+        _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
+        _MandatoryField(_startDateKey, _isStartDateValid),
+        _MandatoryField(_languagesKey, _isLanguagesValid),
+      ];
+
   Future<void> _pickStartDate() async {
+    final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: _startDate ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
     );
-    if (picked != null) {
-      _startDateController.text = picked.toIso8601String().split('T').first;
+    if (picked != null) setState(() => _startDate = picked);
+  }
+
+  /// Submit is always tappable — this is what runs when it's pressed. With
+  /// something missing, it flags every missing mandatory field red and
+  /// jumps straight to the first one instead of submitting.
+  Future<void> _handleSubmitPressed() async {
+    if (_saving) return;
+    if (!_canSubmit) {
+      setState(() => _showValidationErrors = true);
+      _MandatoryField? firstInvalid;
+      for (final field in _mandatoryFieldsInOrder) {
+        if (!field.isValid) {
+          firstInvalid = field;
+          break;
+        }
+      }
+      if (firstInvalid != null) {
+        final target = firstInvalid;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = target.key.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(
+              ctx,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: 0.1,
+            );
+          }
+          target.focusNode?.requestFocus();
+        });
+      }
+      return;
     }
+    await _submit();
   }
 
   Future<void> _submit() async {
@@ -74,34 +179,11 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _error = null;
     });
     try {
-      final age = int.tryParse(_ageController.text.trim());
-      final weight = int.tryParse(_weightController.text.trim());
-      if (age == null || _gender == null || weight == null) {
-        setState(() => _error = "Patient's age, gender, and weight are required");
-        return;
-      }
-      if (_city == null || _areaController.text.trim().isEmpty) {
-        setState(() => _error = 'City and area are required');
-        return;
-      }
-      if (_dutyType == null) {
-        setState(() => _error = 'Select the hours of care needed');
-        return;
-      }
-      if (_startDateController.text.trim().isEmpty) {
-        setState(() => _error = 'Select a preferred start date');
-        return;
-      }
-      if (_languages.isEmpty) {
-        setState(() => _error = 'Select at least one language');
-        return;
-      }
-
       await ref.read(individualRepositoryProvider).createRequirement(
             careReceiver: CareReceiverInput(
-              age: age,
+              age: _age!,
               gender: _gender!,
-              weightKg: weight,
+              weightKg: _weightKg!,
               mobility: _mobility,
               communication: _communication,
               feedingType: _feedingType,
@@ -118,7 +200,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             area: _areaController.text.trim(),
             description: _descriptionController.text.trim(),
             dutyType: _dutyType!,
-            startDate: _startDateController.text.trim(),
+            startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
             languages: _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
@@ -154,15 +236,27 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             const Text('About Patient', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: AppSpacing.sm),
             TextField(
+              key: _ageKey,
               controller: _ageController,
+              focusNode: _ageFocusNode,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Patient's Age", border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: "Patient's Age (Mandatory)",
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
+              key: _genderKey,
               isExpanded: true,
               initialValue: _gender,
-              decoration: const InputDecoration(labelText: "Patient's Gender", border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: "Patient's Gender (Mandatory)",
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+              ),
               items: Gender.all
                   .map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g))))
                   .toList(),
@@ -170,9 +264,16 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(
+              key: _weightKey,
               controller: _weightController,
+              focusNode: _weightFocusNode,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Patient's Weight (kg)", border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: "Patient's Weight (kg) (Mandatory)",
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
@@ -291,49 +392,105 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             const Text('Job Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<String>(
+              key: _cityKey,
               isExpanded: true,
               initialValue: _city,
-              decoration: const InputDecoration(labelText: 'City (Mandatory)', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'City (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+              ),
               items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
               onChanged: (value) => setState(() => _city = value),
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(
+              key: _areaKey,
               controller: _areaController,
-              decoration: const InputDecoration(labelText: 'Area (Mandatory)', border: OutlineInputBorder()),
+              focusNode: _areaFocusNode,
+              decoration: InputDecoration(
+                labelText: 'Area (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.xl),
             const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<String>(
+              key: _dutyTypeKey,
               isExpanded: true,
               initialValue: _dutyType,
-              decoration: const InputDecoration(labelText: 'Hours Care Needed (Mandatory)', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Hours Care Needed (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+              ),
               items: DutyType.all.map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d))).toList(),
               onChanged: (value) => setState(() => _dutyType = value),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _startDateController,
-              readOnly: true,
-              onTap: _pickStartDate,
-              decoration: const InputDecoration(
-                labelText: 'Preferred Start Date (Mandatory)',
-                border: OutlineInputBorder(),
+            KeyedSubtree(
+              key: _startDateKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Preferred Start Date (Mandatory)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  OutlinedButton(
+                    onPressed: _pickStartDate,
+                    child: Text(
+                      _startDate == null
+                          ? 'Select date'
+                          : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                    ),
+                  ),
+                  if (_showValidationErrors && !_isStartDateValid)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text('Select a preferred start date', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            const Text('Language Preference (Mandatory)', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: AppSpacing.sm),
-            VitaMultiSelectChips(
-              options: Language.all,
-              labels: Language.displayNames,
-              selected: _languages,
-              onChanged: (next) => setState(() {
-                _languages
-                  ..clear()
-                  ..addAll(next);
-              }),
+            KeyedSubtree(
+              key: _languagesKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Language Preference (Mandatory)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  VitaMultiSelectChips(
+                    options: Language.all,
+                    labels: Language.displayNames,
+                    selected: _languages,
+                    onChanged: (next) => setState(() {
+                      _languages
+                        ..clear()
+                        ..addAll(next);
+                    }),
+                  ),
+                  if (_showValidationErrors && !_isLanguagesValid)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text('Select at least one language', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
@@ -374,7 +531,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             ],
             const SizedBox(height: AppSpacing.lg),
             ElevatedButton(
-              onPressed: _saving ? null : _submit,
+              onPressed: _saving ? null : _handleSubmitPressed,
               child: _saving
                   ? const SizedBox(
                       height: 20,

@@ -180,6 +180,13 @@ export const AuditAction = {
   JOB_UPDATED: 'job_updated',
   JOB_COMPLETED: 'job_completed',
   APP_VERSION_UPDATED: 'app_version_updated',
+  // NurseNow Organisation phase — kept distinct from job_* even though the
+  // shape mirrors it, since organisation_requirements is a separate table
+  // from jobs (see migration 041).
+  ORG_REQUIREMENT_POSTED: 'org_requirement_posted',
+  ORG_REQUIREMENT_UPDATED: 'org_requirement_updated',
+  ORG_REQUIREMENT_REJECTED: 'org_requirement_rejected',
+  ORG_REQUIREMENT_APPLICATION_DECIDED: 'org_requirement_application_decided',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -193,11 +200,49 @@ export const UserRole = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
   CAREGIVER: 'caregiver',
-  // NurseNow patient/family account. Organisation isn't added yet — a
-  // later phase's migration/enum change.
+  // NurseNow patient/family account.
   INDIVIDUAL: 'individual',
+  // NurseNow hospital/rehab/clinic account.
+  ORGANISATION: 'organisation',
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const OrganisationType = {
+  HOSPITAL: 'hospital',
+  REHAB: 'rehab',
+  CLINIC: 'clinic',
+} as const;
+export type OrganisationType = (typeof OrganisationType)[keyof typeof OrganisationType];
+
+// Distinct from Qualification (a caregiver's own self-reported
+// credential) — this is the category an organisation requests when
+// posting a requirement.
+export const TypeOfNurse = {
+  REGISTERED_NURSE: 'registered_nurse',
+  STAFF_NURSE: 'staff_nurse',
+  ICU_NURSE: 'icu_nurse',
+  ICU_TRAINED_ATTENDANT: 'icu_trained_attendant',
+  GNM_NURSE: 'gnm_nurse',
+  ANM_NURSE: 'anm_nurse',
+  GDA: 'gda',
+  PATIENT_CARE_ASSISTANT: 'patient_care_assistant',
+  HOME_HEALTH_AIDE: 'home_health_aide',
+  PHYSIOTHERAPIST: 'physiotherapist',
+  ELDERLY_CARE_ATTENDANT: 'elderly_care_attendant',
+  POST_OPERATIVE_CARE_NURSE: 'post_operative_care_nurse',
+} as const;
+export type TypeOfNurse = (typeof TypeOfNurse)[keyof typeof TypeOfNurse];
+
+// organisation_profiles.city is validated against City.all plus this one
+// extra sentinel — a separate org-scoped list, not an extension of the
+// shared City enum (which stays caregiver/job-scoped, used for filtering
+// elsewhere that 'others' would break).
+export const ORGANISATION_CITY_OTHERS = 'others';
+
+// organisation_requirements.status reuses JobStatus's exact 3 values
+// (pending_review/active/closed) — same admin-approval lifecycle, just a
+// separate table. organisation_requirement_applications.status likewise
+// reuses JobApplicationStatus (applied/rejected/accepted/completed).
 
 export const DocumentType = {
   QUALIFICATION: 'qualification',

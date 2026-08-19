@@ -12,6 +12,7 @@ import 'package:nursenow_app/features/auth/state/session_state.dart';
 import 'package:nursenow_app/features/individual/data/individual_model.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/profile_screen.dart';
+import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 
 class _FakeIndividualRepository extends IndividualRepository {
   String? updatedPhone;
@@ -61,8 +62,9 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, repo)
+          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
             ..state = SessionAuthenticated(
+              role: 'individual',
               fullName: 'Asha Patel',
               phone: '+919876543210',
               isJobPostingBlocked: isJobPostingBlocked,
@@ -173,8 +175,13 @@ void main() {
           localStorageProvider.overrideWithValue(localStorage),
           individualRepositoryProvider.overrideWithValue(repo),
           sessionProvider.overrideWith(
-            (ref) => SessionNotifier(localStorage, repo)
-              ..state = const SessionAuthenticated(fullName: 'Asha Patel', phone: '+919876543210', isJobPostingBlocked: false),
+            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+              ..state = const SessionAuthenticated(
+                role: 'individual',
+                fullName: 'Asha Patel',
+                phone: '+919876543210',
+                isJobPostingBlocked: false,
+              ),
           ),
         ],
         child: MaterialApp(

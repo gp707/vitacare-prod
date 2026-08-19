@@ -491,6 +491,7 @@ export const UserRole = {
   ADMIN: 'admin',
   CAREGIVER: 'caregiver',
   INDIVIDUAL: 'individual',     // NurseNow patient/family account — see "NurseNow" in CLAUDE.md
+  ORGANISATION: 'organisation', // NurseNow hospital/rehab/clinic account — see "NurseNow" in CLAUDE.md
 } as const;
 ```
 
@@ -531,6 +532,9 @@ class JobStatus {
 
   static const all = [pendingReview, active, closed];
 }
+// organisation_requirements.status (NurseNow Organisation — hospital/rehab/clinic postings,
+// see "NurseNow" in CLAUDE.md) reuses this exact same 3-value set independently — it is
+// not a foreign key into jobs, just the same enum shape on a separate table.
 
 class JobApplicationStatus {
   static const applied = 'applied';
@@ -984,7 +988,7 @@ CREATE TABLE users (
   password_hash VARCHAR(255),             -- NULL for caregivers, set for admins only
   code_hash VARCHAR(255),                 -- NULL for admins, set at registration for caregivers (4-digit numeric code)
   full_name VARCHAR(100) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'caregiver', 'individual')),  -- 'individual' = NurseNow patient/family account (see NurseNow section); organisation role not yet implemented
+  role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'admin', 'caregiver', 'individual', 'organisation')),  -- 'individual' = NurseNow patient/family account, 'organisation' = NurseNow hospital/rehab/clinic account (see NurseNow section)
   is_active BOOLEAN DEFAULT true,
   fcm_token TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1202,6 +1206,7 @@ CREATE TABLE job_applications (
   applied_at TIMESTAMPTZ,                 -- set on a fresh 'applied' upsert; NULL if they declined without ever applying
   accepted_at TIMESTAMPTZ,                -- set only by an admin decide() to 'accepted'
   rejected_at TIMESTAMPTZ,                -- set by either a caregiver self-decline or an admin decide() to 'rejected' (including undoing a prior acceptance)
+  decline_reason TEXT,                    -- optional on admin's own reject; mandatory (JOB_012) when a NurseNow individual rejects — see "NurseNow" in CLAUDE.md
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(job_id, profile_id)
@@ -1209,6 +1214,91 @@ CREATE TABLE job_applications (
 
 CREATE INDEX idx_job_applications_job ON job_applications(job_id);
 CREATE INDEX idx_job_applications_profile ON job_applications(profile_id);
+
+-- ============================================
+-- ORGANISATION PROFILES TABLE (NurseNow hospital/rehab/clinic accounts —
+-- see "NurseNow" in CLAUDE.md. Mirrors individual_profiles' shape [no
+-- verification pipeline, just the two admin block levers] plus the
+-- registration-collected org identity/location fields. city/area here are
+-- the org's own registered location, reused as every one of its
+-- requirements' location — there is no per-requirement city/area. city is
+-- validated at the DTO layer against the existing 7-city list plus
+-- 'others' [ORGANISATION_CITY_OTHERS] — a separate org-scoped list, NOT an
+-- extension of the shared City enum, which stays caregiver/job-scoped.)
+-- ============================================
+CREATE TABLE organisation_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  organisation_name VARCHAR(200) NOT NULL,
+  contact_person_name VARCHAR(100) NOT NULL,
+  organisation_type VARCHAR(20) NOT NULL CHECK (organisation_type IN ('hospital', 'rehab', 'clinic')),
+  city VARCHAR(30) NOT NULL,               -- org-scoped list: the 7 shared cities + 'others'; not a DB CHECK against the shared City enum
+  area TEXT NOT NULL,
+  is_job_posting_blocked BOOLEAN NOT NULL DEFAULT false,  -- blocks new POST /organisation/requirements only (JOB_010); existing live requirements/applications keep working
+  block_reason TEXT,                        -- admin-entered, shown to the org; also used for a full block (users.is_active = false)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Full block (can't log in at all) reuses users.is_active + AUTH_004, exactly like individual_profiles — no separate column needed.
+
+-- ============================================
+-- ORGANISATION REQUIREMENTS TABLE (an organisation's posted requirement —
+-- deliberately NOT a jobs row, see "NurseNow" in CLAUDE.md: a fundamentally
+-- different posting shape, no care_receiver, a "type of nurse" enum
+-- instead of a qualification enum, accommodation/food/special-skills
+-- fields, no city/area/duty_type [inherited from the posting org's own
+-- organisation_profiles row]. Unlike an Individual's postings, there is
+-- NO one-live-requirement limit — an org may have many simultaneous
+-- pending_review/active requirements.)
+-- ============================================
+CREATE TABLE organisation_requirements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requirement_number SERIAL UNIQUE,        -- short sequential id, distinct from id (UUID) — same "Job #<n>"-style pattern as jobs.job_number
+  posted_by UUID NOT NULL REFERENCES users(id),  -- always users.role = 'organisation'
+  type_of_nurse VARCHAR(40) NOT NULL,      -- validated at the DTO layer against a fixed 12-value list (TypeOfNurse), not a DB CHECK, so it can be adjusted without a migration; distinct from a caregiver's own Qualification
+  frequency_of_care VARCHAR(10) CHECK (frequency_of_care IN ('daily', 'monthly')),  -- nullable: created null, admin sets it on approval — same null-until-approved pattern as jobs.frequency_of_care for an individual's posting
+  salary_amount INTEGER CHECK (salary_amount > 0),  -- admin-set on approval
+  start_date DATE,                          -- admin-set on approval; only ever persisted when frequency_of_care = 'daily' (enforced at the service layer, not a DB constraint) — null for 'monthly'
+  accommodation_provided BOOLEAN NOT NULL,
+  food_provided BOOLEAN NOT NULL,
+  special_skills TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending_review'
+    CHECK (status IN ('pending_review', 'active', 'closed')),
+  rejection_reason TEXT,                    -- set only when admin rejects a pending_review requirement; null otherwise, including a normal close
+  posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- starts = created_at, bumped to NOW() only when admin approves-from-pending_review or reposts a closed requirement
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_organisation_requirements_status ON organisation_requirements(status);
+CREATE INDEX idx_organisation_requirements_posted_by ON organisation_requirements(posted_by);
+
+-- ============================================
+-- ORGANISATION REQUIREMENT APPLICATIONS TABLE (caregiver applications to
+-- an organisation requirement — a separate table from job_applications,
+-- same reasoning as organisation_requirements itself, but shaped
+-- identically, including 'completed' status and decline_reason from day
+-- one [job_applications only grew those in migrations 035/040].)
+-- ============================================
+CREATE TABLE organisation_requirement_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requirement_id UUID NOT NULL REFERENCES organisation_requirements(id) ON DELETE CASCADE,
+  profile_id UUID NOT NULL REFERENCES caregiver_profiles(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL CHECK (status IN ('applied', 'rejected', 'accepted', 'completed')),
+  decided_by UUID REFERENCES users(id),     -- org (or admin) who accepted/rejected; NULL while the caregiver's own action produced the current status
+  applied_at TIMESTAMPTZ,
+  accepted_at TIMESTAMPTZ,
+  rejected_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  decline_reason TEXT,                      -- optional here (unlike NurseNow Individual's mandatory JOB_012 rule) — Organisation's applicant review is a free list, not the forced one-at-a-time flow
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(requirement_id, profile_id)
+);
+
+CREATE INDEX idx_org_requirement_applications_requirement ON organisation_requirement_applications(requirement_id);
+CREATE INDEX idx_org_requirement_applications_profile ON organisation_requirement_applications(profile_id);
 
 -- ============================================
 -- APP MIN VERSIONS TABLE (force-upgrade)
@@ -1247,7 +1337,11 @@ CREATE TABLE audit_logs (
     'job_response',
     'job_application_decided',
     'job_updated',
-    'app_version_updated'
+    'app_version_updated',
+    'org_requirement_posted',
+    'org_requirement_updated',
+    'org_requirement_rejected',
+    'org_requirement_application_decided'
   )),
   entity_type VARCHAR(50) NOT NULL,
   entity_id UUID,
@@ -2750,8 +2844,9 @@ returns `GEN_002` (there's simply no matching row to update). Audit-logs
 ### 6.10 NurseNow Individual Endpoints
 
 See "NurseNow" in CLAUDE.md for the full design context. `@Roles(UserRole.INDIVIDUAL)`,
-`src/individual/`. Only the Individual (patient/family) account type is implemented — no
-Organisation endpoints exist yet.
+`src/individual/`. This covers the Individual (patient/family) account type; the Organisation
+(hospital/rehab/clinic) account type — built on its own dedicated tables/codepath rather than
+reusing jobs/care_receivers — is documented separately in 6.11.
 
 Registration/login reuse the auth endpoints in 6.3: `POST /auth/register/individual`
 (`phone`, `full_name`, `code`) and `POST /auth/login/code` (shared with caregiver login, same
@@ -2796,6 +2891,11 @@ Accept/reject an applicant — same body/behavior as the admin decide-applicatio
 accepting closes the requirement and assigns the caregiver; rejecting a still-`applied` applicant
 just declines them. Ownership-checked (`GEN_002` if not the requirement's owner); admin can do the
 exact same decision via the regular `PATCH /admin/jobs/:jobId/applications/:applicationId`.
+**Unlike admin's flow, rejecting here requires a non-blank `reason` in the request body —
+`JOB_012` otherwise.** This is enforced in `IndividualService.decideMyApplication`, not in the
+shared `DecideApplicationDto` (there `reason` is optional, so admin's own reject stays as-is).
+The reason is stored in `job_applications.decline_reason` and returned on subsequent
+`GET .../applications` calls, so the individual can see what they wrote after the fact.
 
 #### PATCH `/individual/profile/phone` + PATCH `/individual/profile/code`
 
@@ -2821,6 +2921,147 @@ already registered to another account. Both audit-log (`phone_changed`/`code_cha
   admin/super_admin, backs admin-web's "Patients/Family" tab. `job_posting` block only stops new
   postings (`JOB_010`, existing live requirement keeps working); `full` block sets
   `users.is_active = false` (total login lockout, `AUTH_004`).
+
+---
+
+### 6.11 NurseNow Organisation Endpoints
+
+See "NurseNow" in CLAUDE.md for the full design context. `@Roles(UserRole.ORGANISATION)`,
+`src/organisation/`. **Entirely separate tables/codepath from jobs/care_receivers/
+job_applications** (which Individual reuses, 6.10) — `organisation_profiles`,
+`organisation_requirements`, `organisation_requirement_applications` (migration 041), mirroring
+the *shape* of the jobs pipeline (same `pending_review → active → closed` status values, same
+`applied/rejected/accepted/completed` application states, `decline_reason` from day one) without
+reusing any of its tables. A requirement has no `care_receiver`, no `city`/`area`/`duty_type` —
+those are collected once at org registration and every requirement inherits them from the org's
+own `organisation_profiles` row. **Unlike Individual, there is no one-live-requirement limit** —
+an org can have many simultaneous `pending_review`/`active` requirements at once, a deliberate
+scope difference (a hospital/rehab genuinely needs to fill several openings simultaneously).
+
+Registration/login reuse the auth endpoints in 6.3: `POST /auth/register/organisation`
+(`phone`, `code`, `organisation_name`, `contact_person_name`, `organisation_type`, `city`,
+`area`) and `POST /auth/login/code` (shared with caregiver/individual login, same
+phone+4-digit-code mechanic, non-expiring token). `organisation_type` is one of
+`hospital`/`rehab`/`clinic`. `city` accepts the existing 7 cities plus `others`
+(`ORGANISATION_CITY_OTHERS`) — a separate org-scoped list validated at the DTO layer, not an
+extension of the shared `City` enum. Response on success: `{ user_id, access_token,
+refresh_token }` — no `verification_status`, same as Individual registration.
+
+#### GET `/organisation/me`
+
+Returns the caller's own account: `{ user_id, organisation_name, contact_person_name,
+organisation_type, city, area, phone, is_job_posting_blocked }`.
+
+#### POST `/organisation/requirements`
+
+Creates a new requirement. Request body (`CreateOrganisationRequirementDto`): `type_of_nurse`
+(one of the 12 `TypeOfNurse` values), `accommodation_provided` (boolean), `food_provided`
+(boolean), `special_skills` (optional, free text, max 1000 chars) — **no `care_receiver`, no
+`city`/`area`/`duty_type`** (inherited from the org's profile), and **no
+`frequency_of_care`/`salary_amount`/`start_date`**, which admin sets during approval. Always
+created with `status: 'pending_review'`. No one-live-requirement check (unlike `JOB_009` on
+Individual's equivalent endpoint).
+
+**Errors:** `JOB_010` (`organisation_profiles.is_job_posting_blocked = true`), plus standard
+field-validation (`GEN_001`).
+
+#### GET `/organisation/requirements`
+
+The caller's **full requirement history** — every past posting, not just current ones, newest
+first (`ORDER BY created_at DESC`). Once `active`, `frequency_of_care`/`salary_amount`/
+`start_date` are populated (admin-set on approval); while `pending_review` they're `null`. A
+`closed` requirement that was declined carries `rejection_reason`.
+
+#### GET `/organisation/requirements/:id/applications`
+
+Applicants on the caller's own requirement — each item carries the caregiver's `full_name`/
+`phone` plus the full application timeline (`applied_at`/`accepted_at`/`rejected_at`/
+`completed_at`) and `decided_by_name` (resolved via a join, `null` while undecided). `GEN_002` if
+the requirement isn't found or isn't owned by the caller. Callable regardless of the
+requirement's status, so the applicant list (including who was accepted) stays visible after the
+requirement closes.
+
+#### PATCH `/organisation/requirements/:requirementId/applications/:applicationId`
+
+Accept/reject an applicant — same body as the admin decide-application endpoint
+(`DecideApplicationDto`: `{ status: 'accepted' | 'rejected', reason? }`). Ownership-checked
+(`GEN_002` if not the requirement's owner), then delegates to the same
+`OrganisationRequirementsService.decideApplication` method admin's own decide-application
+endpoint calls (accepting closes the requirement and sets the caregiver's `verification_status`
+to `assigned`; rejecting a still-`applied` applicant just declines them; rejecting a previously
+`accepted` applicant reopens the requirement and returns the caregiver to `available`).
+**Unlike Individual's equivalent endpoint, `reason` is optional here** — Organisation's
+applicant review is a free list, not Individual's forced one-at-a-time/mandatory-reason flow
+(see "NurseNow" in CLAUDE.md for why this asymmetry is deliberate, not an oversight).
+`JOB_006` if the application isn't found or doesn't belong to the requirement; `JOB_007` if
+already decided in a way that doesn't match one of the three valid transitions
+(applied→accepted, applied→rejected, accepted→rejected/undo).
+
+#### PATCH `/organisation/profile/phone` + PATCH `/organisation/profile/code`
+
+Self-service phone number and 4-digit login PIN change — reuse caregiver's `UpdatePhoneDto`
+(`{ phone }`) / `UpdateCodeDto` (`{ code }`) unchanged, same as Individual's equivalent (6.10).
+No re-review logic — an organisation account has no verification pipeline to send back. Phone:
+no-op if unchanged; `AUTH_001` if the new number is already registered to another account. Both
+audit-log (`phone_changed`/`code_changed`, `entity_type: 'organisation_profiles'`).
+
+#### Caregiver-facing (`src/organisation/caregiver-organisation-requirements.controller.ts`, `@Roles(UserRole.CAREGIVER)`)
+
+A **deliberately separate section from the regular Jobs tab** — product decision confirmed
+explicitly, not merged in. Backs caregiver-app's 4th bottom-nav tab, "Organisation Openings".
+
+- **GET `/caregiver/organisation-requirements`** — every `active` requirement, joined with its
+  posting org's `organisation_name`/`organisation_type`/`city`/`area`. Unlike
+  `GET /caregiver/jobs`, there is **no per-caregiver filtering yet** (no gender/preferred-city/
+  preferred-duty-type/salary filtering equivalent) — every caregiver sees every active
+  requirement.
+- **GET `/caregiver/organisation-requirements/assigned`** — mirrors `GET /caregiver/jobs/
+  assigned`'s array-of-`accepted`-or-`completed` shape (oldest-decision-first by `updated_at`),
+  backing the "Organisation Openings" tab's own held/completed list. Each item is an
+  `organisation_requirement_applications` row plus the caregiver's own `full_name`/`phone`
+  (joined for parity with the org/admin-facing applicant list query) — it does **not** additionally
+  join in the posting organisation's own contact info the way `GET /caregiver/jobs/assigned`'s
+  `job_poster` does for jobs.
+- **POST `/caregiver/organisation-requirements/:id/apply`** — same `ApplyJobDto` body
+  (`{ status: 'applied' | 'rejected' }`) and eligibility rule as jobs (`available`/`assigned`
+  only, `JOB_001` otherwise); `JOB_002` if the requirement isn't `active`. Response:
+  `{ message, status }`.
+- **POST `/caregiver/organisation-requirements/:id/complete`** — caregiver-only, no body. Mirrors
+  `POST /caregiver/jobs/:id/complete` exactly: flips that one application to `completed`
+  (`completed_at` stamped) and drops `verification_status` back to `available` only once no other
+  `accepted` applications remain (across both jobs and organisation requirements — they share the
+  same `caregiver_profiles.verification_status` field). `JOB_008` if there's no active accepted
+  application for that requirement. Response: `{ message, verification_status }`.
+
+#### Admin-facing (`src/organisation/admin-organisation-requirements.controller.ts`,
+`admin/admin-organisations.controller.ts` — admin/super_admin)
+
+- **`GET /admin/organisation-requirements`** (optional `status` query filter, paginated) /
+  **`GET /admin/organisation-requirements/:id`** (adds the full `applications` array plus
+  `organisation_name`/`organisation_type`/`city`/`area` joined from the posting org).
+- **`PATCH /admin/organisation-requirements/:id`** — the approval path, same "edit with full
+  shape" pattern as Individual (6.10): body requires `type_of_nurse`, `frequency_of_care`,
+  `salary_amount`, `accommodation_provided`, `food_provided`, plus optional `start_date`
+  (required — `ORG_001` — only when `frequency_of_care` is `daily`; ignored/nulled server-side
+  for `monthly` regardless of what's sent) and optional `special_skills`. Transitions
+  `pending_review` (or a `closed` requirement) to `active` and stamps `posted_at` — activating
+  sends the `"New Organisation Opening"` push to all caregivers; a plain edit of an already-
+  `active` requirement does not resend it.
+- **`PATCH /admin/organisation-requirements/:id/reject`** (`{ reason }`, reusing `RejectJobDto`)
+  — sets `status: 'closed'` + `rejection_reason`. `JOB_011` if not currently `pending_review`.
+- **`PATCH /admin/organisation-requirements/:requirementId/applications/:applicationId`** — the
+  same `OrganisationRequirementsService.decideApplication` the org itself calls; admin has full
+  parity to decide an application on any organisation-posted requirement.
+- **`GET /admin/organisations`** (paginated) / **`GET /admin/organisations/:id`** — list/detail
+  of every organisation account (`user_id, full_name, phone, organisation_name,
+  organisation_type, city, area, is_active, is_job_posting_blocked, block_reason, created_at`),
+  backs admin-web's "Rehab/Hospitals" tab.
+- **`PATCH /admin/organisations/:id/block`** (`{ level: 'job_posting' | 'full', reason }`) /
+  **`PATCH /admin/organisations/:id/unblock`** (`{ level }`) — reuses the exact same
+  `BlockIndividualDto`/`UnblockIndividualDto` Individual's block endpoints use (role-agnostic).
+  `job_posting` block only stops new `POST /organisation/requirements` (`JOB_010`) — existing
+  live requirements and their applications keep working; `full` block sets `users.is_active =
+  false` (total login lockout, `AUTH_004`).
 
 ---
 
@@ -2895,8 +3136,15 @@ already registered to another account. Both audit-log (`phone_changed`/`code_cha
 | JOB_007 | 400 | Application has already been decided | double-accept, or re-deciding an already-rejected application |
 | JOB_008 | 400 | No active accepted application found for this job | caregiver `POST .../complete` when never applied, still `applied`, already `rejected`, or already `completed` |
 | JOB_009 | 400 | You already have a requirement in progress | NurseNow individual `POST /individual/requirements` while a `pending_review`/`active` requirement already exists |
-| JOB_010 | 403 | Your account is blocked from posting new requirements | NurseNow individual with `individual_profiles.is_job_posting_blocked = true` |
-| JOB_011 | 400 | Only a pending-review requirement can be rejected | `PATCH /admin/jobs/:id/reject` on a job not in `pending_review` |
+| JOB_010 | 403 | Your account is blocked from posting new requirements | NurseNow individual with `individual_profiles.is_job_posting_blocked = true`, or NurseNow organisation with `organisation_profiles.is_job_posting_blocked = true` (`POST /organisation/requirements`, 6.11) |
+| JOB_011 | 400 | Only a pending-review requirement can be rejected | `PATCH /admin/jobs/:id/reject` on a job not in `pending_review`, or `PATCH /admin/organisation-requirements/:id/reject` (6.11) on a requirement not in `pending_review` |
+| JOB_012 | 400 | A reason is required when declining an applicant | NurseNow individual `PATCH /individual/requirements/:jobId/applications/:applicationId` with `status: 'rejected'` and no/blank `reason` — admin's equivalent admin-web decision stays reason-optional. **Not reused by NurseNow Organisation** (6.11) — an org's/admin's decision on an organisation requirement's applicant stays reason-optional, matching admin's own jobs-decision UX (a deliberate asymmetry, not an oversight) |
+
+### 7.5a NurseNow Organisation Errors (ORG_xxx)
+
+| Code | HTTP Status | Message | When |
+|------|-------------|---------|------|
+| ORG_001 | 400 | Preferred start date is required when frequency of care is daily | `PATCH /admin/organisation-requirements/:id` (6.11) with `frequency_of_care: 'daily'` and no/blank `start_date` |
 
 ### 7.6 General Errors (GEN_xxx)
 
@@ -3148,6 +3396,7 @@ Implemented as a NestJS interceptor that wraps every mutating request.
 | 8 | Rejection Details | `/rejection` | Authenticated, status = rejected |
 | 9 | Home | `/home` | Authenticated, status = available/assigned |
 | 9a | Jobs Dashboard | `/jobs` | Authenticated, any status (view jobs; respond only if available/assigned) |
+| 9b | Organisation Openings | `/organisation-openings` | Authenticated, any status — bottom nav tab 4; browse/apply against NurseNow Organisation-posted requirements, a separate table from jobs (see 6.11) |
 | 10 | Profile View | `/profile` | Authenticated, any status |
 | 11 | Edit Profile (incl. document upload) | `/profile/edit` | Authenticated, any status |
 | 14 | Settings | `/settings` | Authenticated |
@@ -3237,6 +3486,12 @@ Route by verification_status:
 - Pull-to-refresh for new jobs.
 - Gear icon (`Icons.tune`) in the app bar → Job Search Preferences screen (preferred city, preferred shift/duty type, minimum salary per day/month — all dynamically filter this list, see `GET /caregiver/jobs` in 6.5). Saving pops back here and immediately reloads the list.
 
+#### Organisation Openings (`/organisation-openings`)
+- A **deliberately separate section from the Jobs tab** — bottom-nav tab 4, not merged into Jobs Dashboard (explicit product decision, see "NurseNow" in CLAUDE.md and 6.11).
+- List of every `active` NurseNow Organisation requirement (`GET /caregiver/organisation-requirements`), each card showing the posting org's name/type/city/area, Type of Nurse, Accommodation/Food, Special Skills, and (once admin-approved) Frequency of Care/Salary/Preferred Start Date.
+- Action buttons per requirement: **Apply**, **Reject** — same mechanic as Jobs Dashboard (`POST .../:id/apply`). No preference-based filtering yet (unlike the Jobs tab's gear-icon preferences).
+- Held/completed requirements (`GET .../assigned`) with a per-requirement **"Mark Complete"** button (`POST .../:id/complete`), mirroring MyJobs' behavior exactly — the two accepted-jobs pools (regular jobs and organisation requirements) share the same `verification_status`, so a caregiver already `assigned` to one can still accept the other.
+
 #### Profile View (`/profile`)
 - Display all profile information (read-only).
 - "Edit" button.
@@ -3264,7 +3519,7 @@ Route by verification_status:
 ### 12.4 Navigation Rules
 
 **DO NOT:**
-- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding. 3 tabs: Profile, Jobs, MyJobs (the caregiver's own assigned job — see `GET /caregiver/jobs/assigned`).
+- Show bottom navigation bar at all times after registration (including pending statuses). Seeing jobs motivates caregivers to complete onboarding. 4 tabs: Profile, Jobs, MyJobs (the caregiver's own assigned/completed jobs — see `GET /caregiver/jobs/assigned`), and Organisation Openings (`/organisation-openings` — the NurseNow Organisation-posted requirements a caregiver can browse/apply/hold, a fully parallel state machine to Jobs/MyJobs against a separate table; see 6.11).
 - Do NOT allow back navigation from Pending Call to Registration (registration is complete).
 
 ---
@@ -3272,24 +3527,35 @@ Route by verification_status:
 ### 12.5 NurseNow App — Screens & Navigation
 
 Separate Flutter app (`apps/nursenow-app`), not a tab/mode inside the caregiver app — see
-"NurseNow" in CLAUDE.md. Only the Individual (patient/family) account type is built; the
-registration screen's account-type selector shows an Organisation option that is stubbed
-("coming soon") for this phase.
+"NurseNow" in CLAUDE.md. **Both account types are built**: Individual (patient/family), and
+Organisation (hospital/rehab/clinic) — a genuinely different account type sharing only the
+Login/Splash flow and the registration screen's phone/PIN prefix, then branching to its own
+home route, posting screen, and requirement shape (6.11).
 
 | Screen Name | Route | Access Condition |
 |-------------|-------|-------------------|
 | Splash | `/` | Always (app launch) |
 | Login | `/login` | Unauthenticated — phone + 4-digit code (same mechanic as caregiver-app) |
-| Registration | `/register` | Unauthenticated — phone → PIN → full name → account-type selector (Individual / Hospital-Rehab) |
-| Jobs Posted | `/home` | Authenticated — bottom nav tab 2 |
-| Profile | `/profile` | Authenticated — bottom nav tab 1 |
-| Post Requirement | `/post-requirement` | Authenticated, no live requirement, not `is_job_posting_blocked` |
+| Registration | `/register` | Unauthenticated — phone → PIN → full name → account-type selector (Individual / Organisation). Choosing Organisation reveals `organisation_name`, `organisation_type` (dropdown: Hospital/Rehab/Clinic), `city` (dropdown, incl. Others), and `area` fields in place of the Individual branch's plain full-name field |
+| Jobs Posted | `/home` | Authenticated as Individual — bottom nav tab 2 |
+| Profile | `/profile` | Authenticated as Individual — bottom nav tab 1 |
+| Post Requirement | `/post-requirement` | Authenticated as Individual, no live requirement, not `is_job_posting_blocked` |
+| Requirements Posted | `/org-home` | Authenticated as Organisation — sole top-level screen (no bottom nav) |
+| Post Organisation Requirement | `/org-post-requirement` | Authenticated as Organisation, not `is_job_posting_blocked` (no live-requirement limit, unlike Individual) |
 
-There is no status-gated routing like the caregiver app's `verification_status` — an Individual
-account has no verification pipeline, just the two independent block levers (job-posting block,
-full block) described in the NurseNow section of CLAUDE.md. Once authenticated, a 2-tab bottom
-nav (`NurseNowBottomNav`, mirroring NurseJobs' `CaregiverBottomNav`) is shown on both top-level
-screens — Profile and Jobs Posted — switching tabs via `pushReplacementNamed`, not a stack push.
+There is no status-gated routing like the caregiver app's `verification_status` for either
+account type — neither has a verification pipeline, just the two independent block levers
+(job-posting block, full block) described in the NurseNow section of CLAUDE.md. Since the
+shared `POST /auth/login/code` response doesn't indicate role, post-login routing decodes the
+role client-side from the JWT (`core/jwt_decode.dart`'s `decodeJwtPayload()`, a base64url decode
+of the token's middle segment, no signature verification — purely to pick a home route); decode
+failure falls back to Individual for backward compatibility. An Individual session gets the
+2-tab bottom nav below; an **Organisation session has no bottom nav at all** — `/org-home` is
+its sole top-level screen, reached directly after login/registration.
+
+Once authenticated as Individual, a 2-tab bottom nav (`NurseNowBottomNav`, mirroring NurseJobs'
+`CaregiverBottomNav`) is shown on both top-level screens — Profile and Jobs Posted — switching
+tabs via `pushReplacementNamed`, not a stack push.
 
 **Profile screen**: account identity (name, phone), a job-posting-blocked notice if applicable,
 independently-saved Phone Number and Login PIN sections (`PATCH /individual/profile/phone` /
@@ -3299,13 +3565,40 @@ Logout.
 **Jobs Posted screen**: the account's **full requirement history** (`GET /individual/requirements`,
 6.10) — every past posting, not just the current one, newest first. Each card renders the full
 About Patient / About Nurse-Caregiver Requirement detail inline (including the free-text
-description) and, for every requirement past `pending_review`, its applicants list with
-Accept/Reject per still-`applied` applicant — shown regardless of the requirement's current status,
-so an accepted caregiver's name/phone stay visible even after the requirement closes. A "Post a
-Requirement" CTA is shown whenever the account has **no live requirement** (none `pending_review`
-or `active`) — not merely whenever the history is empty, so posting again is always available once
-the current one closes or is rejected; `JOB_009` server-side is the backstop, the UI computes the
-same live/not-live signal client-side from the fetched list.
+description) and, for every requirement past `pending_review`, an applicants section: the total
+applicant count up front, then a **forced one-at-a-time review** of undecided (`applied`)
+candidates — only the single oldest-undecided candidate is shown, with Accept/Reject, and the next
+one isn't revealed until this one is decided. **Rejecting requires a reason** — the dialog's
+Confirm button stays disabled until non-empty text is entered, matching the server-side `JOB_012`
+backstop (6.10). Already-decided candidates (from this session or earlier) remain visible below in
+a read-only list, including the accepted one's name/phone and any stored decline reasons — this
+history is shown regardless of the requirement's current status, so it stays visible even after
+the requirement closes. A "Post a Requirement" CTA is shown whenever the account has **no live
+requirement** (none `pending_review` or `active`) — not merely whenever the history is empty, so
+posting again is always available once the current one closes or is rejected; `JOB_009`
+server-side is the backstop, the UI computes the same live/not-live signal client-side from the
+fetched list.
+
+**Post Requirement and Registration screens use the same mandatory-field validation UX as
+admin-web's job-posting form** (13.3's `AdminJobsScreen`): submit is always tappable; on a missing
+mandatory field it flags every missing one red (inline error text) and scrolls/focuses straight to
+the first invalid field, rather than a single generic error message.
+
+**Requirements Posted screen (`/org-home`, Organisation)**: an always-postable list — **no
+live-limit banner**, unlike Individual's Jobs Posted screen, since Organisation has no
+one-live-requirement rule. Renders `GET /organisation/requirements` (6.11), the account's full
+requirement history newest-first, each card showing Type of Nurse, Accommodation/Food, Special
+Skills, and (once past `pending_review`) Frequency of Care/Salary/Preferred Start Date once
+admin sets them. Applicant review here is the **simple non-forced Accept/Reject** described in
+6.11 — a free list with an optional reason, not Individual's forced one-at-a-time/
+mandatory-reason flow. A "Post a Requirement" CTA is always visible (no live/not-live gating).
+
+**Post Organisation Requirement screen (`/org-post-requirement`)**: the "exclusive" org form —
+Type of Nurse dropdown (12 values), Accommodation Provided / Food Provided Yes-No toggles, and
+an optional Special Skills free-text field. **No About Patient / Job Location sections at all**
+— city/area are inherited from the org's own registration, and there's no `care_receiver` for an
+organisation requirement. Same always-tappable-submit / highlight-and-scroll validation pattern
+as every other NurseNow form.
 
 ---
 
@@ -3324,6 +3617,8 @@ same live/not-live signal client-side from the fetched list.
 | 7 | Settings | `/settings` | Admin, Super Admin |
 | 8 | App Versions | `/app-versions` | Admin, Super Admin |
 | 9 | Patients/Family | `/patients-family` | Admin, Super Admin |
+| 10 | Rehab/Hospitals | `/rehab-hospitals` | Admin, Super Admin |
+| 11 | Rehab Requirements | `/rehab-requirements` | Admin, Super Admin |
 
 ### 13.2 Navigation Structure
 
@@ -3332,6 +3627,8 @@ same live/not-live signal client-side from the fetched list.
 - Caregivers (icon: people)
 - Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
 - Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
+- Rehab/Hospitals (`OrganisationsListScreen`) — NurseNow organisation (hospital/rehab/clinic) accounts; mirrors Patients/Family exactly — list + block/unblock at either level (`job_posting`/`full`), see "NurseNow" in CLAUDE.md and 6.11
+- Rehab Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Approve (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when Daily is picked), Reject (reason-required dialog), and Applicants (Accept/Reject per applicant, optional reason) actions
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

@@ -60,6 +60,8 @@ class ErrorCodes {
     'JOB_009': 'You already have a requirement in progress',
     'JOB_010': 'Your account is blocked from posting new requirements',
     'JOB_011': 'Only a pending-review requirement can be rejected',
+    'JOB_012': 'A reason is required when declining an applicant',
+    'ORG_001': 'Preferred start date is required when frequency of care is daily',
 
     // General
     'GEN_001': 'Invalid request body',

@@ -349,6 +349,63 @@ describe('Individual (NurseNow) (e2e)', () => {
       void applyRes;
     });
 
+    it('requires a reason to reject an applicant (JOB_012), and stores it once given', async () => {
+      const individual = await registerIndividual('0027');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0122');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      const noReason = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'rejected' })
+        .expect(400);
+      expect(noReason.body.error.code).toBe('JOB_012');
+
+      const blankReason = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'rejected', reason: '   ' })
+        .expect(400);
+      expect(blankReason.body.error.code).toBe('JOB_012');
+
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'rejected', reason: 'Schedule does not match our needs' })
+        .expect(200);
+
+      const afterDecision = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(afterDecision.body.data[0].status).toBe('rejected');
+      expect(afterDecision.body.data[0].decline_reason).toBe('Schedule does not match our needs');
+    });
+
     it("rejects deciding on another individual's requirement (ownership check, GEN_002)", async () => {
       const owner = await registerIndividual('0010');
       const outsider = await registerIndividual('0011');

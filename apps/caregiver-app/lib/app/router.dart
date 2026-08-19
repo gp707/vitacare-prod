@@ -7,6 +7,7 @@ import '../features/profile/screens/profile_view_screen.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
 import '../features/jobs/screens/jobs_screen.dart';
 import '../features/jobs/screens/my_assignment_screen.dart';
+import '../features/organisation_openings/screens/organisation_openings_screen.dart';
 
 /// Availability/Home/Jobs/Settings routes are added in later phases as
 /// those features land (SPEC.md 12.1). This covers the onboarding funnel:
@@ -25,5 +26,6 @@ Map<String, WidgetBuilder> buildRoutes() {
     '/profile/edit': (context) => const EditProfileScreen(),
     '/jobs': (context) => const JobsScreen(),
     '/my-jobs': (context) => const MyAssignmentScreen(),
+    '/organisation-openings': (context) => const OrganisationOpeningsScreen(),
   };
 }

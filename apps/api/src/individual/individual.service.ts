@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, JobStatus } from '@vitacare/shared-constants';
+import { AuditAction, Config, JobApplicationStatus, JobStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
@@ -161,7 +161,10 @@ export class IndividualService {
    *  (closes the job, flips the caregiver to assigned/available) — an
    *  individual deciding on their own requirement has exactly the same
    *  effect as admin deciding on it. Ownership-checked first; admin has
-   *  its own separate endpoint for deciding on any job. */
+   *  its own separate endpoint for deciding on any job. Unlike admin's
+   *  flow, a reason is mandatory when rejecting (JOB_012) — enforced here,
+   *  not in the shared DecideApplicationDto, so admin's own reject stays
+   *  optional. */
   async decideMyApplication(
     userId: string,
     jobId: string,
@@ -171,6 +174,9 @@ export class IndividualService {
   ) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    if (dto.status === JobApplicationStatus.REJECTED && !dto.reason?.trim()) {
+      throw new AppException('JOB_012');
+    }
     return this.jobsService.decideApplication(userId, jobId, applicationId, dto, ipAddress);
   }
 }

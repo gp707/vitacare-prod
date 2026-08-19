@@ -74,6 +74,10 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_009: { status: 400, message: 'You already have a requirement in progress' },
   JOB_010: { status: 403, message: 'Your account is blocked from posting new requirements' },
   JOB_011: { status: 400, message: 'Only a pending-review requirement can be rejected' },
+  JOB_012: { status: 400, message: 'A reason is required when declining an applicant' },
+
+  // Organisation errors (NurseNow)
+  ORG_001: { status: 400, message: 'Preferred start date is required when frequency of care is daily' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

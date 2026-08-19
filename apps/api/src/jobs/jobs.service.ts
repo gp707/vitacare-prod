@@ -477,7 +477,7 @@ export class JobsService {
     if (!caregiverDetail) throw new AppException('PROFILE_019');
 
     await this.db.withTransaction(async (client) => {
-      await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client);
+      await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client, dto.reason);
       if (isAcceptFromApplied) {
         await this.jobsRepo.close(jobId, client);
         await this.adminCaregiversRepo.updateStatus(

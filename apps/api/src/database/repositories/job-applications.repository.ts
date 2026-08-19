@@ -13,6 +13,7 @@ export interface JobApplicationRecord {
   accepted_at: Date | null;
   rejected_at: Date | null;
   completed_at: Date | null;
+  decline_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -92,12 +93,13 @@ export class JobApplicationsRepository {
     status: JobApplicationStatus,
     adminId: string,
     client?: PoolClient,
+    declineReason?: string,
   ): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     const timestampColumn = status === JobApplicationStatus.ACCEPTED ? 'accepted_at' : 'rejected_at';
     await runner.query(
-      `UPDATE job_applications SET status = $2, decided_by = $3, ${timestampColumn} = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id, status, adminId],
+      `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, ${timestampColumn} = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id, status, adminId, declineReason ?? null],
     );
   }
 
