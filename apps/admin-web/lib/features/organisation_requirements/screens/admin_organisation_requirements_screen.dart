@@ -148,7 +148,7 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Organisation Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Organisational Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
