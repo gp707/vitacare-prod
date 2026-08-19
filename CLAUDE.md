@@ -230,7 +230,7 @@ reusing any of its tables.
   `OrganisationsListScreen`, mirrors `IndividualsListScreen` exactly: lists every organisation
   account via `GET /admin/organisations` with the same two block levers,
   `PATCH /admin/organisations/:id/block` `{ level: 'job_posting' | 'full', reason }` /
-  `.../unblock`) and **"Organisational Requirements"** (`/rehab-requirements` →
+  `.../unblock`) and **"Organisation Requirements"** (`/rehab-requirements` →
   `AdminOrganisationRequirementsScreen`, a dedicated screen — deliberately NOT folded into
   `AdminJobsScreen`, since organisation requirements are a wholly separate table/model — listing
   every requirement via `GET /admin/organisation-requirements` with Applicants (Accept/Reject per

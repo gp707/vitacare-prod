@@ -41,14 +41,14 @@ AdminOrganisationRequirement _requirement({
   );
 }
 
-JobApplicationModel _application({
+OrganisationRequirementApplicationModel _application({
   String id = 'app1',
   String status = JobApplicationStatus.applied,
   String fullName = 'Nurse Nita',
 }) {
-  return JobApplicationModel(
+  return OrganisationRequirementApplicationModel(
     id: id,
-    jobId: 'r1',
+    requirementId: 'r1',
     profileId: 'profile-1',
     status: status,
     fullName: fullName,
@@ -59,7 +59,7 @@ JobApplicationModel _application({
 
 class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequirementsRepository {
   List<AdminOrganisationRequirement> items;
-  List<JobApplicationModel> applications;
+  List<OrganisationRequirementApplicationModel> applications;
   String? approvedId;
   String? approvedFrequency;
   int? approvedSalary;
@@ -75,7 +75,7 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   Future<List<AdminOrganisationRequirement>> list({String? status}) async => items;
 
   @override
-  Future<(AdminOrganisationRequirement, List<JobApplicationModel>)> getDetail(String id) async {
+  Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async {
     final requirement = items.firstWhere((item) => item.id == id);
     return (requirement, applications);
   }
@@ -135,6 +135,36 @@ Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsReposi
 }
 
 void main() {
+  test(
+      'OrganisationRequirementApplicationModel.fromJson parses the real admin-detail backend shape '
+      '(requirement_id, not job_id — using JobApplicationModel here throws)', () {
+    // Mirrors OrganisationRequirementApplicationWithCaregiver exactly (see
+    // findByRequirementId in the backend repository) — this is the actual
+    // shape GET /admin/organisation-requirements/:id's `applications` array
+    // returns. It has no `job_id` field at all.
+    final application = OrganisationRequirementApplicationModel.fromJson({
+      'id': 'app-1',
+      'requirement_id': 'req-1',
+      'profile_id': 'profile-1',
+      'status': 'applied',
+      'decided_by': null,
+      'applied_at': '2026-08-01T10:00:00Z',
+      'accepted_at': null,
+      'rejected_at': null,
+      'completed_at': null,
+      'decline_reason': null,
+      'created_at': '2026-08-01T10:00:00Z',
+      'updated_at': '2026-08-01T10:00:00Z',
+      'full_name': 'Nurse Nita',
+      'phone': '+919876500000',
+      'decided_by_name': null,
+    });
+    expect(application.id, 'app-1');
+    expect(application.requirementId, 'req-1');
+    expect(application.fullName, 'Nurse Nita');
+    expect(application.status, 'applied');
+  });
+
   testWidgets('lists requirements with requirement number, status, and org name', (tester) async {
     await _pump(tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
 

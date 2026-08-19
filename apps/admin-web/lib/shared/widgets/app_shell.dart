@@ -90,7 +90,7 @@ class AppShell extends ConsumerWidget {
                         ),
                         _NavItem(
                           icon: Icons.assignment,
-                          label: 'Organisational Requirements',
+                          label: 'Organisation Requirements',
                           selected: current == AppShellSection.rehabRequirements,
                           onTap: () =>
                               Navigator.of(context).pushNamedAndRemoveUntil('/rehab-requirements', (r) => false),

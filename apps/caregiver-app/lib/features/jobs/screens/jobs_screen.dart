@@ -284,27 +284,39 @@ class _RequirementCard extends StatelessWidget {
               ].join(' · '),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
-          const SizedBox(height: AppSpacing.sm),
-          if (requirement.salaryAmount != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppSpacing.sm),
-                border: Border.all(color: AppColors.success),
-              ),
-              child: Text(
-                '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
-              ),
+          if (requirement.salaryAmount != null || requirement.startDate != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                if (requirement.salaryAmount != null)
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppSpacing.sm),
+                        border: Border.all(color: AppColors.success),
+                      ),
+                      child: Text(
+                        '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
+                      ),
+                    ),
+                  ),
+                if (requirement.salaryAmount != null && requirement.startDate != null)
+                  const SizedBox(width: AppSpacing.xs),
+                if (requirement.startDate != null)
+                  Expanded(child: BlinkingStartDateBadge(startDate: requirement.startDate!)),
+              ],
             ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
               _Tag(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
-              if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
             ],

@@ -263,7 +263,9 @@ class _JobDetailCardState extends State<JobDetailCard> {
 
 /// Pulses continuously to draw the eye to the start date, alongside the
 /// salary, at the top of every job card — same treatment on the Jobs list
-/// and MyJobs (JobDetailCard is shared between both).
+/// and MyJobs (JobDetailCard is shared between both), and reused as-is for
+/// organisation-requirement cards in jobs_screen.dart/my_assignment_screen.dart
+/// so an org-posted requirement's start date gets identical treatment.
 class BlinkingStartDateBadge extends StatefulWidget {
   final String startDate;
 
@@ -299,9 +301,9 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
         decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.12),
+          color: AppColors.error.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(AppSpacing.sm),
-          border: Border.all(color: AppColors.warning, width: 1.5),
+          border: Border.all(color: AppColors.error, width: 1.5),
         ),
         child: Text(
           'Start: ${formatDate(DateTime.parse(widget.startDate))}',
@@ -309,7 +311,7 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: AppColors.warning,
+            color: AppColors.error,
           ),
         ),
       ),

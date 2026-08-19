@@ -355,11 +355,31 @@ class _AssignedRequirementCard extends StatelessWidget {
             TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
             style: const TextStyle(color: AppColors.textSecondary),
           ),
-          if (requirement.salaryAmount != null) ...[
+          if (requirement.salaryAmount != null || requirement.startDate != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+            Row(
+              children: [
+                if (requirement.salaryAmount != null)
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppSpacing.sm),
+                        border: Border.all(color: AppColors.success),
+                      ),
+                      child: Text(
+                        '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
+                      ),
+                    ),
+                  ),
+                if (requirement.salaryAmount != null && requirement.startDate != null)
+                  const SizedBox(width: AppSpacing.xs),
+                if (requirement.startDate != null)
+                  Expanded(child: BlinkingStartDateBadge(startDate: requirement.startDate!)),
+              ],
             ),
           ],
           const SizedBox(height: AppSpacing.md),

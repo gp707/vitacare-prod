@@ -83,13 +83,16 @@ class AdminOrganisationRequirementsRepository {
     }
   }
 
-  Future<(AdminOrganisationRequirement, List<JobApplicationModel>)> getDetail(String id) async {
+  /// Applications here are organisation_requirement_applications rows
+  /// (requirement_id, not job_id) — OrganisationRequirementApplicationModel
+  /// is the correctly-shaped model for this, NOT JobApplicationModel.
+  Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async {
     try {
       final res = await _dio.get('/admin/organisation-requirements/$id');
       final data = res.data['data'] as Map<String, dynamic>;
       final requirement = AdminOrganisationRequirement.fromJson(data);
       final applications = (data['applications'] as List)
-          .map((item) => JobApplicationModel.fromJson(item as Map<String, dynamic>))
+          .map((item) => OrganisationRequirementApplicationModel.fromJson(item as Map<String, dynamic>))
           .toList();
       return (requirement, applications);
     } on DioException catch (e) {

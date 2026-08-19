@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
@@ -66,6 +67,7 @@ OrganisationRequirementModel _requirement({
   int? salaryAmount = 40000,
   String? frequencyOfCare = 'monthly',
   String? postedAt,
+  String? startDate,
   Map<String, dynamic>? myApplication,
 }) {
   return OrganisationRequirementModel.fromJson({
@@ -75,7 +77,7 @@ OrganisationRequirementModel _requirement({
     'type_of_nurse': 'registered_nurse',
     'frequency_of_care': frequencyOfCare,
     'salary_amount': salaryAmount,
-    'start_date': null,
+    'start_date': startDate,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
@@ -346,6 +348,53 @@ void main() {
 
     expect(find.text('₹30000/day'), findsOneWidget);
     expect(find.text('Start: 2026-08-20'), findsOneWidget);
+  });
+
+  testWidgets('shows the start date in red, same size as the salary label, on the job card', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([_job(startDate: '2026-08-20')])),
+          organisationOpeningsRepositoryProvider.overrideWithValue(_FakeOrganisationOpeningsRepository()),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final salaryStyle = tester.widget<Text>(find.text('₹30000/day')).style!;
+    final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-20')).style!;
+    expect(startDateStyle.color, AppColors.error);
+    expect(startDateStyle.fontSize, salaryStyle.fontSize);
+  });
+
+  testWidgets(
+      'shows a highlighted red start date next to the salary for an organisation requirement too',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([])),
+          organisationOpeningsRepositoryProvider
+              .overrideWithValue(_FakeOrganisationOpeningsRepository([_requirement(startDate: '2026-08-25')])),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('Start: 2026-08-25'), findsOneWidget);
+    final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
+    final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-25')).style!;
+    expect(startDateStyle.color, AppColors.error);
+    expect(startDateStyle.fontSize, salaryStyle.fontSize);
   });
 
   testWidgets('shows the salary unit as /month for a job with frequency_of_care monthly', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
@@ -65,6 +66,7 @@ OrganisationRequirementModel _assignedRequirement({
   int requirementNumber = 7,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-04T10:00:00Z',
+  String? startDate,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -73,7 +75,7 @@ OrganisationRequirementModel _assignedRequirement({
     'type_of_nurse': 'registered_nurse',
     'frequency_of_care': 'monthly',
     'salary_amount': 40000,
-    'start_date': null,
+    'start_date': startDate,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
@@ -357,5 +359,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining("now available for new jobs"), findsOneWidget);
+  });
+
+  testWidgets('shows a highlighted red start date next to the salary for an assigned requirement',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
+          organisationOpeningsRepositoryProvider.overrideWithValue(
+            _FakeOrganisationOpeningsRepository([_assignedRequirement(startDate: '2026-08-25')]),
+          ),
+        ],
+        child: const MaterialApp(home: MyAssignmentScreen()),
+      ),
+    );
+    // Not pumpAndSettle: the start date badge blinks via a repeating
+    // AnimationController by design, so it never "settles".
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('Start: 2026-08-25'), findsOneWidget);
+    final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
+    final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-25')).style!;
+    expect(startDateStyle.color, AppColors.error);
+    expect(startDateStyle.fontSize, salaryStyle.fontSize);
   });
 }

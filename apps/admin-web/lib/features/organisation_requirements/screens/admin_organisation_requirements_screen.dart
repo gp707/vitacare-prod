@@ -148,7 +148,7 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Organisational Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Organisation Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
@@ -411,7 +411,7 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
 
 class _ApplicantsDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
-  final List<JobApplicationModel> applications;
+  final List<OrganisationRequirementApplicationModel> applications;
   final Future<void> Function(String applicationId, String status) onDecide;
 
   const _ApplicantsDialog({required this.requirement, required this.applications, required this.onDecide});
