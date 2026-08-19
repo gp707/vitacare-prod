@@ -1,3 +1,4 @@
+import '../constants/enums.dart';
 import 'job_model.dart';
 
 /// Mirrors a row from GET /caregiver/organisation-requirements or
@@ -16,7 +17,15 @@ class OrganisationRequirementModel {
   /// [salaryAmount]) on approval.
   final String? frequencyOfCare;
   final int? salaryAmount;
+  /// Admin-set scheduling — exactly one mode, picked via [scheduleType].
+  /// 'date_range' uses [startDate]/[endDate]; 'specific_days' uses
+  /// [specificDays] (calendar days of the month, e.g. [3, 12, 20]). Null
+  /// until approved. Organisation-only — JobModel keeps a single
+  /// startDate.
+  final String? scheduleType;
   final String? startDate;
+  final String? endDate;
+  final List<int>? specificDays;
   final bool accommodationProvided;
   final bool foodProvided;
   final String? specialSkills;
@@ -43,7 +52,10 @@ class OrganisationRequirementModel {
     required this.typeOfNurse,
     this.frequencyOfCare,
     this.salaryAmount,
+    this.scheduleType,
     this.startDate,
+    this.endDate,
+    this.specificDays,
     required this.accommodationProvided,
     required this.foodProvided,
     this.specialSkills,
@@ -64,7 +76,11 @@ class OrganisationRequirementModel {
         typeOfNurse: json['type_of_nurse'] as String,
         frequencyOfCare: json['frequency_of_care'] as String?,
         salaryAmount: json['salary_amount'] as int?,
+        scheduleType: json['schedule_type'] as String?,
         startDate: json['start_date'] as String?,
+        endDate: json['end_date'] as String?,
+        specificDays:
+            json['specific_days'] != null ? List<int>.from(json['specific_days'] as List) : null,
         accommodationProvided: json['accommodation_provided'] as bool,
         foodProvided: json['food_provided'] as bool,
         specialSkills: json['special_skills'] as String?,
@@ -79,6 +95,25 @@ class OrganisationRequirementModel {
             ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
             : null,
       );
+}
+
+/// Human-readable schedule text for an organisation requirement's
+/// admin-set schedule — null if not yet approved (schedule_type still
+/// null). Kept here (not duplicated per app) so caregiver-app,
+/// nursenow-app, and admin-web all render identical text for the same
+/// requirement.
+String? organisationScheduleLabel(OrganisationRequirementModel requirement) {
+  switch (requirement.scheduleType) {
+    case ScheduleType.dateRange:
+      if (requirement.startDate == null || requirement.endDate == null) return null;
+      return '${requirement.startDate} – ${requirement.endDate}';
+    case ScheduleType.specificDays:
+      final days = requirement.specificDays;
+      if (days == null || days.isEmpty) return null;
+      return 'Days: ${days.join(', ')}';
+    default:
+      return null;
+  }
 }
 
 /// A single caregiver's application to an organisation requirement —

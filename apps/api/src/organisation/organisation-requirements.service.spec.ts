@@ -337,6 +337,8 @@ describe('OrganisationRequirementsService', () => {
       type_of_nurse: 'registered_nurse',
       frequency_of_care: 'monthly',
       salary_amount: 40000,
+      schedule_type: 'specific_days',
+      specific_days: [3, 12, 20],
       accommodation_provided: true,
       food_provided: true,
     } as any;
@@ -356,7 +358,7 @@ describe('OrganisationRequirementsService', () => {
 
       expect(requirementsRepo.update).toHaveBeenCalledWith(
         'req-1',
-        expect.objectContaining({ activate: true, start_date: null }),
+        expect.objectContaining({ activate: true, schedule_type: 'specific_days', specific_days: [3, 12, 20] }),
       );
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
@@ -371,35 +373,62 @@ describe('OrganisationRequirementsService', () => {
       expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
     });
 
-    it('nulls start_date for a monthly requirement regardless of what was sent', async () => {
+    it('nulls specific_days when schedule_type is date_range, and persists start_date/end_date', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
       requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
 
       await service.updateRequirement(
         'admin-1',
         'req-1',
-        { ...editDto, frequency_of_care: 'monthly', start_date: '2026-09-01' },
-        null,
-      );
-
-      expect(requirementsRepo.update).toHaveBeenCalledWith('req-1', expect.objectContaining({ start_date: null }));
-    });
-
-    it('keeps start_date for a daily requirement', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await service.updateRequirement(
-        'admin-1',
-        'req-1',
-        { ...editDto, frequency_of_care: 'daily', start_date: '2026-09-01' },
+        { ...editDto, schedule_type: 'date_range', start_date: '2026-09-01', end_date: '2026-09-10' },
         null,
       );
 
       expect(requirementsRepo.update).toHaveBeenCalledWith(
         'req-1',
-        expect.objectContaining({ start_date: '2026-09-01' }),
+        expect.objectContaining({
+          schedule_type: 'date_range',
+          start_date: '2026-09-01',
+          end_date: '2026-09-10',
+          specific_days: null,
+        }),
       );
+    });
+
+    it('nulls start_date/end_date when schedule_type is specific_days, and persists specific_days', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
+      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      await service.updateRequirement(
+        'admin-1',
+        'req-1',
+        { ...editDto, schedule_type: 'specific_days', specific_days: [5, 15, 25] },
+        null,
+      );
+
+      expect(requirementsRepo.update).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({
+          schedule_type: 'specific_days',
+          start_date: null,
+          end_date: null,
+          specific_days: [5, 15, 25],
+        }),
+      );
+    });
+
+    it('throws ORG_001 when end_date is before start_date for a date_range schedule', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      await expect(
+        service.updateRequirement(
+          'admin-1',
+          'req-1',
+          { ...editDto, schedule_type: 'date_range', start_date: '2026-09-10', end_date: '2026-09-01' },
+          null,
+        ),
+      ).rejects.toMatchObject({ code: 'ORG_001' });
+      expect(requirementsRepo.update).not.toHaveBeenCalled();
     });
   });
 

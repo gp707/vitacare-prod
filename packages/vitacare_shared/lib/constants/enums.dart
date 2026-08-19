@@ -435,49 +435,53 @@ class OrganisationType {
 
 /// Distinct from Qualification (a caregiver's own self-reported credential)
 /// — this is the category an organisation requests when posting a
-/// requirement.
+/// requirement. Replaced wholesale (2026-08-19) with the hospital-facing
+/// category list actually used by admin — validated at the DTO layer
+/// (@IsIn) on the backend, not a DB CHECK, so this can change without a
+/// migration.
 class TypeOfNurse {
   static const registeredNurse = 'registered_nurse';
-  static const staffNurse = 'staff_nurse';
-  static const icuNurse = 'icu_nurse';
-  static const icuTrainedAttendant = 'icu_trained_attendant';
-  static const gnmNurse = 'gnm_nurse';
-  static const anmNurse = 'anm_nurse';
-  static const gda = 'gda';
-  static const patientCareAssistant = 'patient_care_assistant';
-  static const homeHealthAide = 'home_health_aide';
-  static const physiotherapist = 'physiotherapist';
-  static const elderlyCareAttendant = 'elderly_care_attendant';
-  static const postOperativeCareNurse = 'post_operative_care_nurse';
+  static const nursingCompleted = 'nursing_completed';
+  static const nursingStudent = 'nursing_student';
+  static const auxiliaryNurse = 'auxiliary_nurse';
+  static const nonNursingStaff = 'non_nursing_staff';
+  static const paramedicalStaff = 'paramedical_staff';
+  static const others = 'others';
 
   static const all = [
     registeredNurse,
-    staffNurse,
-    icuNurse,
-    icuTrainedAttendant,
-    gnmNurse,
-    anmNurse,
-    gda,
-    patientCareAssistant,
-    homeHealthAide,
-    physiotherapist,
-    elderlyCareAttendant,
-    postOperativeCareNurse,
+    nursingCompleted,
+    nursingStudent,
+    auxiliaryNurse,
+    nonNursingStaff,
+    paramedicalStaff,
+    others,
   ];
 
   static const displayNames = {
-    registeredNurse: 'Registered Nurse (RN)',
-    staffNurse: 'Staff Nurse',
-    icuNurse: 'ICU Nurse',
-    icuTrainedAttendant: 'ICU Trained Attendant',
-    gnmNurse: 'GNM Nurse',
-    anmNurse: 'ANM Nurse',
-    gda: 'General Duty Assistant (GDA)',
-    patientCareAssistant: 'Patient Care Assistant',
-    homeHealthAide: 'Home Health Aide',
-    physiotherapist: 'Physiotherapist',
-    elderlyCareAttendant: 'Elderly Care Attendant',
-    postOperativeCareNurse: 'Post-Operative Care Nurse',
+    registeredNurse: 'Registered Nurse',
+    nursingCompleted: 'Nursing Completed Nurse',
+    nursingStudent: 'Nursing Student',
+    auxiliaryNurse: 'Auxiliary Nurse',
+    nonNursingStaff: 'Non Nursing Staff',
+    paramedicalStaff: 'Paramedical Staff',
+    others: 'Others',
+  };
+}
+
+/// Organisation requirement scheduling — admin picks exactly one mode on
+/// approval, replacing the old daily-only single start_date. Deliberately
+/// organisation-only; regular jobs (admin/individual postings) keep their
+/// existing single start_date field unchanged.
+class ScheduleType {
+  static const dateRange = 'date_range';
+  static const specificDays = 'specific_days';
+
+  static const all = [dateRange, specificDays];
+
+  static const displayNames = {
+    dateRange: 'Date Range',
+    specificDays: 'Specific Days of the Month',
   };
 }
 

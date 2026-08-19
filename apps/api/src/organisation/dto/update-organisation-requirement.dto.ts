@@ -1,10 +1,28 @@
-import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { FrequencyOfCare, TypeOfNurse } from '@vitacare/shared-constants';
+import {
+  ArrayMinSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { FrequencyOfCare, ScheduleType, TypeOfNurse } from '@vitacare/shared-constants';
 
-/** Admin's approve-via-edit body — same shape as create plus the three
- *  admin-set fields. start_date is required only when frequency_of_care is
- *  'daily' (ORG_001 otherwise); for 'monthly' it's ignored/nulled
- *  server-side regardless of what's sent. */
+/** Admin's approve-via-edit body — same shape as create plus the
+ *  admin-set fields. schedule_type picks exactly one scheduling mode —
+ *  a continuous date range (start_date/end_date) or a set of specific
+ *  calendar days of the month (specific_days) — deliberately
+ *  organisation-only; regular jobs keep a single start_date. Only the
+ *  fields for the chosen mode are required (ORG_001 otherwise); the other
+ *  mode's fields are ignored/nulled server-side regardless of what's
+ *  sent. */
 export class UpdateOrganisationRequirementDto {
   @IsIn(Object.values(TypeOfNurse), { message: 'GEN_001' })
   type_of_nurse!: string;
@@ -17,9 +35,25 @@ export class UpdateOrganisationRequirementDto {
   @Max(1000000, { message: 'GEN_001' })
   salary_amount!: number;
 
-  @ValidateIf((o) => o.frequency_of_care === FrequencyOfCare.DAILY)
+  @IsIn(Object.values(ScheduleType), { message: 'GEN_001' })
+  schedule_type!: string;
+
+  @ValidateIf((o) => o.schedule_type === ScheduleType.DATE_RANGE)
   @IsISO8601({ strict: true }, { message: 'ORG_001' })
   start_date?: string;
+
+  @ValidateIf((o) => o.schedule_type === ScheduleType.DATE_RANGE)
+  @IsISO8601({ strict: true }, { message: 'ORG_001' })
+  end_date?: string;
+
+  @ValidateIf((o) => o.schedule_type === ScheduleType.SPECIFIC_DAYS)
+  @IsArray({ message: 'ORG_001' })
+  @ArrayNotEmpty({ message: 'ORG_001' })
+  @ArrayMinSize(1, { message: 'ORG_001' })
+  @IsInt({ each: true, message: 'ORG_001' })
+  @Min(1, { each: true, message: 'ORG_001' })
+  @Max(31, { each: true, message: 'ORG_001' })
+  specific_days?: number[];
 
   @IsBoolean({ message: 'GEN_001' })
   accommodation_provided!: boolean;

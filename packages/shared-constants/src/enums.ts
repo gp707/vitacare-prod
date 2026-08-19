@@ -216,22 +216,30 @@ export type OrganisationType = (typeof OrganisationType)[keyof typeof Organisati
 
 // Distinct from Qualification (a caregiver's own self-reported
 // credential) — this is the category an organisation requests when
-// posting a requirement.
+// posting a requirement. Replaced wholesale (2026-08-19) with the
+// hospital-facing category list actually used by admin — validated at
+// the DTO layer (@IsIn), not a DB CHECK, so this can change without a
+// migration.
 export const TypeOfNurse = {
   REGISTERED_NURSE: 'registered_nurse',
-  STAFF_NURSE: 'staff_nurse',
-  ICU_NURSE: 'icu_nurse',
-  ICU_TRAINED_ATTENDANT: 'icu_trained_attendant',
-  GNM_NURSE: 'gnm_nurse',
-  ANM_NURSE: 'anm_nurse',
-  GDA: 'gda',
-  PATIENT_CARE_ASSISTANT: 'patient_care_assistant',
-  HOME_HEALTH_AIDE: 'home_health_aide',
-  PHYSIOTHERAPIST: 'physiotherapist',
-  ELDERLY_CARE_ATTENDANT: 'elderly_care_attendant',
-  POST_OPERATIVE_CARE_NURSE: 'post_operative_care_nurse',
+  NURSING_COMPLETED: 'nursing_completed',
+  NURSING_STUDENT: 'nursing_student',
+  AUXILIARY_NURSE: 'auxiliary_nurse',
+  NON_NURSING_STAFF: 'non_nursing_staff',
+  PARAMEDICAL_STAFF: 'paramedical_staff',
+  OTHERS: 'others',
 } as const;
 export type TypeOfNurse = (typeof TypeOfNurse)[keyof typeof TypeOfNurse];
+
+// Organisation requirement scheduling — admin picks exactly one mode on
+// approval, replacing the old daily-only single start_date. Deliberately
+// organisation-only; regular jobs (admin/individual postings) keep their
+// existing single start_date field unchanged.
+export const ScheduleType = {
+  DATE_RANGE: 'date_range',
+  SPECIFIC_DAYS: 'specific_days',
+} as const;
+export type ScheduleType = (typeof ScheduleType)[keyof typeof ScheduleType];
 
 // organisation_profiles.city is validated against City.all plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the

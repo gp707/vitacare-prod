@@ -78,7 +78,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Registered Nurse (RN)').last);
+    await tester.tap(find.text('Registered Nurse').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(SwitchListTile, 'Accommodation provided?'));
@@ -107,7 +107,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('General Duty Assistant (GDA)').last);
+    await tester.tap(find.text('Auxiliary Nurse').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Submit for Review'));

@@ -67,7 +67,10 @@ OrganisationRequirementModel _requirement({
   int? salaryAmount = 40000,
   String? frequencyOfCare = 'monthly',
   String? postedAt,
+  String? scheduleType,
   String? startDate,
+  String? endDate,
+  List<int>? specificDays,
   Map<String, dynamic>? myApplication,
 }) {
   return OrganisationRequirementModel.fromJson({
@@ -77,7 +80,10 @@ OrganisationRequirementModel _requirement({
     'type_of_nurse': 'registered_nurse',
     'frequency_of_care': frequencyOfCare,
     'salary_amount': salaryAmount,
+    'schedule_type': scheduleType,
     'start_date': startDate,
+    'end_date': endDate,
+    'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
@@ -372,7 +378,7 @@ void main() {
   });
 
   testWidgets(
-      'shows a highlighted red start date next to the salary for an organisation requirement too',
+      'shows a highlighted red date range next to the salary for an organisation requirement on a date_range schedule',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -380,8 +386,11 @@ void main() {
       ProviderScope(
         overrides: [
           jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([])),
-          organisationOpeningsRepositoryProvider
-              .overrideWithValue(_FakeOrganisationOpeningsRepository([_requirement(startDate: '2026-08-25')])),
+          organisationOpeningsRepositoryProvider.overrideWithValue(
+            _FakeOrganisationOpeningsRepository([
+              _requirement(scheduleType: 'date_range', startDate: '2026-08-25', endDate: '2026-09-05'),
+            ]),
+          ),
         ],
         child: const MaterialApp(home: JobsScreen()),
       ),
@@ -390,11 +399,37 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('₹40000/month'), findsOneWidget);
-    expect(find.text('Start: 2026-08-25'), findsOneWidget);
+    expect(find.text('2026-08-25 – 2026-09-05'), findsOneWidget);
     final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
-    final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-25')).style!;
-    expect(startDateStyle.color, AppColors.error);
-    expect(startDateStyle.fontSize, salaryStyle.fontSize);
+    final scheduleStyle = tester.widget<Text>(find.text('2026-08-25 – 2026-09-05')).style!;
+    expect(scheduleStyle.color, AppColors.error);
+    expect(scheduleStyle.fontSize, salaryStyle.fontSize);
+  });
+
+  testWidgets(
+      'shows a highlighted red day list for an organisation requirement on a specific_days schedule',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository([])),
+          organisationOpeningsRepositoryProvider.overrideWithValue(
+            _FakeOrganisationOpeningsRepository([
+              _requirement(scheduleType: 'specific_days', specificDays: [3, 12, 20]),
+            ]),
+          ),
+        ],
+        child: const MaterialApp(home: JobsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Days: 3, 12, 20'), findsOneWidget);
+    final scheduleStyle = tester.widget<Text>(find.text('Days: 3, 12, 20')).style!;
+    expect(scheduleStyle.color, AppColors.error);
   });
 
   testWidgets('shows the salary unit as /month for a job with frequency_of_care monthly', (tester) async {
@@ -566,7 +601,7 @@ void main() {
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('Hospital · Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('₹40000/month'), findsOneWidget);
-    expect(find.text('Registered Nurse (RN)'), findsOneWidget);
+    expect(find.text('Registered Nurse'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Post-surgery wound care'), findsOneWidget);

@@ -66,7 +66,10 @@ OrganisationRequirementModel _assignedRequirement({
   int requirementNumber = 7,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-04T10:00:00Z',
+  String? scheduleType,
   String? startDate,
+  String? endDate,
+  List<int>? specificDays,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -75,7 +78,10 @@ OrganisationRequirementModel _assignedRequirement({
     'type_of_nurse': 'registered_nurse',
     'frequency_of_care': 'monthly',
     'salary_amount': 40000,
+    'schedule_type': scheduleType,
     'start_date': startDate,
+    'end_date': endDate,
+    'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
@@ -361,7 +367,7 @@ void main() {
     expect(find.textContaining("now available for new jobs"), findsOneWidget);
   });
 
-  testWidgets('shows a highlighted red start date next to the salary for an assigned requirement',
+  testWidgets('shows a highlighted red date range next to the salary for an assigned date_range requirement',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -370,22 +376,48 @@ void main() {
         overrides: [
           jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
           organisationOpeningsRepositoryProvider.overrideWithValue(
-            _FakeOrganisationOpeningsRepository([_assignedRequirement(startDate: '2026-08-25')]),
+            _FakeOrganisationOpeningsRepository([
+              _assignedRequirement(scheduleType: 'date_range', startDate: '2026-08-25', endDate: '2026-09-05'),
+            ]),
           ),
         ],
         child: const MaterialApp(home: MyAssignmentScreen()),
       ),
     );
-    // Not pumpAndSettle: the start date badge blinks via a repeating
+    // Not pumpAndSettle: the schedule badge blinks via a repeating
     // AnimationController by design, so it never "settles".
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('₹40000/month'), findsOneWidget);
-    expect(find.text('Start: 2026-08-25'), findsOneWidget);
+    expect(find.text('2026-08-25 – 2026-09-05'), findsOneWidget);
     final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
-    final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-25')).style!;
-    expect(startDateStyle.color, AppColors.error);
-    expect(startDateStyle.fontSize, salaryStyle.fontSize);
+    final scheduleStyle = tester.widget<Text>(find.text('2026-08-25 – 2026-09-05')).style!;
+    expect(scheduleStyle.color, AppColors.error);
+    expect(scheduleStyle.fontSize, salaryStyle.fontSize);
+  });
+
+  testWidgets('shows a highlighted red day list for an assigned specific_days requirement', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 2800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
+          organisationOpeningsRepositoryProvider.overrideWithValue(
+            _FakeOrganisationOpeningsRepository([
+              _assignedRequirement(scheduleType: 'specific_days', specificDays: [5, 15, 25]),
+            ]),
+          ),
+        ],
+        child: const MaterialApp(home: MyAssignmentScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Days: 5, 15, 25'), findsOneWidget);
+    final scheduleStyle = tester.widget<Text>(find.text('Days: 5, 15, 25')).style!;
+    expect(scheduleStyle.color, AppColors.error);
   });
 }

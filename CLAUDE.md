@@ -172,21 +172,36 @@ reusing any of its tables.
 - **Posting flow:** `POST /organisation/requirements` (`CreateOrganisationRequirementDto`) takes
   only `type_of_nurse`, `accommodation_provided`, `food_provided`, and optional `special_skills`
   — no care_receiver, no city/area/duty_type (inherited from the org's profile), no
-  `frequency_of_care`/`salary_amount`/`start_date` (admin-set on approval, same null-until-
+  `frequency_of_care`/`salary_amount`/schedule (admin-set on approval, same null-until-
   approved pattern as an Individual's posting). Created with `status: 'pending_review'`.
   **Unlike Individual, there is no one-live-requirement limit** — an org can have many
   simultaneous postings, since a hospital/rehab genuinely needs to fill several openings at
   once; this was a deliberate scope difference, not an oversight.
 - **Admin approves via the same "edit with full shape" pattern as Individual**:
   `PATCH /admin/organisation-requirements/:id` (`UpdateOrganisationRequirementDto`, requiring
-  `type_of_nurse`/`frequency_of_care`/`salary_amount`/`accommodation_provided`/
-  `food_provided`, optional `start_date`/`special_skills`) transitions `pending_review` (or a
-  `closed` requirement) to `active` and stamps `posted_at` — `start_date` is only ever
-  persisted when `frequency_of_care === 'daily'` (null otherwise), enforced in
-  `OrganisationRequirementsService.updateRequirement`, not a DB constraint. Admin can instead
-  **reject** via `PATCH /admin/organisation-requirements/:id/reject` (`{ reason }`, reusing the
-  same `RejectJobDto` Individual uses) — sets `status: 'closed'` + `rejection_reason`, only
-  valid from `pending_review`.
+  `type_of_nurse`/`frequency_of_care`/`salary_amount`/`accommodation_provided`/`food_provided`/
+  `schedule_type`, transitions `pending_review` (or a `closed` requirement) to `active` and
+  stamps `posted_at`. **`schedule_type` replaces the old single "Preferred Start Date" field for
+  organisation requirements entirely** — admin picks exactly one of two modes: `date_range`
+  (requires `start_date` + `end_date`, `end_date` must not be before `start_date` or the update
+  400s with `ORG_001`) or `specific_days` (requires a non-empty `specific_days` array of
+  day-of-month integers 1–31, e.g. `[3, 12, 20]` — meant as recurring days each month, not a
+  single calendar date). Exactly one mode's fields are required/persisted at a time —
+  `@ValidateIf` in `UpdateOrganisationRequirementDto` enforces `start_date`/`end_date` only when
+  `schedule_type === 'date_range'` and `specific_days` only when `schedule_type ===
+  'specific_days'`; the unused mode's columns are stored `null`. This is enforced in
+  `OrganisationRequirementsService.updateRequirement`/the DTO, not a DB constraint (the
+  `organisation_requirements` table just has nullable `schedule_type`/`end_date`/
+  `specific_days INTEGER[]` columns, migration 043). **Caregiver-facing display reuses the same
+  red blinking urgency badge** jobs use for "Preferred Start Date" (`BlinkingStartDateBadge`,
+  generalized from a raw `startDate` param to a pre-formatted `label` param for exactly this
+  reason) — showing `"<start> – <end>"` for a date range or `"Days: <n>, <n>, ..."` for specific
+  days, via the shared `organisationScheduleLabel()` helper in
+  `packages/vitacare_shared/lib/models/organisation_requirement_model.dart` so caregiver-app,
+  nursenow-app, and admin-web all render identical text. Admin can instead **reject** via
+  `PATCH /admin/organisation-requirements/:id/reject` (`{ reason }`, reusing the same
+  `RejectJobDto` Individual uses) — sets `status: 'closed'` + `rejection_reason`, only valid from
+  `pending_review`.
 - **Organisation-side endpoints** (`@Roles(UserRole.ORGANISATION)`, `src/organisation/`):
   `GET /organisation/me`, `POST /organisation/requirements`, `GET /organisation/requirements`
   (full history, not just current), `GET /organisation/requirements/:id/applications`,
@@ -262,8 +277,10 @@ reusing any of its tables.
   Applicants dialog already links to, so no new backend endpoint was needed for the admin case —
   plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required
   dialog), and a single
-  **Edit** action (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when
-  Daily is picked) that doubles as "Approve" from `pending_review` and as an ordinary edit from
+  **Edit** action (dialog collecting Frequency of Care/Salary and a required schedule — a
+  `SegmentedButton` picking Date Range or Specific Days, then either a start/end date pair or a
+  31-chip day-of-month grid, see "Organisation" above) that doubles as "Approve" from
+  `pending_review` and as an ordinary edit from
   `active`/`closed` — admin can revisit and correct these same admin-set fields later, not just
   once at approval time; same `PATCH /admin/organisation-requirements/:id` endpoint either way,
   pre-filled with the requirement's current values when editing. Tapping a requirement row opens
@@ -381,7 +398,14 @@ pending_review (NurseNow individual posting awaiting admin approval — never se
 hospital, rehab, clinic — set once at organisation registration (`POST /auth/register/organisation`), shown alongside the org's name everywhere admin-web lists it.
 
 ### Type of Nurse/Caregiver (organisation requirements only)
-registered_nurse, staff_nurse, icu_nurse, icu_trained_attendant, gnm_nurse, anm_nurse, gda, patient_care_assistant, home_health_aide, physiotherapist, elderly_care_attendant, post_operative_care_nurse. Validated at the DTO layer (`@IsIn`), not a DB `CHECK`, so the list can be adjusted without a migration. Distinct from `Qualification` (a caregiver's own self-reported credential) — this is the category an organisation requests when posting a requirement.
+registered_nurse ("Registered Nurse"), nursing_completed ("Nursing Completed Nurses"), nursing_student ("Nursing Students"), auxiliary_nurse ("Auxiliary Nurses"), non_nursing_staff ("Non Nursing Staff"), paramedical_staff ("Paramedical Staff"), others ("Others"). Validated at the DTO layer (`@IsIn`), not a DB `CHECK`, so the list can be adjusted without a migration. Distinct from `Qualification` (a caregiver's own self-reported credential) — this is the category an organisation requests when posting a requirement.
+
+### Schedule Type (organisation requirements only)
+Set by admin on approval/edit of an organisation requirement, alongside Frequency of Care/Salary — **replaces the "Preferred Start Date" field entirely for organisation requirements** (regular VitaCare/admin jobs and Individual/NurseNow requirements still use the single `start_date` field, unchanged). Admin picks exactly one:
+- `date_range` — "Date Range": requires `start_date` + `end_date` (`end_date` must not be before `start_date`, else `ORG_001`)
+- `specific_days` — "Specific Days of the Month": requires a non-empty `specific_days` array of day-of-month integers (1–31), recurring each month rather than a single calendar date
+
+Persisted on `organisation_requirements` (`schedule_type`, `end_date`, `specific_days INTEGER[]`, migration 043); only the active mode's columns are populated, the other stays `null`. Shown to caregivers via the same red blinking urgency badge used for jobs' Preferred Start Date, with text from the shared `organisationScheduleLabel()` helper ("<start> – <end>" or "Days: <n>, <n>, ...").
 
 ### Job Application Status
 applied, rejected, accepted, completed — `accepted` is admin-only (see "Job/Application Flow" below); a caregiver can only ever set `applied`/`rejected` on their own application via apply, and `completed` via the separate per-job complete endpoint (`accepted` → `completed` only, see "Job/Application Flow").

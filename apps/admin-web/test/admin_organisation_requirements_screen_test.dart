@@ -18,6 +18,10 @@ AdminOrganisationRequirement _requirement({
   String status = JobStatus.pendingReview,
   String? frequencyOfCare,
   int? salaryAmount,
+  String? scheduleType,
+  String? startDate,
+  String? endDate,
+  List<int>? specificDays,
   String? rejectionReason,
   bool accommodationProvided = true,
   bool foodProvided = false,
@@ -26,9 +30,13 @@ AdminOrganisationRequirement _requirement({
     id: id,
     requirementNumber: requirementNumber,
     postedBy: 'org-user-1',
-    typeOfNurse: TypeOfNurse.gda,
+    typeOfNurse: TypeOfNurse.auxiliaryNurse,
     frequencyOfCare: frequencyOfCare,
     salaryAmount: salaryAmount,
+    scheduleType: scheduleType,
+    startDate: startDate,
+    endDate: endDate,
+    specificDays: specificDays,
     accommodationProvided: accommodationProvided,
     foodProvided: foodProvided,
     status: status,
@@ -63,6 +71,10 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   String? approvedId;
   String? approvedFrequency;
   int? approvedSalary;
+  String? approvedScheduleType;
+  String? approvedStartDate;
+  String? approvedEndDate;
+  List<int>? approvedSpecificDays;
   String? rejectedId;
   String? rejectedReason;
   String? decidedRequirementId;
@@ -86,7 +98,10 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
     required String typeOfNurse,
     required String frequencyOfCare,
     required int salaryAmount,
+    required String scheduleType,
     String? startDate,
+    String? endDate,
+    List<int>? specificDays,
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
@@ -94,6 +109,10 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
     approvedId = id;
     approvedFrequency = frequencyOfCare;
     approvedSalary = salaryAmount;
+    approvedScheduleType = scheduleType;
+    approvedStartDate = startDate;
+    approvedEndDate = endDate;
+    approvedSpecificDays = specificDays;
   }
 
   @override
@@ -204,10 +223,17 @@ void main() {
     expect(find.text('Edit'), findsOneWidget);
   });
 
-  testWidgets('editing an active requirement pre-fills current frequency/salary and calls approve() again',
+  testWidgets(
+      'editing an active requirement pre-fills current frequency/salary/schedule and calls approve() again',
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([
-      _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.monthly, salaryAmount: 25000),
+      _requirement(
+        status: JobStatus.active,
+        frequencyOfCare: FrequencyOfCare.monthly,
+        salaryAmount: 25000,
+        scheduleType: 'specific_days',
+        specificDays: [3, 12, 20],
+      ),
     ]);
     await _pump(tester, repo);
 
@@ -218,6 +244,9 @@ void main() {
     expect(find.text('Monthly'), findsWidgets);
     final salaryField = tester.widget<TextField>(find.byType(TextField));
     expect(salaryField.controller!.text, '25000');
+    // Pre-filled from the existing specific_days schedule.
+    final dayThreeChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, '3'));
+    expect(dayThreeChip.selected, isTrue);
 
     await tester.enterText(find.byType(TextField), '28000');
     await tester.pumpAndSettle();
@@ -227,9 +256,12 @@ void main() {
     expect(repo.approvedId, 'r1');
     expect(repo.approvedFrequency, FrequencyOfCare.monthly);
     expect(repo.approvedSalary, 28000);
+    expect(repo.approvedScheduleType, 'specific_days');
+    expect(repo.approvedSpecificDays, [3, 12, 20]);
   });
 
-  testWidgets('approving fills frequency and salary and calls the repository', (tester) async {
+  testWidgets('approving with a specific_days schedule fills frequency/salary/days and calls the repository',
+      (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
@@ -244,12 +276,45 @@ void main() {
     await tester.enterText(find.byType(TextField), '30000');
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Specific Days'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, '5'));
+    await tester.tap(find.widgetWithText(FilterChip, '15'));
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Approve').last);
     await tester.pumpAndSettle();
 
     expect(repo.approvedId, 'r1');
     expect(repo.approvedFrequency, FrequencyOfCare.monthly);
     expect(repo.approvedSalary, 30000);
+    expect(repo.approvedScheduleType, 'specific_days');
+    expect(repo.approvedSpecificDays, [5, 15]);
+  });
+
+  testWidgets('approving with a date_range schedule requires both dates and calls the repository', (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Approve'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monthly').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '30000');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Date Range'));
+    await tester.pumpAndSettle();
+
+    // Save Changes/Approve stays disabled until both dates are picked —
+    // exercised via the submit button's onPressed being null rather than
+    // driving the real date picker dialog.
+    final approveButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Approve').last);
+    expect(approveButton.onPressed, isNull);
   });
 
   testWidgets('rejecting requires a reason before Confirm is enabled', (tester) async {

@@ -79,7 +79,7 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
   }
 
   /// Doubles as "Approve" (from pending_review, sets frequency/salary/
-  /// start_date for the first time) and "Edit" (from active/closed —
+  /// schedule for the first time) and "Edit" (from active/closed —
   /// admin can revisit/correct those same admin-set fields later; every
   /// other field stays org-owned, unchanged from `requirement`) — same
   /// dialog, same endpoint, only the label changes with current status.
@@ -88,13 +88,16 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
       context: context,
       builder: (dialogContext) => _EditRequirementDialog(
         requirement: requirement,
-        onSubmit: (frequency, salary, startDate) async {
+        onSubmit: (frequency, salary, scheduleType, startDate, endDate, specificDays) async {
           await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
                 requirement.id,
                 typeOfNurse: requirement.typeOfNurse,
                 frequencyOfCare: frequency,
                 salaryAmount: salary,
+                scheduleType: scheduleType,
                 startDate: startDate,
+                endDate: endDate,
+                specificDays: specificDays,
                 accommodationProvided: requirement.accommodationProvided,
                 foodProvided: requirement.foodProvided,
                 specialSkills: requirement.specialSkills,
@@ -289,10 +292,19 @@ class _StatusBadge extends StatelessWidget {
 
 /// Doubles as "Approve" (from pending_review) and "Edit" (from
 /// active/closed, to revisit/correct these same admin-set fields later) —
-/// see AdminOrganisationRequirementsScreen._editRequirement.
+/// see AdminOrganisationRequirementsScreen._editRequirement. Scheduling is
+/// exactly one of two modes (see ScheduleType) — deliberately
+/// organisation-only, unlike AdminJobsScreen's single Preferred Start Date.
 class _EditRequirementDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
-  final Future<void> Function(String frequency, int salary, String? startDate) onSubmit;
+  final Future<void> Function(
+    String frequency,
+    int salary,
+    String scheduleType,
+    String? startDate,
+    String? endDate,
+    List<int>? specificDays,
+  ) onSubmit;
 
   const _EditRequirementDialog({required this.requirement, required this.onSubmit});
 
@@ -304,7 +316,10 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
   String? _frequency;
   late final _salaryController =
       TextEditingController(text: widget.requirement.salaryAmount?.toString() ?? '');
+  String? _scheduleType;
   DateTime? _startDate;
+  DateTime? _endDate;
+  final Set<int> _specificDays = {};
   bool _submitting = false;
 
   bool get _isApproval => widget.requirement.status == JobStatus.pendingReview;
@@ -313,8 +328,12 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
   void initState() {
     super.initState();
     _frequency = widget.requirement.frequencyOfCare;
+    _scheduleType = widget.requirement.scheduleType;
     final startDate = widget.requirement.startDate;
+    final endDate = widget.requirement.endDate;
     if (startDate != null) _startDate = DateTime.tryParse(startDate);
+    if (endDate != null) _endDate = DateTime.tryParse(endDate);
+    if (widget.requirement.specificDays != null) _specificDays.addAll(widget.requirement.specificDays!);
   }
 
   @override
@@ -323,19 +342,50 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
     super.dispose();
   }
 
+  bool get _isDateRange => _scheduleType == ScheduleType.dateRange;
+  bool get _isSpecificDays => _scheduleType == ScheduleType.specificDays;
+
+  bool get _scheduleValid {
+    if (_isDateRange) return _startDate != null && _endDate != null && !_endDate!.isBefore(_startDate!);
+    if (_isSpecificDays) return _specificDays.isNotEmpty;
+    return false;
+  }
+
   bool get _canSubmit =>
-      !_submitting &&
-      _frequency != null &&
-      int.tryParse(_salaryController.text.trim()) != null &&
-      (_frequency != FrequencyOfCare.daily || _startDate != null);
+      !_submitting && _frequency != null && int.tryParse(_salaryController.text.trim()) != null && _scheduleValid;
+
+  String _formatDate(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
-    final startDateStr = _startDate == null
-        ? null
-        : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}';
-    await widget.onSubmit(_frequency!, int.parse(_salaryController.text.trim()), startDateStr);
+    await widget.onSubmit(
+      _frequency!,
+      int.parse(_salaryController.text.trim()),
+      _scheduleType!,
+      _isDateRange ? _formatDate(_startDate!) : null,
+      _isDateRange ? _formatDate(_endDate!) : null,
+      _isSpecificDays ? (_specificDays.toList()..sort()) : null,
+    );
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (isStart ? _startDate : _endDate) ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isStart) {
+        _startDate = picked;
+      } else {
+        _endDate = picked;
+      }
+    });
   }
 
   @override
@@ -347,53 +397,88 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
             : 'Edit requirement #${widget.requirement.requirementNumber}',
       ),
       content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _frequency,
-              decoration: const InputDecoration(labelText: 'Frequency of Care'),
-              items: FrequencyOfCare.all
-                  .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
-                  .toList(),
-              onChanged: (value) => setState(() => _frequency = value),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _salaryController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: _frequency == FrequencyOfCare.daily ? 'Salary (₹/day)' : 'Salary (₹/month)',
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _frequency,
+                decoration: const InputDecoration(labelText: 'Frequency of Care'),
+                items: FrequencyOfCare.all
+                    .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
+                    .toList(),
+                onChanged: (value) => setState(() => _frequency = value),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-            if (_frequency == FrequencyOfCare.daily) ...[
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(_startDate == null
-                        ? 'Preferred start date: not set'
-                        : 'Preferred start date: ${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _startDate ?? now,
-                        firstDate: now,
-                        lastDate: now.add(const Duration(days: 365)),
-                      );
-                      if (picked != null) setState(() => _startDate = picked);
-                    },
-                    child: const Text('Pick date'),
-                  ),
-                ],
+              TextField(
+                controller: _salaryController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: _frequency == FrequencyOfCare.daily ? 'Salary (₹/day)' : 'Salary (₹/month)',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
+              const SizedBox(height: AppSpacing.md),
+              const Text('Schedule', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.xs),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: ScheduleType.dateRange, label: Text('Date Range')),
+                  ButtonSegment(value: ScheduleType.specificDays, label: Text('Specific Days')),
+                ],
+                selected: {if (_scheduleType != null) _scheduleType!},
+                emptySelectionAllowed: true,
+                onSelectionChanged: (selection) =>
+                    setState(() => _scheduleType = selection.isEmpty ? null : selection.first),
+              ),
+              if (_isDateRange) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(_startDate == null ? 'Start date: not set' : 'Start date: ${_formatDate(_startDate!)}'),
+                    ),
+                    TextButton(onPressed: () => _pickDate(isStart: true), child: const Text('Pick date')),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(_endDate == null ? 'End date: not set' : 'End date: ${_formatDate(_endDate!)}'),
+                    ),
+                    TextButton(onPressed: () => _pickDate(isStart: false), child: const Text('Pick date')),
+                  ],
+                ),
+                if (_startDate != null && _endDate != null && _endDate!.isBefore(_startDate!))
+                  const Text('End date must be on or after the start date', style: TextStyle(color: AppColors.error)),
+              ],
+              if (_isSpecificDays) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const Text('Select the days of the month needed', style: TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final day in List.generate(31, (i) => i + 1))
+                      FilterChip(
+                        label: Text('$day'),
+                        selected: _specificDays.contains(day),
+                        onSelected: (selected) => setState(() {
+                          if (selected) {
+                            _specificDays.add(day);
+                          } else {
+                            _specificDays.remove(day);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
@@ -541,7 +626,14 @@ class _RequirementReadOnlyDialog extends StatelessWidget {
                     ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
                     : 'Not set (admin sets on approval)',
               ),
-              if (requirement.startDate != null) _DetailRow('Preferred Start Date', requirement.startDate!),
+              _DetailRow(
+                'Schedule',
+                switch (requirement.scheduleType) {
+                  ScheduleType.dateRange => '${requirement.startDate} – ${requirement.endDate}',
+                  ScheduleType.specificDays => 'Days: ${requirement.specificDays?.join(', ')}',
+                  _ => 'Not set (admin sets on approval)',
+                },
+              ),
               _DetailRow('Accommodation', requirement.accommodationProvided ? 'Provided' : 'Not provided'),
               _DetailRow('Food', requirement.foodProvided ? 'Provided' : 'Not provided'),
               if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty)

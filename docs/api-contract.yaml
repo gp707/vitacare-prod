@@ -175,17 +175,23 @@ components:
         the list can be adjusted without a migration.
       enum:
         - registered_nurse
-        - staff_nurse
-        - icu_nurse
-        - icu_trained_attendant
-        - gnm_nurse
-        - anm_nurse
-        - gda
-        - patient_care_assistant
-        - home_health_aide
-        - physiotherapist
-        - elderly_care_attendant
-        - post_operative_care_nurse
+        - nursing_completed
+        - nursing_student
+        - auxiliary_nurse
+        - non_nursing_staff
+        - paramedical_staff
+        - others
+
+    ScheduleType:
+      type: string
+      description: >
+        Set by admin on approval/edit of an organisation requirement,
+        alongside frequency_of_care/salary_amount — replaces the single
+        start_date field entirely for organisation requirements. Admin
+        picks exactly one mode; only that mode's fields are persisted.
+      enum:
+        - date_range
+        - specific_days
 
     Mobility:
       type: string
@@ -569,21 +575,40 @@ components:
           allOf:
             - $ref: "#/components/schemas/FrequencyOfCare"
           nullable: true
-          description: Null until admin approves (sets this alongside salary_amount/start_date).
+          description: Null until admin approves (sets this alongside salary_amount/schedule_type).
         salary_amount:
           type: integer
           nullable: true
           minimum: 1
           maximum: 1000000
           description: Admin-set on approval. Unit follows frequency_of_care, same convention as Job.salary_amount.
+        schedule_type:
+          allOf:
+            - $ref: "#/components/schemas/ScheduleType"
+          nullable: true
+          description: >
+            Admin-set on approval. Replaces the single start_date field
+            entirely for organisation requirements — admin picks exactly
+            one mode; only that mode's fields (start_date+end_date, or
+            specific_days) are persisted, the other stays null.
         start_date:
           type: string
           format: date
           nullable: true
-          description: >
-            Admin-set on approval; only ever persisted when
-            frequency_of_care is 'daily' (ORG_001 if missing in that case)
-            — always null for 'monthly', regardless of what's sent.
+          description: Populated only when schedule_type is 'date_range'.
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: Populated only when schedule_type is 'date_range'; never before start_date (ORG_001).
+        specific_days:
+          type: array
+          nullable: true
+          items:
+            type: integer
+            minimum: 1
+            maximum: 31
+          description: Populated only when schedule_type is 'specific_days'. Day-of-month integers, recurring each month.
         accommodation_provided:
           type: boolean
         food_provided:
@@ -630,7 +655,10 @@ components:
         type_of_nurse: "registered_nurse"
         frequency_of_care: "monthly"
         salary_amount: 40000
+        schedule_type: "specific_days"
         start_date: null
+        end_date: null
+        specific_days: [3, 12, 20]
         accommodation_provided: true
         food_provided: false
         special_skills: null
@@ -5358,7 +5386,7 @@ paths:
       description: >
         No care_receiver, no city/area/duty_type (inherited from the org's
         own organisation_profiles row), and no frequency_of_care/
-        salary_amount/start_date, which admin sets on approval. Always
+        salary_amount/schedule, which admin sets on approval. Always
         created with status pending_review. Unlike Individual, there is NO
         one-live-requirement limit — an org can have many simultaneous
         pending_review/active requirements.
@@ -5415,7 +5443,7 @@ paths:
       description: >
         The account's full requirement history, newest first — every past
         posting stays visible, not just current ones. frequency_of_care/
-        salary_amount/start_date are null until admin approves;
+        salary_amount/schedule_type are null until admin approves;
         rejection_reason is set only on a rejected (closed) requirement.
       operationId: listMyOrganisationRequirements
       security:
@@ -6009,9 +6037,13 @@ paths:
         The approval path — same "edit with full shape" pattern as
         NurseNow - Individual's equivalent. Requires type_of_nurse,
         frequency_of_care, salary_amount, accommodation_provided,
-        food_provided; start_date is required only when frequency_of_care
-        is daily (ORG_001 otherwise) and is ignored/nulled server-side for
-        monthly regardless of what's sent. If the requirement was
+        food_provided, schedule_type. schedule_type replaces the single
+        start_date field entirely for organisation requirements — admin
+        picks exactly one mode: date_range (requires start_date + end_date,
+        end_date before start_date -> ORG_001) or specific_days (requires a
+        non-empty specific_days array, 1-31). Only the active mode's fields
+        are persisted; the other mode's fields are ignored/nulled
+        server-side regardless of what's sent. If the requirement was
         pending_review or closed, this activates it (stamps posted_at, and
         push-broadcasts "New Organisation Opening" to all caregivers); a
         plain edit of an already-active requirement does not resend it.
@@ -6029,7 +6061,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [type_of_nurse, frequency_of_care, salary_amount, accommodation_provided, food_provided]
+              required: [type_of_nurse, frequency_of_care, salary_amount, accommodation_provided, food_provided, schedule_type]
               properties:
                 type_of_nurse:
                   $ref: "#/components/schemas/TypeOfNurse"
@@ -6039,10 +6071,20 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 1000000
+                schedule_type:
+                  $ref: "#/components/schemas/ScheduleType"
                 start_date:
                   type: string
                   format: date
-                  description: Required (ORG_001) only when frequency_of_care is daily.
+                  description: Required when schedule_type is date_range.
+                end_date:
+                  type: string
+                  format: date
+                  description: Required when schedule_type is date_range; must not be before start_date (ORG_001).
+                specific_days:
+                  type: array
+                  items: { type: integer, minimum: 1, maximum: 31 }
+                  description: Required (non-empty) when schedule_type is specific_days.
                 accommodation_provided:
                   type: boolean
                 food_provided:
@@ -6062,14 +6104,14 @@ paths:
                   data:
                     $ref: "#/components/schemas/OrganisationRequirement"
         "400":
-          description: Validation error, or missing start_date for a daily requirement
+          description: Validation error, or end_date before start_date for a date_range schedule
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
-                error: { code: "ORG_001", message: "Preferred start date is required when frequency of care is daily" }
+                error: { code: "ORG_001", message: "End date cannot be before start date" }
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":

@@ -90,6 +90,8 @@ describe('Organisation (NurseNow) (e2e)', () => {
     type_of_nurse: 'registered_nurse',
     frequency_of_care: 'monthly',
     salary_amount: 40000,
+    schedule_type: 'specific_days',
+    specific_days: [3, 12, 20],
     accommodation_provided: true,
     food_provided: false,
     ...overrides,
@@ -228,7 +230,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload({ type_of_nurse: 'gda' }))
+        .send(requirementPayload({ type_of_nurse: 'auxiliary_nurse' }))
         .expect(201);
 
       const mine = await request(app.getHttpServer())
@@ -268,26 +270,79 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
 
-    it('requires start_date when frequency_of_care is daily (ORG_001 otherwise)', async () => {
+    it('date_range schedule requires start_date/end_date (ORG_001 otherwise) and end_date must not precede start_date', async () => {
       const org = await registerOrganisation('0006');
       const created = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
         .send(requirementPayload())
         .expect(201);
+      const requirementId = created.body.data.id;
 
-      const res = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${created.body.data.id}`)
+      const missingDates = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ frequency_of_care: 'daily' }))
+        .send(approvalPayload({ schedule_type: 'date_range', specific_days: undefined }))
         .expect(400);
-      expect(res.body.error.code).toBe('ORG_001');
+      expect(missingDates.body.error.code).toBe('ORG_001');
 
-      await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${created.body.data.id}`)
+      const endBeforeStart = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ frequency_of_care: 'daily', start_date: '2026-09-01' }))
+        .send(
+          approvalPayload({
+            schedule_type: 'date_range',
+            specific_days: undefined,
+            start_date: '2026-09-10',
+            end_date: '2026-09-01',
+          }),
+        )
+        .expect(400);
+      expect(endBeforeStart.body.error.code).toBe('ORG_001');
+
+      const approved = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(
+          approvalPayload({
+            schedule_type: 'date_range',
+            specific_days: undefined,
+            start_date: '2026-09-01',
+            end_date: '2026-09-10',
+          }),
+        )
         .expect(200);
+      expect(approved.body.data.schedule_type).toBe('date_range');
+      expect(approved.body.data.start_date).toBe('2026-09-01');
+      expect(approved.body.data.end_date).toBe('2026-09-10');
+      expect(approved.body.data.specific_days).toBeNull();
+    });
+
+    it('specific_days schedule requires a non-empty day list (ORG_001 otherwise) and persists it', async () => {
+      const org = await registerOrganisation('0028');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+
+      const missingDays = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(approvalPayload({ schedule_type: 'specific_days', specific_days: undefined }))
+        .expect(400);
+      expect(missingDays.body.error.code).toBe('ORG_001');
+
+      const approved = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(approvalPayload({ schedule_type: 'specific_days', specific_days: [5, 15, 25] }))
+        .expect(200);
+      expect(approved.body.data.schedule_type).toBe('specific_days');
+      expect(approved.body.data.specific_days).toEqual([5, 15, 25]);
+      expect(approved.body.data.start_date).toBeNull();
+      expect(approved.body.data.end_date).toBeNull();
     });
 
     it('an approved (active) requirement shows up on GET /v1/caregiver/organisation-requirements, and a caregiver can apply', async () => {

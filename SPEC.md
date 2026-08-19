@@ -1256,10 +1256,13 @@ CREATE TABLE organisation_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   requirement_number SERIAL UNIQUE,        -- short sequential id, distinct from id (UUID) — same "Job #<n>"-style pattern as jobs.job_number
   posted_by UUID NOT NULL REFERENCES users(id),  -- always users.role = 'organisation'
-  type_of_nurse VARCHAR(40) NOT NULL,      -- validated at the DTO layer against a fixed 12-value list (TypeOfNurse), not a DB CHECK, so it can be adjusted without a migration; distinct from a caregiver's own Qualification
+  type_of_nurse VARCHAR(40) NOT NULL,      -- validated at the DTO layer against a fixed 7-value list (TypeOfNurse), not a DB CHECK, so it can be adjusted without a migration; distinct from a caregiver's own Qualification
   frequency_of_care VARCHAR(10) CHECK (frequency_of_care IN ('daily', 'monthly')),  -- nullable: created null, admin sets it on approval — same null-until-approved pattern as jobs.frequency_of_care for an individual's posting
   salary_amount INTEGER CHECK (salary_amount > 0),  -- admin-set on approval
-  start_date DATE,                          -- admin-set on approval; only ever persisted when frequency_of_care = 'daily' (enforced at the service layer, not a DB constraint) — null for 'monthly'
+  schedule_type VARCHAR(20) CHECK (schedule_type IN ('date_range', 'specific_days')),  -- admin-set on approval; replaces the single "Preferred Start Date" field entirely for organisation requirements — admin picks exactly one mode
+  start_date DATE,                          -- populated only when schedule_type = 'date_range'
+  end_date DATE,                            -- populated only when schedule_type = 'date_range'; must not be before start_date (ORG_001)
+  specific_days INTEGER[],                  -- populated only when schedule_type = 'specific_days'; day-of-month integers 1-31, recurring each month
   accommodation_provided BOOLEAN NOT NULL,
   food_provided BOOLEAN NOT NULL,
   special_skills TEXT,
@@ -1270,6 +1273,7 @@ CREATE TABLE organisation_requirements (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- migration 043_organisation_requirement_schedule.sql added schedule_type/end_date/specific_days
 
 CREATE INDEX idx_organisation_requirements_status ON organisation_requirements(status);
 CREATE INDEX idx_organisation_requirements_posted_by ON organisation_requirements(posted_by);
@@ -3067,12 +3071,16 @@ only has to check one place — see 12.4/12.3).
   `organisation_name`/`organisation_type`/`city`/`area` joined from the posting org).
 - **`PATCH /admin/organisation-requirements/:id`** — the approval path, same "edit with full
   shape" pattern as Individual (6.10): body requires `type_of_nurse`, `frequency_of_care`,
-  `salary_amount`, `accommodation_provided`, `food_provided`, plus optional `start_date`
-  (required — `ORG_001` — only when `frequency_of_care` is `daily`; ignored/nulled server-side
-  for `monthly` regardless of what's sent) and optional `special_skills`. Transitions
-  `pending_review` (or a `closed` requirement) to `active` and stamps `posted_at` — activating
-  sends the `"New Organisation Opening"` push to all caregivers; a plain edit of an already-
-  `active` requirement does not resend it.
+  `salary_amount`, `accommodation_provided`, `food_provided`, `schedule_type`, plus optional
+  `special_skills`. `schedule_type` is `date_range` or `specific_days` — **replaces the old
+  single "Preferred Start Date" field entirely for organisation requirements** — and gates which
+  further fields are required: `date_range` requires `start_date` + `end_date` (`end_date` before
+  `start_date` → `ORG_001`); `specific_days` requires a non-empty `specific_days` array of
+  day-of-month integers 1-31. Only the active mode's fields are persisted; the other mode's
+  columns are stored/left `null` regardless of what's sent. Transitions `pending_review` (or a
+  `closed` requirement) to `active` and stamps `posted_at` — activating sends the `"New
+  Organisation Opening"` push to all caregivers; a plain edit of an already-`active` requirement
+  does not resend it.
 - **`PATCH /admin/organisation-requirements/:id/reject`** (`{ reason }`, reusing `RejectJobDto`)
   — sets `status: 'closed'` + `rejection_reason`. `JOB_011` if not currently `pending_review`.
 - **`PATCH /admin/organisation-requirements/:requirementId/applications/:applicationId`** — the
@@ -3170,7 +3178,7 @@ only has to check one place — see 12.4/12.3).
 
 | Code | HTTP Status | Message | When |
 |------|-------------|---------|------|
-| ORG_001 | 400 | Preferred start date is required when frequency of care is daily | `PATCH /admin/organisation-requirements/:id` (6.11) with `frequency_of_care: 'daily'` and no/blank `start_date` |
+| ORG_001 | 400 | End date cannot be before start date | `PATCH /admin/organisation-requirements/:id` (6.11) with `schedule_type: 'date_range'` and `end_date` earlier than `start_date` |
 
 ### 7.6 General Errors (GEN_xxx)
 
@@ -3511,9 +3519,11 @@ Route by verification_status:
   explicit follow-up request so a caregiver only has to check one place.)
 - Each job card shows: Duty Type + City, Area, Language/Gender/Religion preference tags, Description.
 - Each organisation requirement card shows the posting org's name/type/city/area, Type of Nurse,
-  Accommodation/Food, Special Skills, and (once admin-approved) Frequency of Care/Salary/
-  Preferred Start Date — a visually distinct card from a job card (they share no fields worth
-  unifying), just interleaved in the same scrollable list.
+  Accommodation/Food, Special Skills, and (once admin-approved) Frequency of Care/Salary/Schedule
+  (the same red blinking urgency badge jobs use for Preferred Start Date, showing a date range or
+  a list of specific days via `organisationScheduleLabel()` — see CLAUDE.md's "Schedule Type") —
+  a visually distinct card from a job card (they share no fields worth unifying), just
+  interleaved in the same scrollable list.
 - Action buttons per job/requirement: **Apply**, **Reject** (same `POST .../:id/apply` mechanic
   either way, dispatched to the right endpoint per item's type).
 - Already-applied jobs/requirements show the application status ("You applied" / "You declined" /
@@ -3619,13 +3629,14 @@ the first invalid field, rather than a single generic error message.
 live-limit banner**, unlike Individual's Jobs Posted screen, since Organisation has no
 one-live-requirement rule. Renders `GET /organisation/requirements` (6.11), the account's full
 requirement history newest-first, each card showing Type of Nurse, Accommodation/Food, Special
-Skills, and (once past `pending_review`) Frequency of Care/Salary/Preferred Start Date once
-admin sets them. Applicant review here is the **simple non-forced Accept/Reject** described in
+Skills, and (once past `pending_review`) Frequency of Care/Salary/Schedule (date range or
+specific days, via `organisationScheduleLabel()`) once admin sets them. Applicant review here is
+the **simple non-forced Accept/Reject** described in
 6.11 — a free list with an optional reason, not Individual's forced one-at-a-time/
 mandatory-reason flow. A "Post a Requirement" CTA is always visible (no live/not-live gating).
 
 **Post Organisation Requirement screen (`/org-post-requirement`)**: the "exclusive" org form —
-Type of Nurse dropdown (12 values), Accommodation Provided / Food Provided Yes-No toggles, and
+Type of Nurse dropdown (7 values), Accommodation Provided / Food Provided Yes-No toggles, and
 an optional Special Skills free-text field. **No About Patient / Job Location sections at all**
 — city/area are inherited from the org's own registration, and there's no `care_receiver` for an
 organisation requirement. Same always-tappable-submit / highlight-and-scroll validation pattern
@@ -3659,7 +3670,7 @@ as every other NurseNow form.
 - Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
 - Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
 - Rehab/Hospitals (`OrganisationsListScreen`) — NurseNow organisation (hospital/rehab/clinic) accounts; mirrors Patients/Family exactly — list + block/unblock at either level (`job_posting`/`full`), see "NurseNow" in CLAUDE.md and 6.11
-- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary/optional Preferred Start Date when Daily is picked) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
+- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary and a required Schedule — `SegmentedButton` for Date Range vs Specific Days, then either a start/end date pair or a 31-chip day grid) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction, JobApplicationStatus, JobStatus, VerificationStatus } from '@vitacare/shared-constants';
+import {
+  AuditAction,
+  JobApplicationStatus,
+  JobStatus,
+  ScheduleType,
+  VerificationStatus,
+} from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { DatabaseService } from '../database/database.service';
@@ -300,13 +306,20 @@ export class OrganisationRequirementsService {
     if (!existing) throw new AppException('GEN_002');
 
     const shouldActivate = existing.status === JobStatus.CLOSED || existing.status === JobStatus.PENDING_REVIEW;
-    const startDate = dto.frequency_of_care === 'daily' ? (dto.start_date ?? null) : null;
+
+    const isDateRange = dto.schedule_type === ScheduleType.DATE_RANGE;
+    if (isDateRange && dto.start_date && dto.end_date && dto.end_date < dto.start_date) {
+      throw new AppException('ORG_001');
+    }
 
     const requirement = await this.requirementsRepo.update(id, {
       type_of_nurse: dto.type_of_nurse,
       frequency_of_care: dto.frequency_of_care,
       salary_amount: dto.salary_amount,
-      start_date: startDate,
+      schedule_type: dto.schedule_type,
+      start_date: isDateRange ? (dto.start_date ?? null) : null,
+      end_date: isDateRange ? (dto.end_date ?? null) : null,
+      specific_days: dto.schedule_type === ScheduleType.SPECIFIC_DAYS ? (dto.specific_days ?? null) : null,
       accommodation_provided: dto.accommodation_provided,
       food_provided: dto.food_provided,
       special_skills: dto.special_skills ?? null,

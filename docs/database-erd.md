@@ -225,10 +225,14 @@ that every one of the org's requirements inherits — there is no per-requiremen
 │ id (PK)              │
 │ requirement_number   │  ◄── SERIAL, "Requirement #<n>"-style short id
 │ posted_by (FK→users) │  ◄── always role='organisation'
-│ type_of_nurse        │  ◄── 12-value enum; distinct from Qualification
+│ type_of_nurse        │  ◄── 7-value enum; distinct from Qualification
 │ frequency_of_care    │  ◄── daily/monthly; NULL until admin approves
 │ salary_amount        │  ◄── NULL until admin approves
-│ start_date           │  ◄── only set when frequency_of_care='daily'
+│ schedule_type        │  ◄── date_range | specific_days; NULL until admin approves;
+│                       │      replaces start_date-only design entirely (migration 043)
+│ start_date           │  ◄── only set when schedule_type='date_range'
+│ end_date             │  ◄── only set when schedule_type='date_range'
+│ specific_days        │  ◄── INTEGER[]; only set when schedule_type='specific_days'
 │ accommodation_       │
 │   provided           │
 │ food_provided        │

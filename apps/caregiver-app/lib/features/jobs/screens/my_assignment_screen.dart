@@ -355,7 +355,7 @@ class _AssignedRequirementCard extends StatelessWidget {
             TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
             style: const TextStyle(color: AppColors.textSecondary),
           ),
-          if (requirement.salaryAmount != null || requirement.startDate != null) ...[
+          if (requirement.salaryAmount != null || organisationScheduleLabel(requirement) != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
@@ -375,10 +375,10 @@ class _AssignedRequirementCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (requirement.salaryAmount != null && requirement.startDate != null)
+                if (requirement.salaryAmount != null && organisationScheduleLabel(requirement) != null)
                   const SizedBox(width: AppSpacing.xs),
-                if (requirement.startDate != null)
-                  Expanded(child: BlinkingStartDateBadge(startDate: requirement.startDate!)),
+                if (organisationScheduleLabel(requirement) != null)
+                  Expanded(child: BlinkingStartDateBadge(label: organisationScheduleLabel(requirement)!)),
               ],
             ),
           ],

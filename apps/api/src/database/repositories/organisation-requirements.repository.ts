@@ -10,7 +10,14 @@ export interface OrganisationRequirementRecord {
   type_of_nurse: string;
   frequency_of_care: string | null;
   salary_amount: number | null;
+  /** Admin-set scheduling — exactly one of two modes, picked via
+   *  schedule_type. date_range uses start_date/end_date; specific_days
+   *  uses specific_days. Null until approved. Organisation-only — regular
+   *  jobs keep a single start_date. */
+  schedule_type: string | null;
   start_date: string | null;
+  end_date: string | null;
+  specific_days: number[] | null;
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
@@ -51,7 +58,10 @@ export interface UpdateOrganisationRequirementInput {
   type_of_nurse: string;
   frequency_of_care: string | null;
   salary_amount: number | null;
+  schedule_type: string | null;
   start_date: string | null;
+  end_date: string | null;
+  specific_days: number[] | null;
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
@@ -186,12 +196,15 @@ export class OrganisationRequirementsRepository {
          type_of_nurse = $2,
          frequency_of_care = $3,
          salary_amount = $4,
-         start_date = $5,
-         accommodation_provided = $6,
-         food_provided = $7,
-         special_skills = $8,
-         status = CASE WHEN $9::boolean THEN 'active' ELSE status END,
-         posted_at = CASE WHEN $9::boolean THEN NOW() ELSE posted_at END,
+         schedule_type = $5,
+         start_date = $6,
+         end_date = $7,
+         specific_days = $8,
+         accommodation_provided = $9,
+         food_provided = $10,
+         special_skills = $11,
+         status = CASE WHEN $12::boolean THEN 'active' ELSE status END,
+         posted_at = CASE WHEN $12::boolean THEN NOW() ELSE posted_at END,
          updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -200,7 +213,10 @@ export class OrganisationRequirementsRepository {
         input.type_of_nurse,
         input.frequency_of_care,
         input.salary_amount,
+        input.schedule_type,
         input.start_date,
+        input.end_date,
+        input.specific_days,
         input.accommodation_provided,
         input.food_provided,
         input.special_skills,

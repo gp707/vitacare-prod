@@ -9,7 +9,13 @@ class AdminOrganisationRequirement {
   final String typeOfNurse;
   final String? frequencyOfCare;
   final int? salaryAmount;
+  /// Admin-set scheduling — exactly one mode, picked via [scheduleType].
+  /// 'date_range' uses [startDate]/[endDate]; 'specific_days' uses
+  /// [specificDays]. Null until approved.
+  final String? scheduleType;
   final String? startDate;
+  final String? endDate;
+  final List<int>? specificDays;
   final bool accommodationProvided;
   final bool foodProvided;
   final String? specialSkills;
@@ -28,7 +34,10 @@ class AdminOrganisationRequirement {
     required this.typeOfNurse,
     this.frequencyOfCare,
     this.salaryAmount,
+    this.scheduleType,
     this.startDate,
+    this.endDate,
+    this.specificDays,
     required this.accommodationProvided,
     required this.foodProvided,
     this.specialSkills,
@@ -48,7 +57,11 @@ class AdminOrganisationRequirement {
         typeOfNurse: json['type_of_nurse'] as String,
         frequencyOfCare: json['frequency_of_care'] as String?,
         salaryAmount: json['salary_amount'] as int?,
+        scheduleType: json['schedule_type'] as String?,
         startDate: json['start_date'] as String?,
+        endDate: json['end_date'] as String?,
+        specificDays:
+            json['specific_days'] != null ? List<int>.from(json['specific_days'] as List) : null,
         accommodationProvided: json['accommodation_provided'] as bool,
         foodProvided: json['food_provided'] as bool,
         specialSkills: json['special_skills'] as String?,
@@ -102,12 +115,19 @@ class AdminOrganisationRequirementsRepository {
 
   /// Approves (if pending_review) or edits (if already active) — same
   /// endpoint either way, matching JobsService.updateJob's repost pattern.
+  /// [scheduleType] picks exactly one mode: 'date_range' (needs
+  /// [startDate]/[endDate]) or 'specific_days' (needs [specificDays]) —
+  /// the other mode's fields are ignored server-side regardless of what's
+  /// sent.
   Future<void> approve(
     String id, {
     required String typeOfNurse,
     required String frequencyOfCare,
     required int salaryAmount,
+    required String scheduleType,
     String? startDate,
+    String? endDate,
+    List<int>? specificDays,
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
@@ -117,7 +137,10 @@ class AdminOrganisationRequirementsRepository {
         'type_of_nurse': typeOfNurse,
         'frequency_of_care': frequencyOfCare,
         'salary_amount': salaryAmount,
+        'schedule_type': scheduleType,
         if (startDate != null) 'start_date': startDate,
+        if (endDate != null) 'end_date': endDate,
+        if (specificDays != null) 'specific_days': specificDays,
         'accommodation_provided': accommodationProvided,
         'food_provided': foodProvided,
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,

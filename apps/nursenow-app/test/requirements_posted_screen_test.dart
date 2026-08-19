@@ -20,6 +20,10 @@ OrganisationRequirementModel _requirement({
   int? salaryAmount = 40000,
   String? frequencyOfCare = 'monthly',
   String? rejectionReason,
+  String? scheduleType,
+  String? startDate,
+  String? endDate,
+  List<int>? specificDays,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -28,6 +32,10 @@ OrganisationRequirementModel _requirement({
     'type_of_nurse': 'registered_nurse',
     'frequency_of_care': frequencyOfCare,
     'salary_amount': salaryAmount,
+    'schedule_type': scheduleType,
+    'start_date': startDate,
+    'end_date': endDate,
+    'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Wound care',
@@ -163,10 +171,32 @@ void main() {
 
     expect(find.text('Live — visible to caregivers'), findsOneWidget);
     expect(find.text('₹40000/month'), findsOneWidget);
-    expect(find.text('Registered Nurse (RN)'), findsOneWidget);
+    expect(find.text('Registered Nurse'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Wound care'), findsOneWidget);
+  });
+
+  testWidgets('shows the admin-set schedule once approved — date range', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(scheduleType: 'date_range', startDate: '2026-09-01', endDate: '2026-09-10')],
+      ),
+    );
+
+    expect(find.text('2026-09-01 – 2026-09-10'), findsOneWidget);
+  });
+
+  testWidgets('shows the admin-set schedule once approved — specific days', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(scheduleType: 'specific_days', specificDays: [3, 12, 20])],
+      ),
+    );
+
+    expect(find.text('Days: 3, 12, 20'), findsOneWidget);
   });
 
   testWidgets('shows the accepted caregiver on a closed requirement', (tester) async {

@@ -247,7 +247,7 @@ class _RequirementCard extends StatelessWidget {
           Wrap(
             children: [
               _Tag(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
-              if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
+              if (organisationScheduleLabel(requirement) != null) _Tag(organisationScheduleLabel(requirement)!),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
             ],

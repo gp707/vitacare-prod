@@ -149,7 +149,11 @@ class _JobDetailCardState extends State<JobDetailCard> {
                 ),
               if (job.salaryAmount != null && job.startDate != null) const SizedBox(width: AppSpacing.xs),
               if (job.startDate != null)
-                Expanded(child: BlinkingStartDateBadge(startDate: job.startDate!)),
+                Expanded(
+                  child: BlinkingStartDateBadge(
+                    label: 'Start: ${formatDate(DateTime.parse(job.startDate!))}',
+                  ),
+                ),
             ],
           ),
         ],
@@ -261,15 +265,18 @@ class _JobDetailCardState extends State<JobDetailCard> {
   }
 }
 
-/// Pulses continuously to draw the eye to the start date, alongside the
+/// Pulses continuously to draw the eye to the schedule, alongside the
 /// salary, at the top of every job card — same treatment on the Jobs list
-/// and MyJobs (JobDetailCard is shared between both), and reused as-is for
-/// organisation-requirement cards in jobs_screen.dart/my_assignment_screen.dart
-/// so an org-posted requirement's start date gets identical treatment.
+/// and MyJobs (JobDetailCard is shared between both), and reused for
+/// organisation-requirement cards in jobs_screen.dart/my_assignment_screen.dart.
+/// Takes an already-formatted [label] (e.g. "Start: 2026-09-01" for a job,
+/// or the date-range/specific-days text from `organisationScheduleLabel`
+/// for an org requirement) rather than a raw date, since the two callers'
+/// text isn't the same shape.
 class BlinkingStartDateBadge extends StatefulWidget {
-  final String startDate;
+  final String label;
 
-  const BlinkingStartDateBadge({super.key, required this.startDate});
+  const BlinkingStartDateBadge({super.key, required this.label});
 
   @override
   State<BlinkingStartDateBadge> createState() => _BlinkingStartDateBadgeState();
@@ -306,7 +313,7 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
           border: Border.all(color: AppColors.error, width: 1.5),
         ),
         child: Text(
-          'Start: ${formatDate(DateTime.parse(widget.startDate))}',
+          widget.label,
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 18,
