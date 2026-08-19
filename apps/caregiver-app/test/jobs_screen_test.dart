@@ -236,6 +236,59 @@ void main() {
     expect(find.text('Show details'), findsOneWidget);
   });
 
+  testWidgets('labels an admin-posted job "Posted by Admin"', (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job()]));
+    expect(find.text('Posted by Admin'), findsOneWidget);
+    expect(find.text('Home Care'), findsNothing);
+  });
+
+  testWidgets('labels a patient-posted job "Home Care"', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        JobModel.fromJson({
+          'id': 'job-2',
+          'job_number': 43,
+          'patient_job_number': 701,
+          'city': 'bangalore',
+          'duty_type': 'live_in',
+          'frequency_of_care': 'daily',
+          'languages': ['hindi'],
+          'status': 'active',
+          'posted_by': 'individual-1',
+          'posted_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': '2026-08-01T10:00:00Z',
+          'care_receiver': {
+            'id': 'cr-2',
+            'age': 70,
+            'gender': 'male',
+            'weight_kg': 65,
+            'mobility': 'walks_independently',
+            'communication': 'verbal',
+            'feeding_type': 'oral_independent',
+            'medical_assistance': ['medication_reminders'],
+            'has_medical_condition': false,
+            'medical_conditions': [],
+            'toilet_assistance': ['independent'],
+            'requires_vital_monitoring': false,
+            'vital_monitoring_types': [],
+          },
+        }),
+      ]),
+    );
+    expect(find.text('Home Care'), findsOneWidget);
+    expect(find.text('Posted by Admin'), findsNothing);
+  });
+
+  testWidgets('labels an organisation requirement with its organisation type (e.g. Hospital)', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
+    expect(find.text('Hospital'), findsOneWidget);
+  });
+
   testWidgets('shows job details: duty type, city, area, description', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 

@@ -269,6 +269,12 @@ class _RequirementCard extends StatelessWidget {
         children: [
           Text(organisationJobDisplayId(requirement),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+          const SizedBox(height: AppSpacing.xs),
+          _Tag(
+            requirement.organisationType != null
+                ? OrganisationType.displayNames[requirement.organisationType] ?? requirement.organisationType!
+                : 'Organisation',
+          ),
           const SizedBox(height: 2),
           Text(
             requirement.organisationName ?? '',

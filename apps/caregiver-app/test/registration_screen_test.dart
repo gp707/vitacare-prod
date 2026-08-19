@@ -71,11 +71,11 @@ Future<void> _pumpRegistration(WidgetTester tester, _FakeAuthRepository authRepo
 /// Fills name/phone/age/language/code — the fields that come before
 /// Religion in validation order — so later-field tests can start from there.
 Future<void> _fillUpToCode(WidgetTester tester) async {
-  await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
-  await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
-  await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
+  await tester.enterText(find.widgetWithText(TextField, 'Full Name (Mandatory)'), 'Ramesh Kumar');
+  await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+  await tester.enterText(find.widgetWithText(TextField, 'Age (Mandatory)'), '30');
   await tester.tap(find.text('Hindi'));
-  await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code'), '1234');
+  await tester.enterText(find.widgetWithText(TextField, '4-Digit Login Code (Mandatory)'), '1234');
   await tester.pump();
 }
 
@@ -98,9 +98,9 @@ void main() {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh Kumar');
-    await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
-    await tester.enterText(find.widgetWithText(TextField, 'Age'), '30');
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name (Mandatory)'), 'Ramesh Kumar');
+    await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+    await tester.enterText(find.widgetWithText(TextField, 'Age (Mandatory)'), '30');
     await tester.tap(find.text('Hindi'));
     await tester.pump();
 
@@ -154,11 +154,42 @@ void main() {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Ramesh123');
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name (Mandatory)'), 'Ramesh123');
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump();
 
     expect(find.text('Enter a valid full name (letters and spaces only)'), findsOneWidget);
     expect(authRepo.registerCalled, isFalse);
+  });
+
+  testWidgets('tapping Register with everything empty flags every mandatory field red at once, not just the first',
+      (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+
+    // Every mandatory field's error is shown simultaneously — not just the
+    // first invalid one found.
+    expect(find.text('Enter a valid full name (letters and spaces only)'), findsOneWidget);
+    expect(find.text('Enter a valid 10-digit mobile number'), findsOneWidget);
+    expect(find.text("Set a 4-digit code — you'll use it with your phone to log in"), findsOneWidget);
+    expect(find.text('Age must be between ${Validation.ageMin} and ${Validation.ageMax}'), findsOneWidget);
+    expect(find.text('Select at least one language'), findsOneWidget);
+    expect(find.text('Select your religion'), findsOneWidget);
+    expect(find.text('Select your highest qualification'), findsOneWidget);
+    expect(find.text('Take a selfie to continue'), findsOneWidget);
+    expect(find.text('Upload your Aadhaar card to continue'), findsOneWidget);
+    expect(find.text('You must accept the Terms & Conditions to continue'), findsOneWidget);
+    expect(authRepo.registerCalled, isFalse);
+  });
+
+  testWidgets('fields do not show red until Register has been tapped once', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    expect(find.text('Select at least one language'), findsNothing);
+    expect(find.text('Take a selfie to continue'), findsNothing);
   });
 }

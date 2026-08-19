@@ -144,6 +144,12 @@ location) that didn't fit the Individual/admin jobs-table model.
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a
   mandatory field empty flags every missing field red (with an inline message) and scrolls/focuses
   straight to the first invalid one, instead of showing one generic top-of-form error string.
+  **caregiver-app's own `RegistrationScreen` (NurseJobs) uses the same pattern** — every mandatory
+  field (full name, phone, 4-digit login code, age, languages, religion, highest qualification,
+  selfie, Aadhaar, terms acceptance) gets a red border/label + inline error message simultaneously
+  once Register is tapped with something missing, and the view scrolls/focuses to the first one in
+  on-form order. Gender (has a default), preferred cities, qualification document, and other
+  documents are optional and never flagged.
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
   **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account

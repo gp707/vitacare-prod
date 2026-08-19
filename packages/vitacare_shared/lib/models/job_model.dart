@@ -188,6 +188,17 @@ String jobDisplayId(JobModel job) {
   return 'JOB-${job.jobNumber}';
 }
 
+/// Caregiver-facing "who is this for" label — a NurseNow individual's own
+/// posting is home care for a patient/family, so it's labeled "Home Care"
+/// rather than exposing the account type; an admin-posted job is labeled
+/// "Posted by Admin". Same [adminJobNumber]/[patientJobNumber] branch
+/// [jobDisplayId] uses, kept here (not duplicated per app) so every
+/// Flutter app renders identical text.
+String jobPostedByLabel(JobModel job) {
+  if (job.patientJobNumber != null) return 'Home Care';
+  return 'Posted by Admin';
+}
+
 /// A single caregiver's application to a job, as returned in
 /// GET /admin/jobs/:id's `applications` array.
 class JobApplicationModel {

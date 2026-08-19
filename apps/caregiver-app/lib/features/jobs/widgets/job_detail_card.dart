@@ -123,6 +123,8 @@ class _JobDetailCardState extends State<JobDetailCard> {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.xs),
+        Tag(jobPostedByLabel(job)),
         if (job.salaryAmount != null || job.startDate != null) ...[
           const SizedBox(height: AppSpacing.xs),
           Row(
