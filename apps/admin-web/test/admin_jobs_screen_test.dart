@@ -1115,4 +1115,42 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('tapping the job row opens a read-only detail view, not the editable form', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Job #42'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('About Patient')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Hours Care Needed')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Close')), findsOneWidget);
+    // Read-only: no editable form fields, no Save Changes button, no
+    // "Edit Job #42" dialog title (that's the editable form's title).
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
+    expect(find.text('Edit Job #42'), findsNothing);
+    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsNothing);
+  });
+
+  testWidgets('tapping Edit inside the read-only detail view opens the editable form', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Job #42'));
+    await tester.pumpAndSettle();
+
+    final readOnlyDialog = find.byType(AlertDialog);
+    await tester.tap(find.descendant(of: readOnlyDialog, matching: find.widgetWithText(ElevatedButton, 'Edit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Job #42'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+    // Exactly one dialog on screen — the read-only one was popped first,
+    // not left stacked underneath the editable form.
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
 }

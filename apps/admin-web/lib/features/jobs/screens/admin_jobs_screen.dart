@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../data/admin_jobs_repository.dart';
 import '../widgets/job_detail_dialog.dart';
+import '../widgets/job_read_only_detail_dialog.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
@@ -106,6 +107,29 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
         builder: (dialogContext) => _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
       );
       if (saved == true) await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  /// Opened by tapping a job row — full detail, read-only, with an Edit
+  /// button handing off to the existing _openEditDialog flow.
+  Future<void> _openDetailDialog(JobModel job) async {
+    try {
+      final (fullJob, _) = await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => JobReadOnlyDetailDialog(
+          job: fullJob,
+          onEdit: () {
+            Navigator.of(dialogContext).pop();
+            _openEditDialog(job);
+          },
+        ),
+      );
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -329,6 +353,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                       final job = _jobs[index];
                       return _JobRow(
                         job: job,
+                        onTap: () => _openDetailDialog(job),
                         onClose: job.status == JobStatus.active ? () => _close(job) : null,
                         onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
                         onReject: job.status == JobStatus.pendingReview ? () => _reject(job) : null,
@@ -356,6 +381,7 @@ String _salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCar
 
 class _JobRow extends StatelessWidget {
   final JobModel job;
+  final VoidCallback onTap;
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
   final VoidCallback? onReject;
@@ -364,6 +390,7 @@ class _JobRow extends StatelessWidget {
 
   const _JobRow({
     required this.job,
+    required this.onTap,
     required this.onClose,
     required this.onRemind,
     required this.onReject,
@@ -373,7 +400,12 @@ class _JobRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        child: Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.border),
@@ -460,6 +492,8 @@ class _JobRow extends StatelessWidget {
           if (onClose != null) TextButton(onPressed: onClose, child: const Text('Close')),
           if (onReject != null) TextButton(onPressed: onReject, child: const Text('Reject')),
         ],
+      ),
+        ),
       ),
     );
   }

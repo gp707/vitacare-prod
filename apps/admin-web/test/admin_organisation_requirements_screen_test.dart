@@ -160,7 +160,7 @@ void main() {
     expect(find.text('Reason: Incomplete details'), findsOneWidget);
   });
 
-  testWidgets('Approve and Reject only show for a pending_review requirement', (tester) async {
+  testWidgets('Reject only shows for a pending_review requirement; Edit is always available', (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
@@ -171,6 +171,32 @@ void main() {
     expect(find.text('Approve'), findsNothing);
     expect(find.text('Reject'), findsNothing);
     expect(find.text('Applicants'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+  });
+
+  testWidgets('editing an active requirement pre-fills current frequency/salary and calls approve() again',
+      (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([
+      _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.monthly, salaryAmount: 25000),
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit requirement #101'), findsOneWidget);
+    expect(find.text('Monthly'), findsWidgets);
+    final salaryField = tester.widget<TextField>(find.byType(TextField));
+    expect(salaryField.controller!.text, '25000');
+
+    await tester.enterText(find.byType(TextField), '28000');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(repo.approvedId, 'r1');
+    expect(repo.approvedFrequency, FrequencyOfCare.monthly);
+    expect(repo.approvedSalary, 28000);
   });
 
   testWidgets('approving fills frequency and salary and calls the repository', (tester) async {
@@ -250,5 +276,46 @@ void main() {
     expect(find.text('Accept'), findsNothing);
     expect(find.text('Reject'), findsNothing);
     expect(find.text(JobApplicationStatus.accepted), findsOneWidget);
+  });
+
+  testWidgets('tapping the requirement row opens a read-only detail view, not the edit form', (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1800),
+      ]),
+    );
+
+    await tester.tap(find.text('Requirement #101'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Type of Nurse')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Close')), findsOneWidget);
+    // Read-only: not the edit form.
+    expect(find.text('Edit requirement #101'), findsNothing);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
+  });
+
+  testWidgets('tapping Edit inside the read-only detail view opens the edit form', (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1800),
+      ]),
+    );
+
+    await tester.tap(find.text('Requirement #101'));
+    await tester.pumpAndSettle();
+
+    final readOnlyDialog = find.byType(AlertDialog);
+    await tester.tap(find.descendant(of: readOnlyDialog, matching: find.widgetWithText(ElevatedButton, 'Edit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit requirement #101'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
   });
 }

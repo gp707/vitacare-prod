@@ -78,10 +78,15 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
     }
   }
 
-  Future<void> _approve(AdminOrganisationRequirement requirement) async {
+  /// Doubles as "Approve" (from pending_review, sets frequency/salary/
+  /// start_date for the first time) and "Edit" (from active/closed —
+  /// admin can revisit/correct those same admin-set fields later; every
+  /// other field stays org-owned, unchanged from `requirement`) — same
+  /// dialog, same endpoint, only the label changes with current status.
+  Future<void> _editRequirement(AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _ApproveDialog(
+      builder: (dialogContext) => _EditRequirementDialog(
         requirement: requirement,
         onSubmit: (frequency, salary, startDate) async {
           await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
@@ -95,6 +100,21 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
                 specialSkills: requirement.specialSkills,
               );
           await _load();
+        },
+      ),
+    );
+  }
+
+  /// Row tap opens the full detail read-only; its own Edit button hands
+  /// off to _editRequirement.
+  Future<void> _viewDetail(AdminOrganisationRequirement requirement) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _RequirementReadOnlyDialog(
+        requirement: requirement,
+        onEdit: () {
+          Navigator.of(dialogContext).pop();
+          _editRequirement(requirement);
         },
       ),
     );
@@ -145,7 +165,8 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
                       final requirement = _requirements[index];
                       return _RequirementRow(
                         requirement: requirement,
-                        onApprove: requirement.status == JobStatus.pendingReview ? () => _approve(requirement) : null,
+                        onTap: () => _viewDetail(requirement),
+                        onEdit: () => _editRequirement(requirement),
                         onReject: requirement.status == JobStatus.pendingReview ? () => _reject(requirement) : null,
                         onViewApplicants: () => _viewApplicants(requirement),
                       );
@@ -162,62 +183,75 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
 
 class _RequirementRow extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
-  final VoidCallback? onApprove;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback? onReject;
   final VoidCallback onViewApplicants;
 
   const _RequirementRow({
     required this.requirement,
-    required this.onApprove,
+    required this.onTap,
+    required this.onEdit,
     required this.onReject,
     required this.onViewApplicants,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(AppSpacing.sm),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Requirement #${requirement.requirementNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              _StatusBadge(status: requirement.status),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Requirement #${requirement.requirementNumber}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  _StatusBadge(status: requirement.status),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(requirement.organisationName ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (requirement.rejectionReason != null)
+                Text('Reason: ${requirement.rejectionReason}', style: const TextStyle(color: AppColors.error)),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  Text(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
+                  if (requirement.salaryAmount != null)
+                    Text(
+                      '· ₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
+                      style: const TextStyle(color: AppColors.success),
+                    ),
+                  Text('· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
+                  Text('· ${requirement.foodProvided ? 'Food' : 'No food'}'),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                children: [
+                  TextButton(onPressed: onViewApplicants, child: const Text('Applicants')),
+                  TextButton(
+                    onPressed: onEdit,
+                    child: Text(requirement.status == JobStatus.pendingReview ? 'Approve' : 'Edit'),
+                  ),
+                  if (onReject != null) TextButton(onPressed: onReject, child: const Text('Reject')),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(requirement.organisationName ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
-          if (requirement.rejectionReason != null)
-            Text('Reason: ${requirement.rejectionReason}', style: const TextStyle(color: AppColors.error)),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: AppSpacing.xs,
-            children: [
-              Text(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
-              if (requirement.salaryAmount != null)
-                Text(
-                  '· ₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
-                  style: const TextStyle(color: AppColors.success),
-                ),
-              Text('· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
-              Text('· ${requirement.foodProvided ? 'Food' : 'No food'}'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            children: [
-              TextButton(onPressed: onViewApplicants, child: const Text('Applicants')),
-              if (onApprove != null) TextButton(onPressed: onApprove, child: const Text('Approve')),
-              if (onReject != null) TextButton(onPressed: onReject, child: const Text('Reject')),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -253,21 +287,35 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _ApproveDialog extends StatefulWidget {
+/// Doubles as "Approve" (from pending_review) and "Edit" (from
+/// active/closed, to revisit/correct these same admin-set fields later) —
+/// see AdminOrganisationRequirementsScreen._editRequirement.
+class _EditRequirementDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
   final Future<void> Function(String frequency, int salary, String? startDate) onSubmit;
 
-  const _ApproveDialog({required this.requirement, required this.onSubmit});
+  const _EditRequirementDialog({required this.requirement, required this.onSubmit});
 
   @override
-  State<_ApproveDialog> createState() => _ApproveDialogState();
+  State<_EditRequirementDialog> createState() => _EditRequirementDialogState();
 }
 
-class _ApproveDialogState extends State<_ApproveDialog> {
+class _EditRequirementDialogState extends State<_EditRequirementDialog> {
   String? _frequency;
-  final _salaryController = TextEditingController();
+  late final _salaryController =
+      TextEditingController(text: widget.requirement.salaryAmount?.toString() ?? '');
   DateTime? _startDate;
   bool _submitting = false;
+
+  bool get _isApproval => widget.requirement.status == JobStatus.pendingReview;
+
+  @override
+  void initState() {
+    super.initState();
+    _frequency = widget.requirement.frequencyOfCare;
+    final startDate = widget.requirement.startDate;
+    if (startDate != null) _startDate = DateTime.tryParse(startDate);
+  }
 
   @override
   void dispose() {
@@ -293,7 +341,11 @@ class _ApproveDialogState extends State<_ApproveDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Approve requirement #${widget.requirement.requirementNumber}'),
+      title: Text(
+        _isApproval
+            ? 'Approve requirement #${widget.requirement.requirementNumber}'
+            : 'Edit requirement #${widget.requirement.requirementNumber}',
+      ),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -350,7 +402,7 @@ class _ApproveDialogState extends State<_ApproveDialog> {
           onPressed: _canSubmit ? _submit : null,
           child: _submitting
               ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
-              : const Text('Approve'),
+              : Text(_isApproval ? 'Approve' : 'Save Changes'),
         ),
       ],
     );
@@ -424,6 +476,101 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
       ],
+    );
+  }
+}
+
+/// Read-only detail view opened by tapping a requirement row — every field
+/// as plain text, with an Edit button handing off to _EditRequirementDialog.
+class _RequirementReadOnlyDialog extends StatelessWidget {
+  final AdminOrganisationRequirement requirement;
+  final VoidCallback onEdit;
+
+  const _RequirementReadOnlyDialog({required this.requirement, required this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Requirement #${requirement.requirementNumber}'),
+          const SizedBox(width: AppSpacing.sm),
+          _StatusBadge(status: requirement.status),
+        ],
+      ),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow('Organisation', requirement.organisationName ?? '—'),
+              _DetailRow(
+                'Type',
+                OrganisationType.displayNames[requirement.organisationType] ?? requirement.organisationType ?? '—',
+              ),
+              _DetailRow(
+                'Location',
+                [
+                  if (requirement.city != null) City.displayNames[requirement.city] ?? requirement.city!,
+                  if (requirement.area != null && requirement.area!.isNotEmpty) requirement.area!,
+                ].join(', '),
+              ),
+              const Divider(height: AppSpacing.lg),
+              _DetailRow('Type of Nurse', TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
+              _DetailRow(
+                'Frequency of Care',
+                requirement.frequencyOfCare != null
+                    ? FrequencyOfCare.displayNames[requirement.frequencyOfCare] ?? requirement.frequencyOfCare!
+                    : 'Not set (admin sets on approval)',
+              ),
+              _DetailRow(
+                'Salary',
+                requirement.salaryAmount != null
+                    ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
+                    : 'Not set (admin sets on approval)',
+              ),
+              if (requirement.startDate != null) _DetailRow('Preferred Start Date', requirement.startDate!),
+              _DetailRow('Accommodation', requirement.accommodationProvided ? 'Provided' : 'Not provided'),
+              _DetailRow('Food', requirement.foodProvided ? 'Provided' : 'Not provided'),
+              if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty)
+                _DetailRow('Special Skills', requirement.specialSkills!),
+              if (requirement.rejectionReason != null) _DetailRow('Rejection Reason', requirement.rejectionReason!),
+              const Divider(height: AppSpacing.lg),
+              _DetailRow('Posted', requirement.postedAt.split('T').first),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+        ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
+      ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 }
