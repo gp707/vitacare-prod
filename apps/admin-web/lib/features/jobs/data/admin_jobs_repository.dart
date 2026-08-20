@@ -61,8 +61,12 @@ class CareReceiverInput {
 
 /// All fields optional/null = no filter applied for that field. `postedBy`
 /// is a user id (from [JobPosterOption.id]/the poster dropdown), not a name.
+/// `postedByRole` is one level up — filters to every job posted by any user
+/// of that role (e.g. 'individual' for the merged Jobs screen's "Patients"
+/// poster-type filter), not a specific person.
 class JobListFilters {
   final String? postedBy;
+  final String? postedByRole;
   final String? city;
   final String? gender;
   final String? dutyType;
@@ -72,6 +76,7 @@ class JobListFilters {
 
   const JobListFilters({
     this.postedBy,
+    this.postedByRole,
     this.city,
     this.gender,
     this.dutyType,
@@ -83,6 +88,7 @@ class JobListFilters {
   Map<String, dynamic> toQueryParameters() => {
         'limit': 100,
         if (postedBy != null) 'posted_by': postedBy,
+        if (postedByRole != null) 'posted_by_role': postedByRole,
         if (city != null) 'city': city,
         if (gender != null) 'gender': gender,
         if (dutyType != null) 'duty_type': dutyType,

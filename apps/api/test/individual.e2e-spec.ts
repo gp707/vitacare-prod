@@ -277,6 +277,46 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(mine.body.data[0].salary_amount).toBe(28000);
     });
 
+    it('GET /v1/admin/jobs?search=PAT-<n> finds every job a specific patient/family account posted', async () => {
+      const individual = await registerIndividual('0034', 'Searchable Patient');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      const approved = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+      expect(approved.body.data.patient_job_number).toEqual(expect.any(Number));
+
+      const individualDetail = await request(app.getHttpServer())
+        .get(`/v1/admin/individuals/${individual.user_id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const patientNumber = individualDetail.body.data.patient_number as number;
+
+      const byPatientId = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs?limit=100&search=PAT-${patientNumber}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byPatientId.body.data.map((j: { id: string }) => j.id)).toContain(jobId);
+
+      const otherIndividual = await registerIndividual('0035', 'Other Patient');
+      const otherCreated = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${otherIndividual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const noMatch = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs?limit=100&search=PAT-${patientNumber}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(noMatch.body.data.map((j: { id: string }) => j.id)).not.toContain(otherCreated.body.data.id);
+    });
+
     it('an approved (active) requirement shows up on GET /v1/caregiver/jobs, and a caregiver can apply', async () => {
       const individual = await registerIndividual('0006');
       const created = await request(app.getHttpServer())

@@ -3723,7 +3723,6 @@ as every other NurseNow form.
 | 8 | App Versions | `/app-versions` | Admin, Super Admin |
 | 9 | Patients/Family | `/patients-family` | Admin, Super Admin |
 | 10 | Rehab/Hospitals | `/rehab-hospitals` | Admin, Super Admin |
-| 11 | Organisation Requirements | `/rehab-requirements` | Admin, Super Admin |
 
 ### 13.2 Navigation Structure
 
@@ -3731,9 +3730,27 @@ as every other NurseNow form.
 - Dashboard (icon: grid)
 - Caregivers (icon: people)
 - Patients/Family (icon: family_restroom) — NurseNow individual accounts; list + block/unblock, see "NurseNow" in CLAUDE.md and 6.10
-- Jobs (icon: work) — also surfaces NurseNow's `pending_review` postings (Pending Review badge, Reject action, poster name) inline, no separate queue
+- Jobs (icon: work) — a single tab (`AdminJobsScreen`) merging `jobs` and NurseNow's
+  `organisation_requirements` into one list, sorted by post date, each with its own row type
+  (too different in shape to unify — only the sort/merge wrapper is shared, mirroring
+  caregiver-app's own merged Jobs tab). A **Posted By** dropdown (All jobs / Hospital / Clinic /
+  Rehab / Patients) narrows to one poster type — Hospital/Clinic/Rehab fetches only organisation
+  requirements (`organisation_type` filter), Patients fetches only jobs
+  (`posted_by_role=individual`), All jobs fetches and merges both. "Post New Job" only ever
+  creates a `jobs` row (admin never creates an organisation requirement — the org posts its own).
+  A requirement row's own actions — Applicants (a Profile button per applicant — links to the same
+  `/caregiver-detail` full admin screen a job's own Applicants dialog already uses, no new backend
+  endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject
+  (pending_review only, reason-required dialog), and a single Edit action (dialog collecting
+  Frequency of Care/Salary and a required Schedule — `SegmentedButton` for Date Range vs Specific
+  Days; Date Range shows a start/end date pair, Specific Days reveals a nested Weekly/Monthly
+  `SegmentedButton` in turn showing either 7 weekday chips or a real month-grid calendar, with a
+  green checkmark on every already-picked value) that doubles as "Approve" from pending_review and
+  as an ordinary edit from active/closed — are extracted into `requirement_widgets.dart`
+  (`RequirementRow`, `EditRequirementDialog`, `RequirementApplicantsDialog`,
+  `RequirementReadOnlyDialog`) and reused by this screen. Tapping any row opens a read-only detail
+  view first, with its own Edit button — see 6.11
 - Rehab/Hospitals (`OrganisationsListScreen`) — NurseNow organisation (hospital/rehab/clinic) accounts; mirrors Patients/Family exactly — list + block/unblock at either level (`job_posting`/`full`), see "NurseNow" in CLAUDE.md and 6.11
-- Organisation Requirements (`AdminOrganisationRequirementsScreen`) — every organisation-posted requirement, deliberately **not** folded into the Jobs tab (a wholly separate table/model, see 6.11): Applicants (a Profile button per applicant — links to the same `/caregiver-detail` full admin screen the Jobs tab's own Applicants dialog already uses, no new backend endpoint needed for the admin case — plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required dialog), and a single Edit action (dialog collecting Frequency of Care/Salary and a required Schedule — `SegmentedButton` for Date Range vs Specific Days; Date Range shows a start/end date pair, Specific Days reveals a nested Weekly/Monthly `SegmentedButton` in turn showing either 7 weekday chips or a real month-grid calendar, with a green checkmark on every already-picked value) that doubles as "Approve" from pending_review and as an ordinary edit from active/closed — admin can revisit/correct these fields later, not just once at approval. Tapping a row opens a read-only detail view first, with its own Edit button — same pattern as the Jobs tab below
 - Audit Logs (icon: clipboard)
 - Admin Management (icon: shield) — only visible to Super Admin
 - App Versions (icon: system_update) — sets the force-upgrade minimum version per platform, see 6.9

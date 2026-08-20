@@ -154,8 +154,12 @@ export interface ListJobsFilters {
    *  NurseNow patient/family postings vs admin's own. Requires the users
    *  join added in listForAdmin below. */
   posted_by_role?: string;
-  /** Matches against the job's display id (ADMIN-JOB-<n>/PAT-JOB-<n>) or the
-   *  raw job_number. */
+  /** Matches against the job's own display id (ADMIN-JOB-<n>/PAT-JOB-<n>),
+   *  the raw job_number, OR the posting individual's own display id
+   *  (PAT-<n>, via a LEFT JOIN to individual_profiles) — lets admin find
+   *  every job a specific patient/family account has posted, not just a
+   *  single job by its own id. Null for admin-posted jobs (no individual
+   *  row to join), so has no effect on those either way. */
   search?: string;
 }
 
@@ -200,7 +204,8 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
     conditions.push(
       `(('ADMIN-JOB-' || j.admin_job_number::text) ILIKE $${params.length}
         OR ('PAT-JOB-' || j.patient_job_number::text) ILIKE $${params.length}
-        OR j.job_number::text ILIKE $${params.length})`,
+        OR j.job_number::text ILIKE $${params.length}
+        OR ('PAT-' || ip.patient_number::text) ILIKE $${params.length})`,
     );
   }
   return { clause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
@@ -285,6 +290,7 @@ export class JobsRepository {
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          JOIN users u ON u.id = j.posted_by
+         LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by
          ${clause}
          ORDER BY j.created_at DESC
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
@@ -294,6 +300,7 @@ export class JobsRepository {
         `SELECT COUNT(*) FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          JOIN users u ON u.id = j.posted_by
+         LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by
          ${clause}`,
         params,
       ),

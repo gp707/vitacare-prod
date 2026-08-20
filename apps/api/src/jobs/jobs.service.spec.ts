@@ -367,7 +367,7 @@ describe('JobsService', () => {
       expect(result.meta).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
     });
 
-    it('passes posted_by/gender/duty_type/language filters through to the repository, alongside status/city', async () => {
+    it('passes posted_by/gender/duty_type/language/search filters through to the repository, alongside status/city', async () => {
       jobsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
       await service.listJobsForAdmin({
         page: 1,
@@ -379,6 +379,7 @@ describe('JobsService', () => {
         duty_type: 'live_in',
         language: 'hindi',
         posted_by_role: 'individual',
+        search: 'PAT-501',
       } as any);
       expect(jobsRepo.listForAdmin).toHaveBeenCalledWith(
         {
@@ -389,6 +390,7 @@ describe('JobsService', () => {
           duty_type: 'live_in',
           language: 'hindi',
           posted_by_role: 'individual',
+          search: 'PAT-501',
         },
         { page: 1, limit: 20 },
       );

@@ -22,7 +22,6 @@ const _restorableRoutes = {
   '/app-versions',
   '/patients-family',
   '/rehab-hospitals',
-  '/rehab-requirements',
   '/caregivers',
 };
 

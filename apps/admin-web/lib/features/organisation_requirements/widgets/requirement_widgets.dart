@@ -1,304 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
-import '../../../core/network/api_exception.dart';
-import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 
-/// Admin never *creates* an organisation requirement (the org posts its
-/// own) — this screen only approves/edits/rejects pending_review ones and
-/// decides on applicants. A separate screen/data model from AdminJobsScreen
-/// since organisation_requirements is a dedicated table (see "NurseNow" in
-/// CLAUDE.md).
-class AdminOrganisationRequirementsScreen extends ConsumerStatefulWidget {
-  const AdminOrganisationRequirementsScreen({super.key});
-
-  @override
-  ConsumerState<AdminOrganisationRequirementsScreen> createState() => _AdminOrganisationRequirementsScreenState();
-}
-
-class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrganisationRequirementsScreen> {
-  List<AdminOrganisationRequirement> _requirements = [];
-  bool _loading = true;
-  String? _errorMessage;
-
-  final _searchController = TextEditingController();
-  String? _filterStatus;
-  String? _filterOrganisationType;
-  String? _filterCity;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-    });
-    try {
-      final items = await ref.read(adminOrganisationRequirementsRepositoryProvider).list(
-            filters: OrganisationRequirementListFilters(
-              status: _filterStatus,
-              organisationType: _filterOrganisationType,
-              city: _filterCity,
-              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
-            ),
-          );
-      if (mounted) setState(() => _requirements = items);
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _errorMessage = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _applyFilters() => _load();
-
-  bool get _hasActiveFilters =>
-      _filterStatus != null ||
-      _filterOrganisationType != null ||
-      _filterCity != null ||
-      _searchController.text.trim().isNotEmpty;
-
-  Widget _buildFilterPanel() {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 240,
-          child: TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              labelText: 'Search org name or ID (ORG-JOB-...)',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            onSubmitted: (_) => _applyFilters(),
-          ),
-        ),
-        SizedBox(
-          width: 160,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            initialValue: _filterStatus,
-            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
-            items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
-              ...JobStatus.all.map(
-                (s) => DropdownMenuItem<String?>(value: s, child: Text(JobStatus.displayNames[s] ?? s)),
-              ),
-            ],
-            onChanged: (value) => setState(() => _filterStatus = value),
-          ),
-        ),
-        SizedBox(
-          width: 200,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            initialValue: _filterOrganisationType,
-            decoration: const InputDecoration(
-              labelText: 'Organisation Type',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All types')),
-              ...OrganisationType.all.map(
-                (t) => DropdownMenuItem<String?>(value: t, child: Text(OrganisationType.displayNames[t] ?? t)),
-              ),
-            ],
-            onChanged: (value) => setState(() => _filterOrganisationType = value),
-          ),
-        ),
-        SizedBox(
-          width: 180,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            initialValue: _filterCity,
-            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
-            items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
-              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
-            ],
-            onChanged: (value) => setState(() => _filterCity = value),
-          ),
-        ),
-        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
-      ],
-    );
-  }
-
-  Future<void> _reject(AdminOrganisationRequirement requirement) async {
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Reject requirement'),
-          content: TextField(
-            controller: controller,
-            maxLength: 1000,
-            maxLines: 4,
-            onChanged: (_) => setDialogState(() {}),
-            decoration: const InputDecoration(labelText: 'Reason (shown to the organisation)'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: controller.text.trim().isEmpty ? null : () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await ref.read(adminOrganisationRequirementsRepositoryProvider).reject(requirement.id, controller.text.trim());
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    }
-  }
-
-  /// Doubles as "Approve" (from pending_review, sets frequency/salary/
-  /// schedule for the first time) and "Edit" (from active/closed —
-  /// admin can revisit/correct those same admin-set fields later; every
-  /// other field stays org-owned, unchanged from `requirement`) — same
-  /// dialog, same endpoint, only the label changes with current status.
-  Future<void> _editRequirement(AdminOrganisationRequirement requirement) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _EditRequirementDialog(
-        requirement: requirement,
-        onSubmit: (frequency, salary, scheduleType, startDate, endDate, scheduleRepeat, specificDays) async {
-          await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
-                requirement.id,
-                typeOfNurse: requirement.typeOfNurse,
-                frequencyOfCare: frequency,
-                salaryAmount: salary,
-                scheduleType: scheduleType,
-                startDate: startDate,
-                endDate: endDate,
-                scheduleRepeat: scheduleRepeat,
-                specificDays: specificDays,
-                accommodationProvided: requirement.accommodationProvided,
-                foodProvided: requirement.foodProvided,
-                specialSkills: requirement.specialSkills,
-              );
-          await _load();
-        },
-      ),
-    );
-  }
-
-  /// Row tap opens the full detail read-only; its own Edit button hands
-  /// off to _editRequirement.
-  Future<void> _viewDetail(AdminOrganisationRequirement requirement) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _RequirementReadOnlyDialog(
-        requirement: requirement,
-        onEdit: () {
-          Navigator.of(dialogContext).pop();
-          _editRequirement(requirement);
-        },
-      ),
-    );
-  }
-
-  Future<void> _viewApplicants(AdminOrganisationRequirement requirement) async {
-    final (_, applications) = await ref.read(adminOrganisationRequirementsRepositoryProvider).getDetail(requirement.id);
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _ApplicantsDialog(
-        requirement: requirement,
-        applications: applications,
-        onDecide: (applicationId, status) async {
-          await ref
-              .read(adminOrganisationRequirementsRepositoryProvider)
-              .decideApplication(requirement.id, applicationId, status);
-          await _load();
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.rehabRequirements,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Organisation Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.md),
-              _buildFilterPanel(),
-              const SizedBox(height: AppSpacing.md),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-              else if (_requirements.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      _hasActiveFilters
-                          ? 'No organisation requirements match these filters.'
-                          : 'No organisation requirements posted yet.',
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: _requirements.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (context, index) {
-                      final requirement = _requirements[index];
-                      return _RequirementRow(
-                        requirement: requirement,
-                        onTap: () => _viewDetail(requirement),
-                        onEdit: () => _editRequirement(requirement),
-                        onReject: requirement.status == JobStatus.pendingReview ? () => _reject(requirement) : null,
-                        onViewApplicants: () => _viewApplicants(requirement),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RequirementRow extends StatelessWidget {
+/// Row/dialog widgets for an organisation requirement, extracted out of the
+/// former standalone AdminOrganisationRequirementsScreen so AdminJobsScreen
+/// can render organisation requirements merged into its single Jobs list.
+/// Kept as a distinct set of widgets (not unified with _JobRow/_JobFormDialog
+/// in admin_jobs_screen.dart) since organisation_requirements is a wholly
+/// separate table/model from jobs (see "NurseNow" in CLAUDE.md) — only the
+/// browse/list view is merged, not the underlying create/edit shapes.
+class RequirementRow extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback? onReject;
   final VoidCallback onViewApplicants;
 
-  const _RequirementRow({
+  const RequirementRow({
+    super.key,
     required this.requirement,
     required this.onTap,
     required this.onEdit,
@@ -325,9 +45,8 @@ class _RequirementRow extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(_requirementDisplayId(requirement),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  _StatusBadge(status: requirement.status),
+                  Text(requirementDisplayId(requirement), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  RequirementStatusBadge(status: requirement.status),
                 ],
               ),
               const SizedBox(height: 2),
@@ -367,10 +86,10 @@ class _RequirementRow extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
+class RequirementStatusBadge extends StatelessWidget {
   final String status;
 
-  const _StatusBadge({required this.status});
+  const RequirementStatusBadge({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -398,11 +117,10 @@ class _StatusBadge extends StatelessWidget {
 }
 
 /// Doubles as "Approve" (from pending_review) and "Edit" (from
-/// active/closed, to revisit/correct these same admin-set fields later) —
-/// see AdminOrganisationRequirementsScreen._editRequirement. Scheduling is
-/// exactly one of two modes (see ScheduleType) — deliberately
+/// active/closed, to revisit/correct these same admin-set fields later).
+/// Scheduling is exactly one of two modes (see ScheduleType) — deliberately
 /// organisation-only, unlike AdminJobsScreen's single Preferred Start Date.
-class _EditRequirementDialog extends StatefulWidget {
+class EditRequirementDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
   final Future<void> Function(
     String frequency,
@@ -414,13 +132,13 @@ class _EditRequirementDialog extends StatefulWidget {
     List<int>? specificDays,
   ) onSubmit;
 
-  const _EditRequirementDialog({required this.requirement, required this.onSubmit});
+  const EditRequirementDialog({super.key, required this.requirement, required this.onSubmit});
 
   @override
-  State<_EditRequirementDialog> createState() => _EditRequirementDialogState();
+  State<EditRequirementDialog> createState() => _EditRequirementDialogState();
 }
 
-class _EditRequirementDialogState extends State<_EditRequirementDialog> {
+class _EditRequirementDialogState extends State<EditRequirementDialog> {
   String? _frequency;
   late final _salaryController =
       TextEditingController(text: widget.requirement.salaryAmount?.toString() ?? '');
@@ -513,8 +231,8 @@ class _EditRequirementDialogState extends State<_EditRequirementDialog> {
     return AlertDialog(
       title: Text(
         _isApproval
-            ? 'Approve ${_requirementDisplayId(widget.requirement)}'
-            : 'Edit ${_requirementDisplayId(widget.requirement)}',
+            ? 'Approve ${requirementDisplayId(widget.requirement)}'
+            : 'Edit ${requirementDisplayId(widget.requirement)}',
       ),
       content: SizedBox(
         width: 400,
@@ -753,18 +471,23 @@ class _CalendarDayCell extends StatelessWidget {
   }
 }
 
-class _ApplicantsDialog extends StatefulWidget {
+class RequirementApplicantsDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
   final List<OrganisationRequirementApplicationModel> applications;
   final Future<void> Function(String applicationId, String status) onDecide;
 
-  const _ApplicantsDialog({required this.requirement, required this.applications, required this.onDecide});
+  const RequirementApplicantsDialog({
+    super.key,
+    required this.requirement,
+    required this.applications,
+    required this.onDecide,
+  });
 
   @override
-  State<_ApplicantsDialog> createState() => _ApplicantsDialogState();
+  State<RequirementApplicantsDialog> createState() => _RequirementApplicantsDialogState();
 }
 
-class _ApplicantsDialogState extends State<_ApplicantsDialog> {
+class _RequirementApplicantsDialogState extends State<RequirementApplicantsDialog> {
   String? _decidingId;
 
   Future<void> _decide(String applicationId, String status) async {
@@ -780,7 +503,7 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Applicants — ${_requirementDisplayId(widget.requirement)}'),
+      title: Text('Applicants — ${requirementDisplayId(widget.requirement)}'),
       content: SizedBox(
         width: 400,
         child: widget.applications.isEmpty
@@ -837,13 +560,12 @@ class _ApplicantsDialogState extends State<_ApplicantsDialog> {
 /// Same wording as the shared organisationJobDisplayId() helper — kept as
 /// a local copy since AdminOrganisationRequirement is admin-web's own
 /// model (not the shared OrganisationRequirementModel that helper expects).
-String _requirementDisplayId(AdminOrganisationRequirement requirement) =>
-    'ORG-JOB-${requirement.requirementNumber}';
+String requirementDisplayId(AdminOrganisationRequirement requirement) => 'ORG-JOB-${requirement.requirementNumber}';
 
 /// Same wording as the shared organisationScheduleLabel() helper — kept as
 /// a local copy since AdminOrganisationRequirement is admin-web's own
 /// model (not the shared OrganisationRequirementModel that helper expects).
-String _scheduleSummary(AdminOrganisationRequirement requirement) {
+String scheduleSummary(AdminOrganisationRequirement requirement) {
   switch (requirement.scheduleType) {
     case ScheduleType.dateRange:
       return '${requirement.startDate} – ${requirement.endDate}';
@@ -862,12 +584,12 @@ String _scheduleSummary(AdminOrganisationRequirement requirement) {
 }
 
 /// Read-only detail view opened by tapping a requirement row — every field
-/// as plain text, with an Edit button handing off to _EditRequirementDialog.
-class _RequirementReadOnlyDialog extends StatelessWidget {
+/// as plain text, with an Edit button handing off to EditRequirementDialog.
+class RequirementReadOnlyDialog extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
   final VoidCallback onEdit;
 
-  const _RequirementReadOnlyDialog({required this.requirement, required this.onEdit});
+  const RequirementReadOnlyDialog({super.key, required this.requirement, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -875,9 +597,9 @@ class _RequirementReadOnlyDialog extends StatelessWidget {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_requirementDisplayId(requirement)),
+          Text(requirementDisplayId(requirement)),
           const SizedBox(width: AppSpacing.sm),
-          _StatusBadge(status: requirement.status),
+          RequirementStatusBadge(status: requirement.status),
         ],
       ),
       content: SizedBox(
@@ -912,7 +634,7 @@ class _RequirementReadOnlyDialog extends StatelessWidget {
                     ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
                     : 'Not set (admin sets on approval)',
               ),
-              _DetailRow('Schedule', _scheduleSummary(requirement)),
+              _DetailRow('Schedule', scheduleSummary(requirement)),
               _DetailRow('Accommodation', requirement.accommodationProvided ? 'Provided' : 'Not provided'),
               _DetailRow('Food', requirement.foodProvided ? 'Provided' : 'Not provided'),
               if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty)

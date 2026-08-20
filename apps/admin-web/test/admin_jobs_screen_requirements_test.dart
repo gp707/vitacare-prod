@@ -9,9 +9,17 @@ import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
+import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
-import 'package:admin_web/features/organisation_requirements/screens/admin_organisation_requirements_screen.dart';
 
+/// Organisation-requirement-specific behavior (approve/reject/schedule/
+/// applicants/read-only detail), now surfaced through the merged single
+/// Jobs tab (AdminJobsScreen) rather than the former standalone
+/// AdminOrganisationRequirementsScreen. The jobs side of the merge (list
+/// rendering, Posted By filter fetch/skip logic) is covered in
+/// admin_jobs_screen_test.dart; this file exercises everything downstream
+/// of a requirement row exactly as the old dedicated screen's tests did.
 AdminOrganisationRequirement _requirement({
   String id = 'r1',
   int requirementNumber = 101,
@@ -141,6 +149,18 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   }
 }
 
+/// The merged screen always fetches jobs too on load — an empty fake avoids
+/// a real Dio() call, since this file only exercises the requirements side.
+class _FakeEmptyAdminJobsRepository extends AdminJobsRepository {
+  _FakeEmptyAdminJobsRepository() : super(Dio());
+
+  @override
+  Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async => [];
+
+  @override
+  Future<List<JobPosterOption>> listPosters() async => [];
+}
+
 Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
   final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
   await tester.ensureVisible(field);
@@ -163,61 +183,26 @@ Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsReposi
     ProviderScope(
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
+        adminJobsRepositoryProvider.overrideWithValue(_FakeEmptyAdminJobsRepository()),
         adminOrganisationRequirementsRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
             ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
       ],
-      child: const MaterialApp(home: AdminOrganisationRequirementsScreen()),
+      child: const MaterialApp(home: AdminJobsScreen()),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  test(
-      'OrganisationRequirementApplicationModel.fromJson parses the real admin-detail backend shape '
-      '(requirement_id, not job_id — using JobApplicationModel here throws)', () {
-    // Mirrors OrganisationRequirementApplicationWithCaregiver exactly (see
-    // findByRequirementId in the backend repository) — this is the actual
-    // shape GET /admin/organisation-requirements/:id's `applications` array
-    // returns. It has no `job_id` field at all.
-    final application = OrganisationRequirementApplicationModel.fromJson({
-      'id': 'app-1',
-      'requirement_id': 'req-1',
-      'profile_id': 'profile-1',
-      'status': 'applied',
-      'decided_by': null,
-      'applied_at': '2026-08-01T10:00:00Z',
-      'accepted_at': null,
-      'rejected_at': null,
-      'completed_at': null,
-      'decline_reason': null,
-      'created_at': '2026-08-01T10:00:00Z',
-      'updated_at': '2026-08-01T10:00:00Z',
-      'full_name': 'Nurse Nita',
-      'phone': '+919876500000',
-      'decided_by_name': null,
-    });
-    expect(application.id, 'app-1');
-    expect(application.requirementId, 'req-1');
-    expect(application.fullName, 'Nurse Nita');
-    expect(application.status, 'applied');
-  });
-
   testWidgets('lists requirements with requirement number, status, and org name', (tester) async {
     await _pump(tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
 
     expect(find.text('ORG-JOB-101'), findsOneWidget);
     expect(find.text('Pending Review'), findsOneWidget);
     expect(find.text('City Rehab Center'), findsOneWidget);
-  });
-
-  testWidgets('shows an empty state when there are no requirements', (tester) async {
-    await _pump(tester, _FakeAdminOrganisationRequirementsRepository([]));
-
-    expect(find.text('No organisation requirements posted yet.'), findsOneWidget);
   });
 
   testWidgets('shows the rejection reason for a rejected requirement', (tester) async {
@@ -519,18 +504,17 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets(
-      'entering a search term and picking Status/Organisation Type/City, then Apply Filters, passes all through',
-      (tester) async {
+  testWidgets('picking "Hospital" under Posted By and entering a search term passes both through to the '
+      'organisation requirements fetch', (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search org name or ID (ORG-JOB-...)'),
+      find.widgetWithText(TextField, 'Search job ID or patient ID (e.g. PAT-501)'),
       'ORG-JOB-101',
     );
     await _selectFilterDropdown(tester, 'Status', 'Active');
-    await _selectFilterDropdown(tester, 'Organisation Type', 'Hospital');
+    await _selectFilterDropdown(tester, 'Posted By', 'Hospital');
     await _selectFilterDropdown(tester, 'City', 'Bangalore');
     await tester.tap(find.text('Apply Filters'));
     await tester.pumpAndSettle();

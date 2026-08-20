@@ -23,16 +23,23 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Auth:** Custom JWT for everyone. No Supabase Auth. bcrypt + jsonwebtoken. Access token TTL differs by app: caregiver-app tokens never expire (no `exp` claim — the mobile app has no re-login flow), admin-web tokens expire after `JWT_ACCESS_TOKEN_TTL` (default 6 months). Neither app currently uses the refresh-token flow (`POST /auth/refresh` exists server-side but no Dio interceptor calls it) — the access token alone governs session length.
 - **Phone number is unique per app bucket, not globally** (migration 045, `users_phone_app_bucket_key` — a Postgres expression unique index, not a plain column constraint): NurseJobs (`role = caregiver`), NurseNow (`role IN (individual, organisation)`), and admin (`role IN (admin, super_admin)`) are three independent buckets. The same phone number can hold one account in each bucket at once — e.g. a person can register as a NurseJobs caregiver AND, separately, as a NurseNow individual with the same phone number. These are fully independent, unlinked accounts (separate `users` rows, separate profile rows, separate login PINs) that merely happen to share a phone number — no data is shared or merged between them. Registering a second account within the SAME bucket (e.g. a second caregiver account, or an organisation account when that phone already has an individual account — individual and organisation share the NurseNow bucket) still 409s with `AUTH_001`, unchanged. `UsersRepository.findByPhoneAndRoles(phone, roles)` is the role-scoped lookup used everywhere a phone is checked (registration dedup, self-service phone-change dedup, admin phone-change dedup) — the old global `findByPhone` was removed. `POST /auth/login/code` (`LoginCodeDto`) gained a required `app` field (`'nursejobs'` | `'nursenow'`, the `LoginApp` enum) so the backend knows which bucket to search — caregiver-app always sends `nursejobs`, nursenow-app always sends `nursenow` (it doesn't know ahead of login whether the phone registered as individual or organisation — that's still decoded from the JWT afterward, same as before). Login can never accidentally authenticate into the wrong bucket's account even if both accounts happen to share the same 4-digit PIN, since the role-scoped lookup runs before the PIN is even compared.
 - **Human-friendly sequential display IDs** for organisations (`ORG-<n>`), NurseNow individuals/patients (`PAT-<n>`), and caregivers (`NUR-<n>`) — migration 046, one dedicated Postgres sequence per table (`organisation_profiles.org_number`, `individual_profiles.patient_number`, `caregiver_profiles.caregiver_number`), each starting at 500 (not 1). Same convention as `jobs.job_number`/`organisation_requirements.requirement_number`: the raw integer is what's stored and returned over the API (`org_number`/`patient_number`/`caregiver_number`, all nullable in API schemas only because older/edge-case responses may omit them, never actually null once a profile row exists); the `ORG-`/`PAT-`/`NUR-` prefix is applied purely at display time via `organisationDisplayId()`/`patientDisplayId()`/`caregiverDisplayId()` in `packages/vitacare_shared/lib/models/display_id.dart`, so all three Flutter apps render identical text. Shown in admin-web's Caregivers/Patients-Family/Rehab-Hospitals list tables (a leading "ID" column) and detail views, on a caregiver's own Profile screen (caregiver-app) and an individual/organisation's own Profile screen (nursenow-app), and on the applicant-profile view an individual/organisation sees when reviewing a caregiver's application (nursenow-app's `CaregiverProfileViewScreen`).
-- **admin-web list-screen filters:** every admin-web list screen (Caregivers, Jobs, Organisation
-  Requirements, Patients/Family, Rehab/Hospitals) has a filter panel with a free-text `search` box
+- **admin-web list-screen filters:** every admin-web list screen (Caregivers, Jobs — which also
+  surfaces organisation requirements, merged into the same list, see "NurseNow" below —
+  Patients/Family, Rehab/Hospitals) has a filter panel with a free-text `search` box
   that matches (via `ILIKE`) the entity's name/phone and its display id — e.g. searching "NUR-500"
   or just "500" on Caregivers matches via `('NUR-' || cp.caregiver_number::text) ILIKE '%...%'`,
   same pattern for jobs (`ADMIN-JOB-<n>`/`PAT-JOB-<n>`/raw `job_number`), organisation requirements
   (`ORG-JOB-<n>`), individuals (`PAT-<n>`), and organisations (`ORG-<n>`). Caregivers adds Gender
   (`cp.gender`) and Preferred City (`EXISTS` against `caregiver_preferred_cities`) dropdowns; Jobs
   already had Job Poster/City/Patient's Gender/Duty Time/Status/Language, `search` was the one gap.
-  Organisation Requirements adds Status/Organisation Type/City (all previously unfiltered — this
-  screen had zero UI filters before). Patients/Family and Rehab/Hospitals had zero filter
+  **Jobs' `search` additionally matches the posting individual's own display id** (`PAT-<n>`, via a
+  `LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by` — `ip.patient_number` is null for
+  admin-posted jobs, so has no effect on those) — this is deliberately the *poster's* identity, not
+  the job's own id, letting admin find every job a specific patient/family account has ever posted
+  (e.g. searching "PAT-501") in one search, not just one job by its own `PAT-JOB-<n>`.
+  The merged Jobs screen's "Posted By" dropdown (All jobs/Hospital/Clinic/Rehab/Patients) narrows
+  to organisation requirements of one organisation type (via `organisation_type`) or to individual-
+  posted jobs (via `posted_by_role=individual`) — see "NurseNow" below. Patients/Family and Rehab/Hospitals had zero filter
   infrastructure at any layer (DTO/service/repository) before this — both now support `search` and
   a `block_status` filter (`active`/`job_posting_blocked`/`blocked`, derived from
   `users.is_active` + `is_job_posting_blocked`, not a stored column); Rehab/Hospitals also adds
@@ -350,29 +357,38 @@ reusing any of its tables.
   About Patient / Job Location sections at all, since those don't apply). Applicant review on
   this screen is the simple non-forced Accept/Reject described above, not Individual's forced
   one-at-a-time flow.
-- **admin-web:** two new sidebar tabs — **"Rehab/Hospitals"** (`/rehab-hospitals` →
+- **admin-web:** one new sidebar tab, **"Rehab/Hospitals"** (`/rehab-hospitals` →
   `OrganisationsListScreen`, mirrors `IndividualsListScreen` exactly: lists every organisation
   account via `GET /admin/organisations` with the same two block levers,
   `PATCH /admin/organisations/:id/block` `{ level: 'job_posting' | 'full', reason }` /
-  `.../unblock`) and **"Organisation Requirements"** (`/rehab-requirements` →
-  `AdminOrganisationRequirementsScreen`, a dedicated screen — deliberately NOT folded into
-  `AdminJobsScreen`, since organisation requirements are a wholly separate table/model — listing
-  every requirement via `GET /admin/organisation-requirements` with Applicants (each applicant row
-  gets its own **Profile** button — `Navigator.pushNamed('/caregiver-detail', arguments:
-  application.profileId)`, the exact same admin-only full-detail screen `AdminJobsScreen`'s own
-  Applicants dialog already links to, so no new backend endpoint was needed for the admin case —
-  plus Accept/Reject per applicant, optional reason), Reject (pending_review only, reason-required
-  dialog), and a single
-  **Edit** action (dialog collecting Frequency of Care/Salary and a required schedule — a
-  `SegmentedButton` picking Date Range or Specific Days; Date Range shows a start/end date pair,
-  Specific Days reveals a nested Weekly/Monthly `SegmentedButton` that in turn shows either 7
-  weekday chips or a real month-grid calendar, see "Organisation" above) that doubles as "Approve"
-  from `pending_review` and as an ordinary edit from
-  `active`/`closed` — admin can revisit and correct these same admin-set fields later, not just
-  once at approval time; same `PATCH /admin/organisation-requirements/:id` endpoint either way,
-  pre-filled with the requirement's current values when editing. Tapping a requirement row opens
-  a read-only detail view first (every field as plain text) with its own Edit button into that
-  same dialog — same "view, then optionally edit" pattern as `AdminJobsScreen`'s job rows.
+  `.../unblock`). **Organisation requirements themselves have no separate sidebar tab** — an
+  earlier iteration gave them their own screen (`AdminOrganisationRequirementsScreen`,
+  `/rehab-requirements`), deliberately not folded into `AdminJobsScreen` since
+  organisation_requirements is a wholly separate table/model from jobs; that separation was
+  reversed on explicit follow-up request — admin now has a **single "Jobs" tab** that fetches and
+  merges `GET /admin/jobs` and `GET /admin/organisation-requirements` into one list, sorted by
+  post date, each with its own row type (`_JobRow`/`RequirementRow` — too different in shape to
+  render as one row, only the sort/merge wrapper is shared, same pattern as caregiver-app's own
+  merged Jobs tab, see "Job/Application Flow" above). A **"Posted By"** dropdown (All jobs /
+  Hospital / Clinic / Rehab / Patients) narrows the list to one poster type at a time: Hospital/
+  Clinic/Rehab fetches only organisation requirements (filtered by `organisation_type`), skipping
+  the jobs endpoint entirely; Patients fetches only jobs (filtered by `posted_by_role=individual`),
+  skipping organisation requirements entirely; All jobs fetches and merges both, unfiltered by
+  poster type. The two data shapes still keep separate dialogs — admin never *creates* an
+  organisation requirement (the org posts its own), so "Post New Job" only ever produces a `jobs`
+  row; a requirement row's own actions (Applicants — each applicant row gets its own **Profile**
+  button, `Navigator.pushNamed('/caregiver-detail', arguments: application.profileId)`, the same
+  admin-only full-detail screen a job's Applicants dialog links to — Reject, reason-required,
+  pending_review only, and **Edit**, doubling as "Approve" from `pending_review`, collecting
+  Frequency of Care/Salary and a required schedule via a `SegmentedButton` picking Date Range or
+  Specific Days, Specific Days revealing a nested Weekly/Monthly `SegmentedButton` that in turn
+  shows either 7 weekday chips or a real month-grid calendar, see "Organisation" above) are
+  extracted into `apps/admin-web/lib/features/organisation_requirements/widgets/
+  requirement_widgets.dart` (`RequirementRow`, `EditRequirementDialog`,
+  `RequirementApplicantsDialog`, `RequirementReadOnlyDialog`) and reused by the Jobs screen
+  alongside its own job-specific dialogs (`_JobFormDialog`, `JobDetailDialog`,
+  `JobReadOnlyDetailDialog`). Tapping a requirement row opens the same read-only-detail-first,
+  Edit-button-inside pattern as a job row.
 - **Page refresh restores the actual page, not the app's home tab**: all three Flutter apps
   (admin-web, caregiver-app/NurseJobs, nursenow-app) capture
   `WidgetsBinding.instance.platformDispatcher.defaultRouteName` in `main()` **before** `runApp` —

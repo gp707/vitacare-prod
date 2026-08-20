@@ -5,6 +5,8 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../organisation_requirements/data/admin_organisation_requirements_repository.dart';
+import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
 import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
@@ -13,6 +15,16 @@ import '../widgets/job_read_only_detail_dialog.dart';
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
 /// screen covers post/list/close/view-applicants/accept-or-reject;
 /// caregiver-facing browsing lives in apps/caregiver-app's Jobs tab.
+///
+/// A single "Jobs" tab also shows every NurseNow organisation (hospital/
+/// clinic/rehab) requirement merged into the same list, sorted by post date
+/// alongside admin/patient-posted jobs — the "Posted By" filter narrows to
+/// one poster type at a time (or "All jobs"). organisation_requirements
+/// stays a wholly separate table/model from jobs (see "NurseNow" in
+/// CLAUDE.md); only the browse/list view is merged here, via the widgets
+/// extracted into requirement_widgets.dart — creating/editing a job still
+/// only ever produces a `jobs` row (admin never creates a requirement, the
+/// org posts its own), and the two types keep their own dialogs.
 class AdminJobsScreen extends ConsumerStatefulWidget {
   const AdminJobsScreen({super.key});
 
@@ -20,8 +32,42 @@ class AdminJobsScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminJobsScreen> createState() => _AdminJobsScreenState();
 }
 
+/// "Posted By" filter values narrowing the merged Jobs list to one poster
+/// type. Hospital/Clinic/Rehab map to organisation_requirements.
+/// organisation_type; Patients maps to jobs.posted_by_role='individual';
+/// null (All jobs) fetches and merges both sources unfiltered by poster
+/// type.
+bool _isOrganisationPosterType(String? posterType) =>
+    posterType == OrganisationType.hospital ||
+    posterType == OrganisationType.clinic ||
+    posterType == OrganisationType.rehab;
+
+/// A single entry in the merged Jobs list — either a `jobs` row or an
+/// organisation_requirements row, too different in shape to unify beyond
+/// sharing a sort key. See _AdminJobsScreenState._mergedEntries.
+sealed class _JobsListEntry {
+  DateTime get postedAt;
+}
+
+class _JobEntry extends _JobsListEntry {
+  final JobModel job;
+  _JobEntry(this.job);
+
+  @override
+  DateTime get postedAt => DateTime.parse(job.postedAt);
+}
+
+class _RequirementEntry extends _JobsListEntry {
+  final AdminOrganisationRequirement requirement;
+  _RequirementEntry(this.requirement);
+
+  @override
+  DateTime get postedAt => DateTime.parse(requirement.postedAt);
+}
+
 class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   List<JobModel> _jobs = [];
+  List<AdminOrganisationRequirement> _requirements = [];
   bool _loading = true;
   String? _errorMessage;
 
@@ -33,6 +79,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   String? _filterDutyType;
   String? _filterStatus;
   String? _filterLanguage;
+  String? _filterPosterType;
 
   @override
   void initState() {
@@ -49,24 +96,54 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     super.dispose();
   }
 
+  /// Fetches whichever of the two poster-type-specific sources the "Posted
+  /// By" filter calls for (both, when it's "All jobs") and merges them for
+  /// display — see _mergedEntries. Job-only filters (Job Poster, Patient's
+  /// Gender, Duty Time, Language) never apply to organisation requirements,
+  /// so they're simply omitted from that fetch; Status/City/search apply to
+  /// both, since organisation_requirements.status reuses the same 3-value
+  /// enum and both tables carry a city.
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _errorMessage = null;
     });
+    final search = _searchController.text.trim().isEmpty ? null : _searchController.text.trim();
+    final fetchJobs = _filterPosterType == null || _filterPosterType == UserRole.individual;
+    final fetchRequirements = _filterPosterType == null || _isOrganisationPosterType(_filterPosterType);
     try {
-      final jobs = await ref.read(adminJobsRepositoryProvider).list(
-            filters: JobListFilters(
-              postedBy: _filterPostedBy,
-              city: _filterCity,
-              gender: _filterGender,
-              dutyType: _filterDutyType,
-              status: _filterStatus,
-              language: _filterLanguage,
-              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
-            ),
-          );
-      if (mounted) setState(() => _jobs = jobs);
+      final jobsFuture = fetchJobs
+          ? ref.read(adminJobsRepositoryProvider).list(
+                filters: JobListFilters(
+                  postedBy: _filterPostedBy,
+                  postedByRole: _filterPosterType == UserRole.individual ? UserRole.individual : null,
+                  city: _filterCity,
+                  gender: _filterGender,
+                  dutyType: _filterDutyType,
+                  status: _filterStatus,
+                  language: _filterLanguage,
+                  search: search,
+                ),
+              )
+          : Future.value(<JobModel>[]);
+      final requirementsFuture = fetchRequirements
+          ? ref.read(adminOrganisationRequirementsRepositoryProvider).list(
+                filters: OrganisationRequirementListFilters(
+                  status: _filterStatus,
+                  organisationType: _isOrganisationPosterType(_filterPosterType) ? _filterPosterType : null,
+                  city: _filterCity,
+                  search: search,
+                ),
+              )
+          : Future.value(<AdminOrganisationRequirement>[]);
+      final jobs = await jobsFuture;
+      final requirements = await requirementsFuture;
+      if (mounted) {
+        setState(() {
+          _jobs = jobs;
+          _requirements = requirements;
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -209,6 +286,107 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     await _load();
   }
 
+  /// Doubles as "Approve" (from pending_review, sets frequency/salary/
+  /// schedule for the first time) and "Edit" (from active/closed — admin
+  /// can revisit/correct those same admin-set fields later; every other
+  /// field stays org-owned, unchanged from [requirement]) — same dialog,
+  /// same endpoint, only the label changes with current status.
+  Future<void> _editRequirement(AdminOrganisationRequirement requirement) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => EditRequirementDialog(
+        requirement: requirement,
+        onSubmit: (frequency, salary, scheduleType, startDate, endDate, scheduleRepeat, specificDays) async {
+          await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
+                requirement.id,
+                typeOfNurse: requirement.typeOfNurse,
+                frequencyOfCare: frequency,
+                salaryAmount: salary,
+                scheduleType: scheduleType,
+                startDate: startDate,
+                endDate: endDate,
+                scheduleRepeat: scheduleRepeat,
+                specificDays: specificDays,
+                accommodationProvided: requirement.accommodationProvided,
+                foodProvided: requirement.foodProvided,
+                specialSkills: requirement.specialSkills,
+              );
+          await _load();
+        },
+      ),
+    );
+  }
+
+  /// Only offered for a pending_review requirement — declines it with a
+  /// reason, which the organisation sees on their own requirement view. It
+  /// never goes live.
+  Future<void> _rejectRequirement(AdminOrganisationRequirement requirement) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Reject requirement'),
+          content: TextField(
+            controller: controller,
+            maxLength: 1000,
+            maxLines: 4,
+            onChanged: (_) => setDialogState(() {}),
+            decoration: const InputDecoration(labelText: 'Reason (shown to the organisation)'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: controller.text.trim().isEmpty ? null : () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(adminOrganisationRequirementsRepositoryProvider).reject(requirement.id, controller.text.trim());
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// Row tap opens the full detail read-only; its own Edit button hands
+  /// off to _editRequirement.
+  Future<void> _viewRequirementDetail(AdminOrganisationRequirement requirement) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => RequirementReadOnlyDialog(
+        requirement: requirement,
+        onEdit: () {
+          Navigator.of(dialogContext).pop();
+          _editRequirement(requirement);
+        },
+      ),
+    );
+  }
+
+  Future<void> _viewRequirementApplicants(AdminOrganisationRequirement requirement) async {
+    final (_, applications) =
+        await ref.read(adminOrganisationRequirementsRepositoryProvider).getDetail(requirement.id);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => RequirementApplicantsDialog(
+        requirement: requirement,
+        applications: applications,
+        onDecide: (applicationId, status) async {
+          await ref
+              .read(adminOrganisationRequirementsRepositoryProvider)
+              .decideApplication(requirement.id, applicationId, status);
+          await _load();
+        },
+      ),
+    );
+  }
+
   bool get _hasActiveFilters =>
       _filterPostedBy != null ||
       _filterCity != null ||
@@ -216,7 +394,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       _filterDutyType != null ||
       _filterStatus != null ||
       _filterLanguage != null ||
+      _filterPosterType != null ||
       _searchController.text.trim().isNotEmpty;
+
+  /// Both lists are unpaginated (limit 100 each), so they're simply merged
+  /// and re-sorted client-side by post date, newest first — mirroring
+  /// apps/caregiver-app's JobsScreen, which merges the same two sources the
+  /// same way for caregiver-facing browsing.
+  List<_JobsListEntry> get _mergedEntries {
+    final entries = <_JobsListEntry>[
+      ..._jobs.map(_JobEntry.new),
+      ..._requirements.map(_RequirementEntry.new),
+    ];
+    entries.sort((a, b) => b.postedAt.compareTo(a.postedAt));
+    return entries;
+  }
 
   Widget _buildFilterPanel() {
     return Wrap(
@@ -229,7 +421,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
-              labelText: 'Search job ID (e.g. ADMIN-JOB-500)',
+              labelText: 'Search job ID or patient ID (e.g. PAT-501)',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -250,6 +442,22 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               ),
             ],
             onChanged: (value) => setState(() => _filterPostedBy = value),
+          ),
+        ),
+        SizedBox(
+          width: 190,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterPosterType,
+            decoration: const InputDecoration(labelText: 'Posted By', border: OutlineInputBorder(), isDense: true),
+            items: const [
+              DropdownMenuItem<String?>(value: null, child: Text('All jobs')),
+              DropdownMenuItem<String?>(value: OrganisationType.hospital, child: Text('Hospital')),
+              DropdownMenuItem<String?>(value: OrganisationType.clinic, child: Text('Clinic')),
+              DropdownMenuItem<String?>(value: OrganisationType.rehab, child: Text('Rehab')),
+              DropdownMenuItem<String?>(value: UserRole.individual, child: Text('Patients')),
+            ],
+            onChanged: (value) => setState(() => _filterPosterType = value),
           ),
         ),
         SizedBox(
@@ -360,27 +568,39 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
                 Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-              else if (_jobs.isEmpty)
+              else if (_mergedEntries.isEmpty)
                 Text(
-                  _hasActiveFilters ? 'No jobs match these filters.' : 'No jobs posted yet.',
+                  _hasActiveFilters
+                      ? 'No jobs or requirements match these filters.'
+                      : 'No jobs or requirements posted yet.',
                   style: const TextStyle(color: AppColors.textSecondary),
                 )
               else
                 Expanded(
                   child: ListView.separated(
-                    itemCount: _jobs.length,
+                    itemCount: _mergedEntries.length,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
-                      final job = _jobs[index];
-                      return _JobRow(
-                        job: job,
-                        onTap: () => _openDetailDialog(job),
-                        onClose: job.status == JobStatus.active ? () => _close(job) : null,
-                        onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
-                        onReject: job.status == JobStatus.pendingReview ? () => _reject(job) : null,
-                        onViewApplications: () => _viewApplications(job),
-                        onEdit: () => _openEditDialog(job),
-                      );
+                      final entry = _mergedEntries[index];
+                      return switch (entry) {
+                        _JobEntry(:final job) => _JobRow(
+                            job: job,
+                            onTap: () => _openDetailDialog(job),
+                            onClose: job.status == JobStatus.active ? () => _close(job) : null,
+                            onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
+                            onReject: job.status == JobStatus.pendingReview ? () => _reject(job) : null,
+                            onViewApplications: () => _viewApplications(job),
+                            onEdit: () => _openEditDialog(job),
+                          ),
+                        _RequirementEntry(:final requirement) => RequirementRow(
+                            requirement: requirement,
+                            onTap: () => _viewRequirementDetail(requirement),
+                            onEdit: () => _editRequirement(requirement),
+                            onReject:
+                                requirement.status == JobStatus.pendingReview ? () => _rejectRequirement(requirement) : null,
+                            onViewApplicants: () => _viewRequirementApplicants(requirement),
+                          ),
+                      };
                     },
                   ),
                 ),

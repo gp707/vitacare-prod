@@ -11,6 +11,49 @@ import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
+import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
+
+/// A minimal organisation requirement fixture for the merged Jobs list —
+/// full requirement-specific behavior (approve/reject/schedule/applicants)
+/// is covered in admin_jobs_screen_requirements_test.dart.
+AdminOrganisationRequirement _requirement({
+  String id = 'r1',
+  int requirementNumber = 101,
+  String status = JobStatus.pendingReview,
+  String postedAt = '2026-08-01T10:00:00Z',
+}) {
+  return AdminOrganisationRequirement(
+    id: id,
+    requirementNumber: requirementNumber,
+    postedBy: 'org-user-1',
+    typeOfNurse: TypeOfNurse.auxiliaryNurse,
+    accommodationProvided: true,
+    foodProvided: false,
+    status: status,
+    postedAt: postedAt,
+    organisationName: 'City Rehab Center',
+    organisationType: OrganisationType.rehab,
+    city: City.bangalore,
+    area: 'Whitefield',
+  );
+}
+
+class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequirementsRepository {
+  List<AdminOrganisationRequirement> items;
+  int listCallCount = 0;
+  OrganisationRequirementListFilters? lastFilters;
+
+  _FakeAdminOrganisationRequirementsRepository([this.items = const []]) : super(Dio());
+
+  @override
+  Future<List<AdminOrganisationRequirement>> list({
+    OrganisationRequirementListFilters filters = const OrganisationRequirementListFilters(),
+  }) async {
+    listCallCount++;
+    lastFilters = filters;
+    return items;
+  }
+}
 
 JobModel _job({
   String status = 'active',
@@ -18,6 +61,7 @@ JobModel _job({
   String? frequencyOfCare = 'daily',
   String? postedByRole,
   String? postedByName,
+  String postedAt = '2026-08-01T10:00:00Z',
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
@@ -34,7 +78,7 @@ JobModel _job({
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
-    'posted_at': '2026-08-01T10:00:00Z',
+    'posted_at': postedAt,
     'created_at': '2026-08-01T10:00:00Z',
     if (postedByRole != null) 'posted_by_role': postedByRole,
     if (postedByName != null) 'posted_by_name': postedByName,
@@ -125,6 +169,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? updatedDescription;
   CareReceiverInput? submittedCareReceiver;
   JobListFilters? lastListFilters;
+  int listCallCount = 0;
   String? rejectedJobId;
   String? rejectedReason;
 
@@ -132,6 +177,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
 
   @override
   Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async {
+    listCallCount++;
     lastListFilters = filters;
     return jobs;
   }
@@ -210,7 +256,11 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _FakeAdminJobsRepository repo) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _FakeAdminJobsRepository repo, {
+  _FakeAdminOrganisationRequirementsRepository? requirementsRepo,
+}) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
   await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -225,6 +275,8 @@ Future<void> _pump(WidgetTester tester, _FakeAdminJobsRepository repo) async {
             ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
         ),
         adminJobsRepositoryProvider.overrideWithValue(repo),
+        adminOrganisationRequirementsRepositoryProvider
+            .overrideWithValue(requirementsRepo ?? _FakeAdminOrganisationRequirementsRepository()),
       ],
       child: const MaterialApp(home: AdminJobsScreen()),
     ),
@@ -324,20 +376,21 @@ void main() {
     expect(find.text('Active'), findsOneWidget);
   });
 
-  testWidgets('shows no jobs posted yet with no filters active, vs no jobs match these filters once one is',
+  testWidgets(
+      'shows no jobs or requirements posted yet with no filters active, vs no match these filters once one is',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
-    expect(find.text('No jobs posted yet.'), findsOneWidget);
-    expect(find.text('No jobs match these filters.'), findsNothing);
+    expect(find.text('No jobs or requirements posted yet.'), findsOneWidget);
+    expect(find.text('No jobs or requirements match these filters.'), findsNothing);
 
     await _selectFilterDropdown(tester, 'City', 'Bangalore');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
     await tester.pumpAndSettle();
 
-    expect(find.text('No jobs posted yet.'), findsNothing);
-    expect(find.text('No jobs match these filters.'), findsOneWidget);
+    expect(find.text('No jobs or requirements posted yet.'), findsNothing);
+    expect(find.text('No jobs or requirements match these filters.'), findsOneWidget);
   });
 
   testWidgets('Job Poster filter options come from listPosters(), shown as name (phone)', (tester) async {
@@ -394,13 +447,27 @@ void main() {
     await _pump(tester, repo);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search job ID (e.g. ADMIN-JOB-500)'),
+      find.widgetWithText(TextField, 'Search job ID or patient ID (e.g. PAT-501)'),
       'ADMIN-JOB-500',
     );
     await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
     await tester.pumpAndSettle();
 
     expect(repo.lastListFilters, isA<JobListFilters>().having((f) => f.search, 'search', 'ADMIN-JOB-500'));
+  });
+
+  testWidgets('entering a patient display id searches for all jobs that patient posted', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search job ID or patient ID (e.g. PAT-501)'),
+      'PAT-501',
+    );
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastListFilters, isA<JobListFilters>().having((f) => f.search, 'search', 'PAT-501'));
   });
 
   testWidgets('shows the salary unit as /month on the job row for a monthly job', (tester) async {
@@ -1171,5 +1238,73 @@ void main() {
     // Exactly one dialog on screen — the read-only one was popped first,
     // not left stacked underneath the editable form.
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  group('merged with organisation requirements', () {
+    testWidgets('a job and an organisation requirement both render in the same list, newest first', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job(postedAt: '2026-08-01T09:00:00Z')]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(postedAt: '2026-08-02T09:00:00Z'),
+      ]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+      expect(find.text('ORG-JOB-101'), findsOneWidget);
+      // Newer entries sort first — the requirement (Aug 2) appears above the
+      // job (Aug 1) in the list.
+      final requirementY = tester.getTopLeft(find.text('ORG-JOB-101')).dy;
+      final jobY = tester.getTopLeft(find.text('ADMIN-JOB-542')).dy;
+      expect(requirementY, lessThan(jobY));
+    });
+
+    testWidgets('by default (All jobs) both sources are fetched on load', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(repo.lastListFilters, isNotNull);
+      expect(requirementsRepo.listCallCount, 1);
+    });
+
+    testWidgets('selecting "Patients" under Posted By only fetches jobs (posted_by_role=individual), '
+        'skipping organisation requirements entirely', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(requirementsRepo.listCallCount, 1, reason: 'initial load with All jobs fetches both');
+
+      await _selectFilterDropdown(tester, 'Posted By', 'Patients');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repo.lastListFilters,
+        isA<JobListFilters>().having((f) => f.postedByRole, 'postedByRole', 'individual'),
+      );
+      expect(requirementsRepo.listCallCount, 1, reason: 'org requirements should not be re-fetched for Patients');
+      expect(find.text('ORG-JOB-101'), findsNothing);
+    });
+
+    testWidgets('selecting "Hospital" under Posted By only fetches organisation requirements '
+        '(organisation_type=hospital), skipping jobs entirely', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(repo.listCallCount, 1, reason: 'initial load with All jobs fetches both');
+
+      await _selectFilterDropdown(tester, 'Posted By', 'Hospital');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+      await tester.pumpAndSettle();
+
+      expect(
+        requirementsRepo.lastFilters,
+        isA<OrganisationRequirementListFilters>().having((f) => f.organisationType, 'organisationType', 'hospital'),
+      );
+      expect(repo.listCallCount, 1, reason: 'jobs should not be re-fetched for Hospital');
+      expect(find.text('ADMIN-JOB-542'), findsNothing);
+      expect(find.text('ORG-JOB-101'), findsOneWidget);
+    });
   });
 }

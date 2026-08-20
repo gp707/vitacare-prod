@@ -10,7 +10,6 @@ enum AppShellSection {
   patientsFamily,
   jobs,
   rehabHospitals,
-  rehabRequirements,
   auditLogs,
   adminManagement,
   appVersions,
@@ -87,13 +86,6 @@ class AppShell extends ConsumerWidget {
                           label: 'Rehab/Hospitals',
                           selected: current == AppShellSection.rehabHospitals,
                           onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/rehab-hospitals', (r) => false),
-                        ),
-                        _NavItem(
-                          icon: Icons.assignment,
-                          label: 'Organisation Requirements',
-                          selected: current == AppShellSection.rehabRequirements,
-                          onTap: () =>
-                              Navigator.of(context).pushNamedAndRemoveUntil('/rehab-requirements', (r) => false),
                         ),
                         _NavItem(
                           icon: Icons.history,

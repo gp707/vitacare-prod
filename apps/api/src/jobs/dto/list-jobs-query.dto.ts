@@ -50,8 +50,10 @@ export class ListJobsQueryDto {
   @IsIn(Object.values(Language), { message: 'GEN_005' })
   language?: Language;
 
-  // Matches against the job's display id (ADMIN-JOB-<n>/PAT-JOB-<n>) or the
-  // raw job_number — e.g. "500" or "ADMIN-JOB-500" both match.
+  // Matches against the job's own display id (ADMIN-JOB-<n>/PAT-JOB-<n>),
+  // the raw job_number, or the posting individual's own display id
+  // (PAT-<n>) — e.g. "PAT-501" finds every job that patient/family
+  // account has posted, not just one job by its own id.
   @IsOptional()
   @IsString()
   search?: string;
