@@ -788,6 +788,64 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(activeOnly.body.data).toHaveLength(0);
     });
 
+    it('PUT /v1/admin/organisations/:id updates fields, keeps full_name in sync with contact_person_name, and audit-logs only what changed',
+      async () => {
+        const org = await registerOrganisation('0033', 'Editable Rehab Center');
+
+        const edited = await request(app.getHttpServer())
+          .put(`/v1/admin/organisations/${org.user_id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .send({ full_name: 'New Contact', organisation_name: 'Renamed Rehab Center', city: 'bangalore' })
+          .expect(200);
+        expect(edited.body.data.message).toBe('Profile updated');
+
+        const detail = await request(app.getHttpServer())
+          .get(`/v1/admin/organisations/${org.user_id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(detail.body.data.full_name).toBe('New Contact');
+        expect(detail.body.data.organisation_name).toBe('Renamed Rehab Center');
+
+        // organisation_profiles.contact_person_name (read via the org's own
+        // self-view) must be kept in sync with users.full_name (read via
+        // the admin detail above) — they're independent copies of the same
+        // logical value, only synced together at registration until now.
+        const selfView = await request(app.getHttpServer())
+          .get('/v1/organisation/me')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .expect(200);
+        expect(selfView.body.data.contact_person_name).toBe('New Contact');
+
+        const auditList = await request(app.getHttpServer())
+          .get('/v1/admin/audit-logs')
+          .query({ target_user_id: org.user_id, action: 'admin_edit_profile' })
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(auditList.body.data).toHaveLength(1);
+        // city was sent but unchanged (still 'bangalore') — not part of the diff.
+        expect(auditList.body.data[0].before_value).toEqual({
+          full_name: 'Test Contact',
+          organisation_name: 'Editable Rehab Center',
+        });
+        expect(auditList.body.data[0].after_value).toEqual({
+          full_name: 'New Contact',
+          organisation_name: 'Renamed Rehab Center',
+        });
+        expect(auditList.body.data[0].target_user_role).toBe('organisation');
+        expect(auditList.body.data[0].target_org_number).toEqual(expect.any(Number));
+      });
+
+    it('PUT /v1/admin/organisations/:id rejects a caregiver token (AUTH_007)', async () => {
+      const org = await registerOrganisation('0034');
+      const caregiver = await registerCaregiver('0141');
+      const res = await request(app.getHttpServer())
+        .put(`/v1/admin/organisations/${org.user_id}`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ full_name: 'Should Not Work' })
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+
     it('job_posting_blocked rejects a new posting (JOB_010) but does not log the organisation out', async () => {
       const org = await registerOrganisation('0017');
       await request(app.getHttpServer())

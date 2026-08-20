@@ -9,12 +9,15 @@ import '../features/audit_logs/screens/audit_logs_screen.dart';
 import '../features/jobs/screens/admin_jobs_screen.dart';
 import '../features/app_versions/screens/app_versions_screen.dart';
 import '../features/individuals/screens/individuals_list_screen.dart';
+import '../features/individuals/screens/individual_detail_screen.dart';
 import '../features/organisations/screens/organisations_list_screen.dart';
+import '../features/organisations/screens/organisation_detail_screen.dart';
 import '../features/organisation_requirements/screens/admin_organisation_requirements_screen.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
 /// /caregivers accepts an optional status filter, /caregiver-detail a
-/// profile id, and /audit-logs an optional target-user-id prefilter, all
+/// profile id, /audit-logs an optional target-user-id prefilter,
+/// /individual-detail and /organisation-detail a user id, all
 /// passed as route arguments (see onGenerateRoute) rather than path
 /// segments, to keep routing simple with MaterialApp's basic named-route
 /// table.
@@ -28,7 +31,8 @@ Map<String, WidgetBuilder> buildRoutes() {
     '/app-versions': (context) => const AppVersionsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
-    '/rehab-requirements': (context) => const AdminOrganisationRequirementsScreen(),
+    '/rehab-requirements': (context) =>
+        const AdminOrganisationRequirementsScreen(),
   };
 }
 
@@ -36,15 +40,28 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   switch (settings.name) {
     case '/caregivers':
       return MaterialPageRoute(
-        builder: (context) => CaregiverListScreen(initialStatus: settings.arguments as String?),
+        builder: (context) =>
+            CaregiverListScreen(initialStatus: settings.arguments as String?),
       );
     case '/caregiver-detail':
       return MaterialPageRoute(
-        builder: (context) => CaregiverDetailScreen(profileId: settings.arguments as String),
+        builder: (context) =>
+            CaregiverDetailScreen(profileId: settings.arguments as String),
       );
     case '/audit-logs':
       return MaterialPageRoute(
-        builder: (context) => AuditLogsScreen(initialTargetUserId: settings.arguments as String?),
+        builder: (context) =>
+            AuditLogsScreen(initialTargetUserId: settings.arguments as String?),
+      );
+    case '/individual-detail':
+      return MaterialPageRoute(
+        builder: (context) =>
+            IndividualDetailScreen(userId: settings.arguments as String),
+      );
+    case '/organisation-detail':
+      return MaterialPageRoute(
+        builder: (context) =>
+            OrganisationDetailScreen(userId: settings.arguments as String),
       );
     default:
       return null;

@@ -194,4 +194,43 @@ void main() {
     expect(repo.lastFilters?.organisationType, 'hospital');
     expect(repo.lastFilters?.city, 'bangalore');
   });
+
+  testWidgets('tapping a row navigates to /organisation-detail with the account\'s user id', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeAdminOrganisationsRepository([_item()]);
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          adminOrganisationsRepositoryProvider.overrideWithValue(repo),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+          ),
+        ],
+        child: MaterialApp(
+          home: const OrganisationsListScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Organisation Detail Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('City Rehab Center'));
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/organisation-detail');
+    expect(pushedArgs, 'u1');
+  });
 }

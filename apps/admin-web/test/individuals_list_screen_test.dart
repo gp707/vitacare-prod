@@ -202,4 +202,43 @@ void main() {
     expect(repo.lastFilters?.search, 'PAT-500');
     expect(repo.lastFilters?.blockStatus, 'blocked');
   });
+
+  testWidgets('tapping a row navigates to /individual-detail with the account\'s user id', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeAdminIndividualsRepository([_item()]);
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          adminIndividualsRepositoryProvider.overrideWithValue(repo),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+          ),
+        ],
+        child: MaterialApp(
+          home: const IndividualsListScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Individual Detail Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Asha Patel'));
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/individual-detail');
+    expect(pushedArgs, 'u1');
+  });
 }

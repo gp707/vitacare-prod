@@ -638,6 +638,46 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(jobPostingBlocked.body.data).toHaveLength(1);
     });
 
+    it('PUT /v1/admin/individuals/:id updates full_name and audit-logs it, visible via GET /v1/admin/audit-logs',
+      async () => {
+        const individual = await registerIndividual('0032', 'Editable Patient');
+
+        const edited = await request(app.getHttpServer())
+          .put(`/v1/admin/individuals/${individual.user_id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .send({ full_name: 'Renamed Patient' })
+          .expect(200);
+        expect(edited.body.data.message).toBe('Profile updated');
+
+        const detail = await request(app.getHttpServer())
+          .get(`/v1/admin/individuals/${individual.user_id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(detail.body.data.full_name).toBe('Renamed Patient');
+
+        const auditList = await request(app.getHttpServer())
+          .get('/v1/admin/audit-logs')
+          .query({ target_user_id: individual.user_id, action: 'admin_edit_profile' })
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(auditList.body.data).toHaveLength(1);
+        expect(auditList.body.data[0].before_value).toEqual({ full_name: 'Editable Patient' });
+        expect(auditList.body.data[0].after_value).toEqual({ full_name: 'Renamed Patient' });
+        expect(auditList.body.data[0].target_user_role).toBe('individual');
+        expect(auditList.body.data[0].target_patient_number).toEqual(expect.any(Number));
+      });
+
+    it('PUT /v1/admin/individuals/:id rejects a caregiver token (AUTH_007)', async () => {
+      const individual = await registerIndividual('0033');
+      const caregiver = await registerCaregiver('0140');
+      const res = await request(app.getHttpServer())
+        .put(`/v1/admin/individuals/${individual.user_id}`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ full_name: 'Should Not Work' })
+        .expect(403);
+      expect(res.body.error.code).toBe('AUTH_007');
+    });
+
     it('job_posting_blocked rejects a new posting (JOB_010) but does not log the individual out', async () => {
       const individual = await registerIndividual('0017');
       await request(app.getHttpServer())

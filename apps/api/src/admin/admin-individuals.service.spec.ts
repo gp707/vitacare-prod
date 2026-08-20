@@ -13,7 +13,7 @@ describe('AdminIndividualsService', () => {
       setJobPostingBlocked: jest.fn(),
       setBlockReason: jest.fn(),
     };
-    usersRepo = { setActive: jest.fn() };
+    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn() };
     auditService = { log: jest.fn() };
     service = new AdminIndividualsService(individualsRepo, usersRepo, auditService);
   });
@@ -50,6 +50,48 @@ describe('AdminIndividualsService', () => {
       individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
       const result = await service.getIndividualDetail('u1');
       expect(result).toEqual({ user_id: 'u1' });
+    });
+  });
+
+  describe('editProfile', () => {
+    it('throws GEN_002 when the individual does not exist', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue(null);
+      await expect(service.editProfile('u1', 'admin-1', { full_name: 'New Name' }, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('updates full_name and audit-logs before/after when it actually changed', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Old Name' });
+      await service.editProfile('u1', 'admin-1', { full_name: 'New Name' }, '127.0.0.1');
+
+      expect(usersRepo.updateFullName).toHaveBeenCalledWith('u1', 'New Name');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'u1',
+          action: 'admin_edit_profile',
+          entityType: 'individual_profiles',
+          beforeValue: { full_name: 'Old Name' },
+          afterValue: { full_name: 'New Name' },
+        }),
+      );
+    });
+
+    it('does nothing and skips the audit log when full_name is unchanged', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Same Name' });
+      await service.editProfile('u1', 'admin-1', { full_name: 'Same Name' }, null);
+
+      expect(usersRepo.updateFullName).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when full_name is not provided at all', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Same Name' });
+      await service.editProfile('u1', 'admin-1', {}, null);
+
+      expect(usersRepo.updateFullName).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
     });
   });
 

@@ -205,6 +205,26 @@ location) that didn't fit the Individual/admin jobs-table model.
   `GET /admin/jobs`'s joined `posted_by_role`/`posted_by_name`), an optional `posted_by_role`
   filter, and the Reject button described above — admin never needs a separate queue/screen to
   triage individual postings.
+- **Admin edit + per-account audit history, both Patients/Family and Rehab/Hospitals**: tapping a
+  row in either list screen (previously flat, no per-row navigation) opens a new single-page
+  detail screen (`IndividualDetailScreen` / `OrganisationDetailScreen` — deliberately no tabs,
+  unlike `CaregiverDetailScreen`, since neither `individual_profiles` nor `organisation_profiles`
+  has document/notes depth) showing identity + status, an **Edit** toggle, and a scoped audit-
+  history preview (`GET /admin/audit-logs?target_user_id=...`, same pattern as
+  `CaregiverDetailScreen`'s Audit History tab) with a "View full audit log" link into the full
+  `AuditLogsScreen` (`/audit-logs`, `initialTargetUserId` route argument — already generic, no
+  router change needed for that part). `PUT /admin/individuals/:id`
+  (`AdminEditIndividualDto`, `full_name` only — `individual_profiles` has no other editable
+  columns) and `PUT /admin/organisations/:id` (`AdminEditOrganisationDto` — `full_name` [the
+  contact person], `organisation_name`, `organisation_type`, `city`, `area`) both follow the exact
+  same diff-only-what-changed-then-audit-log pattern as the caregiver `PUT /admin/caregivers/:id`
+  (`AdminService.editProfile`), reusing `AuditAction.ADMIN_EDIT_PROFILE` and entity types
+  `'individual_profiles'`/`'organisation_profiles'`. **For organisations, editing the contact
+  person's name updates BOTH `users.full_name` (what the admin list/detail reads) AND
+  `organisation_profiles.contact_person_name` (what the org's own `GET /organisation/me` self-view
+  reads) — the two columns are otherwise independent copies of the same logical value, set together
+  only once at registration; letting them drift apart on an admin edit would be a real bug, not
+  just a display inconsistency.**
 
 ### Organisation (Hospital/Rehab/Clinic)
 

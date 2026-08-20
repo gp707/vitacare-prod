@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { BlockIndividualDto } from './dto/block-individual.dto';
 import { ListIndividualsQueryDto } from './dto/list-individuals-query.dto';
+import { AdminEditIndividualDto } from './dto/admin-edit-individual.dto';
 
 @Injectable()
 export class AdminIndividualsService {
@@ -34,6 +35,35 @@ export class AdminIndividualsService {
     const individual = await this.individualsRepo.findDetailByUserId(userId);
     if (!individual) throw new AppException('GEN_002');
     return individual;
+  }
+
+  /** Admin override — an individual_profiles row has no profile depth
+   *  beyond the block levers, so this only ever touches users.full_name.
+   *  Audit-logs only if the name actually changed. */
+  async editProfile(
+    targetUserId: string,
+    adminId: string,
+    dto: AdminEditIndividualDto,
+    ipAddress: string | null,
+  ) {
+    const individual = await this.individualsRepo.findDetailByUserId(targetUserId);
+    if (!individual) throw new AppException('GEN_002');
+
+    if (dto.full_name !== undefined && dto.full_name !== individual.full_name) {
+      await this.usersRepo.updateFullName(targetUserId, dto.full_name);
+      await this.auditService.log({
+        userId: adminId,
+        targetUserId,
+        action: AuditAction.ADMIN_EDIT_PROFILE,
+        entityType: 'individual_profiles',
+        entityId: targetUserId,
+        beforeValue: { full_name: individual.full_name },
+        afterValue: { full_name: dto.full_name },
+        ipAddress,
+      });
+    }
+
+    return { message: 'Profile updated' };
   }
 
   async block(

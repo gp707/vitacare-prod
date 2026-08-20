@@ -124,4 +124,29 @@ export class AdminOrganisationsRepository {
       [userId, reason],
     );
   }
+
+  /** Admin override — only fields present (not undefined) on `input` are
+   *  written. Keyed on user_id (unlike caregiver_profiles' adminUpdate,
+   *  which is keyed on the profile's own id) since that's what every
+   *  other method on this repository already keys on. */
+  async adminUpdate(
+    userId: string,
+    input: {
+      organisation_name?: string;
+      contact_person_name?: string;
+      organisation_type?: string;
+      city?: string;
+      area?: string;
+    },
+  ): Promise<void> {
+    const entries = Object.entries(input).filter(([, value]) => value !== undefined);
+    if (entries.length === 0) return;
+
+    const setClauses = entries.map(([key], i) => `${key} = $${i + 2}`);
+    const values = entries.map(([, value]) => value);
+    await this.db.query(
+      `UPDATE organisation_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+      [userId, ...values],
+    );
+  }
 }

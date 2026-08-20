@@ -13,7 +13,8 @@ class OrganisationsListScreen extends ConsumerStatefulWidget {
   const OrganisationsListScreen({super.key});
 
   @override
-  ConsumerState<OrganisationsListScreen> createState() => _OrganisationsListScreenState();
+  ConsumerState<OrganisationsListScreen> createState() =>
+      _OrganisationsListScreenState();
 }
 
 /// organisation_profiles.city accepts the existing 7 cities plus this one
@@ -21,7 +22,8 @@ class OrganisationsListScreen extends ConsumerStatefulWidget {
 /// shared City enum (see "NurseNow" in CLAUDE.md).
 const _organisationCityOthers = 'others';
 
-class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScreen> {
+class _OrganisationsListScreenState
+    extends ConsumerState<OrganisationsListScreen> {
   int _page = 1;
   List<AdminOrganisationListItem> _items = [];
   PaginationMeta? _meta;
@@ -54,7 +56,9 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
       final result = await ref.read(adminOrganisationsRepositoryProvider).list(
             page: _page,
             filters: OrganisationListFilters(
-              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+              search: _searchController.text.trim().isEmpty
+                  ? null
+                  : _searchController.text.trim(),
               blockStatus: _blockStatus,
               organisationType: _organisationType,
               city: _city,
@@ -107,12 +111,18 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _blockStatus,
-            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: const [
-              DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              DropdownMenuItem<String?>(
+                  value: null, child: Text('All statuses')),
               DropdownMenuItem<String?>(value: 'active', child: Text('Active')),
-              DropdownMenuItem<String?>(value: 'job_posting_blocked', child: Text('Posting Blocked')),
-              DropdownMenuItem<String?>(value: 'blocked', child: Text('Blocked')),
+              DropdownMenuItem<String?>(
+                  value: 'job_posting_blocked', child: Text('Posting Blocked')),
+              DropdownMenuItem<String?>(
+                  value: 'blocked', child: Text('Blocked')),
             ],
             onChanged: (value) => setState(() => _blockStatus = value),
           ),
@@ -128,9 +138,12 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
               isDense: true,
             ),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All types')),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All types')),
               ...OrganisationType.all.map(
-                (t) => DropdownMenuItem<String?>(value: t, child: Text(OrganisationType.displayNames[t] ?? t)),
+                (t) => DropdownMenuItem<String?>(
+                    value: t,
+                    child: Text(OrganisationType.displayNames[t] ?? t)),
               ),
             ],
             onChanged: (value) => setState(() => _organisationType = value),
@@ -141,23 +154,31 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _city,
-            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'City', border: OutlineInputBorder(), isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
-              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
-              const DropdownMenuItem<String?>(value: _organisationCityOthers, child: Text('Others')),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(
+                  value: c, child: Text(City.displayNames[c] ?? c))),
+              const DropdownMenuItem<String?>(
+                  value: _organisationCityOthers, child: Text('Others')),
             ],
             onChanged: (value) => setState(() => _city = value),
           ),
         ),
-        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton(
+            onPressed: _applyFilters, child: const Text('Apply Filters')),
       ],
     );
   }
 
-  Future<void> _showBlockDialog(AdminOrganisationListItem item, String level) async {
+  Future<void> _showBlockDialog(
+      AdminOrganisationListItem item, String level) async {
     final controller = TextEditingController();
-    final label = level == 'full' ? 'Block completely' : 'Block from posting new requirements';
+    final label = level == 'full'
+        ? 'Block completely'
+        : 'Block from posting new requirements';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -166,32 +187,43 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
           controller: controller,
           maxLength: 1000,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Reason (shown to the organisation)'),
+          decoration: const InputDecoration(
+              labelText: 'Reason (shown to the organisation)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirm')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm')),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await ref.read(adminOrganisationsRepositoryProvider).block(item.userId, level, controller.text.trim());
+      await ref
+          .read(adminOrganisationsRepositoryProvider)
+          .block(item.userId, level, controller.text.trim());
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
       }
     }
   }
 
   Future<void> _unblock(AdminOrganisationListItem item, String level) async {
     try {
-      await ref.read(adminOrganisationsRepositoryProvider).unblock(item.userId, level);
+      await ref
+          .read(adminOrganisationsRepositoryProvider)
+          .unblock(item.userId, level);
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
       }
     }
   }
@@ -206,14 +238,16 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Rehab / Hospitals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Rehab / Hospitals',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else
                 Expanded(child: _buildTable()),
               if (_meta != null) _buildPager(),
@@ -227,8 +261,9 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
   Widget _buildTable() {
     if (_items.isEmpty) {
       return Center(
-        child:
-            Text(_hasActiveFilters ? 'No organisation accounts match these filters.' : 'No organisation accounts yet.'),
+        child: Text(_hasActiveFilters
+            ? 'No organisation accounts match these filters.'
+            : 'No organisation accounts yet.'),
       );
     }
     return SingleChildScrollView(
@@ -245,22 +280,32 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
             DataColumn(label: Text('Registered')),
             DataColumn(label: Text('Actions')),
           ],
-          rows: _items.map((item) => DataRow(cells: [
-                DataCell(Text(organisationDisplayId(item.orgNumber) ?? '-')),
-                DataCell(Text(item.organisationName)),
-                DataCell(Text(item.fullName)),
-                DataCell(Text(item.phone)),
-                DataCell(Text('${City.displayNames[item.city] ?? item.city}, ${item.area}')),
-                DataCell(_StatusCell(item: item)),
-                DataCell(Text(item.createdAt.split('T').first)),
-                DataCell(_ActionsCell(
-                  item: item,
-                  onBlockJobPosting: () => _showBlockDialog(item, 'job_posting'),
-                  onUnblockJobPosting: () => _unblock(item, 'job_posting'),
-                  onBlockFull: () => _showBlockDialog(item, 'full'),
-                  onUnblockFull: () => _unblock(item, 'full'),
-                )),
-              ])).toList(),
+          rows: _items
+              .map((item) => DataRow(
+                      onSelectChanged: (_) => Navigator.of(context).pushNamed(
+                          '/organisation-detail',
+                          arguments: item.userId),
+                      cells: [
+                        DataCell(
+                            Text(organisationDisplayId(item.orgNumber) ?? '-')),
+                        DataCell(Text(item.organisationName)),
+                        DataCell(Text(item.fullName)),
+                        DataCell(Text(item.phone)),
+                        DataCell(Text(
+                            '${City.displayNames[item.city] ?? item.city}, ${item.area}')),
+                        DataCell(_StatusCell(item: item)),
+                        DataCell(Text(item.createdAt.split('T').first)),
+                        DataCell(_ActionsCell(
+                          item: item,
+                          onBlockJobPosting: () =>
+                              _showBlockDialog(item, 'job_posting'),
+                          onUnblockJobPosting: () =>
+                              _unblock(item, 'job_posting'),
+                          onBlockFull: () => _showBlockDialog(item, 'full'),
+                          onUnblockFull: () => _unblock(item, 'full'),
+                        )),
+                      ]))
+              .toList(),
         ),
       ),
     );
@@ -275,11 +320,21 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
         children: [
           Text('Page ${meta.page} of ${meta.totalPages} (${meta.total} total)'),
           IconButton(
-            onPressed: meta.page > 1 ? () { _page = meta.page - 1; _load(); } : null,
+            onPressed: meta.page > 1
+                ? () {
+                    _page = meta.page - 1;
+                    _load();
+                  }
+                : null,
             icon: const Icon(Icons.chevron_left),
           ),
           IconButton(
-            onPressed: meta.page < meta.totalPages ? () { _page = meta.page + 1; _load(); } : null,
+            onPressed: meta.page < meta.totalPages
+                ? () {
+                    _page = meta.page + 1;
+                    _load();
+                  }
+                : null,
             icon: const Icon(Icons.chevron_right),
           ),
         ],
@@ -296,11 +351,13 @@ class _StatusCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!item.isActive) {
-      return Text('Blocked${item.blockReason != null ? ': ${item.blockReason}' : ''}',
+      return Text(
+          'Blocked${item.blockReason != null ? ': ${item.blockReason}' : ''}',
           style: const TextStyle(color: AppColors.error));
     }
     if (item.isJobPostingBlocked) {
-      return Text('Posting blocked${item.blockReason != null ? ': ${item.blockReason}' : ''}',
+      return Text(
+          'Posting blocked${item.blockReason != null ? ': ${item.blockReason}' : ''}',
           style: const TextStyle(color: AppColors.error));
     }
     return const Text('Active', style: TextStyle(color: AppColors.success));
@@ -328,9 +385,12 @@ class _ActionsCell extends StatelessWidget {
       spacing: AppSpacing.xs,
       children: [
         if (item.isJobPostingBlocked)
-          TextButton(onPressed: onUnblockJobPosting, child: const Text('Unblock Posting'))
+          TextButton(
+              onPressed: onUnblockJobPosting,
+              child: const Text('Unblock Posting'))
         else
-          TextButton(onPressed: onBlockJobPosting, child: const Text('Block Posting')),
+          TextButton(
+              onPressed: onBlockJobPosting, child: const Text('Block Posting')),
         if (item.isActive)
           TextButton(onPressed: onBlockFull, child: const Text('Block'))
         else

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -10,6 +10,7 @@ import { AdminOrganisationsService } from './admin-organisations.service';
 import { BlockIndividualDto } from './dto/block-individual.dto';
 import { UnblockIndividualDto } from './dto/unblock-individual.dto';
 import { ListOrganisationsQueryDto } from './dto/list-organisations-query.dto';
+import { AdminEditOrganisationDto } from './dto/admin-edit-organisation.dto';
 
 @Controller('admin/organisations')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -25,6 +26,17 @@ export class AdminOrganisationsController {
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.adminOrganisationsService.getOrganisationDetail(id);
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  editProfile(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: AdminEditOrganisationDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminOrganisationsService.editProfile(id, user.sub, dto, ip);
   }
 
   @Patch(':id/block')

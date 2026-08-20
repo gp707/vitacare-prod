@@ -81,6 +81,28 @@ class AdminIndividualsRepository {
     }
   }
 
+  /// Same shape as a list item — GET /admin/individuals/:id returns the
+  /// identical fields, just for one account.
+  Future<AdminIndividualListItem> getDetail(String userId) async {
+    try {
+      final res = await _dio.get('/admin/individuals/$userId');
+      return AdminIndividualListItem.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Any subset of fields — only non-null entries in [fields] are sent.
+  /// The only field an individual account actually has to edit is
+  /// full_name (individual_profiles has no other profile-depth columns).
+  Future<void> editProfile(String userId, Map<String, dynamic> fields) async {
+    try {
+      await _dio.put('/admin/individuals/$userId', data: fields);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// [level] is 'job_posting' (blocks only new postings) or 'full' (login
   /// lockout, reuses users.is_active).
   Future<void> block(String userId, String level, String reason) async {
