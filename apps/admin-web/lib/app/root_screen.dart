@@ -4,11 +4,37 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
 
-/// Checks for a stored session and redirects to /login or /dashboard.
-/// SPEC.md's admin screen list (13.1) doesn't name a distinct splash
-/// screen, but this bootstrap step is still needed.
+/// Routes safe to restore on refresh once authenticated — every route
+/// registered in router.dart's static buildRoutes() map (all argument-free
+/// WidgetBuilders) plus '/caregivers', which is dynamic (onGenerateRoute)
+/// but takes only a nullable initialStatus, so restoring it with no
+/// argument behaves identically to visiting it fresh. Deliberately
+/// excludes routes that require a non-null argument we have no way to
+/// recover from a bare URL alone (/caregiver-detail, /audit-logs,
+/// /individual-detail, /organisation-detail all take a required id) —
+/// those fall back to the default /dashboard below, same as before this
+/// restore behavior existed. Kept in sync with router.dart by hand, same
+/// convention as other small duplicated route-name constants in this app.
+const _restorableRoutes = {
+  '/dashboard',
+  '/admins',
+  '/jobs',
+  '/app-versions',
+  '/patients-family',
+  '/rehab-hospitals',
+  '/rehab-requirements',
+  '/caregivers',
+};
+
+/// Checks for a stored session and redirects to /login, or back to
+/// whatever page the admin was on before a refresh (falling back to
+/// /dashboard if that page isn't safely restorable — see
+/// _restorableRoutes). SPEC.md's admin screen list (13.1) doesn't name a
+/// distinct splash screen, but this bootstrap step is still needed.
 class RootScreen extends ConsumerStatefulWidget {
-  const RootScreen({super.key});
+  final String? initialDeepLinkRoute;
+
+  const RootScreen({super.key, this.initialDeepLinkRoute});
 
   @override
   ConsumerState<RootScreen> createState() => _RootScreenState();
@@ -29,7 +55,11 @@ class _RootScreenState extends ConsumerState<RootScreen> {
       if (next is AdminSessionUnauthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is AdminSessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
+        final restoreRoute = widget.initialDeepLinkRoute;
+        final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute)
+            ? restoreRoute
+            : '/dashboard';
+        Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
       }
     });
 

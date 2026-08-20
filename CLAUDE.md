@@ -373,6 +373,28 @@ reusing any of its tables.
   pre-filled with the requirement's current values when editing. Tapping a requirement row opens
   a read-only detail view first (every field as plain text) with its own Edit button into that
   same dialog — same "view, then optionally edit" pattern as `AdminJobsScreen`'s job rows.
+- **Page refresh restores the actual page, not the app's home tab**: all three Flutter apps
+  (admin-web, caregiver-app/NurseJobs, nursenow-app) capture
+  `WidgetsBinding.instance.platformDispatcher.defaultRouteName` in `main()` **before** `runApp` —
+  this reflects the real browser URL/hash (e.g. `#/jobs`) at load time, which `MaterialApp`'s own
+  hardcoded `initialRoute: '/'` would otherwise silently discard (the app always enters via a
+  fixed root/splash screen first, to run the auth check, and that splash screen used to always
+  redirect to a fixed default — `/dashboard`, `routeForStatus()`, or `homeRoute` — once auth
+  resolved, with zero awareness of what page the browser was actually on). The captured value is
+  threaded down (`AdminWebApp`/`CaregiverApp`/`NurseNowApp` → `buildRoutes()` → `RootScreen`/
+  `SplashScreen`, all via a plain `initialDeepLinkRoute` constructor parameter, not a Riverpod
+  provider) and, once the session resolves to authenticated, is restored **instead of** the fixed
+  default — but only if it's in that app's own hardcoded `_restorableRoutes` safe-list (kept in
+  sync with `router.dart` by hand). Routes requiring an argument this bare URL can't supply
+  (admin-web's `/caregiver-detail`, `/audit-logs`, `/individual-detail`, `/organisation-detail`,
+  all needing a real id) are deliberately excluded from the safe-list and fall back to the fixed
+  default, same as before this fix — there's no way to reconstruct a required argument from a
+  hash-only URL with this simple named-route setup (no real deep-linking/path-parameter parsing).
+  nursenow-app additionally guards against restoring an organisation-only route
+  (`/org-home`/`/org-post-requirement`) for an individual session or vice versa. No URL strategy
+  change was needed (`usePathUrlStrategy()` is still never called anywhere — all three apps stay
+  on Flutter's default hash-based routing, e.g. `#/jobs`) — the fix is purely about not discarding
+  the hash Flutter already had access to.
 
 ## Naming Conventions (STRICT)
 

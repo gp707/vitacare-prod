@@ -19,12 +19,18 @@ Future<void> main() async {
     // Best-effort: push notifications just won't work this session.
   }
 
+  // Captured before runApp — on web this reflects the browser's URL/hash
+  // (e.g. "/jobs") at load time; on mobile it's always "/". MaterialApp's
+  // own fixed initialRoute below would otherwise discard it, so it's
+  // threaded through to SplashScreen to restore the page a caregiver was
+  // on before a web page refresh instead of always landing on Profile.
+  final initialDeepLinkRoute = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   final localStorage = await LocalStorage.create();
 
   runApp(
     ProviderScope(
       overrides: [localStorageProvider.overrideWithValue(localStorage)],
-      child: const CaregiverApp(),
+      child: CaregiverApp(initialDeepLinkRoute: initialDeepLinkRoute),
     ),
   );
 }

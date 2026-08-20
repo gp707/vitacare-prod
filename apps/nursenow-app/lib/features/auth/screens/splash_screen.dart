@@ -4,8 +4,22 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 
+/// Routes safe to restore on refresh once authenticated — every route
+/// registered in router.dart's buildRoutes() map except the pre-auth ones
+/// ('/', '/login', '/register'). All are argument-free. Kept in sync with
+/// router.dart by hand, same convention as the other two apps' equivalent
+/// sets. '/org-home'/'/org-post-requirement' are organisation-only and
+/// '/post-requirement' is individual-only — restoring the wrong one for
+/// the resolved session's role is guarded against separately below, not
+/// by this set (an individual account could still have this route sitting
+/// stale in the URL from a previous different-role session on a shared
+/// browser).
+const _restorableRoutes = {'/home', '/profile', '/post-requirement', '/org-home', '/org-post-requirement'};
+
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key});
+  final String? initialDeepLinkRoute;
+
+  const SplashScreen({super.key, this.initialDeepLinkRoute});
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -26,7 +40,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (next is SessionUnauthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is SessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil(next.homeRoute, (route) => false);
+        final restoreRoute = widget.initialDeepLinkRoute;
+        final isOrgOnlyRoute = restoreRoute == '/org-home' || restoreRoute == '/org-post-requirement';
+        final isIndividualOnlyRoute = restoreRoute == '/post-requirement';
+        final roleMismatch =
+            (isOrgOnlyRoute && !next.isOrganisation) || (isIndividualOnlyRoute && next.isOrganisation);
+        final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute) && !roleMismatch
+            ? restoreRoute
+            : next.homeRoute;
+        Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
       }
     });
 

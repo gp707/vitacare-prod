@@ -15,9 +15,9 @@ import '../features/jobs/screens/my_assignment_screen.dart';
 /// Call, landing on the caregiver's own full profile view/edit by default
 /// for everything after that (reachable at any status, per SPEC.md 12.3) —
 /// no extra click needed to see it.
-Map<String, WidgetBuilder> buildRoutes() {
+Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
-    '/': (context) => const SplashScreen(),
+    '/': (context) => SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
     '/register': (context) => const RegistrationScreen(),
     '/pending-call': (context) => const PendingCallScreen(),

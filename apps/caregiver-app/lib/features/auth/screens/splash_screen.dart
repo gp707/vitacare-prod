@@ -8,8 +8,19 @@ import '../../../app/update_required_screen.dart';
 import '../../../core/providers.dart';
 import '../../../core/version/app_version_repository.dart';
 
+/// Routes safe to restore on refresh once authenticated — every route
+/// registered in router.dart's buildRoutes() map except the pre-auth ones
+/// ('/', '/login', '/register'). All are argument-free, and bottom-nav
+/// tabs (Jobs/MyJobs/Profile) are reachable regardless of
+/// verification_status per CLAUDE.md, so restoring e.g. "/jobs" is valid
+/// even for a pending_call caregiver. Kept in sync with router.dart by
+/// hand, same convention as admin-web's equivalent set.
+const _restorableRoutes = {'/pending-call', '/profile', '/profile/edit', '/jobs', '/my-jobs'};
+
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key});
+  final String? initialDeepLinkRoute;
+
+  const SplashScreen({super.key, this.initialDeepLinkRoute});
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -44,7 +55,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (next is SessionUnauthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is SessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil(routeForStatus(next), (route) => false);
+        final restoreRoute = widget.initialDeepLinkRoute;
+        final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute)
+            ? restoreRoute
+            : routeForStatus(next);
+        Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
       }
     });
 

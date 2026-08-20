@@ -21,9 +21,9 @@ import '../features/organisation_requirements/screens/admin_organisation_require
 /// passed as route arguments (see onGenerateRoute) rather than path
 /// segments, to keep routing simple with MaterialApp's basic named-route
 /// table.
-Map<String, WidgetBuilder> buildRoutes() {
+Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
-    '/': (context) => const RootScreen(),
+    '/': (context) => RootScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
     '/dashboard': (context) => const DashboardScreen(),
     '/admins': (context) => const AdminManagementScreen(),

@@ -18,9 +18,9 @@ import '../features/organisation/screens/post_organisation_requirement_screen.da
 /// neither account type has a verification pipeline, just the two
 /// independent block levers described in the NurseNow section of
 /// CLAUDE.md.
-Map<String, WidgetBuilder> buildRoutes() {
+Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
-    '/': (context) => const SplashScreen(),
+    '/': (context) => SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
     '/register': (context) => const RegistrationScreen(),
     '/home': (context) => const JobsPostedScreen(),
