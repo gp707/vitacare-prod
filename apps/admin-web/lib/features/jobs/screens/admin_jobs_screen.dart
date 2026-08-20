@@ -26,10 +26,32 @@ import '../widgets/job_read_only_detail_dialog.dart';
 /// only ever produces a `jobs` row (admin never creates a requirement, the
 /// org posts its own), and the two types keep their own dialogs.
 class AdminJobsScreen extends ConsumerStatefulWidget {
-  const AdminJobsScreen({super.key});
+  final JobsScreenInitialFilter? initialFilter;
+
+  const AdminJobsScreen({super.key, this.initialFilter});
 
   @override
   ConsumerState<AdminJobsScreen> createState() => _AdminJobsScreenState();
+}
+
+/// Pre-seeds the merged Jobs screen's filters to a single poster's
+/// postings — passed as `/jobs`'s route argument by the "View Jobs" redirect
+/// on a Rehab/Hospitals or Patients/Family row. [organisationType] set means
+/// [postedByUserId] is an organisation account (scopes to the organisation-
+/// requirements fetch only); left null means it's an individual account
+/// (scopes to the jobs fetch only, via `posted_by_role=individual`). Every
+/// other filter (search/city/status/etc.) stays available to narrow further
+/// once landed — this only seeds the initial view, it doesn't lock anything.
+class JobsScreenInitialFilter {
+  final String postedByUserId;
+  final String postedByLabel;
+  final String? organisationType;
+
+  const JobsScreenInitialFilter({
+    required this.postedByUserId,
+    required this.postedByLabel,
+    this.organisationType,
+  });
 }
 
 /// "Posted By" filter values narrowing the merged Jobs list to one poster
@@ -74,6 +96,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   List<JobPosterOption> _posters = [];
   final _searchController = TextEditingController();
   String? _filterPostedBy;
+  String? _filterOrgPostedBy;
+  String? _filterPostedByLabel;
   String? _filterCity;
   String? _filterGender;
   String? _filterDutyType;
@@ -84,10 +108,34 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   @override
   void initState() {
     super.initState();
+    final initialFilter = widget.initialFilter;
+    if (initialFilter != null) {
+      _filterPostedByLabel = initialFilter.postedByLabel;
+      if (initialFilter.organisationType != null) {
+        _filterPosterType = initialFilter.organisationType;
+        _filterOrgPostedBy = initialFilter.postedByUserId;
+      } else {
+        _filterPosterType = UserRole.individual;
+        _filterPostedBy = initialFilter.postedByUserId;
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load();
       _loadPosters();
     });
+  }
+
+  /// Clears only the single-poster narrowing from a "View Jobs" redirect —
+  /// the broader "Posted By" poster-type selection (Hospital/Patients/etc.)
+  /// stays as-is, so admin can widen back out to every posting of that type
+  /// without losing the type filter entirely.
+  void _clearSinglePosterFilter() {
+    setState(() {
+      _filterPostedBy = null;
+      _filterOrgPostedBy = null;
+      _filterPostedByLabel = null;
+    });
+    _load();
   }
 
   @override
@@ -130,6 +178,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           ? ref.read(adminOrganisationRequirementsRepositoryProvider).list(
                 filters: OrganisationRequirementListFilters(
                   status: _filterStatus,
+                  postedBy: _filterOrgPostedBy,
                   organisationType: _isOrganisationPosterType(_filterPosterType) ? _filterPosterType : null,
                   city: _filterCity,
                   search: search,
@@ -389,6 +438,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   bool get _hasActiveFilters =>
       _filterPostedBy != null ||
+      _filterOrgPostedBy != null ||
       _filterCity != null ||
       _filterGender != null ||
       _filterDutyType != null ||
@@ -432,7 +482,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           width: 260,
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
-            initialValue: _filterPostedBy,
+            // Guarded against a value the dropdown doesn't itself list (e.g.
+            // a patient's user id seeded by a "View Jobs" redirect, or any
+            // organisation's, since _posters only ever lists admins) —
+            // DropdownButtonFormField asserts its value matches exactly one
+            // item, so an unmatched id must display as unselected here even
+            // though it's still driving the actual fetch (see the "Filtered
+            // to postings by" banner for that case).
+            initialValue: _posters.any((p) => p.id == _filterPostedBy) ? _filterPostedBy : null,
             decoration:
                 const InputDecoration(labelText: 'Job Poster', border: OutlineInputBorder(), isDense: true),
             items: [
@@ -563,6 +620,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               _buildFilterPanel(),
+              if (_filterPostedByLabel != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _SinglePosterBanner(label: _filterPostedByLabel!, onClear: _clearSinglePosterFilter),
+              ],
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
@@ -772,6 +833,39 @@ class _JobStatusBadge extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+/// Shown when a "View Jobs" redirect from a single Rehab/Hospitals or
+/// Patients/Family row has narrowed the list to that one poster's postings
+/// — every other filter still applies on top, this just says which single
+/// account is currently in scope and offers a way back to the broader view.
+class _SinglePosterBanner extends StatelessWidget {
+  final String label;
+  final VoidCallback onClear;
+
+  const _SinglePosterBanner({required this.label, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Showing postings by: $label', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(width: AppSpacing.xs),
+          InkWell(
+            onTap: onClear,
+            child: const Icon(Icons.close, size: 16),
+          ),
+        ],
+      ),
     );
   }
 }

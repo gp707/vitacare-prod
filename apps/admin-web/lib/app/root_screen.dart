@@ -6,9 +6,10 @@ import '../features/auth/state/session_state.dart';
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's static buildRoutes() map (all argument-free
-/// WidgetBuilders) plus '/caregivers', which is dynamic (onGenerateRoute)
-/// but takes only a nullable initialStatus, so restoring it with no
-/// argument behaves identically to visiting it fresh. Deliberately
+/// WidgetBuilders) plus '/caregivers' and '/jobs', both dynamic
+/// (onGenerateRoute) but taking only a nullable argument
+/// (initialStatus / initialFilter), so restoring either with no argument
+/// behaves identically to visiting it fresh. Deliberately
 /// excludes routes that require a non-null argument we have no way to
 /// recover from a bare URL alone (/caregiver-detail, /audit-logs,
 /// /individual-detail, /organisation-detail all take a required id) —

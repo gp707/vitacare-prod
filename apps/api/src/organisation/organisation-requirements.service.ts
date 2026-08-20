@@ -266,6 +266,7 @@ export class OrganisationRequirementsService {
     const { items, total } = await this.requirementsRepo.listForAdmin(
       {
         status: query.status,
+        posted_by: query.posted_by,
         organisation_type: query.organisation_type,
         city: query.city,
         search: query.search,

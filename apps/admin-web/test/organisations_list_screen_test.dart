@@ -9,6 +9,7 @@ import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 import 'package:admin_web/features/organisations/data/admin_organisations_repository.dart';
 import 'package:admin_web/features/organisations/screens/organisations_list_screen.dart';
 
@@ -87,7 +88,7 @@ Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, Strin
 }
 
 Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationsRepository repo) async {
-  await tester.binding.setSurfaceSize(const Size(2000, 800));
+  await tester.binding.setSurfaceSize(const Size(2300, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -196,7 +197,7 @@ void main() {
   });
 
   testWidgets('tapping a row navigates to /organisation-detail with the account\'s user id', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2000, 800));
+    await tester.binding.setSurfaceSize(const Size(2300, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();
@@ -232,5 +233,49 @@ void main() {
 
     expect(pushedRoute, '/organisation-detail');
     expect(pushedArgs, 'u1');
+  });
+
+  testWidgets('tapping View Jobs redirects to /jobs pre-filtered to this organisation', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2300, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeAdminOrganisationsRepository([
+      _item(userId: 'org-user-1', organisationName: 'City Rehab Center', organisationType: OrganisationType.rehab),
+    ]);
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          adminOrganisationsRepositoryProvider.overrideWithValue(repo),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+          ),
+        ],
+        child: MaterialApp(
+          home: const OrganisationsListScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Jobs Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'View Jobs'));
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/jobs');
+    final args = pushedArgs as JobsScreenInitialFilter;
+    expect(args.postedByUserId, 'org-user-1');
+    expect(args.postedByLabel, 'City Rehab Center');
+    expect(args.organisationType, OrganisationType.rehab);
   });
 }

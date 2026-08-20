@@ -82,18 +82,29 @@ class AdminOrganisationRequirement {
 /// Mirrors AdminJobsRepository's shape for the pieces that apply here —
 /// admin never *creates* an organisation requirement (the org posts its
 /// own), only approves/edits/rejects and decides on applicants.
-/// All fields optional/null = no filter applied for that field.
+/// All fields optional/null = no filter applied for that field. `postedBy`
+/// is a specific organisation's user id — used by the merged Jobs screen's
+/// "View Jobs" redirect from a single Rehab/Hospitals row, not surfaced as
+/// its own dropdown (unlike jobs' Job Poster picker).
 class OrganisationRequirementListFilters {
   final String? status;
+  final String? postedBy;
   final String? organisationType;
   final String? city;
   final String? search;
 
-  const OrganisationRequirementListFilters({this.status, this.organisationType, this.city, this.search});
+  const OrganisationRequirementListFilters({
+    this.status,
+    this.postedBy,
+    this.organisationType,
+    this.city,
+    this.search,
+  });
 
   Map<String, dynamic> toQueryParameters() => {
         'limit': 100,
         if (status != null) 'status': status,
+        if (postedBy != null) 'posted_by': postedBy,
         if (organisationType != null) 'organisation_type': organisationType,
         if (city != null) 'city': city,
         if (search != null && search!.isNotEmpty) 'search': search,

@@ -505,6 +505,29 @@ describe('OrganisationRequirementsService', () => {
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 5, totalPages: 1 });
     });
 
+    it('passes posted_by/organisation_type/city/search filters through to the repository, alongside status', async () => {
+      requirementsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
+      await service.listRequirementsForAdmin({
+        page: 1,
+        limit: 20,
+        status: 'active',
+        posted_by: 'org-user-1',
+        organisation_type: 'hospital',
+        city: 'bangalore',
+        search: 'City Rehab',
+      } as any);
+      expect(requirementsRepo.listForAdmin).toHaveBeenCalledWith(
+        {
+          status: 'active',
+          posted_by: 'org-user-1',
+          organisation_type: 'hospital',
+          city: 'bangalore',
+          search: 'City Rehab',
+        },
+        { page: 1, limit: 20 },
+      );
+    });
+
     it('throws GEN_002 when the requirement does not exist', async () => {
       requirementsRepo.findById.mockResolvedValue(null);
       await expect(service.getRequirementDetailForAdmin('req-1')).rejects.toMatchObject({ code: 'GEN_002' });

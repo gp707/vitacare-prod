@@ -14,19 +14,19 @@ import '../features/organisations/screens/organisations_list_screen.dart';
 import '../features/organisations/screens/organisation_detail_screen.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
-/// /caregivers accepts an optional status filter, /caregiver-detail a
-/// profile id, /audit-logs an optional target-user-id prefilter,
-/// /individual-detail and /organisation-detail a user id, all
-/// passed as route arguments (see onGenerateRoute) rather than path
-/// segments, to keep routing simple with MaterialApp's basic named-route
-/// table.
+/// /caregivers accepts an optional status filter, /jobs an optional
+/// JobsScreenInitialFilter (the "View Jobs" redirect from a single
+/// Rehab/Hospitals or Patients/Family row), /caregiver-detail a profile id,
+/// /audit-logs an optional target-user-id prefilter, /individual-detail and
+/// /organisation-detail a user id, all passed as route arguments (see
+/// onGenerateRoute) rather than path segments, to keep routing simple with
+/// MaterialApp's basic named-route table.
 Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
     '/': (context) => RootScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
     '/dashboard': (context) => const DashboardScreen(),
     '/admins': (context) => const AdminManagementScreen(),
-    '/jobs': (context) => const AdminJobsScreen(),
     '/app-versions': (context) => const AppVersionsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
@@ -35,6 +35,11 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   switch (settings.name) {
+    case '/jobs':
+      return MaterialPageRoute(
+        builder: (context) =>
+            AdminJobsScreen(initialFilter: settings.arguments as JobsScreenInitialFilter?),
+      );
     case '/caregivers':
       return MaterialPageRoute(
         builder: (context) =>

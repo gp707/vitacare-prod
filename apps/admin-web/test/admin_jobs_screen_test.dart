@@ -260,6 +260,7 @@ Future<void> _pump(
   WidgetTester tester,
   _FakeAdminJobsRepository repo, {
   _FakeAdminOrganisationRequirementsRepository? requirementsRepo,
+  JobsScreenInitialFilter? initialFilter,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -278,7 +279,7 @@ Future<void> _pump(
         adminOrganisationRequirementsRepositoryProvider
             .overrideWithValue(requirementsRepo ?? _FakeAdminOrganisationRequirementsRepository()),
       ],
-      child: const MaterialApp(home: AdminJobsScreen()),
+      child: MaterialApp(home: AdminJobsScreen(initialFilter: initialFilter)),
     ),
   );
   await tester.pumpAndSettle();
@@ -1305,6 +1306,78 @@ void main() {
       expect(repo.listCallCount, 1, reason: 'jobs should not be re-fetched for Hospital');
       expect(find.text('ADMIN-JOB-542'), findsNothing);
       expect(find.text('ORG-JOB-101'), findsOneWidget);
+    });
+  });
+
+  group('"View Jobs" redirect from a single Rehab/Hospitals or Patients/Family row', () {
+    testWidgets('an organisation initialFilter scopes to just that organisation\'s requirements '
+        '(organisation_type + posted_by), skipping jobs entirely, and shows a clearable banner',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(
+        tester,
+        repo,
+        requirementsRepo: requirementsRepo,
+        initialFilter: const JobsScreenInitialFilter(
+          postedByUserId: 'org-user-1',
+          postedByLabel: 'City Rehab Center',
+          organisationType: OrganisationType.rehab,
+        ),
+      );
+
+      expect(repo.listCallCount, 0, reason: 'jobs must not be fetched when scoped to one organisation');
+      expect(
+        requirementsRepo.lastFilters,
+        isA<OrganisationRequirementListFilters>()
+            .having((f) => f.postedBy, 'postedBy', 'org-user-1')
+            .having((f) => f.organisationType, 'organisationType', 'rehab'),
+      );
+      expect(find.text('Showing postings by: City Rehab Center'), findsOneWidget);
+      expect(find.text('ADMIN-JOB-542'), findsNothing);
+      expect(find.text('ORG-JOB-101'), findsOneWidget);
+
+      // Clearing drops the specific-poster narrowing but keeps browsing
+      // scoped to organisation requirements (the broader Posted By type
+      // filter it was seeded with stays put).
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Showing postings by: City Rehab Center'), findsNothing);
+      expect(
+        requirementsRepo.lastFilters,
+        isA<OrganisationRequirementListFilters>()
+            .having((f) => f.postedBy, 'postedBy', isNull)
+            .having((f) => f.organisationType, 'organisationType', 'rehab'),
+      );
+    });
+
+    testWidgets('an individual initialFilter scopes to just that patient\'s jobs '
+        '(posted_by_role=individual + posted_by), skipping organisation requirements entirely',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(
+        tester,
+        repo,
+        requirementsRepo: requirementsRepo,
+        initialFilter: const JobsScreenInitialFilter(
+          postedByUserId: 'patient-user-1',
+          postedByLabel: 'Rahul Bajaj',
+        ),
+      );
+
+      expect(requirementsRepo.listCallCount, 0,
+          reason: 'org requirements must not be fetched when scoped to one individual');
+      expect(
+        repo.lastListFilters,
+        isA<JobListFilters>()
+            .having((f) => f.postedBy, 'postedBy', 'patient-user-1')
+            .having((f) => f.postedByRole, 'postedByRole', 'individual'),
+      );
+      expect(find.text('Showing postings by: Rahul Bajaj'), findsOneWidget);
+      expect(find.text('ORG-JOB-101'), findsNothing);
+      expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     });
   });
 }

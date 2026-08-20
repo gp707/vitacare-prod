@@ -329,6 +329,21 @@ describe('Organisation (NurseNow) (e2e)', () => {
           .set('Authorization', `Bearer ${superAdminToken}`)
           .expect(200);
         expect(byCity.body.data).toHaveLength(1);
+
+        // Powers admin-web's "View Jobs" redirect from a single Rehab/
+        // Hospitals row into the merged Jobs tab, scoped to just this one
+        // organisation's own postings.
+        const byPostedBy = await request(app.getHttpServer())
+          .get(`/v1/admin/organisation-requirements?limit=100&posted_by=${org.user_id}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byPostedBy.body.data.map((r: { id: string }) => r.id)).toContain(requirementId);
+
+        const invalidPostedBy = await request(app.getHttpServer())
+          .get('/v1/admin/organisation-requirements?limit=100&posted_by=not-a-uuid')
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(400);
+        expect(invalidPostedBy.body.error.code).toBe('GEN_005');
       });
 
     it('GET /v1/admin/audit-logs resolves requirement_number/requirement_id for organisation_requirements entries, and target org_number when the org applicant is decided',

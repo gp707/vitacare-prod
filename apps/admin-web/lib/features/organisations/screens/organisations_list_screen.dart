@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_organisations_repository.dart';
 
 /// NurseNow hospital/rehab/clinic accounts — mirrors IndividualsListScreen
@@ -228,6 +229,21 @@ class _OrganisationsListScreenState
     }
   }
 
+  /// Redirects into the merged Jobs tab, pre-filtered to just this
+  /// organisation's own postings — every other Jobs filter (search/city/
+  /// status/etc.) stays available to narrow further from there.
+  void _viewJobs(AdminOrganisationListItem item) {
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/jobs',
+      (route) => false,
+      arguments: JobsScreenInitialFilter(
+        postedByUserId: item.userId,
+        postedByLabel: item.organisationName,
+        organisationType: item.organisationType,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
@@ -297,6 +313,7 @@ class _OrganisationsListScreenState
                         DataCell(Text(item.createdAt.split('T').first)),
                         DataCell(_ActionsCell(
                           item: item,
+                          onViewJobs: () => _viewJobs(item),
                           onBlockJobPosting: () =>
                               _showBlockDialog(item, 'job_posting'),
                           onUnblockJobPosting: () =>
@@ -366,6 +383,7 @@ class _StatusCell extends StatelessWidget {
 
 class _ActionsCell extends StatelessWidget {
   final AdminOrganisationListItem item;
+  final VoidCallback onViewJobs;
   final VoidCallback onBlockJobPosting;
   final VoidCallback onUnblockJobPosting;
   final VoidCallback onBlockFull;
@@ -373,6 +391,7 @@ class _ActionsCell extends StatelessWidget {
 
   const _ActionsCell({
     required this.item,
+    required this.onViewJobs,
     required this.onBlockJobPosting,
     required this.onUnblockJobPosting,
     required this.onBlockFull,
@@ -384,6 +403,7 @@ class _ActionsCell extends StatelessWidget {
     return Wrap(
       spacing: AppSpacing.xs,
       children: [
+        TextButton(onPressed: onViewJobs, child: const Text('View Jobs')),
         if (item.isJobPostingBlocked)
           TextButton(
               onPressed: onUnblockJobPosting,
