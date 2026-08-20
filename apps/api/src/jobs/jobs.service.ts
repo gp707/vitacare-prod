@@ -176,6 +176,7 @@ export class JobsService {
         duty_type: query.duty_type,
         language: query.language,
         posted_by_role: query.posted_by_role,
+        search: query.search,
       },
       { page: query.page, limit: query.limit },
     );

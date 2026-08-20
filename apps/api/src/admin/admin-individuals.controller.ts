@@ -6,10 +6,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { AdminIndividualsService } from './admin-individuals.service';
 import { BlockIndividualDto } from './dto/block-individual.dto';
 import { UnblockIndividualDto } from './dto/unblock-individual.dto';
+import { ListIndividualsQueryDto } from './dto/list-individuals-query.dto';
 
 @Controller('admin/individuals')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -18,8 +18,8 @@ export class AdminIndividualsController {
   constructor(private readonly adminIndividualsService: AdminIndividualsService) {}
 
   @Get()
-  list(@Query() query: PaginationDto) {
-    return this.adminIndividualsService.listIndividuals(query.page, query.limit);
+  list(@Query() query: ListIndividualsQueryDto) {
+    return this.adminIndividualsService.listIndividuals(query);
   }
 
   @Get(':id')

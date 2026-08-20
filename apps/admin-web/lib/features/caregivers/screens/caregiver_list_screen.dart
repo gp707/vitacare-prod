@@ -21,6 +21,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   final _searchController = TextEditingController();
   String? _status;
   String? _qualification;
+  String? _gender;
+  String? _language;
+  String? _city;
   int _page = 1;
 
   List<AdminCaregiverListItem> _items = [];
@@ -52,6 +55,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
               search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
               status: _status,
               qualification: _qualification,
+              gender: _gender,
+              languages: _language == null ? null : [_language!],
+              city: _city,
               page: _page,
             ),
           );
@@ -108,11 +114,11 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         SizedBox(
-          width: 240,
+          width: 260,
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
-              labelText: 'Search name or phone',
+              labelText: 'Search name, phone, or ID (NUR-...)',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -145,6 +151,48 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                   (q) => DropdownMenuItem<String?>(value: q, child: Text(Qualification.displayNames[q] ?? q))),
             ],
             onChanged: (value) => setState(() => _qualification = value),
+          ),
+        ),
+        SizedBox(
+          width: 160,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _gender,
+            decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All genders')),
+              ...Gender.all.map(
+                  (g) => DropdownMenuItem<String?>(value: g, child: Text(g[0].toUpperCase() + g.substring(1)))),
+            ],
+            onChanged: (value) => setState(() => _gender = value),
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _language,
+            decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All languages')),
+              ...Language.all
+                  .map((l) => DropdownMenuItem<String?>(value: l, child: Text(Language.displayNames[l] ?? l))),
+            ],
+            onChanged: (value) => setState(() => _language = value),
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _city,
+            decoration:
+                const InputDecoration(labelText: 'Preferred City', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+            ],
+            onChanged: (value) => setState(() => _city = value),
           ),
         ),
         ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),

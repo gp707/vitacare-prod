@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { City, DutyType, Gender, JobStatus, Language, UserRole, Validation } from '@vitacare/shared-constants';
 
 export class ListJobsQueryDto {
@@ -49,4 +49,10 @@ export class ListJobsQueryDto {
   @IsOptional()
   @IsIn(Object.values(Language), { message: 'GEN_005' })
   language?: Language;
+
+  // Matches against the job's display id (ADMIN-JOB-<n>/PAT-JOB-<n>) or the
+  // raw job_number — e.g. "500" or "ADMIN-JOB-500" both match.
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

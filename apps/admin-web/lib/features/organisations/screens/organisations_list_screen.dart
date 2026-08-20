@@ -16,6 +16,11 @@ class OrganisationsListScreen extends ConsumerStatefulWidget {
   ConsumerState<OrganisationsListScreen> createState() => _OrganisationsListScreenState();
 }
 
+/// organisation_profiles.city accepts the existing 7 cities plus this one
+/// extra sentinel — a separate org-scoped list, not an extension of the
+/// shared City enum (see "NurseNow" in CLAUDE.md).
+const _organisationCityOthers = 'others';
+
 class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScreen> {
   int _page = 1;
   List<AdminOrganisationListItem> _items = [];
@@ -23,10 +28,21 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
   bool _loading = true;
   String? _errorMessage;
 
+  final _searchController = TextEditingController();
+  String? _blockStatus;
+  String? _organisationType;
+  String? _city;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -35,7 +51,15 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
       _errorMessage = null;
     });
     try {
-      final result = await ref.read(adminOrganisationsRepositoryProvider).list(page: _page);
+      final result = await ref.read(adminOrganisationsRepositoryProvider).list(
+            page: _page,
+            filters: OrganisationListFilters(
+              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+              blockStatus: _blockStatus,
+              organisationType: _organisationType,
+              city: _city,
+            ),
+          );
       if (mounted) {
         setState(() {
           _items = result.items;
@@ -47,6 +71,88 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyFilters() {
+    _page = 1;
+    _load();
+  }
+
+  bool get _hasActiveFilters =>
+      _blockStatus != null ||
+      _organisationType != null ||
+      _city != null ||
+      _searchController.text.trim().isNotEmpty;
+
+  Widget _buildFilterPanel() {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 240,
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search name, phone, or ID (ORG-...)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _applyFilters(),
+          ),
+        ),
+        SizedBox(
+          width: 180,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _blockStatus,
+            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            items: const [
+              DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              DropdownMenuItem<String?>(value: 'active', child: Text('Active')),
+              DropdownMenuItem<String?>(value: 'job_posting_blocked', child: Text('Posting Blocked')),
+              DropdownMenuItem<String?>(value: 'blocked', child: Text('Blocked')),
+            ],
+            onChanged: (value) => setState(() => _blockStatus = value),
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _organisationType,
+            decoration: const InputDecoration(
+              labelText: 'Organisation Type',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All types')),
+              ...OrganisationType.all.map(
+                (t) => DropdownMenuItem<String?>(value: t, child: Text(OrganisationType.displayNames[t] ?? t)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _organisationType = value),
+          ),
+        ),
+        SizedBox(
+          width: 180,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _city,
+            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+              const DropdownMenuItem<String?>(value: _organisationCityOthers, child: Text('Others')),
+            ],
+            onChanged: (value) => setState(() => _city = value),
+          ),
+        ),
+        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+      ],
+    );
   }
 
   Future<void> _showBlockDialog(AdminOrganisationListItem item, String level) async {
@@ -102,6 +208,8 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
             children: [
               const Text('Rehab / Hospitals', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
+              _buildFilterPanel(),
+              const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
@@ -118,7 +226,10 @@ class _OrganisationsListScreenState extends ConsumerState<OrganisationsListScree
 
   Widget _buildTable() {
     if (_items.isEmpty) {
-      return const Center(child: Text('No organisation accounts yet.'));
+      return Center(
+        child:
+            Text(_hasActiveFilters ? 'No organisation accounts match these filters.' : 'No organisation accounts yet.'),
+      );
     }
     return SingleChildScrollView(
       child: SingleChildScrollView(

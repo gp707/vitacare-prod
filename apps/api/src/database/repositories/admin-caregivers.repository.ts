@@ -32,7 +32,9 @@ export interface AdminCaregiverListFilters {
   search?: string;
   status?: VerificationStatus;
   qualification?: Qualification;
+  gender?: Gender;
   languages?: string[];
+  preferredCity?: string;
   fromDate?: string;
   toDate?: string;
 }
@@ -79,7 +81,9 @@ function buildWhereClause(filters: AdminCaregiverListFilters): { clause: string;
 
   if (filters.search) {
     params.push(`%${filters.search}%`);
-    conditions.push(`(u.full_name ILIKE $${params.length} OR u.phone ILIKE $${params.length})`);
+    conditions.push(
+      `(u.full_name ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR ('NUR-' || cp.caregiver_number::text) ILIKE $${params.length})`,
+    );
   }
   if (filters.status) {
     params.push(filters.status);
@@ -89,10 +93,20 @@ function buildWhereClause(filters: AdminCaregiverListFilters): { clause: string;
     params.push(filters.qualification);
     conditions.push(`cp.highest_qualification = $${params.length}`);
   }
+  if (filters.gender) {
+    params.push(filters.gender);
+    conditions.push(`cp.gender = $${params.length}`);
+  }
   if (filters.languages && filters.languages.length > 0) {
     params.push(filters.languages);
     conditions.push(
       `EXISTS (SELECT 1 FROM caregiver_languages cl WHERE cl.profile_id = cp.id AND cl.language = ANY($${params.length}))`,
+    );
+  }
+  if (filters.preferredCity) {
+    params.push(filters.preferredCity);
+    conditions.push(
+      `EXISTS (SELECT 1 FROM caregiver_preferred_cities cpc WHERE cpc.profile_id = cp.id AND cpc.city = $${params.length})`,
     );
   }
   if (filters.fromDate) {

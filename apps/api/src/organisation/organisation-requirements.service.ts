@@ -264,7 +264,12 @@ export class OrganisationRequirementsService {
 
   async listRequirementsForAdmin(query: ListOrganisationRequirementsQueryDto) {
     const { items, total } = await this.requirementsRepo.listForAdmin(
-      { status: query.status },
+      {
+        status: query.status,
+        organisation_type: query.organisation_type,
+        city: query.city,
+        search: query.search,
+      },
       { page: query.page, limit: query.limit },
     );
     const meta: PaginationMeta = {

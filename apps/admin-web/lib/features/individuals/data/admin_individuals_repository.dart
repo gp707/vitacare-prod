@@ -42,14 +42,35 @@ class AdminIndividualsListResult {
   const AdminIndividualsListResult({required this.items, required this.meta});
 }
 
+/// All fields optional/null = no filter applied for that field.
+/// [blockStatus] is one of 'active' | 'job_posting_blocked' | 'blocked'.
+class IndividualListFilters {
+  final String? search;
+  final String? blockStatus;
+
+  const IndividualListFilters({this.search, this.blockStatus});
+
+  Map<String, dynamic> toQueryParameters() => {
+        if (search != null && search!.isNotEmpty) 'search': search,
+        if (blockStatus != null) 'block_status': blockStatus,
+      };
+}
+
 class AdminIndividualsRepository {
   final Dio _dio;
 
   AdminIndividualsRepository(this._dio);
 
-  Future<AdminIndividualsListResult> list({int page = 1, int limit = 20}) async {
+  Future<AdminIndividualsListResult> list({
+    int page = 1,
+    int limit = 20,
+    IndividualListFilters filters = const IndividualListFilters(),
+  }) async {
     try {
-      final res = await _dio.get('/admin/individuals', queryParameters: {'page': page, 'limit': limit});
+      final res = await _dio.get(
+        '/admin/individuals',
+        queryParameters: {'page': page, 'limit': limit, ...filters.toQueryParameters()},
+      );
       final items = (res.data['data'] as List)
           .map((json) => AdminIndividualListItem.fromJson(json as Map<String, dynamic>))
           .toList();

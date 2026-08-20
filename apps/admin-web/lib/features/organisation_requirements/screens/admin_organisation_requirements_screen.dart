@@ -24,10 +24,21 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
   bool _loading = true;
   String? _errorMessage;
 
+  final _searchController = TextEditingController();
+  String? _filterStatus;
+  String? _filterOrganisationType;
+  String? _filterCity;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -36,13 +47,98 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
       _errorMessage = null;
     });
     try {
-      final items = await ref.read(adminOrganisationRequirementsRepositoryProvider).list();
+      final items = await ref.read(adminOrganisationRequirementsRepositoryProvider).list(
+            filters: OrganisationRequirementListFilters(
+              status: _filterStatus,
+              organisationType: _filterOrganisationType,
+              city: _filterCity,
+              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+            ),
+          );
       if (mounted) setState(() => _requirements = items);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyFilters() => _load();
+
+  bool get _hasActiveFilters =>
+      _filterStatus != null ||
+      _filterOrganisationType != null ||
+      _filterCity != null ||
+      _searchController.text.trim().isNotEmpty;
+
+  Widget _buildFilterPanel() {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 240,
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search org name or ID (ORG-JOB-...)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _applyFilters(),
+          ),
+        ),
+        SizedBox(
+          width: 160,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterStatus,
+            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              ...JobStatus.all.map(
+                (s) => DropdownMenuItem<String?>(value: s, child: Text(JobStatus.displayNames[s] ?? s)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _filterStatus = value),
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterOrganisationType,
+            decoration: const InputDecoration(
+              labelText: 'Organisation Type',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All types')),
+              ...OrganisationType.all.map(
+                (t) => DropdownMenuItem<String?>(value: t, child: Text(OrganisationType.displayNames[t] ?? t)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _filterOrganisationType = value),
+          ),
+        ),
+        SizedBox(
+          width: 180,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _filterCity,
+            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+            ],
+            onChanged: (value) => setState(() => _filterCity = value),
+          ),
+        ),
+        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+      ],
+    );
   }
 
   Future<void> _reject(AdminOrganisationRequirement requirement) async {
@@ -154,12 +250,22 @@ class _AdminOrganisationRequirementsScreenState extends ConsumerState<AdminOrgan
             children: [
               const Text('Organisation Requirements', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
+              _buildFilterPanel(),
+              const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
                 Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
               else if (_requirements.isEmpty)
-                const Expanded(child: Center(child: Text('No organisation requirements posted yet.')))
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      _hasActiveFilters
+                          ? 'No organisation requirements match these filters.'
+                          : 'No organisation requirements posted yet.',
+                    ),
+                  ),
+                )
               else
                 Expanded(
                   child: ListView.separated(

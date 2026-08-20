@@ -13,6 +13,34 @@ export interface AdminIndividualListItem {
   created_at: Date;
 }
 
+export interface AdminIndividualListFilters {
+  /** Matches full_name, phone, or the display id (PAT-<n>). */
+  search?: string;
+  blockStatus?: 'active' | 'job_posting_blocked' | 'blocked';
+}
+
+function buildIndividualsWhereClause(filters: AdminIndividualListFilters): {
+  clause: string;
+  params: unknown[];
+} {
+  const conditions = [`u.role = 'individual'`];
+  const params: unknown[] = [];
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    conditions.push(
+      `(u.full_name ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR ('PAT-' || ip.patient_number::text) ILIKE $${params.length})`,
+    );
+  }
+  if (filters.blockStatus === 'blocked') {
+    conditions.push(`u.is_active = false`);
+  } else if (filters.blockStatus === 'job_posting_blocked') {
+    conditions.push(`u.is_active = true AND ip.is_job_posting_blocked = true`);
+  } else if (filters.blockStatus === 'active') {
+    conditions.push(`u.is_active = true AND ip.is_job_posting_blocked = false`);
+  }
+  return { clause: `WHERE ${conditions.join(' AND ')}`, params };
+}
+
 /** Admin-side view of individual (patient/family) accounts — mirrors the
  *  AdminCaregiversRepository / CaregiverProfilesRepository split: self-
  *  service lives in IndividualProfilesRepository, admin listing/block
@@ -21,23 +49,32 @@ export interface AdminIndividualListItem {
 export class AdminIndividualsRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  async listIndividuals(page: ListPage): Promise<{ items: AdminIndividualListItem[]; total: number }> {
+  async listIndividuals(
+    filters: AdminIndividualListFilters,
+    page: ListPage,
+  ): Promise<{ items: AdminIndividualListItem[]; total: number }> {
+    const { clause, params } = buildIndividualsWhereClause(filters);
     const offset = (page.page - 1) * page.limit;
+    const listParams = [...params, page.limit, offset];
+    const limitPlaceholder = `$${listParams.length - 1}`;
+    const offsetPlaceholder = `$${listParams.length}`;
+
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminIndividualListItem>(
         `SELECT u.id AS user_id, ip.patient_number, u.full_name, u.phone, u.is_active,
                 ip.is_job_posting_blocked, ip.block_reason, u.created_at
          FROM users u
          JOIN individual_profiles ip ON ip.user_id = u.id
-         WHERE u.role = 'individual'
+         ${clause}
          ORDER BY u.created_at DESC
-         LIMIT $1 OFFSET $2`,
-        [page.limit, offset],
+         LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+        listParams,
       ),
       this.db.query<{ count: string }>(
         `SELECT COUNT(*) FROM users u
          JOIN individual_profiles ip ON ip.user_id = u.id
-         WHERE u.role = 'individual'`,
+         ${clause}`,
+        params,
       ),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };

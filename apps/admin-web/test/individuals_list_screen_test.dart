@@ -39,11 +39,17 @@ class _FakeAdminIndividualsRepository extends AdminIndividualsRepository {
   String? blockedReason;
   String? unblockedUserId;
   String? unblockedLevel;
+  IndividualListFilters? lastFilters;
 
   _FakeAdminIndividualsRepository(this.items) : super(Dio());
 
   @override
-  Future<AdminIndividualsListResult> list({int page = 1, int limit = 20}) async {
+  Future<AdminIndividualsListResult> list({
+    int page = 1,
+    int limit = 20,
+    IndividualListFilters filters = const IndividualListFilters(),
+  }) async {
+    lastFilters = filters;
     return AdminIndividualsListResult(
       items: items,
       meta: PaginationMeta(page: page, limit: limit, total: items.length, totalPages: 1),
@@ -62,6 +68,16 @@ class _FakeAdminIndividualsRepository extends AdminIndividualsRepository {
     unblockedUserId = userId;
     unblockedLevel = level;
   }
+}
+
+Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
+  final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
+  await tester.ensureVisible(field);
+  await tester.pumpAndSettle();
+  await tester.tap(field);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(optionLabel).last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(WidgetTester tester, _FakeAdminIndividualsRepository repo) async {
@@ -134,7 +150,7 @@ void main() {
 
     await tester.tap(find.text('Block Posting'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Suspicious activity');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Suspicious activity');
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
 
@@ -169,5 +185,21 @@ void main() {
 
     expect(repo.unblockedUserId, 'u1');
     expect(repo.unblockedLevel, 'full');
+  });
+
+  testWidgets('entering a search term and picking a status, then Apply Filters, passes both through', (tester) async {
+    final repo = _FakeAdminIndividualsRepository([_item()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search name, phone, or ID (PAT-...)'),
+      'PAT-500',
+    );
+    await _selectFilterDropdown(tester, 'Status', 'Blocked');
+    await tester.tap(find.text('Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastFilters?.search, 'PAT-500');
+    expect(repo.lastFilters?.blockStatus, 'blocked');
   });
 }

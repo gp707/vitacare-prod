@@ -1,12 +1,26 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
-import { JobStatus } from '@vitacare/shared-constants';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { City, JobStatus, OrganisationType } from '@vitacare/shared-constants';
 
 /** organisation_requirements.status reuses JobStatus's exact 3 values. */
 export class ListOrganisationRequirementsQueryDto {
   @IsOptional()
   @IsIn(Object.values(JobStatus), { message: 'GEN_001' })
   status?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(OrganisationType), { message: 'GEN_005' })
+  organisation_type?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(City), { message: 'GEN_005' })
+  city?: string;
+
+  /** Matches the organisation's name or the requirement's display id
+   *  (ORG-JOB-<n>) / raw requirement_number. */
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)

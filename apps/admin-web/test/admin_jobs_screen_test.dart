@@ -389,6 +389,20 @@ void main() {
     );
   });
 
+  testWidgets('entering a search term and tapping Apply Filters calls list() with it', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search job ID (e.g. ADMIN-JOB-500)'),
+      'ADMIN-JOB-500',
+    );
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastListFilters, isA<JobListFilters>().having((f) => f.search, 'search', 'ADMIN-JOB-500'));
+  });
+
   testWidgets('shows the salary unit as /month on the job row for a monthly job', (tester) async {
     final repo = _FakeAdminJobsRepository([_job(frequencyOfCare: 'monthly')]);
     await _pump(tester, repo);
@@ -515,7 +529,10 @@ void main() {
 
     expect(find.text('Reject requirement'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'Does not meet our coverage area');
+    await tester.enterText(
+      find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)),
+      'Does not meet our coverage area',
+    );
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
     await tester.pumpAndSettle();
 

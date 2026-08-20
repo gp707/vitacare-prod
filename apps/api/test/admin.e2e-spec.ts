@@ -220,6 +220,66 @@ describe('Admin (e2e)', () => {
         .expect(400);
       expect(res.body.error.code).toBe('GEN_005');
     });
+
+    it('includes caregiver_number in the list and detail responses (display id, e.g. NUR-<n>)', async () => {
+      const created = await registerCaregiver('0024', 'Display Id Subject');
+      const list = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Display Id Subject')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(list.body.data[0].caregiver_number).toEqual(expect.any(Number));
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/caregivers/${created.profile_id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detail.body.data.caregiver_number).toBe(list.body.data[0].caregiver_number);
+    });
+
+    it('filters by search matching the display id (NUR-<n>), gender, and preferred city', async () => {
+      const created = await registerCaregiver('0025', 'Filter Subject');
+      const list = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Filter Subject')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const caregiverNumber = list.body.data[0].caregiver_number as number;
+
+      const byDisplayId = await request(app.getHttpServer())
+        .get(`/v1/admin/caregivers?search=NUR-${caregiverNumber}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byDisplayId.body.data.map((i: { profile_id: string }) => i.profile_id)).toContain(created.profile_id);
+
+      const byGender = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Filter Subject&gender=male')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byGender.body.data).toHaveLength(1);
+
+      const byWrongGender = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Filter Subject&gender=female')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byWrongGender.body.data).toHaveLength(0);
+
+      await request(app.getHttpServer())
+        .put(`/v1/admin/caregivers/${created.profile_id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ preferred_cities: ['mumbai'] })
+        .expect(200);
+
+      const byCity = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Filter Subject&city=mumbai')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byCity.body.data).toHaveLength(1);
+
+      const byWrongCity = await request(app.getHttpServer())
+        .get('/v1/admin/caregivers?search=Filter Subject&city=chennai')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byWrongCity.body.data).toHaveLength(0);
+    });
   });
 
   describe('Status transitions', () => {

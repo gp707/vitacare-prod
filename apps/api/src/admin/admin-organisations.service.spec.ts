@@ -21,10 +21,29 @@ describe('AdminOrganisationsService', () => {
   describe('listOrganisations', () => {
     it('paginates and shapes meta correctly', async () => {
       organisationsRepo.listOrganisations.mockResolvedValue({ items: [{ user_id: 'u1' }], total: 25 });
-      const result = await service.listOrganisations(2, 10);
-      expect(organisationsRepo.listOrganisations).toHaveBeenCalledWith({ page: 2, limit: 10 });
+      const result = await service.listOrganisations({ page: 2, limit: 10 } as any);
+      expect(organisationsRepo.listOrganisations).toHaveBeenCalledWith(
+        { search: undefined, blockStatus: undefined, organisationType: undefined, city: undefined },
+        { page: 2, limit: 10 },
+      );
       expect(result.data).toEqual([{ user_id: 'u1' }]);
       expect(result.meta).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
+    });
+
+    it('passes search/block_status/organisation_type/city filters through', async () => {
+      organisationsRepo.listOrganisations.mockResolvedValue({ items: [], total: 0 });
+      await service.listOrganisations({
+        page: 1,
+        limit: 20,
+        search: 'ORG-500',
+        block_status: 'job_posting_blocked',
+        organisation_type: 'hospital',
+        city: 'bangalore',
+      } as any);
+      expect(organisationsRepo.listOrganisations).toHaveBeenCalledWith(
+        { search: 'ORG-500', blockStatus: 'job_posting_blocked', organisationType: 'hospital', city: 'bangalore' },
+        { page: 1, limit: 20 },
+      );
     });
   });
 

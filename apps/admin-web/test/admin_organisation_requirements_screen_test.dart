@@ -84,10 +84,17 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   String? decidedApplicationId;
   String? decidedStatus;
 
+  OrganisationRequirementListFilters? lastFilters;
+
   _FakeAdminOrganisationRequirementsRepository(this.items, [this.applications = const []]) : super(Dio());
 
   @override
-  Future<List<AdminOrganisationRequirement>> list({String? status}) async => items;
+  Future<List<AdminOrganisationRequirement>> list({
+    OrganisationRequirementListFilters filters = const OrganisationRequirementListFilters(),
+  }) async {
+    lastFilters = filters;
+    return items;
+  }
 
   @override
   Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async {
@@ -132,6 +139,16 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
     decidedApplicationId = applicationId;
     decidedStatus = status;
   }
+}
+
+Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
+  final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
+  await tester.ensureVisible(field);
+  await tester.pumpAndSettle();
+  await tester.tap(field);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(optionLabel).last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsRepository repo) async {
@@ -248,14 +265,14 @@ void main() {
 
     expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.text('Monthly'), findsWidgets);
-    final salaryField = tester.widget<TextField>(find.byType(TextField));
+    final salaryField = tester.widget<TextField>(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)));
     expect(salaryField.controller!.text, '25000');
     // Pre-filled from the existing specific_days/monthly schedule — 3
     // pre-selected days show as 3 green check-circle markers on the
     // calendar (no date-range checkmarks exist in this schedule mode).
     expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
 
-    await tester.enterText(find.byType(TextField), '28000');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '28000');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
     await tester.pumpAndSettle();
@@ -282,7 +299,7 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '30000');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -319,7 +336,7 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '30000');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -354,7 +371,7 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '30000');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -378,7 +395,7 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '30000');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Date Range'));
@@ -401,7 +418,7 @@ void main() {
     final confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
     expect(confirmButton.onPressed, isNull);
 
-    await tester.enterText(find.byType(TextField), 'Missing accommodation details');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Missing accommodation details');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
@@ -500,5 +517,27 @@ void main() {
     expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets(
+      'entering a search term and picking Status/Organisation Type/City, then Apply Filters, passes all through',
+      (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search org name or ID (ORG-JOB-...)'),
+      'ORG-JOB-101',
+    );
+    await _selectFilterDropdown(tester, 'Status', 'Active');
+    await _selectFilterDropdown(tester, 'Organisation Type', 'Hospital');
+    await _selectFilterDropdown(tester, 'City', 'Bangalore');
+    await tester.tap(find.text('Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastFilters?.search, 'ORG-JOB-101');
+    expect(repo.lastFilters?.status, 'active');
+    expect(repo.lastFilters?.organisationType, 'hospital');
+    expect(repo.lastFilters?.city, 'bangalore');
   });
 }

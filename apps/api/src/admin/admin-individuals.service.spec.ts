@@ -21,10 +21,22 @@ describe('AdminIndividualsService', () => {
   describe('listIndividuals', () => {
     it('paginates and shapes meta correctly', async () => {
       individualsRepo.listIndividuals.mockResolvedValue({ items: [{ user_id: 'u1' }], total: 25 });
-      const result = await service.listIndividuals(2, 10);
-      expect(individualsRepo.listIndividuals).toHaveBeenCalledWith({ page: 2, limit: 10 });
+      const result = await service.listIndividuals({ page: 2, limit: 10 } as any);
+      expect(individualsRepo.listIndividuals).toHaveBeenCalledWith(
+        { search: undefined, blockStatus: undefined },
+        { page: 2, limit: 10 },
+      );
       expect(result.data).toEqual([{ user_id: 'u1' }]);
       expect(result.meta).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
+    });
+
+    it('passes search and block_status filters through', async () => {
+      individualsRepo.listIndividuals.mockResolvedValue({ items: [], total: 0 });
+      await service.listIndividuals({ page: 1, limit: 20, search: 'PAT-500', block_status: 'blocked' } as any);
+      expect(individualsRepo.listIndividuals).toHaveBeenCalledWith(
+        { search: 'PAT-500', blockStatus: 'blocked' },
+        { page: 1, limit: 20 },
+      );
     });
   });
 

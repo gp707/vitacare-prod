@@ -26,6 +26,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   String? _errorMessage;
 
   List<JobPosterOption> _posters = [];
+  final _searchController = TextEditingController();
   String? _filterPostedBy;
   String? _filterCity;
   String? _filterGender;
@@ -42,6 +43,12 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -56,6 +63,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               dutyType: _filterDutyType,
               status: _filterStatus,
               language: _filterLanguage,
+              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
             ),
           );
       if (mounted) setState(() => _jobs = jobs);
@@ -207,7 +215,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       _filterGender != null ||
       _filterDutyType != null ||
       _filterStatus != null ||
-      _filterLanguage != null;
+      _filterLanguage != null ||
+      _searchController.text.trim().isNotEmpty;
 
   Widget _buildFilterPanel() {
     return Wrap(
@@ -215,6 +224,18 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       runSpacing: AppSpacing.sm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        SizedBox(
+          width: 220,
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search job ID (e.g. ADMIN-JOB-500)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _applyFilters(),
+          ),
+        ),
         SizedBox(
           width: 260,
           child: DropdownButtonFormField<String?>(

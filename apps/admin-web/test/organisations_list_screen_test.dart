@@ -45,11 +45,17 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   String? blockedReason;
   String? unblockedUserId;
   String? unblockedLevel;
+  OrganisationListFilters? lastFilters;
 
   _FakeAdminOrganisationsRepository(this.items) : super(Dio());
 
   @override
-  Future<AdminOrganisationsListResult> list({int page = 1, int limit = 20}) async {
+  Future<AdminOrganisationsListResult> list({
+    int page = 1,
+    int limit = 20,
+    OrganisationListFilters filters = const OrganisationListFilters(),
+  }) async {
+    lastFilters = filters;
     return AdminOrganisationsListResult(
       items: items,
       meta: PaginationMeta(page: page, limit: limit, total: items.length, totalPages: 1),
@@ -68,6 +74,16 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
     unblockedUserId = userId;
     unblockedLevel = level;
   }
+}
+
+Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
+  final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
+  await tester.ensureVisible(field);
+  await tester.pumpAndSettle();
+  await tester.tap(field);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(optionLabel).last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationsRepository repo) async {
@@ -140,7 +156,7 @@ void main() {
 
     await tester.tap(find.text('Block Posting'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Suspicious activity');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Suspicious activity');
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
 
@@ -158,5 +174,24 @@ void main() {
 
     expect(repo.unblockedUserId, 'u1');
     expect(repo.unblockedLevel, 'full');
+  });
+
+  testWidgets('entering a search term and picking an organisation type/city, then Apply Filters, passes them through',
+      (tester) async {
+    final repo = _FakeAdminOrganisationsRepository([_item()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search name, phone, or ID (ORG-...)'),
+      'ORG-500',
+    );
+    await _selectFilterDropdown(tester, 'Organisation Type', 'Hospital');
+    await _selectFilterDropdown(tester, 'City', 'Bangalore');
+    await tester.tap(find.text('Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastFilters?.search, 'ORG-500');
+    expect(repo.lastFilters?.organisationType, 'hospital');
+    expect(repo.lastFilters?.city, 'bangalore');
   });
 }

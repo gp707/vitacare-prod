@@ -154,6 +154,9 @@ export interface ListJobsFilters {
    *  NurseNow patient/family postings vs admin's own. Requires the users
    *  join added in listForAdmin below. */
   posted_by_role?: string;
+  /** Matches against the job's display id (ADMIN-JOB-<n>/PAT-JOB-<n>) or the
+   *  raw job_number. */
+  search?: string;
 }
 
 export interface ListPage {
@@ -191,6 +194,14 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
   if (filters.posted_by_role) {
     params.push(filters.posted_by_role);
     conditions.push(`u.role = $${params.length}`);
+  }
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    conditions.push(
+      `(('ADMIN-JOB-' || j.admin_job_number::text) ILIKE $${params.length}
+        OR ('PAT-JOB-' || j.patient_job_number::text) ILIKE $${params.length}
+        OR j.job_number::text ILIKE $${params.length})`,
+    );
   }
   return { clause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }

@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { Qualification, Validation, VerificationStatus } from '@vitacare/shared-constants';
+import { City, Gender, Qualification, Validation, VerificationStatus } from '@vitacare/shared-constants';
 
 export class ListCaregiversQueryDto {
   @IsOptional()
@@ -36,10 +36,19 @@ export class ListCaregiversQueryDto {
   @IsIn(Object.values(Qualification), { message: 'GEN_005' })
   qualification?: Qualification;
 
+  @IsOptional()
+  @IsIn(Object.values(Gender), { message: 'GEN_005' })
+  gender?: Gender;
+
   /** Comma-separated list of languages (matches any). */
   @IsOptional()
   @IsString()
   language?: string;
+
+  /** Preferred city — matches a caregiver whose preferred_cities includes this city. */
+  @IsOptional()
+  @IsIn(Object.values(City), { message: 'GEN_005' })
+  city?: City;
 
   @IsOptional()
   @IsDateString({}, { message: 'GEN_005' })

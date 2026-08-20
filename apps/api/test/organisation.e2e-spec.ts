@@ -279,6 +279,58 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
 
+    it('GET /v1/admin/organisation-requirements filters by search (org name/ORG-JOB-<n> id), status, organisation_type, and city',
+      async () => {
+        const org = await registerOrganisation('0031', 'Filterable Org For Requirements');
+        const created = await request(app.getHttpServer())
+          .post('/v1/organisation/requirements')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .send(requirementPayload())
+          .expect(201);
+        const requirementId = created.body.data.id;
+
+        const list = await request(app.getHttpServer())
+          .get('/v1/admin/organisation-requirements?limit=100&search=Filterable Org For Requirements')
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(list.body.data).toHaveLength(1);
+        const requirementNumber = list.body.data[0].requirement_number as number;
+
+        const byDisplayId = await request(app.getHttpServer())
+          .get(`/v1/admin/organisation-requirements?limit=100&search=ORG-JOB-${requirementNumber}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byDisplayId.body.data.map((r: { id: string }) => r.id)).toContain(requirementId);
+
+        const byStatus = await request(app.getHttpServer())
+          .get(
+            '/v1/admin/organisation-requirements?limit=100&search=Filterable Org For Requirements&status=pending_review',
+          )
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byStatus.body.data).toHaveLength(1);
+
+        const byWrongStatus = await request(app.getHttpServer())
+          .get('/v1/admin/organisation-requirements?limit=100&search=Filterable Org For Requirements&status=active')
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byWrongStatus.body.data).toHaveLength(0);
+
+        const byType = await request(app.getHttpServer())
+          .get(
+            '/v1/admin/organisation-requirements?limit=100&search=Filterable Org For Requirements&organisation_type=hospital',
+          )
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byType.body.data).toHaveLength(1);
+
+        const byCity = await request(app.getHttpServer())
+          .get('/v1/admin/organisation-requirements?limit=100&search=Filterable Org For Requirements&city=bangalore')
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(byCity.body.data).toHaveLength(1);
+      });
+
     it('date_range schedule requires start_date/end_date (ORG_001 otherwise) and end_date must not precede start_date', async () => {
       const org = await registerOrganisation('0006');
       const created = await request(app.getHttpServer())
@@ -645,6 +697,58 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(res.body.data.length).toBeGreaterThan(0);
+    });
+
+    it('filters by search (org name/ORG-<n> id), organisation_type, city, and block_status', async () => {
+      const org = await registerOrganisation('0030', 'Filterable Rehab Center');
+      const list = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(list.body.data).toHaveLength(1);
+      const orgNumber = list.body.data[0].org_number as number;
+
+      const byDisplayId = await request(app.getHttpServer())
+        .get(`/v1/admin/organisations?limit=100&search=ORG-${orgNumber}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byDisplayId.body.data.map((o: { user_id: string }) => o.user_id)).toContain(org.user_id);
+
+      const byType = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center&organisation_type=hospital')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byType.body.data).toHaveLength(1);
+
+      const byWrongType = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center&organisation_type=clinic')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byWrongType.body.data).toHaveLength(0);
+
+      const byCity = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center&city=bangalore')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byCity.body.data).toHaveLength(1);
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisations/${org.user_id}/block`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ level: 'job_posting', reason: 'Filter test block' })
+        .expect(200);
+
+      const jobPostingBlocked = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center&block_status=job_posting_blocked')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(jobPostingBlocked.body.data).toHaveLength(1);
+
+      const activeOnly = await request(app.getHttpServer())
+        .get('/v1/admin/organisations?limit=100&search=Filterable Rehab Center&block_status=active')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(activeOnly.body.data).toHaveLength(0);
     });
 
     it('job_posting_blocked rejects a new posting (JOB_010) but does not log the organisation out', async () => {

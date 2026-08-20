@@ -68,6 +68,7 @@ class JobListFilters {
   final String? dutyType;
   final String? status;
   final String? language;
+  final String? search;
 
   const JobListFilters({
     this.postedBy,
@@ -76,6 +77,7 @@ class JobListFilters {
     this.dutyType,
     this.status,
     this.language,
+    this.search,
   });
 
   Map<String, dynamic> toQueryParameters() => {
@@ -86,6 +88,7 @@ class JobListFilters {
         if (dutyType != null) 'duty_type': dutyType,
         if (status != null) 'status': status,
         if (language != null) 'language': language,
+        if (search != null && search!.isNotEmpty) 'search': search,
       };
 }
 

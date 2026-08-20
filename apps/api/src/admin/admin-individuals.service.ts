@@ -6,6 +6,7 @@ import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { BlockIndividualDto } from './dto/block-individual.dto';
+import { ListIndividualsQueryDto } from './dto/list-individuals-query.dto';
 
 @Injectable()
 export class AdminIndividualsService {
@@ -15,9 +16,17 @@ export class AdminIndividualsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async listIndividuals(page: number, limit: number) {
-    const { items, total } = await this.individualsRepo.listIndividuals({ page, limit });
-    const meta: PaginationMeta = { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  async listIndividuals(query: ListIndividualsQueryDto) {
+    const { items, total } = await this.individualsRepo.listIndividuals(
+      { search: query.search, blockStatus: query.block_status },
+      { page: query.page, limit: query.limit },
+    );
+    const meta: PaginationMeta = {
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.limit)),
+    };
     return { data: items, meta };
   }
 

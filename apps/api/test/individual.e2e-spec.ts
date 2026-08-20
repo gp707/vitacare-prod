@@ -598,6 +598,46 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(res.body.data.map((i: { user_id: string }) => i.user_id)).toContain(individual.user_id);
     });
 
+    it('filters by search (name/phone/PAT-<n> id) and block_status', async () => {
+      const individual = await registerIndividual('0031', 'Filterable Patient');
+      const list = await request(app.getHttpServer())
+        .get('/v1/admin/individuals?limit=100&search=Filterable Patient')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(list.body.data).toHaveLength(1);
+      const patientNumber = list.body.data[0].patient_number as number;
+
+      const byDisplayId = await request(app.getHttpServer())
+        .get(`/v1/admin/individuals?limit=100&search=PAT-${patientNumber}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(byDisplayId.body.data.map((i: { user_id: string }) => i.user_id)).toContain(individual.user_id);
+
+      const activeOnly = await request(app.getHttpServer())
+        .get('/v1/admin/individuals?limit=100&search=Filterable Patient&block_status=active')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(activeOnly.body.data).toHaveLength(1);
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/individuals/${individual.user_id}/block`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ level: 'job_posting', reason: 'Filter test block' })
+        .expect(200);
+
+      const stillActive = await request(app.getHttpServer())
+        .get('/v1/admin/individuals?limit=100&search=Filterable Patient&block_status=active')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(stillActive.body.data).toHaveLength(0);
+
+      const jobPostingBlocked = await request(app.getHttpServer())
+        .get('/v1/admin/individuals?limit=100&search=Filterable Patient&block_status=job_posting_blocked')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(jobPostingBlocked.body.data).toHaveLength(1);
+    });
+
     it('job_posting_blocked rejects a new posting (JOB_010) but does not log the individual out', async () => {
       const individual = await registerIndividual('0017');
       await request(app.getHttpServer())

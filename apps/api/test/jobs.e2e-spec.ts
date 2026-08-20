@@ -779,6 +779,29 @@ describe('Jobs (e2e)', () => {
       expect(ownJobIds(otherRes, [job.id])).toEqual([]);
     });
 
+    it('filters by search — matches the job display id (ADMIN-JOB-<n>) or the raw job_number', async () => {
+      const job = await createJob();
+      const displayId = job.admin_job_number != null ? `ADMIN-JOB-${job.admin_job_number}` : `JOB-${job.job_number}`;
+
+      const byDisplayId = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs?limit=100&search=${encodeURIComponent(displayId)}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(ownJobIds(byDisplayId, [job.id])).toEqual([job.id]);
+
+      const byNumberOnly = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs?limit=100&search=${job.job_number}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(ownJobIds(byNumberOnly, [job.id])).toEqual([job.id]);
+
+      const noMatch = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&search=NO-SUCH-JOB-999999')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(ownJobIds(noMatch, [job.id])).toEqual([]);
+    });
+
     it('rejects an invalid gender value (GEN_005)', async () => {
       const res = await request(app.getHttpServer())
         .get('/v1/admin/jobs?gender=not-a-gender')

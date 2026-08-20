@@ -76,6 +76,11 @@ export interface UpdateOrganisationRequirementInput {
 export interface ListOrganisationRequirementsFilters {
   status?: string;
   posted_by?: string;
+  organisation_type?: string;
+  city?: string;
+  /** Matches the organisation's name or the requirement's display id
+   *  (ORG-JOB-<n>) / raw requirement_number. */
+  search?: string;
 }
 
 export interface ListPage {
@@ -163,6 +168,20 @@ export class OrganisationRequirementsRepository {
       params.push(filters.posted_by);
       conditions.push(`r.posted_by = $${params.length}`);
     }
+    if (filters.organisation_type) {
+      params.push(filters.organisation_type);
+      conditions.push(`op.organisation_type = $${params.length}`);
+    }
+    if (filters.city) {
+      params.push(filters.city);
+      conditions.push(`op.city = $${params.length}`);
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(op.organisation_name ILIKE $${params.length} OR ('ORG-JOB-' || r.requirement_number::text) ILIKE $${params.length})`,
+      );
+    }
     const clause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const offset = (page.page - 1) * page.limit;
     const listParams = [...params, page.limit, offset];
@@ -178,7 +197,9 @@ export class OrganisationRequirementsRepository {
         listParams,
       ),
       this.db.query<{ count: string }>(
-        `SELECT COUNT(*) FROM organisation_requirements r ${clause}`,
+        `SELECT COUNT(*) FROM organisation_requirements r
+         JOIN organisation_profiles op ON op.user_id = r.posted_by
+         ${clause}`,
         params,
       ),
     ]);

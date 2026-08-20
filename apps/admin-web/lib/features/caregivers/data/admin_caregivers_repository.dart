@@ -7,7 +7,9 @@ class CaregiverListFilters {
   final String? search;
   final String? status;
   final String? qualification;
+  final String? gender;
   final List<String>? languages;
+  final String? city;
   final String? fromDate;
   final String? toDate;
   final String sort;
@@ -19,7 +21,9 @@ class CaregiverListFilters {
     this.search,
     this.status,
     this.qualification,
+    this.gender,
     this.languages,
+    this.city,
     this.fromDate,
     this.toDate,
     this.sort = 'created_at',
@@ -37,7 +41,9 @@ class CaregiverListFilters {
       if (search != null && search!.isNotEmpty) 'search': search,
       if (status != null) 'status': status,
       if (qualification != null) 'qualification': qualification,
+      if (gender != null) 'gender': gender,
       if (languages != null && languages!.isNotEmpty) 'language': languages!.join(','),
+      if (city != null) 'city': city,
       if (fromDate != null) 'from_date': fromDate,
       if (toDate != null) 'to_date': toDate,
     };

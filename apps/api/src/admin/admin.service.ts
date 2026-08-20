@@ -50,7 +50,9 @@ export class AdminService {
         search: query.search,
         status: query.status,
         qualification: query.qualification,
+        gender: query.gender,
         languages,
+        preferredCity: query.city,
         fromDate: query.from_date,
         toDate: query.to_date,
       },
@@ -60,6 +62,7 @@ export class AdminService {
     const data = items.map((item) => ({
       user_id: item.user_id,
       profile_id: item.profile_id,
+      caregiver_number: item.caregiver_number,
       full_name: item.full_name,
       phone: item.phone,
       gender: item.gender,
@@ -104,6 +107,7 @@ export class AdminService {
     return {
       user_id: profile.user_id,
       profile_id: profile.id,
+      caregiver_number: profile.caregiver_number,
       full_name: profile.full_name,
       phone: profile.phone,
       email: profile.email,

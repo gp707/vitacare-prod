@@ -17,6 +17,46 @@ export interface AdminOrganisationListItem {
   created_at: Date;
 }
 
+export interface AdminOrganisationListFilters {
+  /** Matches organisation_name, contact full_name, phone, or the display id
+   *  (ORG-<n>). */
+  search?: string;
+  blockStatus?: 'active' | 'job_posting_blocked' | 'blocked';
+  organisationType?: string;
+  city?: string;
+}
+
+function buildOrganisationsWhereClause(filters: AdminOrganisationListFilters): {
+  clause: string;
+  params: unknown[];
+} {
+  const conditions = [`u.role = 'organisation'`];
+  const params: unknown[] = [];
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    conditions.push(
+      `(op.organisation_name ILIKE $${params.length} OR u.full_name ILIKE $${params.length}
+        OR u.phone ILIKE $${params.length} OR ('ORG-' || op.org_number::text) ILIKE $${params.length})`,
+    );
+  }
+  if (filters.blockStatus === 'blocked') {
+    conditions.push(`u.is_active = false`);
+  } else if (filters.blockStatus === 'job_posting_blocked') {
+    conditions.push(`u.is_active = true AND op.is_job_posting_blocked = true`);
+  } else if (filters.blockStatus === 'active') {
+    conditions.push(`u.is_active = true AND op.is_job_posting_blocked = false`);
+  }
+  if (filters.organisationType) {
+    params.push(filters.organisationType);
+    conditions.push(`op.organisation_type = $${params.length}`);
+  }
+  if (filters.city) {
+    params.push(filters.city);
+    conditions.push(`op.city = $${params.length}`);
+  }
+  return { clause: `WHERE ${conditions.join(' AND ')}`, params };
+}
+
 /** Admin-side view of organisation (hospital/rehab/clinic) accounts —
  *  mirrors AdminIndividualsRepository exactly. Self-service lives in
  *  OrganisationProfilesRepository; admin listing/block actions live here. */
@@ -24,8 +64,16 @@ export interface AdminOrganisationListItem {
 export class AdminOrganisationsRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  async listOrganisations(page: ListPage): Promise<{ items: AdminOrganisationListItem[]; total: number }> {
+  async listOrganisations(
+    filters: AdminOrganisationListFilters,
+    page: ListPage,
+  ): Promise<{ items: AdminOrganisationListItem[]; total: number }> {
+    const { clause, params } = buildOrganisationsWhereClause(filters);
     const offset = (page.page - 1) * page.limit;
+    const listParams = [...params, page.limit, offset];
+    const limitPlaceholder = `$${listParams.length - 1}`;
+    const offsetPlaceholder = `$${listParams.length}`;
+
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminOrganisationListItem>(
         `SELECT u.id AS user_id, op.org_number, u.full_name, u.phone,
@@ -33,15 +81,16 @@ export class AdminOrganisationsRepository {
                 u.is_active, op.is_job_posting_blocked, op.block_reason, u.created_at
          FROM users u
          JOIN organisation_profiles op ON op.user_id = u.id
-         WHERE u.role = 'organisation'
+         ${clause}
          ORDER BY u.created_at DESC
-         LIMIT $1 OFFSET $2`,
-        [page.limit, offset],
+         LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+        listParams,
       ),
       this.db.query<{ count: string }>(
         `SELECT COUNT(*) FROM users u
          JOIN organisation_profiles op ON op.user_id = u.id
-         WHERE u.role = 'organisation'`,
+         ${clause}`,
+        params,
       ),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };

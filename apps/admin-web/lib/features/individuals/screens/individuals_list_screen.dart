@@ -24,10 +24,19 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
   bool _loading = true;
   String? _errorMessage;
 
+  final _searchController = TextEditingController();
+  String? _blockStatus;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -36,7 +45,13 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
       _errorMessage = null;
     });
     try {
-      final result = await ref.read(adminIndividualsRepositoryProvider).list(page: _page);
+      final result = await ref.read(adminIndividualsRepositoryProvider).list(
+            page: _page,
+            filters: IndividualListFilters(
+              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+              blockStatus: _blockStatus,
+            ),
+          );
       if (mounted) {
         setState(() {
           _items = result.items;
@@ -48,6 +63,51 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyFilters() {
+    _page = 1;
+    _load();
+  }
+
+  bool get _hasActiveFilters => _blockStatus != null || _searchController.text.trim().isNotEmpty;
+
+  Widget _buildFilterPanel() {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 260,
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search name, phone, or ID (PAT-...)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _applyFilters(),
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            isExpanded: true,
+            initialValue: _blockStatus,
+            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            items: const [
+              DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              DropdownMenuItem<String?>(value: 'active', child: Text('Active')),
+              DropdownMenuItem<String?>(value: 'job_posting_blocked', child: Text('Posting Blocked')),
+              DropdownMenuItem<String?>(value: 'blocked', child: Text('Blocked')),
+            ],
+            onChanged: (value) => setState(() => _blockStatus = value),
+          ),
+        ),
+        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+      ],
+    );
   }
 
   Future<void> _showBlockDialog(AdminIndividualListItem item, String level) async {
@@ -103,6 +163,8 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             children: [
               const Text('Patients / Family', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
+              _buildFilterPanel(),
+              const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
@@ -119,7 +181,9 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
 
   Widget _buildTable() {
     if (_items.isEmpty) {
-      return const Center(child: Text('No individual accounts yet.'));
+      return Center(
+        child: Text(_hasActiveFilters ? 'No individual accounts match these filters.' : 'No individual accounts yet.'),
+      );
     }
     return SingleChildScrollView(
       child: SingleChildScrollView(

@@ -18,6 +18,7 @@ describe('AdminService', () => {
   const detail = {
     id: 'profile-1',
     user_id: 'user-1',
+    caregiver_number: 542,
     full_name: 'Ramesh Kumar',
     phone: '+919876543210',
     email: null,
@@ -102,6 +103,34 @@ describe('AdminService', () => {
         expect.objectContaining({ page: 2, limit: 20 }),
       );
       expect(result.meta).toEqual({ page: 2, limit: 20, total: 45, totalPages: 3 });
+    });
+
+    it('passes gender and city (preferred city) filters through to the repository', async () => {
+      caregiversRepo.listCaregivers.mockResolvedValue({ items: [], total: 0 });
+
+      await service.listCaregivers({
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+        gender: 'female',
+        city: 'bangalore',
+      } as any);
+
+      expect(caregiversRepo.listCaregivers).toHaveBeenCalledWith(
+        expect.objectContaining({ gender: 'female', preferredCity: 'bangalore' }),
+        expect.objectContaining({ page: 1, limit: 20 }),
+      );
+    });
+
+    it('includes caregiver_number in each returned item (regression — was silently dropped before)', async () => {
+      caregiversRepo.listCaregivers.mockResolvedValue({
+        items: [{ ...detail, profile_id: 'profile-1' }],
+        total: 1,
+      });
+
+      const result = await service.listCaregivers({ page: 1, limit: 20, sort: 'created_at', order: 'desc' } as any);
+      expect(result.data[0].caregiver_number).toBe(542);
     });
   });
 

@@ -54,15 +54,40 @@ class AdminOrganisationsListResult {
   const AdminOrganisationsListResult({required this.items, required this.meta});
 }
 
+/// All fields optional/null = no filter applied for that field.
+/// [blockStatus] is one of 'active' | 'job_posting_blocked' | 'blocked'.
+class OrganisationListFilters {
+  final String? search;
+  final String? blockStatus;
+  final String? organisationType;
+  final String? city;
+
+  const OrganisationListFilters({this.search, this.blockStatus, this.organisationType, this.city});
+
+  Map<String, dynamic> toQueryParameters() => {
+        if (search != null && search!.isNotEmpty) 'search': search,
+        if (blockStatus != null) 'block_status': blockStatus,
+        if (organisationType != null) 'organisation_type': organisationType,
+        if (city != null) 'city': city,
+      };
+}
+
 /// Mirrors AdminIndividualsRepository exactly.
 class AdminOrganisationsRepository {
   final Dio _dio;
 
   AdminOrganisationsRepository(this._dio);
 
-  Future<AdminOrganisationsListResult> list({int page = 1, int limit = 20}) async {
+  Future<AdminOrganisationsListResult> list({
+    int page = 1,
+    int limit = 20,
+    OrganisationListFilters filters = const OrganisationListFilters(),
+  }) async {
     try {
-      final res = await _dio.get('/admin/organisations', queryParameters: {'page': page, 'limit': limit});
+      final res = await _dio.get(
+        '/admin/organisations',
+        queryParameters: {'page': page, 'limit': limit, ...filters.toQueryParameters()},
+      );
       final items = (res.data['data'] as List)
           .map((json) => AdminOrganisationListItem.fromJson(json as Map<String, dynamic>))
           .toList();

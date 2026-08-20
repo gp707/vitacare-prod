@@ -82,16 +82,36 @@ class AdminOrganisationRequirement {
 /// Mirrors AdminJobsRepository's shape for the pieces that apply here —
 /// admin never *creates* an organisation requirement (the org posts its
 /// own), only approves/edits/rejects and decides on applicants.
+/// All fields optional/null = no filter applied for that field.
+class OrganisationRequirementListFilters {
+  final String? status;
+  final String? organisationType;
+  final String? city;
+  final String? search;
+
+  const OrganisationRequirementListFilters({this.status, this.organisationType, this.city, this.search});
+
+  Map<String, dynamic> toQueryParameters() => {
+        'limit': 100,
+        if (status != null) 'status': status,
+        if (organisationType != null) 'organisation_type': organisationType,
+        if (city != null) 'city': city,
+        if (search != null && search!.isNotEmpty) 'search': search,
+      };
+}
+
 class AdminOrganisationRequirementsRepository {
   final Dio _dio;
 
   AdminOrganisationRequirementsRepository(this._dio);
 
-  Future<List<AdminOrganisationRequirement>> list({String? status}) async {
+  Future<List<AdminOrganisationRequirement>> list({
+    OrganisationRequirementListFilters filters = const OrganisationRequirementListFilters(),
+  }) async {
     try {
       final res = await _dio.get(
         '/admin/organisation-requirements',
-        queryParameters: {'limit': 100, if (status != null) 'status': status},
+        queryParameters: filters.toQueryParameters(),
       );
       final items = res.data['data'] as List;
       return items.map((item) => AdminOrganisationRequirement.fromJson(item as Map<String, dynamic>)).toList();
