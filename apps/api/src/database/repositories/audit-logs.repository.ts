@@ -29,6 +29,26 @@ export interface AuditLogListItem {
   admin_job_number: number | null;
   patient_job_number: number | null;
   job_id: string | null;
+  // The target user's own role and display-id-backing number — lets
+  // admin-web render "NUR-<n>"/"PAT-<n>"/"ORG-<n>" next to the target's
+  // name instead of just the bare name. target_user_role is null when
+  // there's no target_user_id at all (e.g. a job/organisation_requirement
+  // create, which has no single "affected user"). Exactly one of
+  // target_caregiver_number/target_patient_number/target_org_number is
+  // ever non-null, matching target_user_role — a user has exactly one
+  // role, so at most one of the three profile-table joins can match.
+  target_user_role: string | null;
+  target_caregiver_number: number | null;
+  target_patient_number: number | null;
+  target_org_number: number | null;
+  // Resolved the same way as job_number/job_id above, but for
+  // organisation_requirements — 'organisation_requirements' entries
+  // resolve directly (entity_id is the requirement),
+  // 'organisation_requirement_applications' entries resolve one hop
+  // further via .requirement_id. Every other entity_type leaves both
+  // null. requirement_number backs the "ORG-JOB-<n>" display id.
+  requirement_number: number | null;
+  requirement_id: string | null;
 }
 
 export interface AuditLogListFilters {
@@ -101,13 +121,27 @@ export class AuditLogsRepository {
                 COALESCE(job_direct.job_number, job_via_app.job_number) AS job_number,
                 COALESCE(job_direct.admin_job_number, job_via_app.admin_job_number) AS admin_job_number,
                 COALESCE(job_direct.patient_job_number, job_via_app.patient_job_number) AS patient_job_number,
-                COALESCE(job_direct.id, job_via_app.id) AS job_id
+                COALESCE(job_direct.id, job_via_app.id) AS job_id,
+                target.role AS target_user_role,
+                target_cp.caregiver_number AS target_caregiver_number,
+                target_ip.patient_number AS target_patient_number,
+                target_op.org_number AS target_org_number,
+                COALESCE(org_req_direct.requirement_number, org_req_via_app.requirement_number) AS requirement_number,
+                COALESCE(org_req_direct.id, org_req_via_app.id) AS requirement_id
          FROM audit_logs al
          LEFT JOIN users actor ON actor.id = al.user_id
          LEFT JOIN users target ON target.id = al.target_user_id
+         LEFT JOIN caregiver_profiles target_cp ON target_cp.user_id = al.target_user_id
+         LEFT JOIN individual_profiles target_ip ON target_ip.user_id = al.target_user_id
+         LEFT JOIN organisation_profiles target_op ON target_op.user_id = al.target_user_id
          LEFT JOIN jobs job_direct ON al.entity_type = 'jobs' AND job_direct.id = al.entity_id
          LEFT JOIN job_applications ja ON al.entity_type = 'job_applications' AND ja.id = al.entity_id
          LEFT JOIN jobs job_via_app ON job_via_app.id = ja.job_id
+         LEFT JOIN organisation_requirements org_req_direct
+           ON al.entity_type = 'organisation_requirements' AND org_req_direct.id = al.entity_id
+         LEFT JOIN organisation_requirement_applications ora
+           ON al.entity_type = 'organisation_requirement_applications' AND ora.id = al.entity_id
+         LEFT JOIN organisation_requirements org_req_via_app ON org_req_via_app.id = ora.requirement_id
          ${clause}
          ORDER BY al.created_at ${orderDirection}
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,

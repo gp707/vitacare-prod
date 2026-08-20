@@ -15,6 +15,20 @@ class AuditLogEntry {
   final int? adminJobNumber;
   final int? patientJobNumber;
   final String? jobId;
+  /// The target user's own role ('caregiver'/'individual'/'organisation'/
+  /// 'admin'/'super_admin') — null when there's no target_user_id at all
+  /// (e.g. a job/organisation_requirement create, which has no single
+  /// "affected user"). Picks which of [targetCaregiverNumber]/
+  /// [targetPatientNumber]/[targetOrgNumber] (exactly one is ever
+  /// non-null) backs the "NUR-"/"PAT-"/"ORG-`<n>`" display id.
+  final String? targetUserRole;
+  final int? targetCaregiverNumber;
+  final int? targetPatientNumber;
+  final int? targetOrgNumber;
+  /// Resolved the same way as jobNumber/jobId above, but for
+  /// organisation_requirements — backs the "ORG-JOB-`<n>`" display id.
+  final int? requirementNumber;
+  final String? requirementId;
   final Map<String, dynamic>? beforeValue;
   final Map<String, dynamic>? afterValue;
   final String? ipAddress;
@@ -33,6 +47,12 @@ class AuditLogEntry {
     this.adminJobNumber,
     this.patientJobNumber,
     this.jobId,
+    this.targetUserRole,
+    this.targetCaregiverNumber,
+    this.targetPatientNumber,
+    this.targetOrgNumber,
+    this.requirementNumber,
+    this.requirementId,
     this.beforeValue,
     this.afterValue,
     this.ipAddress,
@@ -52,6 +72,12 @@ class AuditLogEntry {
         adminJobNumber: json['admin_job_number'] as int?,
         patientJobNumber: json['patient_job_number'] as int?,
         jobId: json['job_id'] as String?,
+        targetUserRole: json['target_user_role'] as String?,
+        targetCaregiverNumber: json['target_caregiver_number'] as int?,
+        targetPatientNumber: json['target_patient_number'] as int?,
+        targetOrgNumber: json['target_org_number'] as int?,
+        requirementNumber: json['requirement_number'] as int?,
+        requirementId: json['requirement_id'] as String?,
         beforeValue: json['before_value'] as Map<String, dynamic>?,
         afterValue: json['after_value'] as Map<String, dynamic>?,
         ipAddress: json['ip_address'] as String?,

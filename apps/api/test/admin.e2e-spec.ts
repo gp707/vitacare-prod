@@ -569,6 +569,40 @@ describe('Admin (e2e)', () => {
       expect(entry.after_value).toEqual({ verification_status: 'available' });
       expect(entry.created_at).toBeDefined();
       expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
+      // Resolved so admin-web can show "NUR-<n>" next to the target's name.
+      expect(entry.target_user_role).toBe('caregiver');
+      expect(entry.target_caregiver_number).toEqual(expect.any(Number));
+      expect(entry.target_patient_number).toBeNull();
+      expect(entry.target_org_number).toBeNull();
+    });
+
+    it('resolves target_patient_number for an individual-account audit entry (e.g. block/unblock)', async () => {
+      const individual = await request(app.getHttpServer())
+        .post('/v1/auth/register/individual')
+        .send({ phone: '+917000030040', full_name: 'Audit Individual Subject', code: '1234' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/individuals/${individual.body.data.user_id}/block`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ level: 'job_posting', reason: 'Audit test' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ target_user_id: individual.body.data.user_id })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].target_user_role).toBe('individual');
+      expect(res.body.data[0].target_patient_number).toEqual(expect.any(Number));
+      expect(res.body.data[0].target_caregiver_number).toBeNull();
+
+      await db.query('DELETE FROM audit_logs WHERE target_user_id = $1 OR user_id = $1', [
+        individual.body.data.user_id,
+      ]);
+      await db.query('DELETE FROM individual_profiles WHERE user_id = $1', [individual.body.data.user_id]);
+      await db.query('DELETE FROM users WHERE id = $1', [individual.body.data.user_id]);
     });
 
     it('rejects an invalid action filter (GEN_005)', async () => {

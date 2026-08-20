@@ -290,7 +290,15 @@ describe('AdminService', () => {
         entity_type: 'caregiver_profiles',
         entity_id: 'profile-1',
         job_number: null,
+        admin_job_number: null,
+        patient_job_number: null,
         job_id: null,
+        target_user_role: 'caregiver',
+        target_caregiver_number: 542,
+        target_patient_number: null,
+        target_org_number: null,
+        requirement_number: null,
+        requirement_id: null,
         before_value: { verification_status: 'pending_verification' },
         after_value: { verification_status: 'available' },
         ip_address: '192.168.1.1',
@@ -306,6 +314,44 @@ describe('AdminService', () => {
       } as any);
 
       expect(result.data).toEqual([row]);
+    });
+
+    it('resolves target_user_role/patient_number for an individual, and org_number for an organisation', async () => {
+      const individualRow = {
+        id: 'log-3',
+        target_user_role: 'individual',
+        target_caregiver_number: null,
+        target_patient_number: 501,
+        target_org_number: null,
+      };
+      const orgRow = {
+        id: 'log-4',
+        target_user_role: 'organisation',
+        target_caregiver_number: null,
+        target_patient_number: null,
+        target_org_number: 503,
+      };
+      auditLogsRepo.list.mockResolvedValue({ items: [individualRow, orgRow], total: 2 });
+
+      const result = await service.listAuditLogs({ page: 1, limit: 20, sort: 'created_at', order: 'desc' } as any);
+
+      expect(result.data[0]).toMatchObject({ target_user_role: 'individual', target_patient_number: 501 });
+      expect(result.data[1]).toMatchObject({ target_user_role: 'organisation', target_org_number: 503 });
+    });
+
+    it('passes through requirement_number/requirement_id for organisation-requirement-related entries', async () => {
+      const row = {
+        id: 'log-5',
+        action: 'org_requirement_posted',
+        entity_type: 'organisation_requirements',
+        requirement_number: 507,
+        requirement_id: 'req-1',
+      };
+      auditLogsRepo.list.mockResolvedValue({ items: [row], total: 1 });
+
+      const result = await service.listAuditLogs({ page: 1, limit: 20, sort: 'created_at', order: 'desc' } as any);
+
+      expect(result.data[0]).toMatchObject({ requirement_number: 507, requirement_id: 'req-1' });
     });
 
     it('passes through the repository-resolved job_number/admin_job_number/patient_job_number/job_id for job-related entries', async () => {

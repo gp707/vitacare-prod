@@ -331,6 +331,43 @@ describe('Organisation (NurseNow) (e2e)', () => {
         expect(byCity.body.data).toHaveLength(1);
       });
 
+    it('GET /v1/admin/audit-logs resolves requirement_number/requirement_id for organisation_requirements entries, and target org_number when the org applicant is decided',
+      async () => {
+        const org = await registerOrganisation('0032', 'Audit Org Subject');
+        const created = await request(app.getHttpServer())
+          .post('/v1/organisation/requirements')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .send(requirementPayload())
+          .expect(201);
+        const requirementId = created.body.data.id;
+
+        const auditList = await request(app.getHttpServer())
+          .get('/v1/admin/audit-logs')
+          .query({ action: 'org_requirement_posted', limit: 50 })
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        const auditEntry = auditList.body.data.find((e: { entity_id: string }) => e.entity_id === requirementId);
+        expect(auditEntry).toBeDefined();
+        expect(auditEntry.requirement_number).toEqual(expect.any(Number));
+        expect(auditEntry.requirement_id).toBe(requirementId);
+
+        await request(app.getHttpServer())
+          .patch(`/v1/admin/organisations/${org.user_id}/block`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .send({ level: 'job_posting', reason: 'Audit target resolution test' })
+          .expect(200);
+
+        const blockAudit = await request(app.getHttpServer())
+          .get('/v1/admin/audit-logs')
+          .query({ target_user_id: org.user_id })
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(blockAudit.body.data).toHaveLength(1);
+        expect(blockAudit.body.data[0].target_user_role).toBe('organisation');
+        expect(blockAudit.body.data[0].target_org_number).toEqual(expect.any(Number));
+        expect(blockAudit.body.data[0].target_caregiver_number).toBeNull();
+      });
+
     it('date_range schedule requires start_date/end_date (ORG_001 otherwise) and end_date must not precede start_date', async () => {
       const org = await registerOrganisation('0006');
       const created = await request(app.getHttpServer())

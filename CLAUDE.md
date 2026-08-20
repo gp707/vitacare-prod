@@ -45,6 +45,26 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
   condition to the shared `WHERE` clause while only updating the list query's `FROM`/`JOIN`,
   which then 500s the count query at runtime (caught by e2e testing, not by unit tests, since unit
   tests mock the repository layer entirely).
+- **Audit Logs target/entity display ids:** `AuditLogsRepository` resolves display-id-backing
+  numbers for both sides of an entry, not just the job-resolution described above. For the
+  **target** (`audit_logs.target_user_id`) it joins `users` (for `target.role`) plus all three of
+  `caregiver_profiles`/`individual_profiles`/`organisation_profiles` on `user_id = target_user_id`
+  — since a user has exactly one role, at most one of `target_caregiver_number`/
+  `target_patient_number`/`target_org_number` is ever non-null, and `target_user_role` says which
+  (or is null/`'admin'`/`'super_admin'` when there's no caregiver/individual/organisation display
+  id to show). **`entity_type` is NOT a reliable signal for the target's role** — e.g. a caregiver
+  applying to an organisation requirement logs `entity_type: 'organisation_requirement_applications'`
+  with the caregiver as `target_user_id`, and `admin_notes`/`job_applications` entries have the
+  same mismatch — always resolve via `target_user_id → users.role`, never via `entity_type`. For
+  the **entity itself**, `organisation_requirements`/`organisation_requirement_applications`
+  entries resolve to `requirement_number`/`requirement_id` the same two-hop way jobs resolve to
+  `job_number`/`job_id` (direct for `organisation_requirements`, one hop via
+  `.requirement_id` for `organisation_requirement_applications`) — note the FK column there is
+  `requirement_id`, not `job_id` like `job_applications` uses. admin-web's Audit Logs screen
+  renders the target's display id (`NUR-`/`PAT-`/`ORG-<n>`) above their name in the Target column,
+  and the requirement's `ORG-JOB-<n>` in the (renamed) "Job / Requirement" column — unlike the job
+  case, there's no click-to-open dialog for the requirement row yet, since no admin-web dialog
+  currently opens an organisation requirement's detail from outside its own list screen.
 - **Database:** Supabase PostgreSQL (used as a standard Postgres, no RLS for app tables).
 - **Storage:** Supabase Storage with signed URLs (1hr expiry). Files at `{profile_id}/filename.ext`.
 - **Realtime:** Supabase Realtime for admin dashboard only. Caregivers use FCM push.

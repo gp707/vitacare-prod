@@ -22,20 +22,33 @@ AuditLogEntry _entry({
   int? adminJobNumber,
   int? patientJobNumber,
   String? jobId,
+  String? targetUserName,
+  String? targetUserRole,
+  int? targetCaregiverNumber,
+  int? targetPatientNumber,
+  int? targetOrgNumber,
+  int? requirementNumber,
+  String? requirementId,
 }) {
   return AuditLogEntry.fromJson({
     'id': id,
     'user_id': 'admin-1',
     'user_name': 'Admin One',
-    'target_user_id': null,
-    'target_user_name': null,
+    'target_user_id': targetUserName == null ? null : 'target-1',
+    'target_user_name': targetUserName,
     'action': action,
     'entity_type': entityType,
-    'entity_id': jobId,
+    'entity_id': jobId ?? requirementId,
     'job_number': jobNumber,
     'admin_job_number': adminJobNumber,
     'patient_job_number': patientJobNumber,
     'job_id': jobId,
+    'target_user_role': targetUserRole,
+    'target_caregiver_number': targetCaregiverNumber,
+    'target_patient_number': targetPatientNumber,
+    'target_org_number': targetOrgNumber,
+    'requirement_number': requirementNumber,
+    'requirement_id': requirementId,
     'before_value': null,
     'after_value': null,
     'ip_address': null,
@@ -158,5 +171,71 @@ void main() {
     expect(jobsRepo.getDetailCalled, isTrue);
     expect(jobsRepo.requestedJobId, 'job-1');
     expect(find.textContaining('Applicants — ADMIN-JOB-542'), findsOneWidget);
+  });
+
+  testWidgets('shows the target caregiver/individual/organisation display id above their name', (tester) async {
+    await _pump(
+      tester,
+      _FakeAuditLogsRepository([
+        _entry(
+          id: 'log-caregiver',
+          targetUserName: 'Ramesh Kumar',
+          targetUserRole: 'caregiver',
+          targetCaregiverNumber: 542,
+        ),
+        _entry(
+          id: 'log-individual',
+          entityType: 'individual_profiles',
+          targetUserName: 'Asha Patel',
+          targetUserRole: 'individual',
+          targetPatientNumber: 501,
+        ),
+        _entry(
+          id: 'log-organisation',
+          entityType: 'organisation_profiles',
+          targetUserName: 'City Rehab Center',
+          targetUserRole: 'organisation',
+          targetOrgNumber: 503,
+        ),
+      ]),
+    );
+
+    expect(find.text('NUR-542'), findsOneWidget);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    expect(find.text('PAT-501'), findsOneWidget);
+    expect(find.text('Asha Patel'), findsOneWidget);
+    expect(find.text('ORG-503'), findsOneWidget);
+    expect(find.text('City Rehab Center'), findsOneWidget);
+  });
+
+  testWidgets('shows just the name (no display id) for an admin/super_admin target', (tester) async {
+    await _pump(
+      tester,
+      _FakeAuditLogsRepository([
+        _entry(entityType: 'users', targetUserName: 'Second Admin', targetUserRole: 'admin'),
+      ]),
+    );
+
+    expect(find.text('Second Admin'), findsOneWidget);
+    expect(find.textContaining('NUR-'), findsNothing);
+  });
+
+  testWidgets('shows "ORG-JOB-<n>" for an organisation-requirement entry (not clickable, no dialog wired)',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAuditLogsRepository([
+        _entry(
+          action: 'org_requirement_posted',
+          entityType: 'organisation_requirements',
+          requirementNumber: 507,
+          requirementId: 'req-1',
+        ),
+      ]),
+    );
+
+    expect(find.text('ORG-JOB-507'), findsOneWidget);
+    expect(find.text('req-1'), findsOneWidget,
+        reason: 'the exact requirement id (UUID) must be visible, not just ORG-JOB-<n>');
   });
 }
