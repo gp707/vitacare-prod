@@ -321,6 +321,15 @@ class _OrganisationsListScreenState
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          // The Actions column's 3 buttons (View Jobs + a job-posting-block
+          // toggle + a full-block toggle) don't always fit on one line —
+          // "Unblock Posting"/"Unblock" are wider than "Block Posting"/
+          // "Block" — and DataTable uses one fixed row height for every
+          // row regardless of content, so a row that wraps to 2 lines
+          // would otherwise overlap the row below it. Give every row
+          // enough room to fit 2 lines.
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 96,
           columns: const [
             DataColumn(label: Text('ID')),
             DataColumn(label: Text('Organisation')),
@@ -437,23 +446,43 @@ class _ActionsCell extends StatelessWidget {
     required this.onUnblockFull,
   });
 
+  // Tighter than TextButton's default padding/minimum tap target — with 3
+  // buttons sharing one Actions cell, the default sizing makes "Unblock
+  // Posting" + "Unblock" + "View Jobs" wrap to a second line far more
+  // often than necessary at typical desktop widths.
+  static const _buttonStyle = ButtonStyle(
+    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: AppSpacing.sm)),
+    minimumSize: WidgetStatePropertyAll(Size(0, 32)),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: AppSpacing.xs,
+      // If the 3 buttons still don't fit on one line at a given width, a
+      // wrapped second line needs a visible gap — DataTable's row height
+      // is set generously (see the DataTable above) specifically to fit
+      // this, but with zero runSpacing the two lines would still visually
+      // touch.
+      runSpacing: AppSpacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        TextButton(onPressed: onViewJobs, child: const Text('View Jobs')),
+        TextButton(style: _buttonStyle, onPressed: onViewJobs, child: const Text('View Jobs')),
         if (item.isJobPostingBlocked)
           TextButton(
+              style: _buttonStyle,
               onPressed: onUnblockJobPosting,
               child: const Text('Unblock Posting'))
         else
           TextButton(
-              onPressed: onBlockJobPosting, child: const Text('Block Posting')),
+              style: _buttonStyle,
+              onPressed: onBlockJobPosting,
+              child: const Text('Block Posting')),
         if (item.isActive)
-          TextButton(onPressed: onBlockFull, child: const Text('Block'))
+          TextButton(style: _buttonStyle, onPressed: onBlockFull, child: const Text('Block'))
         else
-          TextButton(onPressed: onUnblockFull, child: const Text('Unblock')),
+          TextButton(style: _buttonStyle, onPressed: onUnblockFull, child: const Text('Unblock')),
       ],
     );
   }
