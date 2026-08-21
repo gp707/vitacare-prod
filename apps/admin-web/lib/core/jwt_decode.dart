@@ -26,5 +26,6 @@ bool isJwtExpired(String token) {
   final payload = decodeJwtPayload(token);
   final exp = payload['exp'] as int?;
   if (exp == null) return true;
-  return DateTime.fromMillisecondsSinceEpoch(exp * 1000).isBefore(DateTime.now());
+  return DateTime.fromMillisecondsSinceEpoch(exp * 1000)
+      .isBefore(DateTime.now());
 }

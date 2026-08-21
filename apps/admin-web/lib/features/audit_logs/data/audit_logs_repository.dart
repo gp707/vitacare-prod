@@ -51,11 +51,13 @@ class AuditLogsRepository {
 
   Future<AuditLogListResult> list(AuditLogListFilters filters) async {
     try {
-      final res = await _dio.get('/admin/audit-logs', queryParameters: filters.toQueryParameters());
+      final res = await _dio.get('/admin/audit-logs',
+          queryParameters: filters.toQueryParameters());
       final items = (res.data['data'] as List)
           .map((json) => AuditLogEntry.fromJson(json as Map<String, dynamic>))
           .toList();
-      final meta = PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
+      final meta =
+          PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
       return AuditLogListResult(items: items, meta: meta);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

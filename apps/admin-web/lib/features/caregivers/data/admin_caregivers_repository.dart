@@ -42,7 +42,8 @@ class CaregiverListFilters {
       if (status != null) 'status': status,
       if (qualification != null) 'qualification': qualification,
       if (gender != null) 'gender': gender,
-      if (languages != null && languages!.isNotEmpty) 'language': languages!.join(','),
+      if (languages != null && languages!.isNotEmpty)
+        'language': languages!.join(','),
       if (city != null) 'city': city,
       if (fromDate != null) 'from_date': fromDate,
       if (toDate != null) 'to_date': toDate,
@@ -64,11 +65,14 @@ class AdminCaregiversRepository {
 
   Future<CaregiverListResult> list(CaregiverListFilters filters) async {
     try {
-      final res = await _dio.get('/admin/caregivers', queryParameters: filters.toQueryParameters());
+      final res = await _dio.get('/admin/caregivers',
+          queryParameters: filters.toQueryParameters());
       final items = (res.data['data'] as List)
-          .map((json) => AdminCaregiverListItem.fromJson(json as Map<String, dynamic>))
+          .map((json) =>
+              AdminCaregiverListItem.fromJson(json as Map<String, dynamic>))
           .toList();
-      final meta = PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
+      final meta =
+          PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
       return CaregiverListResult(items: items, meta: meta);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -78,17 +82,22 @@ class AdminCaregiversRepository {
   Future<AdminCaregiverDetail> getDetail(String profileId) async {
     try {
       final res = await _dio.get('/admin/caregivers/$profileId');
-      return AdminCaregiverDetail.fromJson(res.data['data'] as Map<String, dynamic>);
+      return AdminCaregiverDetail.fromJson(
+          res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  Future<String> updateStatus(String profileId, String status, {String? rejectionMessage}) async {
+  Future<String> updateStatus(String profileId, String status,
+      {String? rejectionMessage}) async {
     try {
       final res = await _dio.patch(
         '/admin/caregivers/$profileId/status',
-        data: {'status': status, if (rejectionMessage != null) 'rejection_message': rejectionMessage},
+        data: {
+          'status': status,
+          if (rejectionMessage != null) 'rejection_message': rejectionMessage
+        },
       );
       return res.data['data']['verification_status'] as String;
     } on DioException catch (e) {
@@ -115,7 +124,8 @@ class AdminCaregiversRepository {
   }
 
   /// Any subset of fields — only non-null entries in [fields] are sent.
-  Future<void> editProfile(String profileId, Map<String, dynamic> fields) async {
+  Future<void> editProfile(
+      String profileId, Map<String, dynamic> fields) async {
     try {
       await _dio.put('/admin/caregivers/$profileId', data: fields);
     } on DioException catch (e) {
@@ -125,12 +135,14 @@ class AdminCaregiversRepository {
 
   /// Uses MultipartFile.fromBytes (not .fromFile) — this app is Flutter Web
   /// only, which has no filesystem path to give dio.
-  Future<String> uploadSelfie(String profileId, Uint8List bytes, String filename) async {
+  Future<String> uploadSelfie(
+      String profileId, Uint8List bytes, String filename) async {
     try {
       final formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(bytes, filename: filename),
       });
-      final res = await _dio.post('/admin/caregivers/$profileId/selfie', data: formData);
+      final res = await _dio.post('/admin/caregivers/$profileId/selfie',
+          data: formData);
       return res.data['data']['file_path'] as String;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -148,7 +160,8 @@ class AdminCaregiversRepository {
         'document_type': documentType,
         'file': MultipartFile.fromBytes(bytes, filename: filename),
       });
-      final res = await _dio.post('/admin/caregivers/$profileId/documents', data: formData);
+      final res = await _dio.post('/admin/caregivers/$profileId/documents',
+          data: formData);
       return res.data['data']['file_path'] as String;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

@@ -9,12 +9,14 @@ class AuditLogEntry {
   final String action;
   final String entityType;
   final String? entityId;
+
   /// Internal only — no longer displayed; use [adminJobNumber]/
   /// [patientJobNumber] instead (see jobDisplayIdFromParts below).
   final int? jobNumber;
   final int? adminJobNumber;
   final int? patientJobNumber;
   final String? jobId;
+
   /// The target user's own role ('caregiver'/'individual'/'organisation'/
   /// 'admin'/'super_admin') — null when there's no target_user_id at all
   /// (e.g. a job/organisation_requirement create, which has no single
@@ -25,6 +27,7 @@ class AuditLogEntry {
   final int? targetCaregiverNumber;
   final int? targetPatientNumber;
   final int? targetOrgNumber;
+
   /// Resolved the same way as jobNumber/jobId above, but for
   /// organisation_requirements — backs the "ORG-JOB-`<n>`" display id.
   final int? requirementNumber;

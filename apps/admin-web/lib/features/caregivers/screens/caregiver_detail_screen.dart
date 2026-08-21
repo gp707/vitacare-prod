@@ -26,7 +26,8 @@ class CaregiverDetailScreen extends ConsumerStatefulWidget {
   const CaregiverDetailScreen({super.key, required this.profileId});
 
   @override
-  ConsumerState<CaregiverDetailScreen> createState() => _CaregiverDetailScreenState();
+  ConsumerState<CaregiverDetailScreen> createState() =>
+      _CaregiverDetailScreenState();
 }
 
 class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
@@ -82,7 +83,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       _errorMessage = null;
     });
     try {
-      final detail = await ref.read(adminCaregiversRepositoryProvider).getDetail(widget.profileId);
+      final detail = await ref
+          .read(adminCaregiversRepositoryProvider)
+          .getDetail(widget.profileId);
       if (!mounted) return;
       setState(() {
         _detail = detail;
@@ -115,9 +118,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   Future<void> _updateStatus(String status, {String? rejectionMessage}) async {
     setState(() => _actionInFlight = true);
     try {
-      await ref
-          .read(adminCaregiversRepositoryProvider)
-          .updateStatus(widget.profileId, status, rejectionMessage: rejectionMessage);
+      await ref.read(adminCaregiversRepositoryProvider).updateStatus(
+          widget.profileId, status,
+          rejectionMessage: rejectionMessage);
       await _load();
     } on ApiException catch (e) {
       if (mounted) _showSnackBar(e.message, isError: true);
@@ -134,8 +137,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             internalNotes: _internalNotesController.text.trim().isEmpty
                 ? null
                 : _internalNotesController.text.trim(),
-            availabilityRemarks:
-                _remarksController.text.trim().isEmpty ? null : _remarksController.text.trim(),
+            availabilityRemarks: _remarksController.text.trim().isEmpty
+                ? null
+                : _remarksController.text.trim(),
           );
       if (mounted) _showSnackBar('Notes saved');
     } on ApiException catch (e) {
@@ -164,8 +168,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       final fields = <String, dynamic>{};
 
       final fullName = _fullNameController.text.trim();
-      if (fullName.isNotEmpty && fullName != detail.fullName) fields['full_name'] = fullName;
-      if (_editGender != null && _editGender != detail.gender) fields['gender'] = _editGender;
+      if (fullName.isNotEmpty && fullName != detail.fullName) {
+        fields['full_name'] = fullName;
+      }
+      if (_editGender != null && _editGender != detail.gender) {
+        fields['gender'] = _editGender;
+      }
       final age = int.tryParse(_ageController.text.trim());
       if (age != null && age != detail.age) fields['age'] = age;
       if (_editQualification != detail.highestQualification) {
@@ -174,7 +182,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       if (_editReligion != detail.religion) fields['religion'] = _editReligion;
       final sortedNewLangs = [..._editLanguages]..sort();
       final sortedOldLangs = [...detail.languages]..sort();
-      if (sortedNewLangs.join(',') != sortedOldLangs.join(',')) fields['languages'] = _editLanguages;
+      if (sortedNewLangs.join(',') != sortedOldLangs.join(',')) {
+        fields['languages'] = _editLanguages;
+      }
       final sortedNewCities = [..._editPreferredCities]..sort();
       final sortedOldCities = [...detail.preferredCities]..sort();
       if (sortedNewCities.join(',') != sortedOldCities.join(',')) {
@@ -182,7 +192,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       }
 
       if (fields.isNotEmpty) {
-        await ref.read(adminCaregiversRepositoryProvider).editProfile(widget.profileId, fields);
+        await ref
+            .read(adminCaregiversRepositoryProvider)
+            .editProfile(widget.profileId, fields);
       }
 
       if (mounted) {
@@ -223,9 +235,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
     setState(() => _uploadingDocType = documentType);
     try {
-      await ref
-          .read(adminCaregiversRepositoryProvider)
-          .uploadDocument(widget.profileId, picked.bytes!, picked.name, documentType);
+      await ref.read(adminCaregiversRepositoryProvider).uploadDocument(
+          widget.profileId, picked.bytes!, picked.name, documentType);
       if (mounted) _showSnackBar('Document uploaded');
       await _load();
     } on ApiException catch (e) {
@@ -237,7 +248,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: isError ? AppColors.error : null),
+      SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? AppColors.error : null),
     );
   }
 
@@ -251,18 +264,24 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           controller: controller,
           maxLength: 1000,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Rejection message (optional)'),
+          decoration:
+              const InputDecoration(labelText: 'Rejection message (optional)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirm')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm')),
         ],
       ),
     );
     if (confirmed == true) {
       await _updateStatus(
         'rejected',
-        rejectionMessage: controller.text.trim().isEmpty ? null : controller.text.trim(),
+        rejectionMessage:
+            controller.text.trim().isEmpty ? null : controller.text.trim(),
       );
     }
   }
@@ -275,7 +294,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         child: _loading
             ? const Center(child: VitaLoadingIndicator())
             : _errorMessage != null
-                ? Center(child: Text(_errorMessage!, style: const TextStyle(color: AppColors.error)))
+                ? Center(
+                    child: Text(_errorMessage!,
+                        style: const TextStyle(color: AppColors.error)))
                 : _buildContent(),
       ),
     );
@@ -301,11 +322,17 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(detail.fullName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      Text(detail.fullName,
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.bold)),
                       if (caregiverDisplayId(detail.caregiverNumber) != null)
                         Text(caregiverDisplayId(detail.caregiverNumber)!,
-                            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                      Text(detail.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600)),
+                      Text(detail.phone,
+                          style:
+                              const TextStyle(color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
@@ -320,14 +347,20 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             child: _buildActionButtons(detail),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
             child: _buildStatusOverride(),
           ),
           const SizedBox(height: AppSpacing.md),
           const TabBar(
             isScrollable: true,
             labelColor: AppColors.primary,
-            tabs: [Tab(text: 'Profile'), Tab(text: 'Documents'), Tab(text: 'Notes'), Tab(text: 'Audit History')],
+            tabs: [
+              Tab(text: 'Profile'),
+              Tab(text: 'Documents'),
+              Tab(text: 'Notes'),
+              Tab(text: 'Audit History')
+            ],
           ),
           Expanded(
             child: TabBarView(
@@ -380,21 +413,26 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         spacing: AppSpacing.sm,
         runSpacing: AppSpacing.xs,
         children: [
-          const Text('Admin Override:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+          const Text('Admin Override:',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
           DropdownButton<String>(
             value: _overrideStatus,
             hint: const Text('Set status to...'),
             items: VerificationStatus.all
-                .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                .map((s) =>
+                    DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
                 .toList(),
-            onChanged: _actionInFlight ? null : (value) => setState(() => _overrideStatus = value),
+            onChanged: _actionInFlight
+                ? null
+                : (value) => setState(() => _overrideStatus = value),
           ),
           if (_overrideStatus == VerificationStatus.rejected)
             SizedBox(
               width: 260,
               child: TextField(
                 controller: _overrideRejectionController,
-                decoration: const InputDecoration(labelText: 'Rejection message (optional)', isDense: true),
+                decoration: const InputDecoration(
+                    labelText: 'Rejection message (optional)', isDense: true),
               ),
             ),
           ElevatedButton(
@@ -402,11 +440,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                 ? null
                 : () {
                     final status = _overrideStatus!;
-                    final rejectionMessage = status == VerificationStatus.rejected
-                        ? (_overrideRejectionController.text.trim().isEmpty
-                            ? null
-                            : _overrideRejectionController.text.trim())
-                        : null;
+                    final rejectionMessage =
+                        status == VerificationStatus.rejected
+                            ? (_overrideRejectionController.text.trim().isEmpty
+                                ? null
+                                : _overrideRejectionController.text.trim())
+                            : null;
                     setState(() {
                       _overrideStatus = null;
                       _overrideRejectionController.clear();
@@ -420,8 +459,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     );
   }
 
-  String _statusLabel(String status) =>
-      status.split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+  String _statusLabel(String status) => status
+      .split('_')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
 
   Widget _buildProfileTab(AdminCaregiverDetail detail) {
     return SingleChildScrollView(
@@ -433,7 +474,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             alignment: Alignment.centerRight,
             child: _editMode
                 ? TextButton(
-                    onPressed: _savingEdits ? null : () => setState(() => _editMode = false),
+                    onPressed: _savingEdits
+                        ? null
+                        : () => setState(() => _editMode = false),
                     child: const Text('Cancel'),
                   )
                 : OutlinedButton.icon(
@@ -443,7 +486,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                   ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          if (_editMode) _buildProfileEditForm(detail) else _buildProfileReadOnly(detail),
+          if (_editMode)
+            _buildProfileEditForm(detail)
+          else
+            _buildProfileReadOnly(detail),
         ],
       ),
     );
@@ -456,12 +502,21 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         _field('Gender', detail.gender),
         _field('Age', '${detail.age}'),
         _field('Languages', detail.languages.join(', ')),
-        _field('Qualification', Qualification.displayNames[detail.highestQualification] ?? detail.highestQualification ?? '-'),
+        _field(
+            'Qualification',
+            Qualification.displayNames[detail.highestQualification] ??
+                detail.highestQualification ??
+                '-'),
         _field('Religion', detail.religion ?? '-'),
-        _field('Preferred City', detail.preferredCities.isEmpty ? '-' : detail.preferredCities.join(', ')),
+        _field(
+            'Preferred City',
+            detail.preferredCities.isEmpty
+                ? '-'
+                : detail.preferredCities.join(', ')),
         _field('Terms Accepted', detail.termsAccepted ? 'Yes' : 'No'),
         _field('Has Pending Edits', detail.hasPendingEdits ? 'Yes' : 'No'),
-        if (detail.rejectionMessage != null) _field('Rejection Message', detail.rejectionMessage!),
+        if (detail.rejectionMessage != null)
+          _field('Rejection Message', detail.rejectionMessage!),
       ],
     );
   }
@@ -475,7 +530,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             Expanded(
               child: TextField(
                 controller: _fullNameController,
-                decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Full Name', border: OutlineInputBorder()),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -484,7 +540,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               child: TextField(
                 controller: _ageController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Age', border: OutlineInputBorder()),
               ),
             ),
           ],
@@ -495,8 +552,11 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           child: DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: _editGender,
-            decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-            items: Gender.all.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+            decoration: const InputDecoration(
+                labelText: 'Gender', border: OutlineInputBorder()),
+            items: Gender.all
+                .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                .toList(),
             onChanged: (value) => setState(() => _editGender = value),
           ),
         ),
@@ -510,7 +570,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           onChanged: (next) => setState(() => _editLanguages = next),
         ),
         const SizedBox(height: AppSpacing.md),
-        const Text('Preferred City', style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text('Preferred City',
+            style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: AppSpacing.xs),
         VitaMultiSelectChips(
           options: City.all,
@@ -528,12 +589,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               child: DropdownButtonFormField<String?>(
                 isExpanded: true,
                 initialValue: _editQualification,
-                decoration:
-                    const InputDecoration(labelText: 'Qualification', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Qualification', border: OutlineInputBorder()),
                 items: Qualification.all
-                    .map((q) => DropdownMenuItem<String?>(value: q, child: Text(Qualification.displayNames[q] ?? q)))
+                    .map((q) => DropdownMenuItem<String?>(
+                        value: q,
+                        child: Text(Qualification.displayNames[q] ?? q)))
                     .toList(),
-                onChanged: (value) => setState(() => _editQualification = value),
+                onChanged: (value) =>
+                    setState(() => _editQualification = value),
               ),
             ),
             SizedBox(
@@ -541,9 +605,11 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               child: DropdownButtonFormField<String?>(
                 isExpanded: true,
                 initialValue: _editReligion,
-                decoration: const InputDecoration(labelText: 'Religion', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Religion', border: OutlineInputBorder()),
                 items: Religion.all
-                    .map((r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r)))
+                    .map((r) => DropdownMenuItem<String?>(
+                        value: r, child: Text(Religion.displayNames[r] ?? r)))
                     .toList(),
                 onChanged: (value) => setState(() => _editReligion = value),
               ),
@@ -557,7 +623,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               ? const SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
                 )
               : const Text('Save Changes'),
         ),
@@ -571,7 +638,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _documentRow('Selfie', detail.selfiePhotoUrl, onUpload: _pickAndUploadSelfie, isUploading: _uploadingDocType == 'selfie'),
+          _documentRow('Selfie', detail.selfiePhotoUrl,
+              onUpload: _pickAndUploadSelfie,
+              isUploading: _uploadingDocType == 'selfie'),
           _documentRow(
             'Qualification Document',
             detail.qualificationDocumentUrl,
@@ -585,11 +654,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             isUploading: _uploadingDocType == DocumentType.aadhaar,
           ),
           for (var i = 0; i < detail.otherDocumentUrls.length; i++)
-            _documentRow('Other Document ${i + 1}', detail.otherDocumentUrls[i]),
-          if (detail.otherDocumentUrls.length < Validation.maxOtherDocuments) ...[
+            _documentRow(
+                'Other Document ${i + 1}', detail.otherDocumentUrls[i]),
+          if (detail.otherDocumentUrls.length <
+              Validation.maxOtherDocuments) ...[
             const SizedBox(height: AppSpacing.sm),
             _uploadingDocType == DocumentType.other
-                ? const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: VitaLoadingIndicator(size: 20))
                 : OutlinedButton.icon(
                     onPressed: () => _pickAndUploadDocument(DocumentType.other),
                     icon: const Icon(Icons.add, size: 16),
@@ -603,24 +677,31 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   /// [onUpload] is omitted for already-full "other document" slots, which
   /// are add-only (a new slot each time, not replaceable in place).
-  Widget _documentRow(String label, String? url, {VoidCallback? onUpload, bool isUploading = false}) {
+  Widget _documentRow(String label, String? url,
+      {VoidCallback? onUpload, bool isUploading = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         children: [
-          SizedBox(width: 200, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          SizedBox(
+              width: 200,
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w600))),
           Expanded(
             child: url == null
-                ? const Text('Not uploaded', style: TextStyle(color: AppColors.textSecondary))
+                ? const Text('Not uploaded',
+                    style: TextStyle(color: AppColors.textSecondary))
                 : TextButton.icon(
-                    onPressed: () => launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'),
+                    onPressed: () =>
+                        launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'),
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: const Text('View / Download'),
                   ),
           ),
           if (onUpload != null)
             if (isUploading)
-              const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+              const SizedBox(
+                  height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
             else
               OutlinedButton(
                 onPressed: onUpload,
@@ -640,16 +721,21 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           TextField(
             controller: _internalNotesController,
             maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Internal Notes', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Internal Notes', border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: _remarksController,
             maxLines: 2,
-            decoration: const InputDecoration(labelText: 'Availability Remarks', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Availability Remarks',
+                border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.lg),
-          ElevatedButton(onPressed: _actionInFlight ? null : _saveNotes, child: const Text('Save')),
+          ElevatedButton(
+              onPressed: _actionInFlight ? null : _saveNotes,
+              child: const Text('Save')),
         ],
       ),
     );
@@ -660,7 +746,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       return const Center(child: VitaLoadingIndicator());
     }
     if (_auditEntries.isEmpty) {
-      return const Center(child: Text('No audit history for this caregiver yet.'));
+      return const Center(
+          child: Text('No audit history for this caregiver yet.'));
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -670,7 +757,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/audit-logs', arguments: detail.userId),
+              onPressed: () => Navigator.of(context)
+                  .pushNamed('/audit-logs', arguments: detail.userId),
               child: const Text('View full audit log'),
             ),
           ),
@@ -685,11 +773,17 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     children: [
                       Row(
                         children: [
-                          Text(entry.action, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(entry.action,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(width: AppSpacing.sm),
                           Text(
-                            entry.createdAt.replaceFirst('T', ' ').split('.').first,
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            entry.createdAt
+                                .replaceFirst('T', ' ')
+                                .split('.')
+                                .first,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 12),
                           ),
                         ],
                       ),
@@ -715,7 +809,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 220, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          SizedBox(
+              width: 220,
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w600))),
           Expanded(child: Text(value)),
         ],
       ),

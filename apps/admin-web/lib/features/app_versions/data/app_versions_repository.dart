@@ -54,7 +54,8 @@ class AppVersionsRepository {
       await _dio.patch('/admin/app-versions/$platform', data: {
         'min_version': minVersion,
         if (storeUrl != null && storeUrl.isNotEmpty) 'store_url': storeUrl,
-        if (updateMessage != null && updateMessage.isNotEmpty) 'update_message': updateMessage,
+        if (updateMessage != null && updateMessage.isNotEmpty)
+          'update_message': updateMessage,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

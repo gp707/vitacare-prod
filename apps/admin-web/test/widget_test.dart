@@ -8,7 +8,8 @@ import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 
 void main() {
-  testWidgets('with no stored session, RootScreen routes to Login', (tester) async {
+  testWidgets('with no stored session, RootScreen routes to Login',
+      (tester) async {
     // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();

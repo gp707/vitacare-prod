@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/vita_list_card.dart';
 import '../data/audit_log_models.dart';
 import '../data/audit_logs_repository.dart';
 import '../../jobs/widgets/job_detail_dialog.dart';
@@ -22,15 +23,20 @@ String formatAuditValue(Map<String, dynamic>? value) {
 /// non-null (see the DataCell above), so exactly one of
 /// adminJobNumber/patientJobNumber is always set here.
 String _auditJobDisplayId(AuditLogEntry entry) {
-  if (entry.adminJobNumber != null) return 'ADMIN-JOB-${entry.adminJobNumber}';
-  if (entry.patientJobNumber != null) return 'PAT-JOB-${entry.patientJobNumber}';
+  if (entry.adminJobNumber != null) {
+    return 'ADMIN-JOB-${entry.adminJobNumber}';
+  }
+  if (entry.patientJobNumber != null) {
+    return 'PAT-JOB-${entry.patientJobNumber}';
+  }
   return 'JOB-${entry.jobNumber}';
 }
 
 /// Same convention as organisationJobDisplayId() from the shared package —
 /// kept local since AuditLogEntry only carries the raw resolved number,
 /// not a full OrganisationRequirementModel.
-String _auditRequirementDisplayId(AuditLogEntry entry) => 'ORG-JOB-${entry.requirementNumber}';
+String _auditRequirementDisplayId(AuditLogEntry entry) =>
+    'ORG-JOB-${entry.requirementNumber}';
 
 /// The target user's own display id (NUR-/PAT-/ORG-`<n>`), reusing the same
 /// helpers every other screen uses — null when there's no target at all,
@@ -139,14 +145,16 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Audit Logs', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Audit Logs',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else
                 Expanded(child: _buildTable()),
               if (_meta != null) _buildPager(),
@@ -168,10 +176,15 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _action,
-            decoration: const InputDecoration(labelText: 'Action', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Action',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All actions')),
-              ...AuditAction.all.map((a) => DropdownMenuItem<String?>(value: a, child: Text(a))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All actions')),
+              ...AuditAction.all.map(
+                  (a) => DropdownMenuItem<String?>(value: a, child: Text(a))),
             ],
             onChanged: (value) => setState(() => _action = value),
           ),
@@ -179,21 +192,34 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
         OutlinedButton.icon(
           onPressed: () => _pickDate(isFrom: true),
           icon: const Icon(Icons.calendar_today, size: 16),
-          label: Text(_fromDate == null ? 'From date' : _fromDate!.toIso8601String().split('T').first),
+          label: Text(_fromDate == null
+              ? 'From date'
+              : _fromDate!.toIso8601String().split('T').first),
         ),
         OutlinedButton.icon(
           onPressed: () => _pickDate(isFrom: false),
           icon: const Icon(Icons.calendar_today, size: 16),
-          label: Text(_toDate == null ? 'To date' : _toDate!.toIso8601String().split('T').first),
+          label: Text(_toDate == null
+              ? 'To date'
+              : _toDate!.toIso8601String().split('T').first),
         ),
-        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton(
+            onPressed: _applyFilters, child: const Text('Apply Filters')),
       ],
     );
   }
 
   Widget _buildTable() {
     if (_items.isEmpty) {
-      return const Center(child: Text('No audit log entries match these filters.'));
+      return const Center(
+          child: Text('No audit log entries match these filters.'));
+    }
+    if (context.isMobile) {
+      return ListView.separated(
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+        itemBuilder: (context, index) => _buildMobileCard(_items[index]),
+      );
     }
     return SingleChildScrollView(
       child: SingleChildScrollView(
@@ -218,14 +244,21 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
               .map(
                 (entry) => DataRow(
                   cells: [
-                    DataCell(Text(entry.createdAt.replaceFirst('T', ' ').split('.').first)),
+                    DataCell(Text(entry.createdAt
+                        .replaceFirst('T', ' ')
+                        .split('.')
+                        .first)),
                     DataCell(Text(entry.userName ?? '-')),
                     DataCell(Text(entry.action)),
                     DataCell(Text(entry.entityType)),
                     DataCell(_buildJobOrRequirementCell(entry)),
                     DataCell(_buildTargetCell(entry)),
-                    DataCell(SizedBox(width: 220, child: Text(formatAuditValue(entry.beforeValue)))),
-                    DataCell(SizedBox(width: 220, child: Text(formatAuditValue(entry.afterValue)))),
+                    DataCell(SizedBox(
+                        width: 220,
+                        child: Text(formatAuditValue(entry.beforeValue)))),
+                    DataCell(SizedBox(
+                        width: 220,
+                        child: Text(formatAuditValue(entry.afterValue)))),
                     DataCell(Text(entry.ipAddress ?? '-')),
                   ],
                 ),
@@ -233,6 +266,45 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
               .toList(),
         ),
       ),
+    );
+  }
+
+  static const _mobileFieldLabelStyle = TextStyle(
+    color: AppColors.textSecondary,
+    fontWeight: FontWeight.w600,
+    fontSize: 13,
+  );
+
+  /// Mobile fallback for one DataRow — same fields as the DataTable's
+  /// columns, stacked instead of laid out side by side. The Job/Requirement
+  /// and Target cells are already composite widgets (a clickable id + a
+  /// selectable raw UUID, or two stacked lines) rather than plain strings,
+  /// so they're reused as-is with just a label line above them, unlike the
+  /// other fields which fit VitaListCard.kv's simple "label: value" shape.
+  Widget _buildMobileCard(AuditLogEntry entry) {
+    return VitaListCard(
+      title: Text(entry.action),
+      fields: [
+        VitaListCard.kv('Timestamp',
+            entry.createdAt.replaceFirst('T', ' ').split('.').first),
+        VitaListCard.kv('Actor', entry.userName ?? '-'),
+        VitaListCard.kv('Entity', entry.entityType),
+        if (entry.jobNumber != null || entry.requirementNumber != null) ...[
+          const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Text('Job / Requirement:', style: _mobileFieldLabelStyle)),
+          _buildJobOrRequirementCell(entry),
+        ],
+        if (entry.targetUserName != null) ...[
+          const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Text('Target:', style: _mobileFieldLabelStyle)),
+          _buildTargetCell(entry),
+        ],
+        VitaListCard.kv('Before', formatAuditValue(entry.beforeValue)),
+        VitaListCard.kv('After', formatAuditValue(entry.afterValue)),
+        VitaListCard.kv('IP', entry.ipAddress ?? '-'),
+      ],
     );
   }
 
@@ -260,7 +332,9 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
           // The raw UUID, selectable so it can be copied straight into a
           // DB query or support ticket — the display id alone isn't
           // enough when you need the exact id.
-          SelectableText(entry.jobId!, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+          SelectableText(entry.jobId!,
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textSecondary)),
         ],
       );
     }
@@ -269,8 +343,11 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_auditRequirementDisplayId(entry), style: const TextStyle(fontWeight: FontWeight.w600)),
-          SelectableText(entry.requirementId!, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+          Text(_auditRequirementDisplayId(entry),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          SelectableText(entry.requirementId!,
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textSecondary)),
         ],
       );
     }
@@ -290,7 +367,9 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(displayId, style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(entry.targetUserName!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(entry.targetUserName!,
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -299,8 +378,12 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
     final meta = _meta!;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // Wrap, not Row — "Page X of Y (Z total)" plus 2 icon buttons
+      // overflows a Row on a narrow phone width; Wrap drops the buttons to
+      // a second line instead.
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text('Page ${meta.page} of ${meta.totalPages} (${meta.total} total)'),
           IconButton(

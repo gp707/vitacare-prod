@@ -40,13 +40,20 @@ class _FakeAppVersionsRepository extends AppVersionsRepository {
   Future<List<AppMinVersion>> list() async => versions;
 
   @override
-  Future<void> update(String platform, {required String minVersion, String? storeUrl, String? updateMessage}) async {
+  Future<void> update(String platform,
+      {required String minVersion,
+      String? storeUrl,
+      String? updateMessage}) async {
     updatedPlatform = platform;
     updatedMinVersion = minVersion;
     updatedStoreUrl = storeUrl;
     versions = versions
         .map((v) => v.platform == platform
-            ? _version(platform: platform, minVersion: minVersion, storeUrl: storeUrl, updatedByName: 'Test Admin')
+            ? _version(
+                platform: platform,
+                minVersion: minVersion,
+                storeUrl: storeUrl,
+                updatedByName: 'Test Admin')
             : v)
         .toList();
   }
@@ -64,7 +71,8 @@ Future<void> _pump(WidgetTester tester, _FakeAppVersionsRepository repo) async {
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+            ..state =
+                AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
         ),
         appVersionsRepositoryProvider.overrideWithValue(repo),
       ],
@@ -75,7 +83,8 @@ Future<void> _pump(WidgetTester tester, _FakeAppVersionsRepository repo) async {
 }
 
 void main() {
-  testWidgets('lists both platforms with their current minimum version', (tester) async {
+  testWidgets('lists both platforms with their current minimum version',
+      (tester) async {
     final repo = _FakeAppVersionsRepository([
       _version(platform: 'android', minVersion: '1.2.0'),
       _version(platform: 'ios', minVersion: '1.1.0'),
@@ -86,12 +95,15 @@ void main() {
     expect(find.text('Minimum version: 1.1.0'), findsOneWidget);
   });
 
-  testWidgets('editing a platform pre-fills the current values and saves via the repository', (tester) async {
+  testWidgets(
+      'editing a platform pre-fills the current values and saves via the repository',
+      (tester) async {
     final repo = _FakeAppVersionsRepository([
       _version(
         platform: 'android',
         minVersion: '1.2.0',
-        storeUrl: 'https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs',
+        storeUrl:
+            'https://play.google.com/store/apps/details?id=com.vitacasahealth.nursejobs',
       ),
     ]);
     await _pump(tester, repo);
@@ -99,7 +111,8 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    final minVersionField = find.widgetWithText(TextField, 'Minimum version (e.g. 1.2.0)');
+    final minVersionField =
+        find.widgetWithText(TextField, 'Minimum version (e.g. 1.2.0)');
     expect(
       tester.widget<TextField>(minVersionField).controller!.text,
       '1.2.0',
@@ -116,7 +129,10 @@ void main() {
 
   testWidgets('shows who last updated a platform when known', (tester) async {
     final repo = _FakeAppVersionsRepository([
-      _version(platform: 'android', minVersion: '1.2.0', updatedByName: 'Priya Admin'),
+      _version(
+          platform: 'android',
+          minVersion: '1.2.0',
+          updatedByName: 'Priya Admin'),
     ]);
     await _pump(tester, repo);
 

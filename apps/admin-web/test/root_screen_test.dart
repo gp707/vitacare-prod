@@ -35,7 +35,8 @@ Future<void> _pumpRoot(
     ProviderScope(
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
-        sessionProvider.overrideWith((ref) => _FakeSessionNotifier(sessionResult, localStorage)),
+        sessionProvider.overrideWith(
+            (ref) => _FakeSessionNotifier(sessionResult, localStorage)),
       ],
       child: MaterialApp(
         home: RootScreen(initialDeepLinkRoute: initialDeepLinkRoute),
@@ -43,7 +44,8 @@ Future<void> _pumpRoot(
           '/login': (_) => const Scaffold(body: Text('Login Page')),
           '/dashboard': (_) => const Scaffold(body: Text('Dashboard Page')),
           '/jobs': (_) => const Scaffold(body: Text('Jobs Page')),
-          '/patients-family': (_) => const Scaffold(body: Text('Patients Family Page')),
+          '/patients-family': (_) =>
+              const Scaffold(body: Text('Patients Family Page')),
         },
       ),
     ),
@@ -58,11 +60,13 @@ void main() {
     expect(find.text('Login Page'), findsOneWidget);
   });
 
-  testWidgets('an authenticated session restores the pre-refresh route (e.g. Jobs) instead of the default Dashboard',
+  testWidgets(
+      'an authenticated session restores the pre-refresh route (e.g. Jobs) instead of the default Dashboard',
       (tester) async {
     await _pumpRoot(
       tester,
-      sessionResult: const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+      sessionResult:
+          const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
       initialDeepLinkRoute: '/jobs',
     );
     await tester.pumpAndSettle();
@@ -71,10 +75,13 @@ void main() {
     expect(find.text('Dashboard Page'), findsNothing);
   });
 
-  testWidgets('restores /patients-family too, proving this is not just special-cased for /jobs', (tester) async {
+  testWidgets(
+      'restores /patients-family too, proving this is not just special-cased for /jobs',
+      (tester) async {
     await _pumpRoot(
       tester,
-      sessionResult: const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+      sessionResult:
+          const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
       initialDeepLinkRoute: '/patients-family',
     );
     await tester.pumpAndSettle();
@@ -82,18 +89,24 @@ void main() {
     expect(find.text('Patients Family Page'), findsOneWidget);
   });
 
-  testWidgets('falls back to the default Dashboard when there is no captured deep-link route', (tester) async {
-    await _pumpRoot(tester, sessionResult: const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'));
+  testWidgets(
+      'falls back to the default Dashboard when there is no captured deep-link route',
+      (tester) async {
+    await _pumpRoot(tester,
+        sessionResult:
+            const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'));
     await tester.pumpAndSettle();
 
     expect(find.text('Dashboard Page'), findsOneWidget);
   });
 
-  testWidgets('falls back to the default Dashboard when the captured route requires an argument we don\'t have '
+  testWidgets(
+      'falls back to the default Dashboard when the captured route requires an argument we don\'t have '
       '(e.g. /caregiver-detail)', (tester) async {
     await _pumpRoot(
       tester,
-      sessionResult: const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+      sessionResult:
+          const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
       initialDeepLinkRoute: '/caregiver-detail',
     );
     await tester.pumpAndSettle();

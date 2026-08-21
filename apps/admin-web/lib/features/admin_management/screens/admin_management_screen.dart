@@ -10,7 +10,8 @@ class AdminManagementScreen extends ConsumerStatefulWidget {
   const AdminManagementScreen({super.key});
 
   @override
-  ConsumerState<AdminManagementScreen> createState() => _AdminManagementScreenState();
+  ConsumerState<AdminManagementScreen> createState() =>
+      _AdminManagementScreenState();
 }
 
 class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
@@ -52,7 +53,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Create Admin'),
           content: SizedBox(
-            width: 400,
+            width: context.dialogWidth(400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -66,7 +67,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                 ),
                 TextField(
                   controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone', prefixText: '+91 '),
+                  decoration: const InputDecoration(
+                      labelText: 'Phone', prefixText: '+91 '),
                 ),
                 TextField(
                   controller: passwordController,
@@ -75,13 +77,16 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                 ),
                 if (dialogError != null) ...[
                   const SizedBox(height: AppSpacing.sm),
-                  Text(dialogError!, style: const TextStyle(color: AppColors.error)),
+                  Text(dialogError!,
+                      style: const TextStyle(color: AppColors.error)),
                 ],
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
                 try {
@@ -113,7 +118,9 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
         title: const Text('Deactivate admin?'),
         content: Text('Are you sure you want to deactivate ${admin.fullName}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.of(context).pop(true),
@@ -129,8 +136,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
       }
     }
   }
@@ -141,8 +148,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
       }
     }
   }
@@ -152,9 +159,12 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Make Super Admin?'),
-        content: Text('${admin.fullName} will get full access, including managing other admins.'),
+        content: Text(
+            '${admin.fullName} will get full access, including managing other admins.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Make Super Admin'),
@@ -165,12 +175,14 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
     if (confirmed != true) return;
 
     try {
-      await ref.read(adminUsersRepositoryProvider).updateRole(admin.userId, 'super_admin');
+      await ref
+          .read(adminUsersRepositoryProvider)
+          .updateRole(admin.userId, 'super_admin');
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.error));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
       }
     }
   }
@@ -188,7 +200,18 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Admin Management', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  // Expanded + ellipsis so the button is never pushed off
+                  // (and never forces a RenderFlex overflow) on a narrow
+                  // viewport.
+                  const Expanded(
+                    child: Text(
+                      'Admin Management',
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   ElevatedButton.icon(
                     onPressed: _showCreateDialog,
                     icon: const Icon(Icons.add),
@@ -200,7 +223,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else
                 Expanded(child: _buildList()),
             ],
@@ -227,7 +251,9 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                   children: [
                     Chip(
                       label: Text(admin.isActive ? 'Active' : 'Deactivated'),
-                      backgroundColor: admin.isActive ? AppColors.primaryLight : AppColors.border,
+                      backgroundColor: admin.isActive
+                          ? AppColors.primaryLight
+                          : AppColors.border,
                     ),
                     if (admin.isActive) ...[
                       IconButton(
@@ -243,7 +269,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                     ] else
                       IconButton(
                         onPressed: () => _activate(admin),
-                        icon: const Icon(Icons.check_circle_outline, color: AppColors.success),
+                        icon: const Icon(Icons.check_circle_outline,
+                            color: AppColors.success),
                         tooltip: 'Activate',
                       ),
                   ],

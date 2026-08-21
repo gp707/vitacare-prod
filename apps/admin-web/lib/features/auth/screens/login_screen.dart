@@ -37,13 +37,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .loginEmail(_emailController.text.trim(), _passwordController.text);
 
       final localStorage = ref.read(localStorageProvider);
-      await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+      await localStorage.saveTokens(
+          accessToken: result.accessToken, refreshToken: result.refreshToken);
       await ref.read(sessionProvider.notifier).loadSession();
 
       if (!mounted) return;
       final session = ref.read(sessionProvider);
       if (session is AdminSessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/dashboard', (route) => false);
       }
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -68,24 +70,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Text(
                   'VitaCare Admin',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Email', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Password', border: OutlineInputBorder()),
                   onSubmitted: (_) => _submit(),
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.sm),
-                  Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                  Text(_errorMessage!,
+                      style: const TextStyle(color: AppColors.error)),
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 ElevatedButton(
@@ -94,7 +102,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Login'),
                 ),

@@ -25,7 +25,8 @@ class AdminCaregiverListItem {
     required this.createdAt,
   });
 
-  factory AdminCaregiverListItem.fromJson(Map<String, dynamic> json) => AdminCaregiverListItem(
+  factory AdminCaregiverListItem.fromJson(Map<String, dynamic> json) =>
+      AdminCaregiverListItem(
         userId: json['user_id'] as String,
         profileId: json['profile_id'] as String,
         caregiverNumber: json['caregiver_number'] as int?,
@@ -105,7 +106,8 @@ class AdminCaregiverDetail {
     this.verifiedAt,
   });
 
-  factory AdminCaregiverDetail.fromJson(Map<String, dynamic> json) => AdminCaregiverDetail(
+  factory AdminCaregiverDetail.fromJson(Map<String, dynamic> json) =>
+      AdminCaregiverDetail(
         userId: json['user_id'] as String,
         profileId: json['profile_id'] as String,
         caregiverNumber: json['caregiver_number'] as int?,
@@ -120,13 +122,16 @@ class AdminCaregiverDetail {
         religion: json['religion'] as String?,
         qualificationDocumentUrl: json['qualification_document_url'] as String?,
         aadhaarDocumentUrl: json['aadhaar_document_url'] as String?,
-        otherDocumentUrls: List<String>.from(json['other_document_urls'] as List? ?? const []),
+        otherDocumentUrls:
+            List<String>.from(json['other_document_urls'] as List? ?? const []),
         termsAccepted: json['terms_accepted'] as bool? ?? false,
         verificationStatus: json['verification_status'] as String,
         rejectionMessage: json['rejection_message'] as String?,
         hasPendingEdits: json['has_pending_edits'] as bool? ?? false,
-        preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
-        adminNotes: AdminNotes.fromJson(json['admin_notes'] as Map<String, dynamic>? ?? const {}),
+        preferredCities:
+            List<String>.from(json['preferred_cities'] as List? ?? const []),
+        adminNotes: AdminNotes.fromJson(
+            json['admin_notes'] as Map<String, dynamic>? ?? const {}),
         createdAt: json['created_at'] as String,
         verifiedAt: json['verified_at'] as String?,
       );

@@ -156,15 +156,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       _loading = true;
       _errorMessage = null;
     });
-    final search = _searchController.text.trim().isEmpty ? null : _searchController.text.trim();
-    final fetchJobs = _filterPosterType == null || _filterPosterType == UserRole.individual;
-    final fetchRequirements = _filterPosterType == null || _isOrganisationPosterType(_filterPosterType);
+    final search = _searchController.text.trim().isEmpty
+        ? null
+        : _searchController.text.trim();
+    final fetchJobs =
+        _filterPosterType == null || _filterPosterType == UserRole.individual;
+    final fetchRequirements = _filterPosterType == null ||
+        _isOrganisationPosterType(_filterPosterType);
     try {
       final jobsFuture = fetchJobs
           ? ref.read(adminJobsRepositoryProvider).list(
                 filters: JobListFilters(
                   postedBy: _filterPostedBy,
-                  postedByRole: _filterPosterType == UserRole.individual ? UserRole.individual : null,
+                  postedByRole: _filterPosterType == UserRole.individual
+                      ? UserRole.individual
+                      : null,
                   city: _filterCity,
                   gender: _filterGender,
                   dutyType: _filterDutyType,
@@ -179,7 +185,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 filters: OrganisationRequirementListFilters(
                   status: _filterStatus,
                   postedBy: _filterOrgPostedBy,
-                  organisationType: _isOrganisationPosterType(_filterPosterType) ? _filterPosterType : null,
+                  organisationType: _isOrganisationPosterType(_filterPosterType)
+                      ? _filterPosterType
+                      : null,
                   city: _filterCity,
                   search: search,
                 ),
@@ -231,19 +239,22 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// the job was closed).
   Future<void> _openEditDialog(JobModel job) async {
     try {
-      final (fullJob, _) = await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
+      final (fullJob, _) =
+          await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
       if (!mounted) return;
       final saved = await showDialog<bool>(
         context: context,
         // Same reasoning as the create dialog — don't let a stray outside
         // click discard in-progress edits.
         barrierDismissible: false,
-        builder: (dialogContext) => _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
+        builder: (dialogContext) =>
+            _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
       );
       if (saved == true) await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -252,7 +263,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// button handing off to the existing _openEditDialog flow.
   Future<void> _openDetailDialog(JobModel job) async {
     try {
-      final (fullJob, _) = await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
+      final (fullJob, _) =
+          await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -266,7 +278,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       );
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -277,7 +290,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -286,11 +300,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     try {
       await ref.read(adminJobsRepositoryProvider).remind(job.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reminder sent')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Reminder sent')));
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -308,21 +324,29 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           controller: controller,
           maxLength: 1000,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Reason (shown to the requester)'),
+          decoration: const InputDecoration(
+              labelText: 'Reason (shown to the requester)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirm')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm')),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await ref.read(adminJobsRepositoryProvider).reject(job.id, controller.text.trim());
+      await ref
+          .read(adminJobsRepositoryProvider)
+          .reject(job.id, controller.text.trim());
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -340,13 +364,17 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// can revisit/correct those same admin-set fields later; every other
   /// field stays org-owned, unchanged from [requirement]) — same dialog,
   /// same endpoint, only the label changes with current status.
-  Future<void> _editRequirement(AdminOrganisationRequirement requirement) async {
+  Future<void> _editRequirement(
+      AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => EditRequirementDialog(
         requirement: requirement,
-        onSubmit: (frequency, salary, scheduleType, startDate, endDate, scheduleRepeat, specificDays) async {
-          await ref.read(adminOrganisationRequirementsRepositoryProvider).approve(
+        onSubmit: (frequency, salary, scheduleType, startDate, endDate,
+            scheduleRepeat, specificDays) async {
+          await ref
+              .read(adminOrganisationRequirementsRepositoryProvider)
+              .approve(
                 requirement.id,
                 typeOfNurse: requirement.typeOfNurse,
                 frequencyOfCare: frequency,
@@ -369,7 +397,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// Only offered for a pending_review requirement — declines it with a
   /// reason, which the organisation sees on their own requirement view. It
   /// never goes live.
-  Future<void> _rejectRequirement(AdminOrganisationRequirement requirement) async {
+  Future<void> _rejectRequirement(
+      AdminOrganisationRequirement requirement) async {
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -381,12 +410,17 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             maxLength: 1000,
             maxLines: 4,
             onChanged: (_) => setDialogState(() {}),
-            decoration: const InputDecoration(labelText: 'Reason (shown to the organisation)'),
+            decoration: const InputDecoration(
+                labelText: 'Reason (shown to the organisation)'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: controller.text.trim().isEmpty ? null : () => Navigator.of(dialogContext).pop(true),
+              onPressed: controller.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(true),
               child: const Text('Confirm'),
             ),
           ],
@@ -395,16 +429,22 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
     if (confirmed != true) return;
     try {
-      await ref.read(adminOrganisationRequirementsRepositoryProvider).reject(requirement.id, controller.text.trim());
+      await ref
+          .read(adminOrganisationRequirementsRepositoryProvider)
+          .reject(requirement.id, controller.text.trim());
       await _load();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
     }
   }
 
   /// Row tap opens the full detail read-only; its own Edit button hands
   /// off to _editRequirement.
-  Future<void> _viewRequirementDetail(AdminOrganisationRequirement requirement) async {
+  Future<void> _viewRequirementDetail(
+      AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => RequirementReadOnlyDialog(
@@ -417,9 +457,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
   }
 
-  Future<void> _viewRequirementApplicants(AdminOrganisationRequirement requirement) async {
-    final (_, applications) =
-        await ref.read(adminOrganisationRequirementsRepositoryProvider).getDetail(requirement.id);
+  Future<void> _viewRequirementApplicants(
+      AdminOrganisationRequirement requirement) async {
+    final (_, applications) = await ref
+        .read(adminOrganisationRequirementsRepositoryProvider)
+        .getDetail(requirement.id);
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -489,13 +531,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             // item, so an unmatched id must display as unselected here even
             // though it's still driving the actual fetch (see the "Filtered
             // to postings by" banner for that case).
-            initialValue: _posters.any((p) => p.id == _filterPostedBy) ? _filterPostedBy : null,
-            decoration:
-                const InputDecoration(labelText: 'Job Poster', border: OutlineInputBorder(), isDense: true),
+            initialValue: _posters.any((p) => p.id == _filterPostedBy)
+                ? _filterPostedBy
+                : null,
+            decoration: const InputDecoration(
+                labelText: 'Job Poster',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All posters')),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All posters')),
               ..._posters.map(
-                (p) => DropdownMenuItem<String?>(value: p.id, child: Text('${p.fullName} (${p.phone})')),
+                (p) => DropdownMenuItem<String?>(
+                    value: p.id, child: Text('${p.fullName} (${p.phone})')),
               ),
             ],
             onChanged: (value) => setState(() => _filterPostedBy = value),
@@ -506,13 +554,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _filterPosterType,
-            decoration: const InputDecoration(labelText: 'Posted By', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Posted By',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: const [
               DropdownMenuItem<String?>(value: null, child: Text('All jobs')),
-              DropdownMenuItem<String?>(value: OrganisationType.hospital, child: Text('Hospital')),
-              DropdownMenuItem<String?>(value: OrganisationType.clinic, child: Text('Clinic')),
-              DropdownMenuItem<String?>(value: OrganisationType.rehab, child: Text('Rehab')),
-              DropdownMenuItem<String?>(value: UserRole.individual, child: Text('Patients')),
+              DropdownMenuItem<String?>(
+                  value: OrganisationType.hospital, child: Text('Hospital')),
+              DropdownMenuItem<String?>(
+                  value: OrganisationType.clinic, child: Text('Clinic')),
+              DropdownMenuItem<String?>(
+                  value: OrganisationType.rehab, child: Text('Rehab')),
+              DropdownMenuItem<String?>(
+                  value: UserRole.individual, child: Text('Patients')),
             ],
             onChanged: (value) => setState(() => _filterPosterType = value),
           ),
@@ -522,10 +577,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _filterCity,
-            decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'City', border: OutlineInputBorder(), isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
-              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(
+                  value: c, child: Text(City.displayNames[c] ?? c))),
             ],
             onChanged: (value) => setState(() => _filterCity = value),
           ),
@@ -541,8 +599,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               isDense: true,
             ),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('Any gender')),
-              ...Gender.all.map((g) => DropdownMenuItem<String?>(value: g, child: Text(Gender.displayNames[g] ?? g))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('Any gender')),
+              ...Gender.all.map((g) => DropdownMenuItem<String?>(
+                  value: g, child: Text(Gender.displayNames[g] ?? g))),
             ],
             onChanged: (value) => setState(() => _filterGender = value),
           ),
@@ -552,12 +612,15 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _filterDutyType,
-            decoration:
-                const InputDecoration(labelText: 'Duty Time', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Duty Time',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All duty times')),
-              ...DutyType.all
-                  .map((d) => DropdownMenuItem<String?>(value: d, child: Text(DutyType.displayNames[d] ?? d))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All duty times')),
+              ...DutyType.all.map((d) => DropdownMenuItem<String?>(
+                  value: d, child: Text(DutyType.displayNames[d] ?? d))),
             ],
             onChanged: (value) => setState(() => _filterDutyType = value),
           ),
@@ -567,11 +630,16 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _filterStatus,
-            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All statuses')),
               ...JobStatus.all.map(
-                (s) => DropdownMenuItem<String?>(value: s, child: Text(JobStatus.displayNames[s] ?? s)),
+                (s) => DropdownMenuItem<String?>(
+                    value: s, child: Text(JobStatus.displayNames[s] ?? s)),
               ),
             ],
             onChanged: (value) => setState(() => _filterStatus = value),
@@ -582,17 +650,23 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _filterLanguage,
-            decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Language',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('Any language')),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('Any language')),
               ...Language.all.map(
-                (l) => DropdownMenuItem<String?>(value: l, child: Text(Language.displayNames[l] ?? l)),
+                (l) => DropdownMenuItem<String?>(
+                    value: l, child: Text(Language.displayNames[l] ?? l)),
               ),
             ],
             onChanged: (value) => setState(() => _filterLanguage = value),
           ),
         ),
-        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton(
+            onPressed: _applyFilters, child: const Text('Apply Filters')),
       ],
     );
   }
@@ -610,7 +684,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Jobs', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  // Expanded + ellipsis so the button is never pushed off
+                  // (and never forces a RenderFlex overflow) on a narrow
+                  // viewport — "Jobs" never actually truncates in practice,
+                  // this is purely a safety net for the layout.
+                  const Expanded(
+                    child: Text(
+                      'Jobs',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   ElevatedButton.icon(
                     onPressed: _openCreateDialog,
                     icon: const Icon(Icons.add),
@@ -622,13 +708,16 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               _buildFilterPanel(),
               if (_filterPostedByLabel != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                _SinglePosterBanner(label: _filterPostedByLabel!, onClear: _clearSinglePosterFilter),
+                _SinglePosterBanner(
+                    label: _filterPostedByLabel!,
+                    onClear: _clearSinglePosterFilter),
               ],
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else if (_mergedEntries.isEmpty)
                 Text(
                   _hasActiveFilters
@@ -640,16 +729,23 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 Expanded(
                   child: ListView.separated(
                     itemCount: _mergedEntries.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final entry = _mergedEntries[index];
                       return switch (entry) {
                         _JobEntry(:final job) => _JobRow(
                             job: job,
                             onTap: () => _openDetailDialog(job),
-                            onClose: job.status == JobStatus.active ? () => _close(job) : null,
-                            onRemind: job.status == JobStatus.active ? () => _remind(job) : null,
-                            onReject: job.status == JobStatus.pendingReview ? () => _reject(job) : null,
+                            onClose: job.status == JobStatus.active
+                                ? () => _close(job)
+                                : null,
+                            onRemind: job.status == JobStatus.active
+                                ? () => _remind(job)
+                                : null,
+                            onReject: job.status == JobStatus.pendingReview
+                                ? () => _reject(job)
+                                : null,
                             onViewApplications: () => _viewApplications(job),
                             onEdit: () => _openEditDialog(job),
                           ),
@@ -658,8 +754,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onTap: () => _viewRequirementDetail(requirement),
                             onEdit: () => _editRequirement(requirement),
                             onReject:
-                                requirement.status == JobStatus.pendingReview ? () => _rejectRequirement(requirement) : null,
-                            onViewApplicants: () => _viewRequirementApplicants(requirement),
+                                requirement.status == JobStatus.pendingReview
+                                    ? () => _rejectRequirement(requirement)
+                                    : null,
+                            onViewApplicants: () =>
+                                _viewRequirementApplicants(requirement),
                           ),
                       };
                     },
@@ -679,7 +778,8 @@ String _formatDate(DateTime date) =>
 /// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
 /// per-day rate, everything else (including not-yet-picked) reads as
 /// monthly, matching the pre-dynamic-unit default.
-String _salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+String _salaryUnit(String? frequencyOfCare) =>
+    frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
 
 class _JobRow extends StatelessWidget {
   final JobModel job;
@@ -702,99 +802,127 @@ class _JobRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          jobDisplayId(job),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            color: AppColors.primaryDark,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                '${DutyType.displayNames[job.dutyType] ?? job.dutyType} · '
+                '${City.displayNames[job.city] ?? job.city}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _JobStatusBadge(status: job.status),
+          ],
+        ),
+        if (job.postedByRole == UserRole.individual) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Posted by patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
+            style: const TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.xs),
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm, vertical: 2),
+          decoration: BoxDecoration(
+            color: AppColors.success.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppSpacing.xs),
+            border: Border.all(color: AppColors.success),
+          ),
+          child: Text(
+            job.salaryAmount != null
+                ? '₹${job.salaryAmount}/${_salaryUnit(job.frequencyOfCare)}'
+                : 'Salary not set',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: job.salaryAmount != null
+                  ? AppColors.success
+                  : AppColors.error,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          [
+            if (job.area != null && job.area!.isNotEmpty) job.area,
+            job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
+          ].join(' • '),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        if (job.description != null && job.description!.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(job.description!, maxLines: 2, overflow: TextOverflow.ellipsis),
+        ],
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: AppSpacing.xs,
+      children: [
+        TextButton(onPressed: onEdit, child: const Text('Edit')),
+        TextButton(
+            onPressed: onViewApplications, child: const Text('Applicants')),
+        if (onRemind != null)
+          TextButton(onPressed: onRemind, child: const Text('Remind')),
+        if (onClose != null)
+          TextButton(onPressed: onClose, child: const Text('Close')),
+        if (onReject != null)
+          TextButton(onPressed: onReject, child: const Text('Reject')),
+      ],
+    );
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppSpacing.sm),
         child: Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jobDisplayId(job),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '${DutyType.displayNames[job.dutyType] ?? job.dutyType} · '
-                        '${City.displayNames[job.city] ?? job.city}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    _JobStatusBadge(status: job.status),
-                  ],
-                ),
-                if (job.postedByRole == UserRole.individual) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Posted by patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
-                    style: const TextStyle(color: AppColors.primaryDark, fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.xs),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppSpacing.xs),
-                    border: Border.all(color: AppColors.success),
-                  ),
-                  child: Text(
-                    job.salaryAmount != null
-                        ? '₹${job.salaryAmount}/${_salaryUnit(job.frequencyOfCare)}'
-                        : 'Salary not set',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: job.salaryAmount != null ? AppColors.success : AppColors.error,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  [
-                    if (job.area != null && job.area!.isNotEmpty) job.area,
-                    job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
-                  ].join(' • '),
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                if (job.description != null && job.description!.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(job.description!, maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ],
-            ),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(AppSpacing.sm),
           ),
-          TextButton(onPressed: onEdit, child: const Text('Edit')),
-          TextButton(onPressed: onViewApplications, child: const Text('Applicants')),
-          if (onRemind != null) TextButton(onPressed: onRemind, child: const Text('Remind')),
-          if (onClose != null) TextButton(onPressed: onClose, child: const Text('Close')),
-          if (onReject != null) TextButton(onPressed: onReject, child: const Text('Reject')),
-        ],
-      ),
+          // Below the mobile breakpoint the action buttons no longer
+          // reliably fit beside the content column (a Row's non-flexible
+          // children don't wrap on their own) — stack them below instead.
+          // Above it, the existing side-by-side layout has always had
+          // enough room.
+          child: context.isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    content,
+                    const SizedBox(height: AppSpacing.sm),
+                    actions
+                  ],
+                )
+              : Row(
+                  children: [Expanded(child: content), actions],
+                ),
         ),
       ),
     );
@@ -826,13 +954,16 @@ class _JobStatusBadge extends StatelessWidget {
     final color = _jobStatusColors[status] ?? AppColors.textSecondary;
     final label = _jobStatusLabels[status] ?? status;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -850,7 +981,8 @@ class _SinglePosterBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: AppColors.primaryLight,
         borderRadius: BorderRadius.circular(AppSpacing.sm),
@@ -858,7 +990,8 @@ class _SinglePosterBanner extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Showing postings by: $label', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('Showing postings by: $label',
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(width: AppSpacing.xs),
           InkWell(
             onTap: onClear,
@@ -969,7 +1102,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _descriptionController.text = job.description ?? '';
       _dutyType = job.dutyType;
       _frequencyOfCare = job.frequencyOfCare;
-      _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+      _startDate =
+          job.startDate == null ? null : DateTime.tryParse(job.startDate!);
       _languages = List.of(job.languages);
       _salaryController.text = job.salaryAmount?.toString() ?? '';
       _preferredGender = job.preferredGender;
@@ -1017,13 +1151,17 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
   bool get _isGenderValid => _gender != null;
-  bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
-  bool get _isMedicalConditionsValid => !_hasMedicalCondition || _medicalConditions.isNotEmpty;
-  bool get _isVitalMonitoringTypesValid => !_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty;
+  bool get _isWeightValid =>
+      _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
+  bool get _isMedicalConditionsValid =>
+      !_hasMedicalCondition || _medicalConditions.isNotEmpty;
+  bool get _isVitalMonitoringTypesValid =>
+      !_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isFrequencyValid => _frequencyOfCare != null;
   bool get _isLanguagesValid => _languages.isNotEmpty;
-  bool get _isSalaryValid => _salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000;
+  bool get _isSalaryValid =>
+      _salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000;
   bool get _isStartDateValid => _startDate != null;
 
   bool get _canSubmit =>
@@ -1048,12 +1186,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
-        _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+        _MandatoryField(_weightKey, _isWeightValid,
+            focusNode: _weightFocusNode),
         _MandatoryField(_medicalConditionsKey, _isMedicalConditionsValid),
         _MandatoryField(_vitalMonitoringTypesKey, _isVitalMonitoringTypesValid),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_frequencyKey, _isFrequencyValid),
-        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+        _MandatoryField(_salaryKey, _isSalaryValid,
+            focusNode: _salaryFocusNode),
         _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_languagesKey, _isLanguagesValid),
       ];
@@ -1119,17 +1259,20 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         medicalAssistance: _medicalAssistance,
         hasMedicalCondition: _hasMedicalCondition,
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
-        medicalConditionOther: _medicalConditions.contains(MedicalCondition.other) &&
-                _medicalConditionOtherController.text.trim().isNotEmpty
-            ? _medicalConditionOtherController.text.trim()
-            : null,
+        medicalConditionOther:
+            _medicalConditions.contains(MedicalCondition.other) &&
+                    _medicalConditionOtherController.text.trim().isNotEmpty
+                ? _medicalConditionOtherController.text.trim()
+                : null,
         toiletAssistance: _toiletAssistance,
-        toiletAssistanceOther: _toiletAssistance.contains(ToiletAssistance.others) &&
-                _toiletAssistanceOtherController.text.trim().isNotEmpty
-            ? _toiletAssistanceOtherController.text.trim()
-            : null,
+        toiletAssistanceOther:
+            _toiletAssistance.contains(ToiletAssistance.others) &&
+                    _toiletAssistanceOtherController.text.trim().isNotEmpty
+                ? _toiletAssistanceOtherController.text.trim()
+                : null,
         requiresVitalMonitoring: _requiresVitalMonitoring,
-        vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
+        vitalMonitoringTypes:
+            _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
       );
       final startDate = _startDate == null
           ? null
@@ -1178,15 +1321,17 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEditing ? 'Edit ${jobDisplayId(widget.job!)}' : 'Post New Job'),
+      title: Text(
+          _isEditing ? 'Edit ${jobDisplayId(widget.job!)}' : 'Post New Job'),
       content: SizedBox(
-        width: 480,
+        width: context.dialogWidth(480),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Job Location', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Job Location',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               KeyedSubtree(
                 key: _cityKey,
@@ -1195,10 +1340,13 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   initialValue: _city,
                   decoration: InputDecoration(
                     labelText: 'City (Mandatory)',
-                    errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+                    errorText: _showValidationErrors && !_isCityValid
+                        ? 'Please select a city'
+                        : null,
                   ),
                   items: City.all
-                      .map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c)))
+                      .map((c) => DropdownMenuItem(
+                          value: c, child: Text(City.displayNames[c] ?? c)))
                       .toList(),
                   onChanged: (value) => setState(() => _city = value),
                 ),
@@ -1211,15 +1359,19 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                     controller: _areaController,
                     focusNode: _areaFocusNode,
                     decoration: InputDecoration(
-                      labelText: 'Area in ${City.displayNames[_city] ?? _city} (Mandatory)',
-                      errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                      labelText:
+                          'Area in ${City.displayNames[_city] ?? _city} (Mandatory)',
+                      errorText: _showValidationErrors && !_isAreaValid
+                          ? 'Area is required'
+                          : null,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
-              const Text('About Patient', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('About Patient',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               KeyedSubtree(
                 key: _ageKey,
@@ -1229,7 +1381,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: "Patient's Age (Mandatory)",
-                    errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+                    errorText: _showValidationErrors && !_isAgeValid
+                        ? 'Age is required (1-120)'
+                        : null,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -1242,11 +1396,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   initialValue: _gender,
                   decoration: InputDecoration(
                     labelText: "Patient's Gender (Mandatory)",
-                    errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+                    errorText: _showValidationErrors && !_isGenderValid
+                        ? 'Please select a gender'
+                        : null,
                   ),
                   items: const [
                     DropdownMenuItem(value: Gender.male, child: Text('Male')),
-                    DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                    DropdownMenuItem(
+                        value: Gender.female, child: Text('Female')),
                     DropdownMenuItem(value: Gender.other, child: Text('Other')),
                   ],
                   onChanged: (value) => setState(() => _gender = value),
@@ -1261,8 +1418,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: "Patient's Weight (kg) (Mandatory)",
-                    errorText:
-                        _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+                    errorText: _showValidationErrors && !_isWeightValid
+                        ? 'Weight is required (1-300 kg)'
+                        : null,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -1273,7 +1431,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 initialValue: _mobility,
                 decoration: const InputDecoration(labelText: 'Mobility'),
                 items: Mobility.all
-                    .map((m) => DropdownMenuItem(value: m, child: Text(Mobility.displayNames[m] ?? m)))
+                    .map((m) => DropdownMenuItem(
+                        value: m, child: Text(Mobility.displayNames[m] ?? m)))
                     .toList(),
                 onChanged: (value) => setState(() => _mobility = value),
               ),
@@ -1283,7 +1442,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 initialValue: _communication,
                 decoration: const InputDecoration(labelText: 'Communication'),
                 items: Communication.all
-                    .map((c) => DropdownMenuItem(value: c, child: Text(Communication.displayNames[c] ?? c)))
+                    .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(Communication.displayNames[c] ?? c)))
                     .toList(),
                 onChanged: (value) => setState(() => _communication = value),
               ),
@@ -1293,12 +1454,15 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 initialValue: _feedingType,
                 decoration: const InputDecoration(labelText: 'Feeding'),
                 items: FeedingType.all
-                    .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
+                    .map((f) => DropdownMenuItem(
+                        value: f,
+                        child: Text(FeedingType.displayNames[f] ?? f)))
                     .toList(),
                 onChanged: (value) => setState(() => _feedingType = value),
               ),
               const SizedBox(height: AppSpacing.lg),
-              const Text('Medicine', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Medicine',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpacing.xs),
               VitaMultiSelectChips(
                 options: MedicalAssistance.all,
@@ -1309,7 +1473,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Has a medical condition the caregiver should know about?'),
+                title: const Text(
+                    'Has a medical condition the caregiver should know about?'),
                 value: _hasMedicalCondition,
                 onChanged: (value) => setState(() {
                   _hasMedicalCondition = value;
@@ -1326,7 +1491,10 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         'Condition(s) (Mandatory)',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: _showValidationErrors && !_isMedicalConditionsValid ? AppColors.error : null,
+                          color: _showValidationErrors &&
+                                  !_isMedicalConditionsValid
+                              ? AppColors.error
+                              : null,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -1334,22 +1502,26 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         options: MedicalCondition.all,
                         labels: MedicalCondition.displayNames,
                         selected: _medicalConditions,
-                        onChanged: (next) => setState(() => _medicalConditions = next),
+                        onChanged: (next) =>
+                            setState(() => _medicalConditions = next),
                       ),
                       if (_showValidationErrors && !_isMedicalConditionsValid)
                         const Padding(
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
                             'Select at least one condition',
-                            style: TextStyle(color: AppColors.error, fontSize: 12),
+                            style:
+                                TextStyle(color: AppColors.error, fontSize: 12),
                           ),
                         ),
-                      if (_medicalConditions.contains(MedicalCondition.other)) ...[
+                      if (_medicalConditions
+                          .contains(MedicalCondition.other)) ...[
                         const SizedBox(height: AppSpacing.sm),
                         TextField(
                           controller: _medicalConditionOtherController,
                           maxLines: 2,
-                          decoration: const InputDecoration(labelText: 'Please describe the other condition'),
+                          decoration: const InputDecoration(
+                              labelText: 'Please describe the other condition'),
                         ),
                       ],
                     ],
@@ -1357,7 +1529,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
-              const Text('Toilet Assistance', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Toilet Assistance',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
               const Text(
                 'What assistance is required? Select all that apply.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
@@ -1374,7 +1547,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 TextField(
                   controller: _toiletAssistanceOtherController,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Please describe the other toilet assistance'),
+                  decoration: const InputDecoration(
+                      labelText: 'Please describe the other toilet assistance'),
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
@@ -1397,8 +1571,10 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         'Select what needs monitoring (Mandatory)',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color:
-                              _showValidationErrors && !_isVitalMonitoringTypesValid ? AppColors.error : null,
+                          color: _showValidationErrors &&
+                                  !_isVitalMonitoringTypesValid
+                              ? AppColors.error
+                              : null,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -1406,14 +1582,17 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         options: VitalMonitoringType.all,
                         labels: VitalMonitoringType.displayNames,
                         selected: _vitalMonitoringTypes,
-                        onChanged: (next) => setState(() => _vitalMonitoringTypes = next),
+                        onChanged: (next) =>
+                            setState(() => _vitalMonitoringTypes = next),
                       ),
-                      if (_showValidationErrors && !_isVitalMonitoringTypesValid)
+                      if (_showValidationErrors &&
+                          !_isVitalMonitoringTypesValid)
                         const Padding(
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
                             'Select at least one vital to monitor',
-                            style: TextStyle(color: AppColors.error, fontSize: 12),
+                            style:
+                                TextStyle(color: AppColors.error, fontSize: 12),
                           ),
                         ),
                     ],
@@ -1421,7 +1600,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
-              const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('About Nurse/Caregiver Requirement',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               KeyedSubtree(
                 key: _dutyTypeKey,
@@ -1430,10 +1610,13 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   initialValue: _dutyType,
                   decoration: InputDecoration(
                     labelText: 'Hours Care Needed (Mandatory)',
-                    errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+                    errorText: _showValidationErrors && !_isDutyTypeValid
+                        ? 'Please select duty hours'
+                        : null,
                   ),
                   items: DutyType.all
-                      .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
+                      .map((d) => DropdownMenuItem(
+                          value: d, child: Text(DutyType.displayNames[d] ?? d)))
                       .toList(),
                   onChanged: (value) => setState(() => _dutyType = value),
                 ),
@@ -1446,12 +1629,17 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   initialValue: _frequencyOfCare,
                   decoration: InputDecoration(
                     labelText: 'Frequency of Care (Mandatory)',
-                    errorText: _showValidationErrors && !_isFrequencyValid ? 'Please select a frequency' : null,
+                    errorText: _showValidationErrors && !_isFrequencyValid
+                        ? 'Please select a frequency'
+                        : null,
                   ),
                   items: FrequencyOfCare.all
-                      .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
+                      .map((f) => DropdownMenuItem(
+                          value: f,
+                          child: Text(FrequencyOfCare.displayNames[f] ?? f)))
                       .toList(),
-                  onChanged: (value) => setState(() => _frequencyOfCare = value),
+                  onChanged: (value) =>
+                      setState(() => _frequencyOfCare = value),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -1464,8 +1652,11 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   focusNode: _salaryFocusNode,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: 'Salary (₹/${_salaryUnit(_frequencyOfCare)}) (Mandatory)',
-                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
+                    labelText:
+                        'Salary (₹/${_salaryUnit(_frequencyOfCare)}) (Mandatory)',
+                    errorText: _showValidationErrors && !_isSalaryValid
+                        ? 'Salary is required'
+                        : null,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -1485,7 +1676,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       'Preferred Start Date (Mandatory)',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                        color: _showValidationErrors && !_isStartDateValid
+                            ? AppColors.error
+                            : null,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -1502,7 +1695,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         padding: EdgeInsets.only(top: 4),
                         child: Text(
                           'Please select a start date',
-                          style: TextStyle(color: AppColors.error, fontSize: 12),
+                          style:
+                              TextStyle(color: AppColors.error, fontSize: 12),
                         ),
                       ),
                   ],
@@ -1518,7 +1712,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                       'Language Preference (Mandatory)',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
+                        color: _showValidationErrors && !_isLanguagesValid
+                            ? AppColors.error
+                            : null,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -1533,7 +1729,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                         padding: EdgeInsets.only(top: 4),
                         child: Text(
                           'Select at least one language',
-                          style: TextStyle(color: AppColors.error, fontSize: 12),
+                          style:
+                              TextStyle(color: AppColors.error, fontSize: 12),
                         ),
                       ),
                   ],
@@ -1543,11 +1740,15 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               DropdownButtonFormField<String?>(
                 isExpanded: true,
                 initialValue: _preferredGender,
-                decoration: const InputDecoration(labelText: 'Preferred Caregiver Gender'),
+                decoration: const InputDecoration(
+                    labelText: 'Preferred Caregiver Gender'),
                 items: const [
-                  DropdownMenuItem<String?>(value: null, child: Text('No preference')),
-                  DropdownMenuItem<String?>(value: Gender.male, child: Text('Male')),
-                  DropdownMenuItem<String?>(value: Gender.female, child: Text('Female')),
+                  DropdownMenuItem<String?>(
+                      value: null, child: Text('No preference')),
+                  DropdownMenuItem<String?>(
+                      value: Gender.male, child: Text('Male')),
+                  DropdownMenuItem<String?>(
+                      value: Gender.female, child: Text('Female')),
                 ],
                 onChanged: (value) => setState(() => _preferredGender = value),
               ),
@@ -1555,16 +1756,21 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               DropdownButtonFormField<String?>(
                 isExpanded: true,
                 initialValue: _preferredReligion,
-                decoration: const InputDecoration(labelText: 'Preferred Caregiver Religion'),
+                decoration: const InputDecoration(
+                    labelText: 'Preferred Caregiver Religion'),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('No preference')),
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('No preference')),
                   // "Others" is excluded — a valid caregiver's own religion
                   // at registration, but not offered as a job preference.
                   ...Religion.all.where((r) => r != Religion.others).map(
-                        (r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r)),
+                        (r) => DropdownMenuItem<String?>(
+                            value: r,
+                            child: Text(Religion.displayNames[r] ?? r)),
                       ),
                 ],
-                onChanged: (value) => setState(() => _preferredReligion = value),
+                onChanged: (value) =>
+                    setState(() => _preferredReligion = value),
               ),
               const SizedBox(height: AppSpacing.lg),
               KeyedSubtree(
@@ -1582,14 +1788,17 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error)),
               ],
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel')),
         ElevatedButton(
           // Always clickable — missing fields are handled inside
           // _handlePostPressed (highlight + scroll), not by disabling this.
@@ -1598,7 +1807,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               ? const SizedBox(
                   height: 16,
                   width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
                 )
               : Text(_isEditing ? 'Save Changes' : 'Post'),
         ),
@@ -1606,4 +1816,3 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     );
   }
 }
-

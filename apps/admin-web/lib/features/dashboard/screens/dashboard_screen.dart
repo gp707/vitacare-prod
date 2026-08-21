@@ -56,7 +56,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Dashboard', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('Dashboard',
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                 ],
               ),
@@ -64,7 +66,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else if (_stats != null)
                 Expanded(
                   child: SingleChildScrollView(
@@ -72,7 +75,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       spacing: AppSpacing.md,
                       runSpacing: AppSpacing.md,
                       children: [
-                        _StatCard(label: 'Total Caregivers', value: _stats!.totalCaregivers, onTap: () => _goToCaregivers()),
+                        _StatCard(
+                            label: 'Total Caregivers',
+                            value: _stats!.totalCaregivers,
+                            onTap: () => _goToCaregivers()),
                         _StatCard(
                           label: 'Pending Call',
                           value: _stats!.pendingCall,
@@ -91,8 +97,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           color: AppColors.statusRejected,
                           onTap: () => _goToCaregivers(status: 'rejected'),
                         ),
-                        _StatCard(label: 'New (24h)', value: _stats!.newRegistrations24h),
-                        _StatCard(label: 'New (7d)', value: _stats!.newRegistrations7d),
+                        _StatCard(
+                            label: 'New (24h)',
+                            value: _stats!.newRegistrations24h),
+                        _StatCard(
+                            label: 'New (7d)',
+                            value: _stats!.newRegistrations7d),
                         _StatCard(
                           label: 'Pending Edits',
                           value: _stats!.pendingEditsCount,
@@ -116,7 +126,8 @@ class _StatCard extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTap;
 
-  const _StatCard({required this.label, required this.value, this.color, this.onTap});
+  const _StatCard(
+      {required this.label, required this.value, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +147,10 @@ class _StatCard extends StatelessWidget {
           children: [
             Text(
               '$value',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color ?? AppColors.textPrimary),
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: color ?? AppColors.textPrimary),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(label, style: const TextStyle(color: AppColors.textSecondary)),

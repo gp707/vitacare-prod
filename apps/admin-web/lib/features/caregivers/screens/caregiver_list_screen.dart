@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
 
@@ -14,7 +15,8 @@ class CaregiverListScreen extends ConsumerStatefulWidget {
   const CaregiverListScreen({super.key, this.initialStatus});
 
   @override
-  ConsumerState<CaregiverListScreen> createState() => _CaregiverListScreenState();
+  ConsumerState<CaregiverListScreen> createState() =>
+      _CaregiverListScreenState();
 }
 
 class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
@@ -52,7 +54,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     try {
       final result = await ref.read(adminCaregiversRepositoryProvider).list(
             CaregiverListFilters(
-              search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+              search: _searchController.text.trim().isEmpty
+                  ? null
+                  : _searchController.text.trim(),
               status: _status,
               qualification: _qualification,
               gender: _gender,
@@ -89,14 +93,16 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Caregivers', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Caregivers',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.md),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error))
               else
                 Expanded(child: _buildTable()),
               if (_meta != null) _buildPager(),
@@ -130,10 +136,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _status,
-            decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
-              ...VerificationStatus.all.map((s) => DropdownMenuItem<String?>(value: s, child: Text(s))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All statuses')),
+              ...VerificationStatus.all.map(
+                  (s) => DropdownMenuItem<String?>(value: s, child: Text(s))),
             ],
             onChanged: (value) => setState(() => _status = value),
           ),
@@ -143,12 +154,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _qualification,
-            decoration:
-                const InputDecoration(labelText: 'Qualification', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Qualification',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All qualifications')),
-              ...Qualification.all.map(
-                  (q) => DropdownMenuItem<String?>(value: q, child: Text(Qualification.displayNames[q] ?? q))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All qualifications')),
+              ...Qualification.all.map((q) => DropdownMenuItem<String?>(
+                  value: q, child: Text(Qualification.displayNames[q] ?? q))),
             ],
             onChanged: (value) => setState(() => _qualification = value),
           ),
@@ -158,11 +172,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _gender,
-            decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Gender',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All genders')),
-              ...Gender.all.map(
-                  (g) => DropdownMenuItem<String?>(value: g, child: Text(g[0].toUpperCase() + g.substring(1)))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All genders')),
+              ...Gender.all.map((g) => DropdownMenuItem<String?>(
+                  value: g, child: Text(g[0].toUpperCase() + g.substring(1)))),
             ],
             onChanged: (value) => setState(() => _gender = value),
           ),
@@ -172,11 +190,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _language,
-            decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Language',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All languages')),
-              ...Language.all
-                  .map((l) => DropdownMenuItem<String?>(value: l, child: Text(Language.displayNames[l] ?? l))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All languages')),
+              ...Language.all.map((l) => DropdownMenuItem<String?>(
+                  value: l, child: Text(Language.displayNames[l] ?? l))),
             ],
             onChanged: (value) => setState(() => _language = value),
           ),
@@ -186,16 +208,21 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: DropdownButtonFormField<String?>(
             isExpanded: true,
             initialValue: _city,
-            decoration:
-                const InputDecoration(labelText: 'Preferred City', border: OutlineInputBorder(), isDense: true),
+            decoration: const InputDecoration(
+                labelText: 'Preferred City',
+                border: OutlineInputBorder(),
+                isDense: true),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All cities')),
-              ...City.all.map((c) => DropdownMenuItem<String?>(value: c, child: Text(City.displayNames[c] ?? c))),
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('All cities')),
+              ...City.all.map((c) => DropdownMenuItem<String?>(
+                  value: c, child: Text(City.displayNames[c] ?? c))),
             ],
             onChanged: (value) => setState(() => _city = value),
           ),
         ),
-        ElevatedButton(onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton(
+            onPressed: _applyFilters, child: const Text('Apply Filters')),
       ],
     );
   }
@@ -203,6 +230,35 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   Widget _buildTable() {
     if (_items.isEmpty) {
       return const Center(child: Text('No caregivers match these filters.'));
+    }
+    if (context.isMobile) {
+      return ListView.separated(
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          final item = _items[index];
+          return VitaListCard(
+            title: Text(item.fullName),
+            trailing: VitaStatusBadge(status: item.verificationStatus),
+            onTap: () => Navigator.of(context)
+                .pushNamed('/caregiver-detail', arguments: item.profileId),
+            fields: [
+              VitaListCard.kv(
+                  'ID', caregiverDisplayId(item.caregiverNumber) ?? '-'),
+              VitaListCard.kv('Phone', item.phone),
+              VitaListCard.kv('Gender', item.gender),
+              VitaListCard.kv('Age', '${item.age}'),
+              VitaListCard.kv(
+                'Qualification',
+                Qualification.displayNames[item.highestQualification] ??
+                    item.highestQualification ??
+                    '-',
+              ),
+              VitaListCard.kv('Registered', item.createdAt.split('T').first),
+            ],
+          );
+        },
+      );
     }
     return SingleChildScrollView(
       child: SingleChildScrollView(
@@ -221,15 +277,20 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           rows: _items
               .map(
                 (item) => DataRow(
-                  onSelectChanged: (_) =>
-                      Navigator.of(context).pushNamed('/caregiver-detail', arguments: item.profileId),
+                  onSelectChanged: (_) => Navigator.of(context).pushNamed(
+                      '/caregiver-detail',
+                      arguments: item.profileId),
                   cells: [
-                    DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-')),
+                    DataCell(
+                        Text(caregiverDisplayId(item.caregiverNumber) ?? '-')),
                     DataCell(Text(item.fullName)),
                     DataCell(Text(item.phone)),
                     DataCell(Text(item.gender)),
                     DataCell(Text('${item.age}')),
-                    DataCell(Text(Qualification.displayNames[item.highestQualification] ?? item.highestQualification ?? '-')),
+                    DataCell(Text(
+                        Qualification.displayNames[item.highestQualification] ??
+                            item.highestQualification ??
+                            '-')),
                     DataCell(VitaStatusBadge(status: item.verificationStatus)),
                     DataCell(Text(item.createdAt.split('T').first)),
                   ],
@@ -245,8 +306,12 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     final meta = _meta!;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // Wrap, not Row — "Page X of Y (Z total)" plus 2 icon buttons
+      // overflows a Row on a narrow phone width; Wrap drops the buttons to
+      // a second line instead.
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text('Page ${meta.page} of ${meta.totalPages} (${meta.total} total)'),
           IconButton(

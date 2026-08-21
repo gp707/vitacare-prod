@@ -64,7 +64,10 @@ class _FakeAuditLogsRepository extends AuditLogsRepository {
   @override
   Future<AuditLogListResult> list(AuditLogListFilters filters) async {
     requestedTargetUserId = filters.targetUserId;
-    return AuditLogListResult(items: items, meta: const PaginationMeta(page: 1, limit: 50, total: 0, totalPages: 1));
+    return AuditLogListResult(
+        items: items,
+        meta:
+            const PaginationMeta(page: 1, limit: 50, total: 0, totalPages: 1));
   }
 }
 
@@ -84,19 +87,24 @@ Future<void> _pump(
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'super_admin'),
+            ..state = AdminSessionAuthenticated(
+                userId: 'admin-1', role: 'super_admin'),
         ),
         adminOrganisationsRepositoryProvider.overrideWithValue(repo),
-        auditLogsRepositoryProvider.overrideWithValue(auditRepo ?? _FakeAuditLogsRepository([])),
+        auditLogsRepositoryProvider
+            .overrideWithValue(auditRepo ?? _FakeAuditLogsRepository([])),
       ],
-      child: MaterialApp(home: OrganisationDetailScreen(userId: repo.detail.userId)),
+      child: MaterialApp(
+          home: OrganisationDetailScreen(userId: repo.detail.userId)),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('shows the organisation\'s identity, display id, type, location, and status', (tester) async {
+  testWidgets(
+      'shows the organisation\'s identity, display id, type, location, and status',
+      (tester) async {
     await _pump(tester, _FakeAdminOrganisationsRepository(_item()));
 
     expect(find.text('City Rehab Center'), findsWidgets);
@@ -108,7 +116,8 @@ void main() {
     expect(find.text('Active'), findsOneWidget);
   });
 
-  testWidgets('loads the scoped audit history for this account', (tester) async {
+  testWidgets('loads the scoped audit history for this account',
+      (tester) async {
     final auditRepo = _FakeAuditLogsRepository([
       AuditLogEntry.fromJson({
         'id': 'log-1',
@@ -125,13 +134,15 @@ void main() {
         'created_at': '2026-08-01T10:00:00Z',
       }),
     ]);
-    await _pump(tester, _FakeAdminOrganisationsRepository(_item()), auditRepo: auditRepo);
+    await _pump(tester, _FakeAdminOrganisationsRepository(_item()),
+        auditRepo: auditRepo);
 
     expect(auditRepo.requestedTargetUserId, 'u1');
     expect(find.text('admin_edit_profile'), findsOneWidget);
   });
 
-  testWidgets('tapping Edit reveals editable fields; saving calls editProfile with only the changed fields',
+  testWidgets(
+      'tapping Edit reveals editable fields; saving calls editProfile with only the changed fields',
       (tester) async {
     final repo = _FakeAdminOrganisationsRepository(_item());
     await _pump(tester, repo);
@@ -139,7 +150,8 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Organisation Name'), 'Renamed Rehab Center');
+    await tester.enterText(find.widgetWithText(TextField, 'Organisation Name'),
+        'Renamed Rehab Center');
     await tester.tap(find.text('Save Changes'));
     await tester.pumpAndSettle();
 
@@ -148,7 +160,9 @@ void main() {
     expect(find.text('Profile updated'), findsOneWidget);
   });
 
-  testWidgets('View full audit log navigates to /audit-logs with this account\'s user id', (tester) async {
+  testWidgets(
+      'View full audit log navigates to /audit-logs with this account\'s user id',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
@@ -164,17 +178,21 @@ void main() {
           localStorageProvider.overrideWithValue(localStorage),
           sessionProvider.overrideWith(
             (ref) => SessionNotifier(localStorage)
-              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'super_admin'),
+              ..state = AdminSessionAuthenticated(
+                  userId: 'admin-1', role: 'super_admin'),
           ),
           adminOrganisationsRepositoryProvider.overrideWithValue(repo),
-          auditLogsRepositoryProvider.overrideWithValue(_FakeAuditLogsRepository([])),
+          auditLogsRepositoryProvider
+              .overrideWithValue(_FakeAuditLogsRepository([])),
         ],
         child: MaterialApp(
           home: const OrganisationDetailScreen(userId: 'u1'),
           onGenerateRoute: (settings) {
             pushedRoute = settings.name;
             pushedArgs = settings.arguments;
-            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Audit Logs Screen')));
+            return MaterialPageRoute(
+                builder: (_) =>
+                    const Scaffold(body: Text('Audit Logs Screen')));
           },
         ),
       ),

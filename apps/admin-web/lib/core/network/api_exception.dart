@@ -19,7 +19,8 @@ class ApiException implements Exception {
     }
     return const ApiException(
       code: 'GEN_003',
-      message: 'Could not reach the server. Please check your connection and try again.',
+      message:
+          'Could not reach the server. Please check your connection and try again.',
     );
   }
 

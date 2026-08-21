@@ -37,8 +37,8 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   switch (settings.name) {
     case '/jobs':
       return MaterialPageRoute(
-        builder: (context) =>
-            AdminJobsScreen(initialFilter: settings.arguments as JobsScreenInitialFilter?),
+        builder: (context) => AdminJobsScreen(
+            initialFilter: settings.arguments as JobsScreenInitialFilter?),
       );
     case '/caregivers':
       return MaterialPageRoute(

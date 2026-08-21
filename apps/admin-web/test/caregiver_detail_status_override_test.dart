@@ -44,7 +44,8 @@ class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
   Future<AdminCaregiverDetail> getDetail(String profileId) async => detail;
 
   @override
-  Future<String> updateStatus(String profileId, String status, {String? rejectionMessage}) async {
+  Future<String> updateStatus(String profileId, String status,
+      {String? rejectionMessage}) async {
     capturedStatus = status;
     capturedRejectionMessage = rejectionMessage;
     detail = _detail(status: status);
@@ -64,7 +65,8 @@ class _FakeAuditLogsRepository extends AuditLogsRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _FakeAdminCaregiversRepository repo) async {
+Future<void> _pump(
+    WidgetTester tester, _FakeAdminCaregiversRepository repo) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
   await tester.binding.setSurfaceSize(const Size(1400, 1000));
@@ -76,19 +78,23 @@ Future<void> _pump(WidgetTester tester, _FakeAdminCaregiversRepository repo) asy
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'super_admin'),
+            ..state = AdminSessionAuthenticated(
+                userId: 'admin-1', role: 'super_admin'),
         ),
         adminCaregiversRepositoryProvider.overrideWithValue(repo),
-        auditLogsRepositoryProvider.overrideWithValue(_FakeAuditLogsRepository()),
+        auditLogsRepositoryProvider
+            .overrideWithValue(_FakeAuditLogsRepository()),
       ],
-      child: const MaterialApp(home: CaregiverDetailScreen(profileId: 'profile-1')),
+      child: const MaterialApp(
+          home: CaregiverDetailScreen(profileId: 'profile-1')),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('shows the Admin Override control regardless of current status', (tester) async {
+  testWidgets('shows the Admin Override control regardless of current status',
+      (tester) async {
     final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
     await _pump(tester, repo);
 
@@ -96,18 +102,21 @@ void main() {
     expect(find.text('Set status to...'), findsOneWidget);
   });
 
-  testWidgets('shows the caregiver display id (NUR-<n>) next to the name', (tester) async {
+  testWidgets('shows the caregiver display id (NUR-<n>) next to the name',
+      (tester) async {
     final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
     await _pump(tester, repo);
 
     expect(find.text('NUR-500'), findsOneWidget);
   });
 
-  testWidgets('picking a status not reachable via quick-action buttons and setting it calls updateStatus',
+  testWidgets(
+      'picking a status not reachable via quick-action buttons and setting it calls updateStatus',
       (tester) async {
     // pending_call has no quick-action buttons for e.g. "assigned" — this
     // is exactly the gap the override exists to cover.
-    final repo = _FakeAdminCaregiversRepository(_detail(status: 'pending_call'));
+    final repo =
+        _FakeAdminCaregiversRepository(_detail(status: 'pending_call'));
     await _pump(tester, repo);
 
     await tester.tap(find.byType(DropdownButton<String>));
@@ -122,7 +131,9 @@ void main() {
     expect(repo.capturedRejectionMessage, isNull);
   });
 
-  testWidgets('selecting Rejected reveals a rejection-message field and passes it through', (tester) async {
+  testWidgets(
+      'selecting Rejected reveals a rejection-message field and passes it through',
+      (tester) async {
     final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
     await _pump(tester, repo);
 
@@ -131,7 +142,8 @@ void main() {
     await tester.tap(find.text('Rejected').last);
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(TextField, 'Rejection message (optional)'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Rejection message (optional)'),
+        findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextField, 'Rejection message (optional)'),
       'Docs unclear',
@@ -143,11 +155,13 @@ void main() {
     expect(repo.capturedRejectionMessage, 'Docs unclear');
   });
 
-  testWidgets('Set Status button is disabled until a status is picked', (tester) async {
+  testWidgets('Set Status button is disabled until a status is picked',
+      (tester) async {
     final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
     await _pump(tester, repo);
 
-    final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Set Status'));
+    final button = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Set Status'));
     expect(button.onPressed, isNull);
   });
 }

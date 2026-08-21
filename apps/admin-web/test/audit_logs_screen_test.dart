@@ -118,11 +118,25 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _FakeAuditLogsRepository repo, {AdminJobsRepository? jobsRepo}) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _FakeAuditLogsRepository repo, {
+  AdminJobsRepository? jobsRepo,
+  Size surfaceSize = const Size(1400, 900),
+}) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
-  await tester.binding.setSurfaceSize(const Size(1400, 900));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  // Two separate mechanisms: setSurfaceSize controls the actual render/
+  // hit-test viewport, while view.physicalSize/devicePixelRatio is what
+  // MediaQuery (and this app's isMobile/isCompact breakpoints) reports —
+  // both need setting to consistently simulate a given screen width.
+  await tester.binding.setSurfaceSize(surfaceSize);
+  tester.view.physicalSize = surfaceSize;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.binding.setSurfaceSize(null);
+    tester.view.reset();
+  });
 
   await tester.pumpWidget(
     ProviderScope(
@@ -130,10 +144,12 @@ Future<void> _pump(WidgetTester tester, _FakeAuditLogsRepository repo, {AdminJob
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+            ..state =
+                AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
         ),
         auditLogsRepositoryProvider.overrideWithValue(repo),
-        if (jobsRepo != null) adminJobsRepositoryProvider.overrideWithValue(jobsRepo),
+        if (jobsRepo != null)
+          adminJobsRepositoryProvider.overrideWithValue(jobsRepo),
       ],
       child: const MaterialApp(home: AuditLogsScreen()),
     ),
@@ -142,7 +158,8 @@ Future<void> _pump(WidgetTester tester, _FakeAuditLogsRepository repo, {AdminJob
 }
 
 void main() {
-  testWidgets('shows "-" in the Job column for an entry with no resolved job', (tester) async {
+  testWidgets('shows "-" in the Job column for an entry with no resolved job',
+      (tester) async {
     await _pump(tester, _FakeAuditLogsRepository([_entry()]));
 
     expect(find.text('-'), findsWidgets);
@@ -150,20 +167,27 @@ void main() {
     expect(find.textContaining('PAT-JOB-'), findsNothing);
   });
 
-  testWidgets('shows "ADMIN-JOB-<n>" for a job-related entry, and tapping it opens that job\'s detail dialog',
+  testWidgets(
+      'shows "ADMIN-JOB-<n>" for a job-related entry, and tapping it opens that job\'s detail dialog',
       (tester) async {
     final jobsRepo = _FakeAdminJobsRepository();
     await _pump(
       tester,
       _FakeAuditLogsRepository([
-        _entry(action: 'job_posted', entityType: 'jobs', jobNumber: 42, adminJobNumber: 542, jobId: 'job-1'),
+        _entry(
+            action: 'job_posted',
+            entityType: 'jobs',
+            jobNumber: 42,
+            adminJobNumber: 542,
+            jobId: 'job-1'),
       ]),
       jobsRepo: jobsRepo,
     );
 
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('job-1'), findsOneWidget,
-        reason: 'the exact job id (UUID) must be visible, not just ADMIN-JOB-<n>');
+        reason:
+            'the exact job id (UUID) must be visible, not just ADMIN-JOB-<n>');
 
     await tester.tap(find.text('ADMIN-JOB-542'));
     await tester.pumpAndSettle();
@@ -173,7 +197,9 @@ void main() {
     expect(find.textContaining('Applicants — ADMIN-JOB-542'), findsOneWidget);
   });
 
-  testWidgets('shows the target caregiver/individual/organisation display id above their name', (tester) async {
+  testWidgets(
+      'shows the target caregiver/individual/organisation display id above their name',
+      (tester) async {
     await _pump(
       tester,
       _FakeAuditLogsRepository([
@@ -208,11 +234,16 @@ void main() {
     expect(find.text('City Rehab Center'), findsOneWidget);
   });
 
-  testWidgets('shows just the name (no display id) for an admin/super_admin target', (tester) async {
+  testWidgets(
+      'shows just the name (no display id) for an admin/super_admin target',
+      (tester) async {
     await _pump(
       tester,
       _FakeAuditLogsRepository([
-        _entry(entityType: 'users', targetUserName: 'Second Admin', targetUserRole: 'admin'),
+        _entry(
+            entityType: 'users',
+            targetUserName: 'Second Admin',
+            targetUserRole: 'admin'),
       ]),
     );
 
@@ -220,7 +251,8 @@ void main() {
     expect(find.textContaining('NUR-'), findsNothing);
   });
 
-  testWidgets('shows "ORG-JOB-<n>" for an organisation-requirement entry (not clickable, no dialog wired)',
+  testWidgets(
+      'shows "ORG-JOB-<n>" for an organisation-requirement entry (not clickable, no dialog wired)',
       (tester) async {
     await _pump(
       tester,
@@ -236,6 +268,23 @@ void main() {
 
     expect(find.text('ORG-JOB-507'), findsOneWidget);
     expect(find.text('req-1'), findsOneWidget,
-        reason: 'the exact requirement id (UUID) must be visible, not just ORG-JOB-<n>');
+        reason:
+            'the exact requirement id (UUID) must be visible, not just ORG-JOB-<n>');
+  });
+
+  testWidgets(
+      'below the mobile breakpoint, shows a stacked card per entry instead of a DataTable',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAuditLogsRepository([_entry(targetUserName: 'Ramesh Kumar')]),
+      surfaceSize: const Size(390, 800),
+    );
+
+    expect(find.byType(DataTable), findsNothing);
+    expect(find.text('status_changed'), findsOneWidget);
+    expect(find.text('Actor: Admin One'), findsOneWidget);
+    expect(find.text('Target:'), findsOneWidget);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
   });
 }

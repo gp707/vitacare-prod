@@ -53,12 +53,14 @@ class _RootScreenState extends ConsumerState<RootScreen> {
   Widget build(BuildContext context) {
     ref.listen<AdminSessionState>(sessionProvider, (previous, next) {
       if (next is AdminSessionUnauthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is AdminSessionAuthenticated) {
         final restoreRoute = widget.initialDeepLinkRoute;
-        final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute)
-            ? restoreRoute
-            : '/dashboard';
+        final target =
+            restoreRoute != null && _restorableRoutes.contains(restoreRoute)
+                ? restoreRoute
+                : '/dashboard';
         Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
       }
     });

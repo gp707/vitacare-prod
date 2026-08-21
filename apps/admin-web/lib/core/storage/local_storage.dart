@@ -18,7 +18,8 @@ class LocalStorage {
   String? get accessToken => _prefs.getString(_accessTokenKey);
   String? get refreshToken => _prefs.getString(_refreshTokenKey);
 
-  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
+  Future<void> saveTokens(
+      {required String accessToken, required String refreshToken}) async {
     await _prefs.setString(_accessTokenKey, accessToken);
     await _prefs.setString(_refreshTokenKey, refreshToken);
   }

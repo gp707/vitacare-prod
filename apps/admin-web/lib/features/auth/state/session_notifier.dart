@@ -42,6 +42,7 @@ class SessionNotifier extends StateNotifier<AdminSessionState> {
   }
 }
 
-final sessionProvider = StateNotifierProvider<SessionNotifier, AdminSessionState>((ref) {
+final sessionProvider =
+    StateNotifierProvider<SessionNotifier, AdminSessionState>((ref) {
   return SessionNotifier(ref.watch(localStorageProvider));
 });

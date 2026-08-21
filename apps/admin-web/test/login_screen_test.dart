@@ -22,11 +22,13 @@ class _FakeAuthRepository extends AuthRepository {
     loginCalled = true;
     capturedEmail = email;
     if (error != null) throw error!;
-    return const AdminLoginResult(userId: 'admin-1', accessToken: 'access', refreshToken: 'refresh');
+    return const AdminLoginResult(
+        userId: 'admin-1', accessToken: 'access', refreshToken: 'refresh');
   }
 }
 
-Future<void> _pumpLogin(WidgetTester tester, {required _FakeAuthRepository authRepo}) async {
+Future<void> _pumpLogin(WidgetTester tester,
+    {required _FakeAuthRepository authRepo}) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -43,12 +45,15 @@ Future<void> _pumpLogin(WidgetTester tester, {required _FakeAuthRepository authR
 }
 
 void main() {
-  testWidgets('submits the trimmed email and password to the repository', (tester) async {
+  testWidgets('submits the trimmed email and password to the repository',
+      (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpLogin(tester, authRepo: authRepo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), '  admin@vitacasahealth.in  ');
-    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'password123');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Email'), '  admin@vitacasahealth.in  ');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Password'), 'password123');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
     await tester.pumpAndSettle();
 
@@ -56,14 +61,18 @@ void main() {
     expect(authRepo.capturedEmail, 'admin@vitacasahealth.in');
   });
 
-  testWidgets('shows the server error message on invalid credentials', (tester) async {
+  testWidgets('shows the server error message on invalid credentials',
+      (tester) async {
     final authRepo = _FakeAuthRepository(
-      error: const ApiException(code: 'AUTH_003', message: 'Invalid email or password'),
+      error: const ApiException(
+          code: 'AUTH_003', message: 'Invalid email or password'),
     );
     await _pumpLogin(tester, authRepo: authRepo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'admin@vitacasahealth.in');
-    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'wrongpass');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Email'), 'admin@vitacasahealth.in');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Password'), 'wrongpass');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
     await tester.pumpAndSettle();
 
@@ -72,12 +81,15 @@ void main() {
 
   testWidgets('shows the deactivated-account error distinctly', (tester) async {
     final authRepo = _FakeAuthRepository(
-      error: const ApiException(code: 'AUTH_004', message: 'Account is deactivated'),
+      error: const ApiException(
+          code: 'AUTH_004', message: 'Account is deactivated'),
     );
     await _pumpLogin(tester, authRepo: authRepo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'admin@vitacasahealth.in');
-    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'password123');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Email'), 'admin@vitacasahealth.in');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Password'), 'password123');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
     await tester.pumpAndSettle();
 

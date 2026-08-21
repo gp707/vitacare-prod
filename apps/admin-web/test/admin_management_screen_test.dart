@@ -42,19 +42,28 @@ class _FakeAdminUsersRepository extends AdminUsersRepository {
   @override
   Future<void> activate(String userId) async {
     activatedUserId = userId;
-    admins = admins.map((a) => a.userId == userId ? _admin(userId: a.userId, isActive: true) : a).toList();
+    admins = admins
+        .map((a) =>
+            a.userId == userId ? _admin(userId: a.userId, isActive: true) : a)
+        .toList();
   }
 
   @override
   Future<void> updateRole(String userId, String role) async {
     roleUpdatedUserId = userId;
     roleUpdatedTo = role;
-    admins = admins.map((a) => a.userId == userId ? _admin(userId: a.userId, role: role) : a).toList();
+    admins = admins
+        .map((a) =>
+            a.userId == userId ? _admin(userId: a.userId, role: role) : a)
+        .toList();
   }
 
   @override
   Future<void> deactivate(String userId) async {
-    admins = admins.map((a) => a.userId == userId ? _admin(userId: a.userId, isActive: false) : a).toList();
+    admins = admins
+        .map((a) =>
+            a.userId == userId ? _admin(userId: a.userId, isActive: false) : a)
+        .toList();
   }
 }
 
@@ -70,7 +79,8 @@ Future<void> _pump(WidgetTester tester, _FakeAdminUsersRepository repo) async {
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'super-1', role: 'super_admin'),
+            ..state = AdminSessionAuthenticated(
+                userId: 'super-1', role: 'super_admin'),
         ),
         adminUsersRepositoryProvider.overrideWithValue(repo),
       ],
@@ -81,8 +91,11 @@ Future<void> _pump(WidgetTester tester, _FakeAdminUsersRepository repo) async {
 }
 
 void main() {
-  testWidgets('a super_admin row shows only a chip, no promote/deactivate actions', (tester) async {
-    final repo = _FakeAdminUsersRepository([_admin(role: 'super_admin', fullName: 'Existing Super Admin')]);
+  testWidgets(
+      'a super_admin row shows only a chip, no promote/deactivate actions',
+      (tester) async {
+    final repo = _FakeAdminUsersRepository(
+        [_admin(role: 'super_admin', fullName: 'Existing Super Admin')]);
     await _pump(tester, repo);
 
     expect(find.text('Super Admin'), findsOneWidget);
@@ -97,7 +110,8 @@ void main() {
     expect(find.textContaining('+919999900001'), findsOneWidget);
   });
 
-  testWidgets('an active admin shows Make Super Admin and Deactivate actions', (tester) async {
+  testWidgets('an active admin shows Make Super Admin and Deactivate actions',
+      (tester) async {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
@@ -106,7 +120,8 @@ void main() {
     expect(find.byTooltip('Activate'), findsNothing);
   });
 
-  testWidgets('tapping Make Super Admin, confirming, calls updateRole', (tester) async {
+  testWidgets('tapping Make Super Admin, confirming, calls updateRole',
+      (tester) async {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
@@ -121,7 +136,8 @@ void main() {
     expect(repo.roleUpdatedTo, 'super_admin');
   });
 
-  testWidgets('canceling the Make Super Admin dialog does not call updateRole', (tester) async {
+  testWidgets('canceling the Make Super Admin dialog does not call updateRole',
+      (tester) async {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
@@ -133,7 +149,9 @@ void main() {
     expect(repo.roleUpdatedUserId, isNull);
   });
 
-  testWidgets('a deactivated admin shows an Activate action instead of Deactivate', (tester) async {
+  testWidgets(
+      'a deactivated admin shows an Activate action instead of Deactivate',
+      (tester) async {
     final repo = _FakeAdminUsersRepository([_admin(isActive: false)]);
     await _pump(tester, repo);
 
@@ -142,7 +160,8 @@ void main() {
     expect(find.byTooltip('Deactivate'), findsNothing);
   });
 
-  testWidgets('tapping Activate calls the repository and refreshes to Active', (tester) async {
+  testWidgets('tapping Activate calls the repository and refreshes to Active',
+      (tester) async {
     final repo = _FakeAdminUsersRepository([_admin(isActive: false)]);
     await _pump(tester, repo);
 

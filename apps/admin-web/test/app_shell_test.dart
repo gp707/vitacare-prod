@@ -32,19 +32,22 @@ Future<void> _pumpShellAs(WidgetTester tester, String role) async {
 }
 
 void main() {
-  testWidgets('shows Admin Management for a super_admin session', (tester) async {
+  testWidgets('shows Admin Management for a super_admin session',
+      (tester) async {
     await _pumpShellAs(tester, 'super_admin');
     expect(find.text('Admin Management'), findsOneWidget);
   });
 
-  testWidgets('hides Admin Management for a regular admin session', (tester) async {
+  testWidgets('hides Admin Management for a regular admin session',
+      (tester) async {
     await _pumpShellAs(tester, 'admin');
     expect(find.text('Admin Management'), findsNothing);
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Caregivers'), findsOneWidget);
   });
 
-  testWidgets('shows Audit Logs for both admin and super_admin sessions', (tester) async {
+  testWidgets('shows Audit Logs for both admin and super_admin sessions',
+      (tester) async {
     await _pumpShellAs(tester, 'admin');
     expect(find.text('Audit Logs'), findsOneWidget);
 
@@ -52,7 +55,8 @@ void main() {
     expect(find.text('Audit Logs'), findsOneWidget);
   });
 
-  testWidgets('shows Patients/Family for both admin and super_admin sessions', (tester) async {
+  testWidgets('shows Patients/Family for both admin and super_admin sessions',
+      (tester) async {
     await _pumpShellAs(tester, 'admin');
     expect(find.text('Patients/Family'), findsOneWidget);
 

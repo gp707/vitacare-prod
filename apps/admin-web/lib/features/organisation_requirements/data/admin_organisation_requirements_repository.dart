@@ -9,6 +9,7 @@ class AdminOrganisationRequirement {
   final String typeOfNurse;
   final String? frequencyOfCare;
   final int? salaryAmount;
+
   /// Admin-set scheduling — exactly one mode, picked via [scheduleType].
   /// 'date_range' uses [startDate]/[endDate]; 'specific_days' uses
   /// [scheduleRepeat] + [specificDays] (weekdays 1-7 if weekly, days of
@@ -53,7 +54,8 @@ class AdminOrganisationRequirement {
     this.area,
   });
 
-  factory AdminOrganisationRequirement.fromJson(Map<String, dynamic> json) => AdminOrganisationRequirement(
+  factory AdminOrganisationRequirement.fromJson(Map<String, dynamic> json) =>
+      AdminOrganisationRequirement(
         id: json['id'] as String,
         requirementNumber: json['requirement_number'] as int,
         postedBy: json['posted_by'] as String,
@@ -64,8 +66,9 @@ class AdminOrganisationRequirement {
         startDate: json['start_date'] as String?,
         endDate: json['end_date'] as String?,
         scheduleRepeat: json['schedule_repeat'] as String?,
-        specificDays:
-            json['specific_days'] != null ? List<int>.from(json['specific_days'] as List) : null,
+        specificDays: json['specific_days'] != null
+            ? List<int>.from(json['specific_days'] as List)
+            : null,
         accommodationProvided: json['accommodation_provided'] as bool,
         foodProvided: json['food_provided'] as bool,
         specialSkills: json['special_skills'] as String?,
@@ -117,7 +120,8 @@ class AdminOrganisationRequirementsRepository {
   AdminOrganisationRequirementsRepository(this._dio);
 
   Future<List<AdminOrganisationRequirement>> list({
-    OrganisationRequirementListFilters filters = const OrganisationRequirementListFilters(),
+    OrganisationRequirementListFilters filters =
+        const OrganisationRequirementListFilters(),
   }) async {
     try {
       final res = await _dio.get(
@@ -125,7 +129,10 @@ class AdminOrganisationRequirementsRepository {
         queryParameters: filters.toQueryParameters(),
       );
       final items = res.data['data'] as List;
-      return items.map((item) => AdminOrganisationRequirement.fromJson(item as Map<String, dynamic>)).toList();
+      return items
+          .map((item) => AdminOrganisationRequirement.fromJson(
+              item as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -134,13 +141,18 @@ class AdminOrganisationRequirementsRepository {
   /// Applications here are organisation_requirement_applications rows
   /// (requirement_id, not job_id) — OrganisationRequirementApplicationModel
   /// is the correctly-shaped model for this, NOT JobApplicationModel.
-  Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async {
+  Future<
+      (
+        AdminOrganisationRequirement,
+        List<OrganisationRequirementApplicationModel>
+      )> getDetail(String id) async {
     try {
       final res = await _dio.get('/admin/organisation-requirements/$id');
       final data = res.data['data'] as Map<String, dynamic>;
       final requirement = AdminOrganisationRequirement.fromJson(data);
       final applications = (data['applications'] as List)
-          .map((item) => OrganisationRequirementApplicationModel.fromJson(item as Map<String, dynamic>))
+          .map((item) => OrganisationRequirementApplicationModel.fromJson(
+              item as Map<String, dynamic>))
           .toList();
       return (requirement, applications);
     } on DioException catch (e) {
@@ -180,7 +192,8 @@ class AdminOrganisationRequirementsRepository {
         if (specificDays != null) 'specific_days': specificDays,
         'accommodation_provided': accommodationProvided,
         'food_provided': foodProvided,
-        if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
+        if (specialSkills != null && specialSkills.isNotEmpty)
+          'special_skills': specialSkills,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -189,13 +202,15 @@ class AdminOrganisationRequirementsRepository {
 
   Future<void> reject(String id, String reason) async {
     try {
-      await _dio.patch('/admin/organisation-requirements/$id/reject', data: {'reason': reason});
+      await _dio.patch('/admin/organisation-requirements/$id/reject',
+          data: {'reason': reason});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  Future<void> decideApplication(String requirementId, String applicationId, String status) async {
+  Future<void> decideApplication(
+      String requirementId, String applicationId, String status) async {
     try {
       await _dio.patch(
         '/admin/organisation-requirements/$requirementId/applications/$applicationId',

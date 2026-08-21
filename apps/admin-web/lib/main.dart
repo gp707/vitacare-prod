@@ -13,7 +13,8 @@ Future<void> main() async {
   // real pre-refresh route here first, RootScreen would have no way to
   // know the user was on e.g. "/jobs" before hitting reload — see
   // RootScreen's use of this value.
-  final initialDeepLinkRoute = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+  final initialDeepLinkRoute =
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   final localStorage = await LocalStorage.create();
 
   runApp(

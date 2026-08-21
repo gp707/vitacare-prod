@@ -75,7 +75,8 @@ OrganisationRequirementApplicationModel _application({
   );
 }
 
-class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequirementsRepository {
+class _FakeAdminOrganisationRequirementsRepository
+    extends AdminOrganisationRequirementsRepository {
   List<AdminOrganisationRequirement> items;
   List<OrganisationRequirementApplicationModel> applications;
   String? approvedId;
@@ -94,18 +95,25 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
 
   OrganisationRequirementListFilters? lastFilters;
 
-  _FakeAdminOrganisationRequirementsRepository(this.items, [this.applications = const []]) : super(Dio());
+  _FakeAdminOrganisationRequirementsRepository(this.items,
+      [this.applications = const []])
+      : super(Dio());
 
   @override
   Future<List<AdminOrganisationRequirement>> list({
-    OrganisationRequirementListFilters filters = const OrganisationRequirementListFilters(),
+    OrganisationRequirementListFilters filters =
+        const OrganisationRequirementListFilters(),
   }) async {
     lastFilters = filters;
     return items;
   }
 
   @override
-  Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async {
+  Future<
+      (
+        AdminOrganisationRequirement,
+        List<OrganisationRequirementApplicationModel>
+      )> getDetail(String id) async {
     final requirement = items.firstWhere((item) => item.id == id);
     return (requirement, applications);
   }
@@ -142,7 +150,8 @@ class _FakeAdminOrganisationRequirementsRepository extends AdminOrganisationRequ
   }
 
   @override
-  Future<void> decideApplication(String requirementId, String applicationId, String status) async {
+  Future<void> decideApplication(
+      String requirementId, String applicationId, String status) async {
     decidedRequirementId = requirementId;
     decidedApplicationId = applicationId;
     decidedStatus = status;
@@ -155,14 +164,18 @@ class _FakeEmptyAdminJobsRepository extends AdminJobsRepository {
   _FakeEmptyAdminJobsRepository() : super(Dio());
 
   @override
-  Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async => [];
+  Future<List<JobModel>> list(
+          {JobListFilters filters = const JobListFilters()}) async =>
+      [];
 
   @override
   Future<List<JobPosterOption>> listPosters() async => [];
 }
 
-Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
-  final field = find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
+Future<void> _selectFilterDropdown(
+    WidgetTester tester, String fieldLabel, String optionLabel) async {
+  final field =
+      find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel).first;
   await tester.ensureVisible(field);
   await tester.pumpAndSettle();
   await tester.tap(field);
@@ -171,7 +184,8 @@ Future<void> _selectFilterDropdown(WidgetTester tester, String fieldLabel, Strin
   await tester.pumpAndSettle();
 }
 
-Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsRepository repo) async {
+Future<void> _pump(WidgetTester tester,
+    _FakeAdminOrganisationRequirementsRepository repo) async {
   await tester.binding.setSurfaceSize(const Size(1200, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -183,11 +197,13 @@ Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsReposi
     ProviderScope(
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
-        adminJobsRepositoryProvider.overrideWithValue(_FakeEmptyAdminJobsRepository()),
+        adminJobsRepositoryProvider
+            .overrideWithValue(_FakeEmptyAdminJobsRepository()),
         adminOrganisationRequirementsRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+            ..state =
+                AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
       ],
       child: const MaterialApp(home: AdminJobsScreen()),
@@ -197,30 +213,40 @@ Future<void> _pump(WidgetTester tester, _FakeAdminOrganisationRequirementsReposi
 }
 
 void main() {
-  testWidgets('lists requirements with requirement number, status, and org name', (tester) async {
-    await _pump(tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
+  testWidgets(
+      'lists requirements with requirement number, status, and org name',
+      (tester) async {
+    await _pump(
+        tester, _FakeAdminOrganisationRequirementsRepository([_requirement()]));
 
     expect(find.text('ORG-JOB-101'), findsOneWidget);
     expect(find.text('Pending Review'), findsOneWidget);
     expect(find.text('City Rehab Center'), findsOneWidget);
   });
 
-  testWidgets('shows the rejection reason for a rejected requirement', (tester) async {
+  testWidgets('shows the rejection reason for a rejected requirement',
+      (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(status: JobStatus.closed, rejectionReason: 'Incomplete details'),
+        _requirement(
+            status: JobStatus.closed, rejectionReason: 'Incomplete details'),
       ]),
     );
 
     expect(find.text('Reason: Incomplete details'), findsOneWidget);
   });
 
-  testWidgets('Reject only shows for a pending_review requirement; Edit is always available', (tester) async {
+  testWidgets(
+      'Reject only shows for a pending_review requirement; Edit is always available',
+      (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.monthly, salaryAmount: 25000),
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.monthly,
+            salaryAmount: 25000),
       ]),
     );
 
@@ -250,14 +276,18 @@ void main() {
 
     expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.text('Monthly'), findsWidgets);
-    final salaryField = tester.widget<TextField>(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)));
+    final salaryField = tester.widget<TextField>(find.descendant(
+        of: find.byType(AlertDialog), matching: find.byType(TextField)));
     expect(salaryField.controller!.text, '25000');
     // Pre-filled from the existing specific_days/monthly schedule — 3
     // pre-selected days show as 3 green check-circle markers on the
     // calendar (no date-range checkmarks exist in this schedule mode).
     expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '28000');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '28000');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
     await tester.pumpAndSettle();
@@ -284,7 +314,10 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -321,7 +354,10 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -343,7 +379,8 @@ void main() {
     expect(repo.approvedSpecificDays, [1, 3, 5]);
   });
 
-  testWidgets('the Save/Approve button stays disabled until a repeat cadence is chosen for a specific_days schedule',
+  testWidgets(
+      'the Save/Approve button stays disabled until a repeat cadence is chosen for a specific_days schedule',
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
@@ -356,7 +393,10 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Specific Days'));
@@ -364,11 +404,14 @@ void main() {
 
     // No repeat cadence chosen yet, so neither the weekday chips nor the
     // calendar have rendered, and submit stays disabled.
-    final approveButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Approve').last);
+    final approveButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Approve').last);
     expect(approveButton.onPressed, isNull);
   });
 
-  testWidgets('approving with a date_range schedule requires both dates and calls the repository', (tester) async {
+  testWidgets(
+      'approving with a date_range schedule requires both dates and calls the repository',
+      (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
@@ -380,7 +423,10 @@ void main() {
     await tester.tap(find.text('Monthly').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '30000');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '30000');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Date Range'));
@@ -389,21 +435,27 @@ void main() {
     // Save Changes/Approve stays disabled until both dates are picked —
     // exercised via the submit button's onPressed being null rather than
     // driving the real date picker dialog.
-    final approveButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Approve').last);
+    final approveButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Approve').last);
     expect(approveButton.onPressed, isNull);
   });
 
-  testWidgets('rejecting requires a reason before Confirm is enabled', (tester) async {
+  testWidgets('rejecting requires a reason before Confirm is enabled',
+      (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
     await tester.tap(find.text('Reject'));
     await tester.pumpAndSettle();
 
-    final confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
+    final confirmButton = tester
+        .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
     expect(confirmButton.onPressed, isNull);
 
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Missing accommodation details');
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        'Missing accommodation details');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
@@ -412,11 +464,18 @@ void main() {
     expect(repo.rejectedReason, 'Missing accommodation details');
   });
 
-  testWidgets('Applicants dialog shows Accept/Reject for an applied application and calls decideApplication', (
+  testWidgets(
+      'Applicants dialog shows Accept/Reject for an applied application and calls decideApplication',
+      (
     tester,
   ) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
-      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.daily,
+            salaryAmount: 1500)
+      ],
       [_application()],
     );
     await _pump(tester, repo);
@@ -433,9 +492,16 @@ void main() {
     expect(repo.decidedStatus, JobApplicationStatus.accepted);
   });
 
-  testWidgets('Applicants dialog shows a Profile button for every applicant, decided or not', (tester) async {
+  testWidgets(
+      'Applicants dialog shows a Profile button for every applicant, decided or not',
+      (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
-      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.daily,
+            salaryAmount: 1500)
+      ],
       [_application(status: JobApplicationStatus.accepted)],
     );
     await _pump(tester, repo);
@@ -447,9 +513,16 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Profile'), findsOneWidget);
   });
 
-  testWidgets('Applicants dialog shows no actions for an already-decided application', (tester) async {
+  testWidgets(
+      'Applicants dialog shows no actions for an already-decided application',
+      (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
-      [_requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1500)],
+      [
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.daily,
+            salaryAmount: 1500)
+      ],
       [_application(status: JobApplicationStatus.accepted)],
     );
     await _pump(tester, repo);
@@ -463,11 +536,16 @@ void main() {
     expect(find.text(JobApplicationStatus.accepted), findsOneWidget);
   });
 
-  testWidgets('tapping the requirement row opens a read-only detail view, not the edit form', (tester) async {
+  testWidgets(
+      'tapping the requirement row opens a read-only detail view, not the edit form',
+      (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1800),
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.daily,
+            salaryAmount: 1800),
       ]),
     );
 
@@ -476,19 +554,29 @@ void main() {
 
     final dialog = find.byType(AlertDialog);
     expect(dialog, findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('Type of Nurse')), findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')), findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('Close')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Type of Nurse')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')),
+        findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Close')),
+        findsOneWidget);
     // Read-only: not the edit form.
     expect(find.text('Edit ORG-JOB-101'), findsNothing);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
   });
 
-  testWidgets('tapping Edit inside the read-only detail view opens the edit form', (tester) async {
+  testWidgets(
+      'tapping Edit inside the read-only detail view opens the edit form',
+      (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(status: JobStatus.active, frequencyOfCare: FrequencyOfCare.daily, salaryAmount: 1800),
+        _requirement(
+            status: JobStatus.active,
+            frequencyOfCare: FrequencyOfCare.daily,
+            salaryAmount: 1800),
       ]),
     );
 
@@ -496,7 +584,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final readOnlyDialog = find.byType(AlertDialog);
-    await tester.tap(find.descendant(of: readOnlyDialog, matching: find.widgetWithText(ElevatedButton, 'Edit')));
+    await tester.tap(find.descendant(
+        of: readOnlyDialog,
+        matching: find.widgetWithText(ElevatedButton, 'Edit')));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
@@ -504,13 +594,15 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets('picking "Hospital" under Posted By and entering a search term passes both through to the '
+  testWidgets(
+      'picking "Hospital" under Posted By and entering a search term passes both through to the '
       'organisation requirements fetch', (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search job ID or patient ID (e.g. PAT-501)'),
+      find.widgetWithText(
+          TextField, 'Search job ID or patient ID (e.g. PAT-501)'),
       'ORG-JOB-101',
     );
     await _selectFilterDropdown(tester, 'Status', 'Active');

@@ -55,7 +55,8 @@ class CareReceiverInput {
         if (toiletAssistanceOther != null && toiletAssistanceOther!.isNotEmpty)
           'toilet_assistance_other': toiletAssistanceOther,
         'requires_vital_monitoring': requiresVitalMonitoring,
-        if (vitalMonitoringTypes != null) 'vital_monitoring_types': vitalMonitoringTypes,
+        if (vitalMonitoringTypes != null)
+          'vital_monitoring_types': vitalMonitoringTypes,
       };
 }
 
@@ -105,9 +106,11 @@ class JobPosterOption {
   final String fullName;
   final String phone;
 
-  const JobPosterOption({required this.id, required this.fullName, required this.phone});
+  const JobPosterOption(
+      {required this.id, required this.fullName, required this.phone});
 
-  factory JobPosterOption.fromJson(Map<String, dynamic> json) => JobPosterOption(
+  factory JobPosterOption.fromJson(Map<String, dynamic> json) =>
+      JobPosterOption(
         id: json['id'] as String,
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
@@ -119,11 +122,15 @@ class AdminJobsRepository {
 
   AdminJobsRepository(this._dio);
 
-  Future<List<JobModel>> list({JobListFilters filters = const JobListFilters()}) async {
+  Future<List<JobModel>> list(
+      {JobListFilters filters = const JobListFilters()}) async {
     try {
-      final res = await _dio.get('/admin/jobs', queryParameters: filters.toQueryParameters());
+      final res = await _dio.get('/admin/jobs',
+          queryParameters: filters.toQueryParameters());
       final items = res.data['data'] as List;
-      return items.map((item) => JobModel.fromJson(item as Map<String, dynamic>)).toList();
+      return items
+          .map((item) => JobModel.fromJson(item as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -133,7 +140,9 @@ class AdminJobsRepository {
     try {
       final res = await _dio.get('/admin/jobs/posters');
       final items = res.data['data'] as List;
-      return items.map((item) => JobPosterOption.fromJson(item as Map<String, dynamic>)).toList();
+      return items
+          .map((item) => JobPosterOption.fromJson(item as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -145,7 +154,8 @@ class AdminJobsRepository {
       final data = res.data['data'] as Map<String, dynamic>;
       final job = JobModel.fromJson(data);
       final applications = (data['applications'] as List)
-          .map((item) => JobApplicationModel.fromJson(item as Map<String, dynamic>))
+          .map((item) =>
+              JobApplicationModel.fromJson(item as Map<String, dynamic>))
           .toList();
       return (job, applications);
     } on DioException catch (e) {
@@ -170,7 +180,8 @@ class AdminJobsRepository {
         'care_receiver': careReceiver.toJson(),
         'city': city,
         if (area != null && area.isNotEmpty) 'area': area,
-        if (description != null && description.isNotEmpty) 'description': description,
+        if (description != null && description.isNotEmpty)
+          'description': description,
         'duty_type': dutyType,
         'frequency_of_care': frequencyOfCare,
         if (startDate != null) 'start_date': startDate,
@@ -285,9 +296,11 @@ class AdminJobsRepository {
   /// assigns the caregiver; 'rejected' on a previously-accepted application
   /// reopens the job and un-assigns the caregiver; 'rejected' on a still-
   /// applied application just declines it.
-  Future<void> decideApplication(String jobId, String applicationId, String status) async {
+  Future<void> decideApplication(
+      String jobId, String applicationId, String status) async {
     try {
-      await _dio.patch('/admin/jobs/$jobId/applications/$applicationId', data: {'status': status});
+      await _dio.patch('/admin/jobs/$jobId/applications/$applicationId',
+          data: {'status': status});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

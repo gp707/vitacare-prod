@@ -38,7 +38,8 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
 
   Future<void> _load() async {
     try {
-      final (job, applications) = await ref.read(adminJobsRepositoryProvider).getDetail(widget.jobId);
+      final (job, applications) =
+          await ref.read(adminJobsRepositoryProvider).getDetail(widget.jobId);
       if (mounted) {
         setState(() {
           _job = job;
@@ -53,11 +54,14 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
   Future<void> _decide(JobApplicationModel application, String status) async {
     setState(() => _decidingApplicationId = application.id);
     try {
-      await ref.read(adminJobsRepositoryProvider).decideApplication(widget.jobId, application.id, status);
+      await ref
+          .read(adminJobsRepositoryProvider)
+          .decideApplication(widget.jobId, application.id, status);
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
       if (mounted) setState(() => _decidingApplicationId = null);
@@ -65,7 +69,8 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
   }
 
   void _viewProfile(JobApplicationModel application) {
-    Navigator.of(context).pushNamed('/caregiver-detail', arguments: application.profileId);
+    Navigator.of(context)
+        .pushNamed('/caregiver-detail', arguments: application.profileId);
   }
 
   @override
@@ -80,13 +85,15 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                 '${City.displayNames[job.city] ?? job.city}',
       ),
       content: SizedBox(
-        width: 480,
+        width: context.dialogWidth(480),
         child: _errorMessage != null
-            ? Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+            ? Text(_errorMessage!,
+                style: const TextStyle(color: AppColors.error))
             : _applications == null
                 ? const Center(child: VitaLoadingIndicator())
                 : _applications!.isEmpty
-                    ? const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
+                    ? const Text('No applicants yet.',
+                        style: TextStyle(color: AppColors.textSecondary))
                     : SizedBox(
                         height: 340,
                         child: ListView.separated(
@@ -94,10 +101,12 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                           separatorBuilder: (_, __) => const Divider(),
                           itemBuilder: (context, index) {
                             final application = _applications![index];
-                            final isDeciding = _decidingApplicationId == application.id;
+                            final isDeciding =
+                                _decidingApplicationId == application.id;
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text('${application.fullName} — ${application.status}'),
+                              title: Text(
+                                  '${application.fullName} — ${application.status}'),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -116,26 +125,36 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         TextButton(
-                                          onPressed: () => _viewProfile(application),
+                                          onPressed: () =>
+                                              _viewProfile(application),
                                           child: const Text('Profile'),
                                         ),
-                                        if (application.status == JobApplicationStatus.applied) ...[
+                                        if (application.status ==
+                                            JobApplicationStatus.applied) ...[
                                           TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.accepted),
+                                            onPressed: () => _decide(
+                                                application,
+                                                JobApplicationStatus.accepted),
                                             child: const Text('Accept'),
                                           ),
                                           TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                            onPressed: () => _decide(
+                                                application,
+                                                JobApplicationStatus.rejected),
+                                            style: TextButton.styleFrom(
+                                                foregroundColor:
+                                                    AppColors.error),
                                             child: const Text('Reject'),
                                           ),
-                                        ] else if (application.status == JobApplicationStatus.accepted)
+                                        ] else if (application.status ==
+                                            JobApplicationStatus.accepted)
                                           TextButton(
-                                            onPressed: () =>
-                                                _decide(application, JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                            onPressed: () => _decide(
+                                                application,
+                                                JobApplicationStatus.rejected),
+                                            style: TextButton.styleFrom(
+                                                foregroundColor:
+                                                    AppColors.error),
                                             child: const Text('Reject'),
                                           ),
                                       ],
@@ -146,7 +165,9 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                       ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close')),
       ],
     );
   }
@@ -164,7 +185,8 @@ class _ApplicationTimeline extends StatelessWidget {
   Widget build(BuildContext context) {
     final lines = <String>[];
     if (application.appliedAt != null) {
-      lines.add('Applied: ${_formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
+      lines.add(
+          'Applied: ${_formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
     }
     if (application.acceptedAt != null) {
       lines.add(
@@ -172,16 +194,20 @@ class _ApplicationTimeline extends StatelessWidget {
         '${application.decidedByName != null ? ' by ${application.decidedByName}' : ''}',
       );
     }
-    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+    if (application.status == JobApplicationStatus.rejected &&
+        application.rejectedAt != null) {
       final decider = application.decidedByName;
       final label = decider != null ? 'Declined by $decider' : 'Declined';
-      lines.add('$label: ${_formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+      lines.add(
+          '$label: ${_formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final line in lines)
-          Text(line, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(line,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12)),
       ],
     );
   }

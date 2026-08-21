@@ -23,7 +23,8 @@ class AdminIndividualListItem {
     required this.createdAt,
   });
 
-  factory AdminIndividualListItem.fromJson(Map<String, dynamic> json) => AdminIndividualListItem(
+  factory AdminIndividualListItem.fromJson(Map<String, dynamic> json) =>
+      AdminIndividualListItem(
         userId: json['user_id'] as String,
         patientNumber: json['patient_number'] as int?,
         fullName: json['full_name'] as String,
@@ -69,12 +70,18 @@ class AdminIndividualsRepository {
     try {
       final res = await _dio.get(
         '/admin/individuals',
-        queryParameters: {'page': page, 'limit': limit, ...filters.toQueryParameters()},
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+          ...filters.toQueryParameters()
+        },
       );
       final items = (res.data['data'] as List)
-          .map((json) => AdminIndividualListItem.fromJson(json as Map<String, dynamic>))
+          .map((json) =>
+              AdminIndividualListItem.fromJson(json as Map<String, dynamic>))
           .toList();
-      final meta = PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
+      final meta =
+          PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
       return AdminIndividualsListResult(items: items, meta: meta);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -86,7 +93,8 @@ class AdminIndividualsRepository {
   Future<AdminIndividualListItem> getDetail(String userId) async {
     try {
       final res = await _dio.get('/admin/individuals/$userId');
-      return AdminIndividualListItem.fromJson(res.data['data'] as Map<String, dynamic>);
+      return AdminIndividualListItem.fromJson(
+          res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -107,7 +115,8 @@ class AdminIndividualsRepository {
   /// lockout, reuses users.is_active).
   Future<void> block(String userId, String level, String reason) async {
     try {
-      await _dio.patch('/admin/individuals/$userId/block', data: {'level': level, 'reason': reason});
+      await _dio.patch('/admin/individuals/$userId/block',
+          data: {'level': level, 'reason': reason});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -115,7 +124,8 @@ class AdminIndividualsRepository {
 
   Future<void> unblock(String userId, String level) async {
     try {
-      await _dio.patch('/admin/individuals/$userId/unblock', data: {'level': level});
+      await _dio
+          .patch('/admin/individuals/$userId/unblock', data: {'level': level});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

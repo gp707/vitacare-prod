@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/vita_list_card.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_individuals_repository.dart';
 
@@ -229,6 +230,37 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             : 'No individual accounts yet.'),
       );
     }
+    if (context.isMobile) {
+      return ListView.separated(
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          final item = _items[index];
+          return VitaListCard(
+            title: Text(item.fullName),
+            trailing: _StatusCell(item: item),
+            onTap: () => Navigator.of(context)
+                .pushNamed('/individual-detail', arguments: item.userId),
+            fields: [
+              VitaListCard.kv(
+                  'ID', patientDisplayId(item.patientNumber) ?? '-'),
+              VitaListCard.kv('Phone', item.phone),
+              VitaListCard.kv('Registered', item.createdAt.split('T').first),
+            ],
+            actions: [
+              _ActionsCell(
+                item: item,
+                onViewJobs: () => _viewJobs(item),
+                onBlockJobPosting: () => _showBlockDialog(item, 'job_posting'),
+                onUnblockJobPosting: () => _unblock(item, 'job_posting'),
+                onBlockFull: () => _showBlockDialog(item, 'full'),
+                onUnblockFull: () => _unblock(item, 'full'),
+              ),
+            ],
+          );
+        },
+      );
+    }
     return SingleChildScrollView(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -274,8 +306,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
     final meta = _meta!;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      // Wrap, not Row — "Page X of Y (Z total)" plus 2 icon buttons
+      // overflows a Row on a narrow phone width; Wrap drops the buttons to
+      // a second line instead.
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text('Page ${meta.page} of ${meta.totalPages} (${meta.total} total)'),
           IconButton(

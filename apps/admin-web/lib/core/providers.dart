@@ -15,7 +15,8 @@ import '../features/organisation_requirements/data/admin_organisation_requiremen
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
-  throw UnimplementedError('localStorageProvider must be overridden in main.dart');
+  throw UnimplementedError(
+      'localStorageProvider must be overridden in main.dart');
 });
 
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -30,7 +31,8 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   return DashboardRepository(ref.watch(apiClientProvider).dio);
 });
 
-final adminCaregiversRepositoryProvider = Provider<AdminCaregiversRepository>((ref) {
+final adminCaregiversRepositoryProvider =
+    Provider<AdminCaregiversRepository>((ref) {
   return AdminCaregiversRepository(ref.watch(apiClientProvider).dio);
 });
 
@@ -50,14 +52,18 @@ final appVersionsRepositoryProvider = Provider<AppVersionsRepository>((ref) {
   return AppVersionsRepository(ref.watch(apiClientProvider).dio);
 });
 
-final adminIndividualsRepositoryProvider = Provider<AdminIndividualsRepository>((ref) {
+final adminIndividualsRepositoryProvider =
+    Provider<AdminIndividualsRepository>((ref) {
   return AdminIndividualsRepository(ref.watch(apiClientProvider).dio);
 });
 
-final adminOrganisationsRepositoryProvider = Provider<AdminOrganisationsRepository>((ref) {
+final adminOrganisationsRepositoryProvider =
+    Provider<AdminOrganisationsRepository>((ref) {
   return AdminOrganisationsRepository(ref.watch(apiClientProvider).dio);
 });
 
-final adminOrganisationRequirementsRepositoryProvider = Provider<AdminOrganisationRequirementsRepository>((ref) {
-  return AdminOrganisationRequirementsRepository(ref.watch(apiClientProvider).dio);
+final adminOrganisationRequirementsRepositoryProvider =
+    Provider<AdminOrganisationRequirementsRepository>((ref) {
+  return AdminOrganisationRequirementsRepository(
+      ref.watch(apiClientProvider).dio);
 });

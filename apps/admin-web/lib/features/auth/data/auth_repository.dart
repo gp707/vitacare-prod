@@ -13,7 +13,8 @@ class AdminLoginResult {
     required this.refreshToken,
   });
 
-  factory AdminLoginResult.fromJson(Map<String, dynamic> json) => AdminLoginResult(
+  factory AdminLoginResult.fromJson(Map<String, dynamic> json) =>
+      AdminLoginResult(
         userId: json['user_id'] as String,
         accessToken: json['access_token'] as String,
         refreshToken: json['refresh_token'] as String,
@@ -27,8 +28,10 @@ class AuthRepository {
 
   Future<AdminLoginResult> loginEmail(String email, String password) async {
     try {
-      final res = await _dio.post(ApiRoutes.loginEmail, data: {'email': email, 'password': password});
-      return AdminLoginResult.fromJson(res.data['data'] as Map<String, dynamic>);
+      final res = await _dio.post(ApiRoutes.loginEmail,
+          data: {'email': email, 'password': password});
+      return AdminLoginResult.fromJson(
+          res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
