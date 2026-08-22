@@ -180,7 +180,7 @@ export class AuthService {
         [dto.phone, dto.full_name, UserRole.INDIVIDUAL, codeHash],
       );
       const user = userResult.rows[0];
-      await this.individualProfilesRepo.create(user.id, client);
+      await this.individualProfilesRepo.create(user.id, dto.terms_accepted, client);
       return user;
     });
 
@@ -228,6 +228,7 @@ export class AuthService {
           organisation_type: dto.organisation_type,
           city: dto.city,
           area: dto.area,
+          terms_accepted: dto.terms_accepted,
         },
         client,
       );

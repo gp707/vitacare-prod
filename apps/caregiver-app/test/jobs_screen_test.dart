@@ -215,7 +215,7 @@ void main() {
     // Collapsed: header (job #, salary, duty type + city, posted date) is
     // visible, but the tag-heavy detail sections are not.
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
     expect(find.text('Show details'), findsOneWidget);
@@ -292,7 +292,7 @@ void main() {
   testWidgets('shows job details: duty type, city, area, description', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
     // Area/description are inside the collapsible detail section.
     expect(find.text('Indiranagar'), findsNothing);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
@@ -308,7 +308,7 @@ void main() {
     await _pump(tester, _FakeJobsRepository([_job(description: null)]));
     await _expandDetails(tester);
 
-    expect(find.text('24Hrs - Live In in Bangalore'), findsOneWidget);
+    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
 
@@ -610,6 +610,41 @@ void main() {
     expect(find.text('You declined'), findsNothing);
   });
 
+  testWidgets('shows the decline reason underneath the timeline when one was given', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': '2026-08-17T09:05:00Z',
+          'decided_by_admin': true,
+          'decline_reason': 'Requirement was cancelled by the patient/family.',
+        }),
+      ]),
+    );
+
+    expect(find.text('Reason: Requirement was cancelled by the patient/family.'), findsOneWidget);
+  });
+
+  testWidgets('shows no Reason line when no decline reason was given', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': '2026-08-17T09:05:00Z',
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.textContaining('Reason:'), findsNothing);
+  });
+
   testWidgets('tapping Apply calls applyToJob with applied', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pump(tester, fakeRepo);
@@ -634,6 +669,67 @@ void main() {
     await _pump(tester, _FakeJobsRepository([]));
 
     expect(find.textContaining('No jobs posted right now'), findsOneWidget);
+  });
+
+  testWidgets('shows a Close Job button while still applied (not yet accepted), and confirming it withdraws',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'applied',
+        'applied_at': '2026-08-17T10:00:00Z',
+        'accepted_at': null,
+        'rejected_at': null,
+        'decided_by_admin': false,
+      }),
+    ]);
+    await _pump(tester, fakeRepo);
+
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Close this job?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.appliedWith, 'rejected');
+  });
+
+  testWidgets('cancelling the Close Job confirmation dialog does not withdraw the application', (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'applied',
+        'applied_at': '2026-08-17T10:00:00Z',
+        'accepted_at': null,
+        'rejected_at': null,
+        'decided_by_admin': false,
+      }),
+    ]);
+    await _pump(tester, fakeRepo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.appliedWith, isNull);
+  });
+
+  testWidgets('hides Close Job once already accepted, rejected, or completed', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'accepted',
+          'applied_at': '2026-08-17T10:00:00Z',
+          'accepted_at': '2026-08-18T10:00:00Z',
+          'rejected_at': null,
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
   });
 
   testWidgets('tapping the gear icon opens Job Search Preferences', (tester) async {

@@ -28,11 +28,19 @@ class _FakeAuthRepository extends AuthRepository {
 
   _FakeAuthRepository({this.registerError}) : super(Dio());
 
+  bool? capturedTermsAccepted;
+
   @override
-  Future<AuthResult> register({required String phone, required String fullName, required String code}) async {
+  Future<AuthResult> register({
+    required String phone,
+    required String fullName,
+    required bool termsAccepted,
+    required String code,
+  }) async {
     registerCalled = true;
     capturedPhone = phone;
     capturedFullName = fullName;
+    capturedTermsAccepted = termsAccepted;
     capturedCode = code;
     if (registerError != null) throw registerError!;
     return const AuthResult(userId: 'u1', accessToken: 'access', refreshToken: 'refresh');
@@ -47,6 +55,7 @@ class _FakeAuthRepository extends AuthRepository {
     required String organisationType,
     required String city,
     required String area,
+    required bool termsAccepted,
   }) async {
     registerOrganisationCalled = true;
     capturedPhone = phone;
@@ -56,6 +65,7 @@ class _FakeAuthRepository extends AuthRepository {
     capturedOrganisationType = organisationType;
     capturedCity = city;
     capturedArea = area;
+    capturedTermsAccepted = termsAccepted;
     if (registerError != null) throw registerError!;
     return const AuthResult(userId: 'org-1', accessToken: 'access', refreshToken: 'refresh');
   }
@@ -113,6 +123,24 @@ void main() {
     expect(find.text('Enter a 4-digit PIN'), findsOneWidget);
     expect(find.text('Enter a name (letters and spaces only)'), findsOneWidget);
     expect(find.text('Select an account type'), findsOneWidget);
+    expect(find.text('You must accept the Terms & Conditions to continue'), findsOneWidget);
+    expect(authRepo.registerCalled, isFalse);
+  });
+
+  testWidgets('tapping Register without accepting terms highlights it red and does not submit', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo: authRepo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+    await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
+    await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
+    await tester.tap(find.text('Individual'));
+    // Terms checkbox deliberately left unchecked.
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+    await tester.pump();
+
+    expect(find.text('You must accept the Terms & Conditions to continue'), findsOneWidget);
     expect(authRepo.registerCalled, isFalse);
   });
 
@@ -143,12 +171,14 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
     await tester.tap(find.text('Individual'));
+    await tester.tap(find.byType(Checkbox));
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
 
     expect(authRepo.registerCalled, isTrue);
     expect(authRepo.capturedPhone, '+919876543210');
     expect(authRepo.capturedFullName, 'Asha Patel');
+    expect(authRepo.capturedTermsAccepted, isTrue);
     expect(authRepo.capturedCode, '1234');
   });
 
@@ -217,6 +247,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+    await tester.tap(find.byType(Checkbox));
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
@@ -228,6 +259,7 @@ void main() {
     expect(authRepo.capturedOrganisationType, 'hospital');
     expect(authRepo.capturedCity, 'bangalore');
     expect(authRepo.capturedArea, 'Indiranagar');
+    expect(authRepo.capturedTermsAccepted, isTrue);
   });
 
   testWidgets('offers Others as a city option for organisations, distinct from the shared City enum',
@@ -253,9 +285,18 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
     await tester.tap(find.text('Individual'));
+    await tester.tap(find.byType(Checkbox));
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
 
     expect(find.text('Phone number is already registered'), findsOneWidget);
+  });
+
+  testWidgets('shows a Terms & Conditions checkbox with a tappable link to the terms document', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo: authRepo);
+
+    expect(find.byType(Checkbox), findsOneWidget);
+    expect(find.textContaining('Terms & Conditions', findRichText: true), findsOneWidget);
   });
 }

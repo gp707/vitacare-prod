@@ -64,7 +64,7 @@ describe('Individual (NurseNow) (e2e)', () => {
   async function registerIndividual(phoneSuffix: string, fullName = 'Test Patient') {
     const res = await request(app.getHttpServer())
       .post('/v1/auth/register/individual')
-      .send({ phone: testPhone(phoneSuffix), full_name: fullName, code: '1234' })
+      .send({ phone: testPhone(phoneSuffix), full_name: fullName, terms_accepted: true, code: '1234' })
       .expect(201);
     return res.body.data as { user_id: string; access_token: string };
   }
@@ -150,7 +150,7 @@ describe('Individual (NurseNow) (e2e)', () => {
     it('registers, returns a token, and no verification_status', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/register/individual')
-        .send({ phone: testPhone('0001'), full_name: 'Asha Patel', code: '1234' })
+        .send({ phone: testPhone('0001'), full_name: 'Asha Patel', terms_accepted: true, code: '1234' })
         .expect(201);
       expect(res.body.data.access_token).toBeDefined();
       expect(res.body.data.verification_status).toBeUndefined();
@@ -159,9 +159,17 @@ describe('Individual (NurseNow) (e2e)', () => {
     it('rejects a duplicate phone (AUTH_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/register/individual')
-        .send({ phone: testPhone('0001'), full_name: 'Someone Else', code: '5678' })
+        .send({ phone: testPhone('0001'), full_name: 'Someone Else', terms_accepted: true, code: '5678' })
         .expect(409);
       expect(res.body.error.code).toBe('AUTH_001');
+    });
+
+    it('rejects registering without accepting terms (PROFILE_009)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register/individual')
+        .send({ phone: testPhone('0055'), full_name: 'No Terms Patient', terms_accepted: false, code: '1234' })
+        .expect(400);
+      expect(res.body.error.code).toBe('PROFILE_009');
     });
 
     it('logs back in with phone + code', async () => {

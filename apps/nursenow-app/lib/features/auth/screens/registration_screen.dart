@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
@@ -14,6 +16,14 @@ enum _AccountType { individual, organisation }
 // extra sentinel — a separate org-scoped list, not an extension of the
 // shared City enum (see "NurseNow" in CLAUDE.md).
 const _organisationCityOthers = 'others';
+
+// Each account type has its own Terms & Conditions document (an org's
+// legal terms differ from an individual/family's) — the checkbox links out
+// to whichever one matches the currently-selected account type.
+const _individualTermsUrl =
+    'https://docs.google.com/document/d/1TvqDSP5EZRh8ZtxLhRH_b46J7Q-6cIV5VCUsTkH1Q5s/edit?tab=t.0';
+const _organisationTermsUrl =
+    'https://docs.google.com/document/d/1y_o29xiumKqmzshox58vGcYYFnWVUKWL6cd6m_Eycpw/edit?tab=t.0';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -47,6 +57,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   _AccountType? _accountType;
   String? _organisationType;
   String? _city;
+  bool _termsAccepted = false;
   bool _loading = false;
   String? _errorMessage;
 
@@ -64,6 +75,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _organisationTypeKey = GlobalKey();
   final _cityKey = GlobalKey();
   final _areaKey = GlobalKey();
+  final _termsKey = GlobalKey();
 
   // Only turns true once Register has been pressed with something missing —
   // before that, fields don't show red just because they're empty.
@@ -96,6 +108,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool get _isOrganisationTypeValid => !_isOrganisation || _organisationType != null;
   bool get _isCityValid => !_isOrganisation || _city != null;
   bool get _isAreaValid => !_isOrganisation || _areaController.text.trim().isNotEmpty;
+  bool get _isTermsValid => _termsAccepted;
+
+  String get _termsUrl => _isOrganisation ? _organisationTermsUrl : _individualTermsUrl;
+
+  Future<void> _openTerms() => launchUrl(Uri.parse(_termsUrl), mode: LaunchMode.externalApplication);
 
   bool get _canSubmit =>
       !_loading &&
@@ -106,7 +123,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _isOrganisationNameValid &&
       _isOrganisationTypeValid &&
       _isCityValid &&
-      _isAreaValid;
+      _isAreaValid &&
+      _isTermsValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one seen when Register scrolls/focuses to it.
@@ -121,6 +139,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_cityKey, _isCityValid),
           _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         ],
+        _MandatoryField(_termsKey, _isTermsValid),
       ];
 
   /// Register is always tappable — this is what runs when it's pressed.
@@ -173,10 +192,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               organisationType: _organisationType!,
               city: _city!,
               area: _areaController.text.trim(),
+              termsAccepted: _termsAccepted,
             )
           : await authRepo.register(
               phone: _phone,
               fullName: _fullNameController.text.trim(),
+              termsAccepted: _termsAccepted,
               code: _codeController.text.trim(),
             );
       final localStorage = ref.read(localStorageProvider);
@@ -343,6 +364,46 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: AppSpacing.lg),
+            KeyedSubtree(
+              key: _termsKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    value: _termsAccepted,
+                    onChanged: (value) => setState(() => _termsAccepted = value ?? false),
+                    title: RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _showValidationErrors && !_isTermsValid ? AppColors.error : AppColors.textPrimary,
+                        ),
+                        children: [
+                          const TextSpan(text: 'I accept the '),
+                          TextSpan(
+                            text: 'Terms & Conditions',
+                            style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline),
+                            recognizer: TapGestureRecognizer()..onTap = _openTerms,
+                          ),
+                          const TextSpan(text: ' (mandatory)'),
+                        ],
+                      ),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (_showValidationErrors && !_isTermsValid)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 12),
+                      child: Text(
+                        'You must accept the Terms & Conditions to continue',
+                        style: TextStyle(color: AppColors.error, fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             if (_errorMessage != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),

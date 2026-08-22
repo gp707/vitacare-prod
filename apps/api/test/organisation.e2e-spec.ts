@@ -61,6 +61,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
         organisation_type: 'hospital',
         city: 'bangalore',
         area: 'Indiranagar',
+        terms_accepted: true,
       })
       .expect(201);
     return res.body.data as { user_id: string; access_token: string };
@@ -160,6 +161,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
           organisation_type: 'hospital',
           city: 'bangalore',
           area: 'Indiranagar',
+          terms_accepted: true,
         })
         .expect(201);
       expect(res.body.data.access_token).toBeDefined();
@@ -177,9 +179,27 @@ describe('Organisation (NurseNow) (e2e)', () => {
           organisation_type: 'clinic',
           city: 'mumbai',
           area: 'Bandra',
+          terms_accepted: true,
         })
         .expect(409);
       expect(res.body.error.code).toBe('AUTH_001');
+    });
+
+    it('rejects registering without accepting terms (PROFILE_009)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register/organisation')
+        .send({
+          phone: testPhone('0055'),
+          code: '1234',
+          organisation_name: 'No Terms Hospital',
+          contact_person_name: 'Someone',
+          organisation_type: 'hospital',
+          city: 'bangalore',
+          area: 'Indiranagar',
+          terms_accepted: false,
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('PROFILE_009');
     });
 
     it('logs back in with phone + code', async () => {

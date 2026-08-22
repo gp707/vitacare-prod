@@ -579,7 +579,7 @@ describe('Admin (e2e)', () => {
     it('resolves target_patient_number for an individual-account audit entry (e.g. block/unblock)', async () => {
       const individual = await request(app.getHttpServer())
         .post('/v1/auth/register/individual')
-        .send({ phone: '+917000030040', full_name: 'Audit Individual Subject', code: '1234' })
+        .send({ phone: '+917000030040', full_name: 'Audit Individual Subject', terms_accepted: true, code: '1234' })
         .expect(201);
       await request(app.getHttpServer())
         .patch(`/v1/admin/individuals/${individual.body.data.user_id}/block`)

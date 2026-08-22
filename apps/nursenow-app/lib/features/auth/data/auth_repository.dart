@@ -16,12 +16,14 @@ class AuthRepository {
   Future<AuthResult> register({
     required String phone,
     required String fullName,
+    required bool termsAccepted,
     required String code,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.registerIndividual, data: {
         'phone': phone,
         'full_name': fullName,
+        'terms_accepted': termsAccepted,
         'code': code,
       });
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
@@ -41,6 +43,7 @@ class AuthRepository {
     required String organisationType,
     required String city,
     required String area,
+    required bool termsAccepted,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.registerOrganisation, data: {
@@ -51,6 +54,7 @@ class AuthRepository {
         'organisation_type': organisationType,
         'city': city,
         'area': area,
+        'terms_accepted': termsAccepted,
       });
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

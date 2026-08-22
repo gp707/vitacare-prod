@@ -10,6 +10,7 @@ export interface IndividualProfileRecord {
   patient_number: number;
   is_job_posting_blocked: boolean;
   block_reason: string | null;
+  terms_accepted: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -22,11 +23,11 @@ export interface IndividualProfileRecord {
 export class IndividualProfilesRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  async create(userId: string, client?: PoolClient): Promise<IndividualProfileRecord> {
+  async create(userId: string, termsAccepted: boolean, client?: PoolClient): Promise<IndividualProfileRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<IndividualProfileRecord>(
-      `INSERT INTO individual_profiles (user_id) VALUES ($1) RETURNING *`,
-      [userId],
+      `INSERT INTO individual_profiles (user_id, terms_accepted) VALUES ($1, $2) RETURNING *`,
+      [userId, termsAccepted],
     );
     return result.rows[0];
   }

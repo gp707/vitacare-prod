@@ -82,6 +82,9 @@ export interface MyApplicationSummary {
   rejected_at: Date | null;
   completed_at: Date | null;
   decided_by_admin: boolean;
+  /** Only ever set when status is 'rejected' — surfaced so the caregiver
+   *  can see why, not just that they were declined. */
+  decline_reason: string | null;
 }
 
 export interface JobWithMyApplication extends JobRecord {
@@ -374,7 +377,8 @@ export class JobsRepository {
              'accepted_at', ja.accepted_at,
              'rejected_at', ja.rejected_at,
              'completed_at', ja.completed_at,
-             'decided_by_admin', ja.decided_by IS NOT NULL
+             'decided_by_admin', ja.decided_by IS NOT NULL,
+             'decline_reason', ja.decline_reason
            ) END AS my_application
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
@@ -409,7 +413,8 @@ export class JobsRepository {
            'accepted_at', ja.accepted_at,
            'rejected_at', ja.rejected_at,
            'completed_at', ja.completed_at,
-           'decided_by_admin', ja.decided_by IS NOT NULL
+           'decided_by_admin', ja.decided_by IS NOT NULL,
+           'decline_reason', ja.decline_reason
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja

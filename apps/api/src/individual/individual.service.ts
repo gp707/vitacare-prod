@@ -1,13 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import {
-  AuditAction,
-  Config,
-  JobApplicationStatus,
-  JobStatus,
-  UserRole,
-  VerificationStatus,
-} from '@vitacare/shared-constants';
+import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
@@ -15,7 +8,7 @@ import { JobApplicationsRepository } from '../database/repositories/job-applicat
 import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
 import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
-import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
+import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { AuditService } from '../audit/audit.service';
 import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
@@ -37,7 +30,7 @@ export class IndividualService {
     private readonly jobsService: JobsService,
     private readonly auditService: AuditService,
     private readonly caregiverService: CaregiverService,
-    private readonly adminCaregiversRepo: AdminCaregiversRepository,
+    private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -192,12 +185,16 @@ export class IndividualService {
    *  (rejection_reason set) or already cancelled once (JOB_015 either
    *  way). Every still applied/accepted application is bulk-rejected with
    *  a fixed system reason and, for any that was accepted, that caregiver
-   *  is flipped back to available — mirroring what an admin undoing a
-   *  single acceptance does, just for however many applications this job
-   *  happens to have at once (in practice 0 or 1 accepted, but possibly
-   *  several still-applied ones alongside it). Deliberately does NOT reuse
-   *  JobsService.decideApplication — its per-application accept/reopen
-   *  semantics don't fit a bulk cancel-and-close. Once cancelled, the
+   *  is flipped back to available via the same plain status-only flip the
+   *  caregiver's own self-service "mark available" endpoint uses
+   *  (CaregiverProfilesRepository.markAvailable) — deliberately NOT
+   *  AdminCaregiversRepository.updateStatus, which re-stamps verified_by
+   *  with whoever it's given; the patient cancelling isn't a verifier, and
+   *  stamping their user id there would leave a dangling identity in a
+   *  column that's supposed to mean "the admin who verified this
+   *  caregiver". Deliberately does NOT reuse JobsService.decideApplication
+   *  either — its per-application accept/reopen semantics don't fit a
+   *  bulk cancel-and-close. Once cancelled, the
    *  individual's own view of past applicants/phone numbers is hidden
    *  (see getMyRequirementApplications/getApplicantProfile below); the
    *  account can immediately post (or clone) a new requirement, since a
@@ -221,13 +218,7 @@ export class IndividualService {
           'This requirement was cancelled.',
         );
         if (application.status === JobApplicationStatus.ACCEPTED) {
-          await this.adminCaregiversRepo.updateStatus(
-            application.profile_id,
-            VerificationStatus.AVAILABLE,
-            null,
-            userId,
-            client,
-          );
+          await this.caregiverProfilesRepo.markAvailable(application.profile_id, client);
         }
       }
       await this.jobsRepo.cancel(jobId, client);

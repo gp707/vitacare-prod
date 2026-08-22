@@ -95,6 +95,61 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
+  /// Withdraws a still-`applied` (not yet accepted) application — reuses
+  /// the exact same apply endpoint with status 'rejected' that the
+  /// pre-apply "Reject" button already calls (a caregiver-initiated
+  /// withdrawal and a caregiver declining outright are the same server
+  /// action: `decided_by` stays null either way, which is what tells the
+  /// patient/family's own view "the caregiver did this", not them). Once
+  /// this lands, the patient can no longer accept this caregiver for the
+  /// job (JOB_007 backstops it server-side even if the UI somehow let
+  /// them try), and the caregiver's phone number drops out of the
+  /// patient's view of this application.
+  Future<void> _withdrawJob(JobModel job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Close this job?'),
+        content: const Text(
+          "This withdraws your application. The patient/employer won't be able to accept you for this job "
+          "anymore, and your contact details will no longer be shown to them.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Close Job'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _applyToJob(job, JobApplicationStatus.rejected);
+  }
+
+  /// Same as [_withdrawJob], for an organisation requirement.
+  Future<void> _withdrawRequirement(OrganisationRequirementModel requirement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Close this requirement?'),
+        content: const Text(
+          "This withdraws your application. The organisation won't be able to accept you for this "
+          "requirement anymore, and your contact details will no longer be shown to them.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Close Requirement'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _applyToRequirement(requirement, JobApplicationStatus.rejected);
+  }
+
   List<_Listing> _mergedListings() {
     final listings = <_Listing>[
       ..._jobs.map(_JobListing.new),
@@ -156,6 +211,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           isApplying: _applyingId.contains(listing.job.id),
                           onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
                           onReject: () => _applyToJob(listing.job, JobApplicationStatus.rejected),
+                          onWithdraw: () => _withdrawJob(listing.job),
                         )
                       else if (listing is _RequirementListing)
                         _RequirementCard(
@@ -163,6 +219,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           isApplying: _applyingId.contains(listing.requirement.id),
                           onApply: () => _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
                           onReject: () => _applyToRequirement(listing.requirement, JobApplicationStatus.rejected),
+                          onWithdraw: () => _withdrawRequirement(listing.requirement),
                         ),
                       const SizedBox(height: AppSpacing.md),
                     ],
@@ -200,12 +257,14 @@ class _JobCard extends StatelessWidget {
   final bool isApplying;
   final VoidCallback onApply;
   final VoidCallback onReject;
+  final VoidCallback onWithdraw;
 
   const _JobCard({
     required this.job,
     required this.isApplying,
     required this.onApply,
     required this.onReject,
+    required this.onWithdraw,
   });
 
   @override
@@ -223,9 +282,20 @@ class _JobCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (job.myApplication != null)
-            _ApplicationTimeline(job.myApplication!)
-          else
+          else if (job.myApplication != null) ...[
+            _ApplicationTimeline(job.myApplication!),
+            // A caregiver can withdraw anytime while the patient/employer
+            // still hasn't decided — once accepted, closing happens from
+            // MyJobs instead (see my_assignment_screen.dart), and once
+            // already rejected/completed there's nothing left to close.
+            if (job.myApplication!.status == JobApplicationStatus.applied) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Close Job')),
+              ),
+            ],
+          ] else
             Row(
               children: [
                 Expanded(
@@ -248,12 +318,14 @@ class _RequirementCard extends StatelessWidget {
   final bool isApplying;
   final VoidCallback onApply;
   final VoidCallback onReject;
+  final VoidCallback onWithdraw;
 
   const _RequirementCard({
     required this.requirement,
     required this.isApplying,
     required this.onApply,
     required this.onReject,
+    required this.onWithdraw,
   });
 
   @override
@@ -334,9 +406,16 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (requirement.myApplication != null)
-            _ApplicationTimeline(requirement.myApplication!)
-          else
+          else if (requirement.myApplication != null) ...[
+            _ApplicationTimeline(requirement.myApplication!),
+            if (requirement.myApplication!.status == JobApplicationStatus.applied) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Close Requirement')),
+              ),
+            ],
+          ] else
             Row(
               children: [
                 Expanded(child: ElevatedButton(onPressed: onApply, child: const Text('Apply'))),
@@ -392,6 +471,9 @@ class _ApplicationTimeline extends StatelessWidget {
     if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
       final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined';
       lines.add('$label: ${formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+      if (application.declineReason != null && application.declineReason!.isNotEmpty) {
+        lines.add('Reason: ${application.declineReason!}');
+      }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

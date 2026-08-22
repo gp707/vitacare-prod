@@ -317,7 +317,7 @@ describe('Auth (e2e)', () => {
       // succeeds since caregiver and individual are separate app buckets.
       const individual = await request(app.getHttpServer())
         .post('/v1/auth/register/individual')
-        .send({ phone, full_name: 'Cross App Patient', code: '5678' })
+        .send({ phone, full_name: 'Cross App Patient', terms_accepted: true, code: '5678' })
         .expect(201);
 
       expect(individual.body.data.user_id).not.toBe(caregiver.body.data.user_id);
@@ -367,6 +367,7 @@ describe('Auth (e2e)', () => {
           organisation_type: 'hospital',
           city: 'bangalore',
           area: 'Indiranagar',
+          terms_accepted: true,
         })
         .expect(409);
       expect(dupeOrg.body.error.code).toBe('AUTH_001');

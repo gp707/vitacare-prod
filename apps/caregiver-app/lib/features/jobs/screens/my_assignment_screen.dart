@@ -64,20 +64,26 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     }
   }
 
+  /// Closing an accepted job is the only exit from `assigned` for it —
+  /// same server call as the old "Mark Complete" (job_applications.status
+  /// -> completed), relabeled since a caregiver-initiated close IS the
+  /// completion event now; no separate "mark complete" step exists. The
+  /// patient/family sees this as "closed by the caregiver" on their side
+  /// (see nursenow-app's _DecidedApplicantTile).
   Future<void> _completeJob(JobModel job) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Mark job as complete?'),
+        title: const Text('Close this job?'),
         content: Text(
-          "This marks ${jobDisplayId(job)} as finished. If you don't have any other accepted jobs, "
+          "This marks ${jobDisplayId(job)} as closed. If you don't have any other accepted jobs, "
           "you'll be shown as available for new ones again.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Mark Complete'),
+            child: const Text('Close Job'),
           ),
         ],
       ),
@@ -92,8 +98,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               stillAssigned
-                  ? '${jobDisplayId(job)} marked complete.'
-                  : "${jobDisplayId(job)} marked complete. You're now available for new jobs.",
+                  ? '${jobDisplayId(job)} closed.'
+                  : "${jobDisplayId(job)} closed. You're now available for new jobs.",
             ),
           ),
         );
@@ -112,16 +118,16 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Mark requirement as complete?'),
+        title: const Text('Close this requirement?'),
         content: Text(
-          "This marks ${organisationJobDisplayId(requirement)} as finished. If you don't have any other "
+          "This marks ${organisationJobDisplayId(requirement)} as closed. If you don't have any other "
           "accepted jobs or requirements, you'll be shown as available for new ones again.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Mark Complete'),
+            child: const Text('Close Requirement'),
           ),
         ],
       ),
@@ -136,8 +142,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               verificationStatus == VerificationStatus.assigned
-                  ? '${organisationJobDisplayId(requirement)} marked complete.'
-                  : "${organisationJobDisplayId(requirement)} marked complete. You're now available for new jobs.",
+                  ? '${organisationJobDisplayId(requirement)} closed.'
+                  : "${organisationJobDisplayId(requirement)} closed. You're now available for new jobs.",
             ),
           ),
         );
@@ -292,7 +298,7 @@ class _AssignedJobCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(
-              'Completed',
+              'Closed',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[
@@ -311,7 +317,7 @@ class _AssignedJobCard extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Mark Complete'),
+                    : const Text('Close Job'),
               ),
             ),
           ],
@@ -391,7 +397,7 @@ class _AssignedRequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(
-              'Completed',
+              'Closed',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[
@@ -410,7 +416,7 @@ class _AssignedRequirementCard extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Mark Complete'),
+                    : const Text('Close Requirement'),
               ),
             ),
           ],

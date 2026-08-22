@@ -134,6 +134,7 @@ JobApplicationModel _application({
   String? acceptedAt,
   String? rejectedAt,
   String? decidedByName,
+  String? declineReason,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -146,6 +147,7 @@ JobApplicationModel _application({
     'accepted_at': acceptedAt,
     'rejected_at': rejectedAt,
     'decided_by_name': decidedByName,
+    'decline_reason': declineReason,
     'updated_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -1324,6 +1326,29 @@ void main() {
           'Declined by Priya Admin: ${_expectedDateTime('2026-08-03T09:15:00Z')}'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'Applicants dialog shows the decline reason when a NurseNow patient rejected the caregiver',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      applications: [
+        _application(
+          status: 'rejected',
+          appliedAt: '2026-08-01T10:00:00Z',
+          rejectedAt: '2026-08-03T09:15:00Z',
+          decidedByName: 'Asha Patel',
+          declineReason: 'Not available on the requested days',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reason: Not available on the requested days'), findsOneWidget);
   });
 
   testWidgets(

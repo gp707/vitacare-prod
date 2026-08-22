@@ -200,6 +200,10 @@ class _ApplicationTimeline extends StatelessWidget {
       final label = decider != null ? 'Declined by $decider' : 'Declined';
       lines.add(
           '$label: ${_formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+      if (application.declineReason != null &&
+          application.declineReason!.isNotEmpty) {
+        lines.add('Reason: ${application.declineReason!}');
+      }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

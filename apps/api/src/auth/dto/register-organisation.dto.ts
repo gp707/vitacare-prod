@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { Equals, IsIn, IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 import { City, OrganisationType, Validation } from '@vitacare/shared-constants';
 
 /** Organisation (hospital/rehab/clinic) registration — phone/PIN like
@@ -33,4 +33,11 @@ export class RegisterOrganisationDto {
   @IsNotEmpty({ message: 'GEN_001' })
   @MaxLength(500, { message: 'GEN_001' })
   area!: string;
+
+  /** Same PROFILE_009 code caregiver/individual registration uses —
+   *  nursenow-app links out to an Organisation-specific Terms &
+   *  Conditions document (distinct from the Individual one) before this
+   *  can be checked. */
+  @Equals(true, { message: 'PROFILE_009' })
+  terms_accepted!: boolean;
 }

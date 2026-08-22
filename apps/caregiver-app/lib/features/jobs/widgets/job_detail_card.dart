@@ -162,7 +162,8 @@ class _JobDetailCardState extends State<JobDetailCard> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
-          '${City.displayNames[job.city] ?? job.city}',
+          '${City.displayNames[job.city] ?? job.city}'
+          '${job.careReceiver != null ? ' · ${capitalize(job.careReceiver!.gender)} Patient' : ''}',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 2),

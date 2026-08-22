@@ -11,7 +11,7 @@ describe('IndividualService', () => {
   let jobsService: any;
   let auditService: any;
   let caregiverService: any;
-  let adminCaregiversRepo: any;
+  let caregiverProfilesRepo: any;
 
   const careReceiverDto = {
     age: 70,
@@ -60,7 +60,7 @@ describe('IndividualService', () => {
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
-    adminCaregiversRepo = { updateStatus: jest.fn() };
+    caregiverProfilesRepo = { markAvailable: jest.fn() };
 
     service = new IndividualService(
       db,
@@ -72,7 +72,7 @@ describe('IndividualService', () => {
       jobsService,
       auditService,
       caregiverService,
-      adminCaregiversRepo,
+      caregiverProfilesRepo,
     );
   });
 
@@ -493,13 +493,7 @@ describe('IndividualService', () => {
 
       const result = await service.cancelRequirement('user-1', 'job-1', null);
 
-      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
-        'profile-1',
-        'available',
-        null,
-        'user-1',
-        client,
-      );
+      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('profile-1', client);
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
       expect(result.rejected_applications).toBe(1);
     });
@@ -513,7 +507,7 @@ describe('IndividualService', () => {
       const result = await service.cancelRequirement('user-1', 'job-1', '127.0.0.1');
 
       expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
-      expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', action: 'job_closed', entityId: 'job-1' }),
@@ -548,14 +542,8 @@ describe('IndividualService', () => {
       );
       // Only the accepted applicant is flipped back to available — the
       // still-applied one was never assigned in the first place.
-      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledTimes(1);
-      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
-        'profile-2',
-        'available',
-        null,
-        'user-1',
-        client,
-      );
+      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledTimes(1);
+      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('profile-2', client);
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
       expect(result.rejected_applications).toBe(2);
     });

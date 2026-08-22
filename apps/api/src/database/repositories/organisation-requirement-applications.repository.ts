@@ -156,7 +156,8 @@ export class OrganisationRequirementApplicationsRepository {
            'accepted_at', ora.accepted_at,
            'rejected_at', ora.rejected_at,
            'completed_at', ora.completed_at,
-           'decided_by_admin', ora.decided_by IS NOT NULL
+           'decided_by_admin', ora.decided_by IS NOT NULL,
+           'decline_reason', ora.decline_reason
          ) AS my_application
        FROM organisation_requirement_applications ora
        JOIN organisation_requirements r ON r.id = ora.requirement_id

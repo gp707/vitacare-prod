@@ -213,7 +213,12 @@ describe('AuthService', () => {
     it('throws AUTH_001 when phone already registered', async () => {
       usersRepo.findByPhoneAndRoles.mockResolvedValue(individualUser);
       await expect(
-        service.registerIndividual({ phone: individualUser.phone, full_name: 'Asha Patel', code: '1234' }),
+        service.registerIndividual({
+          phone: individualUser.phone,
+          full_name: 'Asha Patel',
+          terms_accepted: true,
+          code: '1234',
+        }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
     });
 
@@ -225,12 +230,13 @@ describe('AuthService', () => {
       const result = await service.registerIndividual({
         phone: individualUser.phone,
         full_name: 'Asha Patel',
+        terms_accepted: true,
         code: '1234',
       });
 
       expect(result.user_id).toBe(individualUser.id);
       expect(result).not.toHaveProperty('verification_status');
-      expect(individualProfilesRepo.create).toHaveBeenCalledWith(individualUser.id, client);
+      expect(individualProfilesRepo.create).toHaveBeenCalledWith(individualUser.id, true, client);
       const [insertQuery, insertParams] = client.query.mock.calls[0];
       expect(insertQuery).toContain('code_hash');
       expect(insertParams).toEqual([individualUser.phone, 'Asha Patel', UserRole.INDIVIDUAL, expect.any(String)]);
@@ -250,6 +256,7 @@ describe('AuthService', () => {
       organisation_type: 'hospital',
       city: 'bangalore',
       area: 'Indiranagar',
+      terms_accepted: true,
     };
 
     it('throws AUTH_001 when phone already registered', async () => {
@@ -274,6 +281,7 @@ describe('AuthService', () => {
           organisation_type: 'hospital',
           city: 'bangalore',
           area: 'Indiranagar',
+          terms_accepted: true,
         },
         client,
       );

@@ -669,6 +669,21 @@ class _DecidedApplicantTile extends StatelessWidget {
   const _DecidedApplicantTile({required this.application});
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
+  bool get _isCompleted => application.status == JobApplicationStatus.completed;
+  bool get _isRejected => application.status == JobApplicationStatus.rejected;
+
+  /// A rejected application with no decider is a caregiver's own
+  /// withdrawal (closing a job they applied to before being accepted) —
+  /// same `decided_by IS NULL` convention used everywhere else to tell a
+  /// self-action apart from the patient's own decision.
+  bool get _isRejectedByCaregiver => _isRejected && application.decidedBy == null;
+
+  String get _statusLabel {
+    if (_isAccepted) return 'Accepted';
+    if (_isCompleted) return 'Closed by Caregiver';
+    if (_isRejectedByCaregiver) return 'Rejected by Caregiver';
+    return _capitalize(application.status);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -699,7 +714,7 @@ class _DecidedApplicantTile extends StatelessWidget {
                 ),
               ),
               Text(
-                _isAccepted ? 'Accepted' : _capitalize(application.status),
+                _statusLabel,
                 style: TextStyle(
                   color: _isAccepted ? AppColors.success : AppColors.textSecondary,
                   fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
@@ -707,8 +722,11 @@ class _DecidedApplicantTile extends StatelessWidget {
               ),
             ],
           ),
-          Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
-          if (!_isAccepted && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
+          // Phone stays visible for an accepted OR closed (completed)
+          // engagement — only a rejection (by either side) hides it, since
+          // there's no ongoing relationship to contact them about anymore.
+          if (!_isRejected) Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+          if (_isRejected && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
               'Your reason: ${application.declineReason!}',

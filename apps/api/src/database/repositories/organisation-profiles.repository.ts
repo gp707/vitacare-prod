@@ -15,6 +15,7 @@ export interface OrganisationProfileRecord {
   area: string;
   is_job_posting_blocked: boolean;
   block_reason: string | null;
+  terms_accepted: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -25,6 +26,7 @@ export interface CreateOrganisationProfileInput {
   organisation_type: string;
   city: string;
   area: string;
+  terms_accepted: boolean;
 }
 
 /** Self-service side of an organisation account — mirrors
@@ -42,9 +44,18 @@ export class OrganisationProfilesRepository {
   ): Promise<OrganisationProfileRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<OrganisationProfileRecord>(
-      `INSERT INTO organisation_profiles (user_id, organisation_name, contact_person_name, organisation_type, city, area)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [userId, input.organisation_name, input.contact_person_name, input.organisation_type, input.city, input.area],
+      `INSERT INTO organisation_profiles
+         (user_id, organisation_name, contact_person_name, organisation_type, city, area, terms_accepted)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        userId,
+        input.organisation_name,
+        input.contact_person_name,
+        input.organisation_type,
+        input.city,
+        input.area,
+        input.terms_accepted,
+      ],
     );
     return result.rows[0];
   }

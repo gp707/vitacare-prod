@@ -68,6 +68,7 @@ JobApplicationModel _application({
   String fullName = 'Test Caregiver',
   String appliedAt = '2026-08-01T10:00:00Z',
   String? declineReason,
+  String? decidedBy,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -78,6 +79,7 @@ JobApplicationModel _application({
     'phone': '+919876543210',
     'applied_at': appliedAt,
     'decline_reason': declineReason,
+    'decided_by': decidedBy,
     'updated_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -385,6 +387,81 @@ void main() {
     );
 
     expect(find.text('Your reason: Not available on weekends'), findsOneWidget);
+  });
+
+  testWidgets('hides a rejected candidate\'s phone number in the read-only history', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
+        },
+      ),
+    );
+
+    expect(find.text('+919876543210'), findsNothing);
+  });
+
+  testWidgets('still shows an accepted candidate\'s phone number', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'accepted')],
+        },
+      ),
+    );
+
+    expect(find.text('+919876543210'), findsOneWidget);
+  });
+
+  testWidgets('shows "Rejected by Caregiver" and still shows the phone when the caregiver closed the job themselves '
+      'before being accepted', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected')], // decidedBy omitted — self-withdrawal
+        },
+      ),
+    );
+
+    expect(find.text('Rejected by Caregiver'), findsOneWidget);
+    expect(find.text('+919876543210'), findsNothing);
+  });
+
+  testWidgets('shows plain "Rejected" (not "by Caregiver") when the patient was the one who declined them',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
+        },
+      ),
+    );
+
+    expect(find.text('Rejected'), findsOneWidget);
+    expect(find.text('Rejected by Caregiver'), findsNothing);
+  });
+
+  testWidgets('shows "Closed by Caregiver" and still shows the phone for a completed engagement', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'completed')],
+        },
+      ),
+    );
+
+    expect(find.text('Closed by Caregiver'), findsOneWidget);
+    expect(find.text('+919876543210'), findsOneWidget);
   });
 
   testWidgets('shows an Edit button when there is no active application', (tester) async {

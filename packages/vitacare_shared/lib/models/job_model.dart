@@ -31,6 +31,11 @@ class MyApplicationModel {
   final String? rejectedAt;
   final String? completedAt;
   final bool decidedByAdmin;
+  /// Only ever set when [status] is 'rejected' — the reason text the
+  /// decider gave (mandatory for a NurseNow individual's own reject/cancel
+  /// flow, optional for admin's). Null for a caregiver's own self-decline,
+  /// which never collects a reason.
+  final String? declineReason;
 
   const MyApplicationModel({
     required this.status,
@@ -39,6 +44,7 @@ class MyApplicationModel {
     this.rejectedAt,
     this.completedAt,
     required this.decidedByAdmin,
+    this.declineReason,
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -48,6 +54,7 @@ class MyApplicationModel {
         rejectedAt: json['rejected_at'] as String?,
         completedAt: json['completed_at'] as String?,
         decidedByAdmin: json['decided_by_admin'] as bool,
+        declineReason: json['decline_reason'] as String?,
       );
 }
 
