@@ -75,6 +75,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_010: { status: 403, message: 'Your account is blocked from posting new requirements' },
   JOB_011: { status: 400, message: 'Only a pending-review requirement can be rejected' },
   JOB_012: { status: 400, message: 'A reason is required when declining an applicant' },
+  JOB_013: { status: 400, message: 'Salary and frequency of care can only be edited after admin has approved the requirement at least once' },
+  JOB_014: { status: 400, message: 'This requirement cannot be edited while it has an active application' },
 
   // Organisation errors (NurseNow)
   ORG_001: { status: 400, message: 'End date cannot be before start date' },

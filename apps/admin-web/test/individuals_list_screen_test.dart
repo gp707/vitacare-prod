@@ -139,6 +139,11 @@ void main() {
     );
 
     expect(find.text('Posting blocked: Suspicious activity'), findsOneWidget);
+
+    // Block/unblock actions live behind the row's overflow menu now (see
+    // _ActionsCell) — the label text isn't in the tree until it's opened.
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
     expect(find.text('Unblock Posting'), findsOneWidget);
   });
 
@@ -151,6 +156,9 @@ void main() {
     );
 
     expect(find.text('Blocked: Fraudulent postings'), findsOneWidget);
+
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
     expect(find.text('Unblock'), findsOneWidget);
   });
 
@@ -160,6 +168,8 @@ void main() {
     final repo = _FakeAdminIndividualsRepository([_item()]);
     await _pump(tester, repo);
 
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Block Posting'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -179,14 +189,9 @@ void main() {
     final repo = _FakeAdminIndividualsRepository([_item()]);
     await _pump(tester, repo);
 
-    // The Actions column's second button sits at a DataTable-computed
-    // offset that Flutter's simulated tap sometimes lands just outside of
-    // (a known DataTable/Wrap hit-testing quirk) — invoking the button's
-    // own callback exercises the exact same code path without relying on
-    // pixel-perfect tap coordinates.
-    tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Block'))
-        .onPressed!();
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Block Profile'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -200,9 +205,9 @@ void main() {
     final repo = _FakeAdminIndividualsRepository([_item(isActive: false)]);
     await _pump(tester, repo);
 
-    tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Unblock'))
-        .onPressed!();
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unblock'));
     await tester.pumpAndSettle();
 
     expect(repo.unblockedUserId, 'u1');

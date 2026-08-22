@@ -135,6 +135,20 @@ export class JobApplicationsRepository {
     return Number(result.rows[0].count);
   }
 
+  /** Whether this job has any applied/accepted application — used to
+   *  block a NurseNow individual from editing their own requirement once
+   *  a caregiver has responded (see IndividualService.editRequirement),
+   *  so an edit can't change terms out from under a pending/accepted
+   *  applicant. Rejected/completed applications don't count — only the
+   *  two "live" statuses do. */
+  async hasActiveApplicationForJob(jobId: string): Promise<boolean> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM job_applications WHERE job_id = $1 AND status IN ('applied', 'accepted')`,
+      [jobId],
+    );
+    return Number(result.rows[0].count) > 0;
+  }
+
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name

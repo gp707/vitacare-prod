@@ -265,15 +265,6 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          // The Actions column's 3 buttons (View Jobs + a job-posting-block
-          // toggle + a full-block toggle) don't always fit on one line —
-          // "Unblock Posting"/"Unblock" are wider than "Block Posting"/
-          // "Block" — and DataTable uses one fixed row height for every
-          // row regardless of content, so a row that wraps to 2 lines
-          // would otherwise overlap the row below it. Give every row
-          // enough room to fit 2 lines.
-          dataRowMinHeight: 56,
-          dataRowMaxHeight: 96,
           columns: const [
             DataColumn(label: Text('ID')),
             DataColumn(label: Text('Name')),
@@ -385,43 +376,35 @@ class _ActionsCell extends StatelessWidget {
     required this.onUnblockFull,
   });
 
-  // Tighter than TextButton's default padding/minimum tap target — with 3
-  // buttons sharing one Actions cell, the default sizing makes "Unblock
-  // Posting" + "Unblock" + "View Jobs" wrap to a second line far more
-  // often than necessary at typical desktop widths.
-  static const _buttonStyle = ButtonStyle(
-    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: AppSpacing.sm)),
-    minimumSize: WidgetStatePropertyAll(Size(0, 32)),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  );
-
+  // A DataTable row has one fixed height shared by every row in the
+  // table — a Wrap of 3 text buttons whose labels vary in width by state
+  // ("Unblock Posting"/"Unblock" vs "Block Posting"/"Block Profile") could
+  // wrap to a second line on some rows but not others, and that second
+  // line had nowhere to go but overlap into the row below (confirmed live
+  // — widening the row height wasn't enough to reliably fix it). Moving
+  // the two block toggles into an overflow menu means this cell is always
+  // exactly one button + one fixed-size icon button, on one line, at any
+  // width — the popup's own item labels don't affect row layout at all.
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.xs,
-      // If the 3 buttons still don't fit on one line at a given width, a
-      // wrapped second line needs a visible gap — DataTable's row height
-      // is set generously (see the DataTable above) specifically to fit
-      // this, but with zero runSpacing the two lines would still visually
-      // touch.
-      runSpacing: AppSpacing.xs,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        TextButton(style: _buttonStyle, onPressed: onViewJobs, child: const Text('View Jobs')),
-        if (item.isJobPostingBlocked)
-          TextButton(
-              style: _buttonStyle,
-              onPressed: onUnblockJobPosting,
-              child: const Text('Unblock Posting'))
-        else
-          TextButton(
-              style: _buttonStyle,
-              onPressed: onBlockJobPosting,
-              child: const Text('Block Posting')),
-        if (item.isActive)
-          TextButton(style: _buttonStyle, onPressed: onBlockFull, child: const Text('Block'))
-        else
-          TextButton(style: _buttonStyle, onPressed: onUnblockFull, child: const Text('Unblock')),
+        TextButton(onPressed: onViewJobs, child: const Text('View Jobs')),
+        PopupMenuButton<VoidCallback>(
+          tooltip: 'More actions',
+          onSelected: (action) => action(),
+          itemBuilder: (context) => [
+            if (item.isJobPostingBlocked)
+              PopupMenuItem(value: onUnblockJobPosting, child: const Text('Unblock Posting'))
+            else
+              PopupMenuItem(value: onBlockJobPosting, child: const Text('Block Posting')),
+            if (item.isActive)
+              PopupMenuItem(value: onBlockFull, child: const Text('Block Profile'))
+            else
+              PopupMenuItem(value: onUnblockFull, child: const Text('Unblock')),
+          ],
+        ),
       ],
     );
   }

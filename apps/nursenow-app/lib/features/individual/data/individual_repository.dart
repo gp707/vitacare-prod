@@ -106,6 +106,48 @@ class IndividualRepository {
     }
   }
 
+  /// Edits any field of the caller's own requirement in place — allowed
+  /// regardless of its current status (pending_review/active/closed), as
+  /// long as it has no active (applied/accepted) application (JOB_014
+  /// otherwise). No admin re-review is triggered, so this can be called
+  /// any number of times. [frequencyOfCare]/[salaryAmount] are only
+  /// accepted once admin has approved the requirement at least once
+  /// (JOB_013 if sent before that) — omit them entirely while the
+  /// requirement is still pending_review, same as at creation.
+  Future<JobModel> editRequirement(
+    String jobId, {
+    required CareReceiverInput careReceiver,
+    required String city,
+    required String area,
+    String? description,
+    required String dutyType,
+    required String startDate,
+    required List<String> languages,
+    String? preferredGender,
+    String? preferredReligion,
+    String? frequencyOfCare,
+    int? salaryAmount,
+  }) async {
+    try {
+      final res = await _dio.patch(ApiRoutes.individualRequirement(jobId), data: {
+        'care_receiver': careReceiver.toJson(),
+        'city': city,
+        'area': area,
+        if (description != null && description.isNotEmpty) 'description': description,
+        'duty_type': dutyType,
+        'start_date': startDate,
+        'languages': languages,
+        if (preferredGender != null) 'preferred_gender': preferredGender,
+        if (preferredReligion != null) 'preferred_religion': preferredReligion,
+        if (frequencyOfCare != null) 'frequency_of_care': frequencyOfCare,
+        if (salaryAmount != null) 'salary_amount': salaryAmount,
+      });
+      return JobModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// In practice zero-or-one given the one-live-requirement rule, but
   /// shaped as a list for durable history (a closed/rejected/completed
   /// requirement stays visible instead of disappearing).

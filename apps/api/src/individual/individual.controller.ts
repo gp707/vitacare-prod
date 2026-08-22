@@ -8,6 +8,7 @@ import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { IndividualService } from './individual.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
+import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
@@ -36,6 +37,17 @@ export class IndividualController {
   @Get('requirements')
   listRequirements(@CurrentUser() user: JwtPayload) {
     return this.individualService.listMyRequirements(user.sub);
+  }
+
+  @Patch('requirements/:jobId')
+  @HttpCode(HttpStatus.OK)
+  editRequirement(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Body() dto: UpdateIndividualRequirementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.editRequirement(user.sub, jobId, dto, ip);
   }
 
   @Patch('profile/phone')

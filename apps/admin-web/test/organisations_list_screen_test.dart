@@ -146,6 +146,17 @@ void main() {
     );
 
     expect(find.text('Posting blocked: Suspicious activity'), findsOneWidget);
+
+    // Block/unblock actions live behind the row's overflow menu now (see
+    // _ActionsCell) — the label text isn't in the tree until it's opened.
+    // ensureVisible first: this row's long block-reason text widens the
+    // Status column enough to push the Actions menu past the horizontally-
+    // scrolling DataTable's initial viewport.
+    final menu = find.byType(PopupMenuButton<VoidCallback>);
+    await tester.ensureVisible(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
     expect(find.text('Unblock Posting'), findsOneWidget);
   });
 
@@ -158,6 +169,12 @@ void main() {
     );
 
     expect(find.text('Blocked: Fraudulent postings'), findsOneWidget);
+
+    final menu = find.byType(PopupMenuButton<VoidCallback>);
+    await tester.ensureVisible(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
     expect(find.text('Unblock'), findsOneWidget);
   });
 
@@ -167,6 +184,8 @@ void main() {
     final repo = _FakeAdminOrganisationsRepository([_item()]);
     await _pump(tester, repo);
 
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Block Posting'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -187,9 +206,9 @@ void main() {
     final repo = _FakeAdminOrganisationsRepository([_item(isActive: false)]);
     await _pump(tester, repo);
 
-    tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Unblock'))
-        .onPressed!();
+    await tester.tap(find.byType(PopupMenuButton<VoidCallback>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unblock'));
     await tester.pumpAndSettle();
 
     expect(repo.unblockedUserId, 'u1');

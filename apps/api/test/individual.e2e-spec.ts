@@ -249,6 +249,195 @@ describe('Individual (NurseNow) (e2e)', () => {
     });
   });
 
+  describe('PATCH /v1/individual/requirements/:jobId (patient edit)', () => {
+    it('edits a still-pending_review requirement in place — no status change, salary/frequency stay null', async () => {
+      const individual = await registerIndividual('0036');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const edited = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Koramangala', duty_type: 'day_duty' }))
+        .expect(200);
+
+      expect(edited.body.data.status).toBe('pending_review');
+      expect(edited.body.data.area).toBe('Koramangala');
+      expect(edited.body.data.duty_type).toBe('day_duty');
+      expect(edited.body.data.frequency_of_care).toBeNull();
+      expect(edited.body.data.salary_amount).toBeNull();
+    });
+
+    it('rejects setting salary/frequency before the requirement has ever been admin-reviewed (JOB_013)', async () => {
+      const individual = await registerIndividual('0037');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 2000 }))
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_013');
+    });
+
+    it('allows editing salary/frequency once admin has approved it once, without changing status or resetting for re-review', async () => {
+      const individual = await registerIndividual('0038');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'monthly', salary_amount: 28000 }))
+        .expect(200);
+
+      // Any number of edits, no re-review required — do it twice.
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1500 }))
+        .expect(200);
+      const secondEdit = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Whitefield', frequency_of_care: 'monthly', salary_amount: 32000 }))
+        .expect(200);
+
+      expect(secondEdit.body.data.status).toBe('active');
+      expect(secondEdit.body.data.area).toBe('Whitefield');
+      expect(secondEdit.body.data.frequency_of_care).toBe('monthly');
+      expect(secondEdit.body.data.salary_amount).toBe(32000);
+    });
+
+    it('rejects editing while there is an active (applied) application (JOB_014)', async () => {
+      const individual = await registerIndividual('0039');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0141');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Whitefield' }))
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_014');
+    });
+
+    it('a rejected/cancelled application does not count as active — editing is allowed again once it is rejected', async () => {
+      const individual = await registerIndividual('0040');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0142');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      // Still blocked while the application is 'applied'.
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Whitefield' }))
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'rejected', reason: 'Not a good fit' })
+        .expect(200);
+
+      // Now allowed — the rejected application no longer counts as active.
+      const edited = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Whitefield' }))
+        .expect(200);
+      expect(edited.body.data.area).toBe('Whitefield');
+    });
+
+    it('rejects editing a requirement that belongs to a different individual (GEN_002)', async () => {
+      const owner = await registerIndividual('0043');
+      const outsider = await registerIndividual('0044');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${owner.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .send(requirementPayload())
+        .expect(404);
+      expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const individual = await registerIndividual('0045');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const caregiver = await registerCaregiver('0143');
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send(requirementPayload())
+        .expect(403);
+    });
+  });
+
   describe('Admin approval / rejection of a pending_review requirement', () => {
     it('approving via PATCH /v1/admin/jobs/:id sets frequency_of_care/salary_amount, activates it, and it becomes visible to the individual', async () => {
       const individual = await registerIndividual('0005');

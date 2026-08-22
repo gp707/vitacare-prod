@@ -14,6 +14,7 @@ class ApiRoutes {
   // caregiver (loginCode above), different registration/profile endpoints.
   static const individualMe = '/individual/me';
   static const individualRequirements = '/individual/requirements';
+  static String individualRequirement(String jobId) => '/individual/requirements/$jobId';
   static const individualProfilePhone = '/individual/profile/phone';
   static const individualProfileCode = '/individual/profile/code';
   static String individualRequirementApplications(String jobId) =>

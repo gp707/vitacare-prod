@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
+import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
@@ -96,6 +97,77 @@ export class IndividualService {
       action: AuditAction.JOB_POSTED,
       entityType: 'jobs',
       entityId: job.id,
+      afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
+      ipAddress,
+    });
+
+    return job;
+  }
+
+  /** Edits any field of the individual's own requirement in place — no
+   *  status change, no posted_at bump, no re-broadcast push, and no admin
+   *  re-review required, unlike admin's own PATCH /admin/jobs/:id (which
+   *  auto-reactivates a pending_review/closed job on save). Deliberately
+   *  does NOT reuse JobsService.updateJob, since that method's repost-on-
+   *  edit behavior is exactly what must NOT happen here. Allowed
+   *  regardless of the requirement's current status (pending_review,
+   *  active, or closed) — the only gate is whether a caregiver has
+   *  already responded. frequency_of_care/salary_amount can only be set
+   *  once the requirement has been through at least one admin approval
+   *  (existing.frequency_of_care non-null) — before that, admin hasn't
+   *  chosen them yet, so there's nothing for the individual to edit. */
+  async editRequirement(
+    userId: string,
+    jobId: string,
+    dto: UpdateIndividualRequirementDto,
+    ipAddress: string | null,
+  ) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+
+    const hasActiveApplication = await this.jobApplicationsRepo.hasActiveApplicationForJob(jobId);
+    if (hasActiveApplication) throw new AppException('JOB_014');
+
+    const reviewedBefore = existing.frequency_of_care != null;
+    if (!reviewedBefore && (dto.frequency_of_care !== undefined || dto.salary_amount !== undefined)) {
+      throw new AppException('JOB_013');
+    }
+
+    const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
+
+    const job = await this.db.withTransaction(async (client) => {
+      await this.careReceiversRepo.update(
+        existing.care_receiver_id,
+        applyCareReceiverDefaults(dto.care_receiver),
+        client,
+      );
+      return this.jobsRepo.update(
+        jobId,
+        {
+          city: dto.city,
+          area: dto.area,
+          description: dto.description,
+          duty_type: dto.duty_type,
+          frequency_of_care: reviewedBefore ? (dto.frequency_of_care ?? existing.frequency_of_care) : null,
+          start_time: start,
+          end_time: end,
+          start_date: dto.start_date,
+          languages: dto.languages,
+          salary_amount: reviewedBefore ? (dto.salary_amount ?? existing.salary_amount) : null,
+          preferred_gender: dto.preferred_gender,
+          preferred_religion: dto.preferred_religion,
+          // status intentionally omitted — see doc comment above.
+        },
+        client,
+      );
+    });
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: job.id,
+      beforeValue: { duty_type: existing.duty_type, city: existing.city, status: existing.status },
       afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
       ipAddress,
     });

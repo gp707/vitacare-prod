@@ -61,6 +61,8 @@ class ErrorCodes {
     'JOB_010': 'Your account is blocked from posting new requirements',
     'JOB_011': 'Only a pending-review requirement can be rejected',
     'JOB_012': 'A reason is required when declining an applicant',
+    'JOB_013': 'Salary and frequency of care can only be edited after admin has approved the requirement at least once',
+    'JOB_014': 'This requirement cannot be edited while it has an active application',
     'ORG_001': 'End date cannot be before start date',
     'ORG_002': 'Weekday values must be between 1 (Monday) and 7 (Sunday)',
 

@@ -89,11 +89,31 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? decidedReason;
   String? profileFetchedJobId;
   String? profileFetchedApplicationId;
+  String? editedJobId;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}}) : super(Dio());
 
   @override
   Future<List<JobModel>> listMyRequirements() async => requirements;
+
+  @override
+  Future<JobModel> editRequirement(
+    String jobId, {
+    required CareReceiverInput careReceiver,
+    required String city,
+    required String area,
+    String? description,
+    required String dutyType,
+    required String startDate,
+    required List<String> languages,
+    String? preferredGender,
+    String? preferredReligion,
+    String? frequencyOfCare,
+    int? salaryAmount,
+  }) async {
+    editedJobId = jobId;
+    return requirements.firstWhere((r) => r.id == jobId);
+  }
 
   @override
   Future<List<JobApplicationModel>> listApplications(String jobId) async => applicationsByJobId[jobId] ?? const [];
@@ -357,6 +377,62 @@ void main() {
     );
 
     expect(find.text('Your reason: Not available on weekends'), findsOneWidget);
+  });
+
+  testWidgets('shows an Edit button when there is no active application', (tester) async {
+    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
+
+    expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+    expect(find.textContaining('Editing is locked'), findsNothing);
+  });
+
+  testWidgets(
+      'hides Edit and shows a locked message while there is an active (applied) application',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'applied')],
+        },
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'Edit'), findsNothing);
+    expect(find.textContaining('Editing is locked'), findsOneWidget);
+  });
+
+  testWidgets('rejected/completed applications do not lock editing', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
+        },
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+  });
+
+  testWidgets('tapping Edit opens the edit screen pre-filled with the requirement\'s current values', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Requirement'), findsOneWidget);
+    expect(find.text('74'), findsOneWidget); // age, pre-filled
+    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
+    final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
+    expect(areaField.controller!.text, 'Indiranagar');
   });
 
   testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {

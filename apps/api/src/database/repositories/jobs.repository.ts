@@ -127,12 +127,17 @@ export interface UpdateJobInput {
   area?: string | null;
   description?: string | null;
   duty_type: DutyType;
-  frequency_of_care: FrequencyOfCare;
+  /** Nullable so an individual's own edit of a still-pending_review
+   *  requirement (see IndividualService.editRequirement) can leave this
+   *  unset, same as at creation — admin's own edit path always supplies a
+   *  real value (CreateJobDto requires it). */
+  frequency_of_care: FrequencyOfCare | null;
   start_time?: string | null;
   end_time?: string | null;
   start_date?: string | null;
   languages: Language[];
-  salary_amount: number;
+  /** Nullable for the same reason as frequency_of_care above. */
+  salary_amount: number | null;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
   /** Only set when the edit should also repost a closed job — omitted

@@ -8,6 +8,7 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
+import 'edit_requirement_screen.dart';
 import 'post_requirement_screen.dart';
 
 /// Statuses that count as "live" for the one-live-requirement-at-a-time
@@ -145,6 +146,17 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (posted == true) await _load();
   }
 
+  /// Allowed regardless of the requirement's own status (pending_review/
+  /// active/closed) — only gated on there being no active application
+  /// (see _RequirementCard._hasActiveApplication), matching the backend's
+  /// own JOB_014 check.
+  Future<void> _editRequirement(JobModel requirement) async {
+    final edited = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EditRequirementScreen(requirement: requirement)),
+    );
+    if (edited == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
@@ -196,6 +208,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           onAccept: (applicationId) => _accept(requirement.id, applicationId),
                           onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
+                          onEdit: () => _editRequirement(requirement),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -251,6 +264,7 @@ class _RequirementCard extends StatelessWidget {
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
+  final VoidCallback onEdit;
 
   const _RequirementCard({
     required this.requirement,
@@ -259,9 +273,17 @@ class _RequirementCard extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onEdit,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
+
+  /// Mirrors the backend's own JOB_014 check (job_applications.status IN
+  /// ('applied', 'accepted')) — editing is blocked once a caregiver has
+  /// responded, regardless of the requirement's own status. Rejected/
+  /// completed applications never count.
+  bool get _hasActiveApplication =>
+      applications.any((a) => a.status == JobApplicationStatus.applied || a.status == JobApplicationStatus.accepted);
 
   String get _statusLabel {
     switch (requirement.status) {
@@ -308,6 +330,23 @@ class _RequirementCard extends StatelessWidget {
               Text(jobDisplayId(requirement), style: const TextStyle(fontWeight: FontWeight.bold)),
               Text(_statusLabel, style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
             ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          // Editable regardless of the requirement's own status — the only
+          // gate is whether a caregiver has responded (see
+          // _hasActiveApplication doc comment).
+          Align(
+            alignment: Alignment.centerRight,
+            child: _hasActiveApplication
+                ? const Text(
+                    'Editing is locked while a candidate is awaiting your decision.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
+                  )
+                : TextButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Edit'),
+                  ),
           ),
           if (requirement.status == JobStatus.closed && requirement.rejectionReason != null) ...[
             const SizedBox(height: AppSpacing.xs),

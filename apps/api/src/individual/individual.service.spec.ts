@@ -34,9 +34,18 @@ describe('IndividualService', () => {
       findById: jest.fn(),
       listByPostedBy: jest.fn(),
       findLiveByPostedBy: jest.fn(),
+      update: jest.fn(),
     };
-    jobApplicationsRepo = { findByJobId: jest.fn(), findById: jest.fn() };
-    careReceiversRepo = { create: jest.fn().mockResolvedValue({ id: 'cr-1' }), findById: jest.fn() };
+    jobApplicationsRepo = {
+      findByJobId: jest.fn(),
+      findById: jest.fn(),
+      hasActiveApplicationForJob: jest.fn().mockResolvedValue(false),
+    };
+    careReceiversRepo = {
+      create: jest.fn().mockResolvedValue({ id: 'cr-1' }),
+      update: jest.fn(),
+      findById: jest.fn(),
+    };
     individualProfilesRepo = { findByUserId: jest.fn() };
     usersRepo = {
       findById: jest.fn(),
@@ -125,6 +134,145 @@ describe('IndividualService', () => {
         expect.objectContaining({ userId: 'user-1', action: 'job_posted', entityId: 'job-1' }),
       );
       expect(result.id).toBe('job-1');
+    });
+  });
+
+  describe('editRequirement', () => {
+    const editDto = {
+      care_receiver: careReceiverDto,
+      city: 'bangalore',
+      area: 'Koramangala',
+      duty_type: 'day_duty',
+      start_date: '2026-09-15',
+      languages: ['hindi', 'english'],
+    } as any;
+
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.editRequirement('user-1', 'job-1', editDto, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws GEN_002 when the job belongs to someone else', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
+      await expect(service.editRequirement('user-1', 'job-1', editDto, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_014 when there is an active (applied/accepted) application', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active' });
+      jobApplicationsRepo.hasActiveApplicationForJob.mockResolvedValue(true);
+      await expect(service.editRequirement('user-1', 'job-1', editDto, null)).rejects.toMatchObject({
+        code: 'JOB_014',
+      });
+    });
+
+    it('throws JOB_013 when trying to set salary/frequency before the requirement has ever been reviewed', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'pending_review',
+        frequency_of_care: null,
+      });
+      await expect(
+        service.editRequirement(
+          'user-1',
+          'job-1',
+          { ...editDto, frequency_of_care: 'daily', salary_amount: 30000 },
+          null,
+        ),
+      ).rejects.toMatchObject({ code: 'JOB_013' });
+    });
+
+    it('edits a still-pending_review requirement, leaving frequency_of_care/salary_amount null and status untouched', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'pending_review',
+        duty_type: 'live_in',
+        city: 'bangalore',
+        care_receiver_id: 'cr-1',
+        frequency_of_care: null,
+      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'pending_review' });
+
+      await service.editRequirement('user-1', 'job-1', editDto, '127.0.0.1');
+
+      expect(careReceiversRepo.update).toHaveBeenCalledWith(
+        'cr-1',
+        expect.objectContaining({ age: 70, gender: 'female', weight_kg: 55 }),
+        client,
+      );
+      const [, updateInput] = jobsRepo.update.mock.calls[0];
+      expect(updateInput).toEqual(
+        expect.objectContaining({
+          city: 'bangalore',
+          area: 'Koramangala',
+          duty_type: 'day_duty',
+          frequency_of_care: null,
+          salary_amount: null,
+        }),
+      );
+      expect(updateInput).not.toHaveProperty('status');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'job_updated', entityId: 'job-1' }),
+      );
+    });
+
+    it('allows editing salary/frequency once the requirement has already been reviewed once, without changing status', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'closed',
+        duty_type: 'live_in',
+        city: 'bangalore',
+        care_receiver_id: 'cr-1',
+        frequency_of_care: 'monthly',
+        salary_amount: 25000,
+      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'closed' });
+
+      await service.editRequirement(
+        'user-1',
+        'job-1',
+        { ...editDto, frequency_of_care: 'daily', salary_amount: 1500 },
+        null,
+      );
+
+      const [, updateInput] = jobsRepo.update.mock.calls[0];
+      expect(updateInput).toEqual(
+        expect.objectContaining({ frequency_of_care: 'daily', salary_amount: 1500 }),
+      );
+      expect(updateInput).not.toHaveProperty('status');
+    });
+
+    it('keeps the existing salary/frequency when already reviewed but the edit omits them', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        duty_type: 'live_in',
+        city: 'bangalore',
+        care_receiver_id: 'cr-1',
+        frequency_of_care: 'monthly',
+        salary_amount: 25000,
+      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'active' });
+
+      await service.editRequirement('user-1', 'job-1', editDto, null);
+
+      const [, updateInput] = jobsRepo.update.mock.calls[0];
+      expect(updateInput).toEqual(
+        expect.objectContaining({ frequency_of_care: 'monthly', salary_amount: 25000 }),
+      );
     });
   });
 
