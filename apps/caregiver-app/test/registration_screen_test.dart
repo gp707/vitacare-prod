@@ -51,7 +51,11 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(child);
 }
 
-Future<void> _pumpRegistration(WidgetTester tester, _FakeAuthRepository authRepo) async {
+Future<void> _pumpRegistration(
+  WidgetTester tester,
+  _FakeAuthRepository authRepo, {
+  Future<bool> Function(Uri uri)? launcher,
+}) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -63,7 +67,7 @@ Future<void> _pumpRegistration(WidgetTester tester, _FakeAuthRepository authRepo
         localStorageProvider.overrideWithValue(localStorage),
         authRepositoryProvider.overrideWithValue(authRepo),
       ],
-      child: const MaterialApp(home: RegistrationScreen()),
+      child: MaterialApp(home: RegistrationScreen(launcher: launcher)),
     ),
   );
 }
@@ -191,5 +195,32 @@ void main() {
 
     expect(find.text('Select at least one language'), findsNothing);
     expect(find.text('Take a selfie to continue'), findsNothing);
+  });
+
+  testWidgets('shows a Terms & Conditions checkbox with a tappable link to the terms document', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    Uri? openedUri;
+    await _pumpRegistration(
+      tester,
+      authRepo,
+      launcher: (uri) async {
+        openedUri = uri;
+        return true;
+      },
+    );
+
+    expect(find.byType(Checkbox), findsOneWidget);
+    expect(find.textContaining('Terms & Conditions', findRichText: true), findsOneWidget);
+
+    // Tap the exact substring's own rendered bounds — tapping the whole
+    // RichText's center is unreliable once the sentence wraps onto more
+    // than one line (the center point may land on a different span).
+    await tester.tapOnText(find.textRange.ofSubstring('Terms & Conditions'));
+    await tester.pumpAndSettle();
+
+    expect(
+      openedUri,
+      Uri.parse('https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0'),
+    );
   });
 }

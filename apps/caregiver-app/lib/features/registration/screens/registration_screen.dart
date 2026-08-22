@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../profile/data/profile_repository.dart';
+
+const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -23,7 +27,10 @@ class _MandatoryField {
 /// missing, tapping Register flags every missing mandatory field red and
 /// scrolls/focuses straight to the first one instead of submitting.
 class RegistrationScreen extends ConsumerStatefulWidget {
-  const RegistrationScreen({super.key});
+  /// Injectable for widget tests — defaults to the real url_launcher call.
+  final Future<bool> Function(Uri uri)? launcher;
+
+  const RegistrationScreen({super.key, this.launcher});
 
   @override
   ConsumerState<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -167,6 +174,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
     setState(() => _otherDocs.add(picked));
+  }
+
+  Future<void> _openTerms() async {
+    final uri = Uri.parse(_termsUrl);
+    final launcher = widget.launcher;
+    if (launcher != null) {
+      await launcher(uri);
+    } else {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   /// Register is always tappable — this is what runs when it's pressed.
@@ -494,10 +511,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   CheckboxListTile(
                     value: _termsAccepted,
                     onChanged: (value) => setState(() => _termsAccepted = value ?? false),
-                    title: Text(
-                      'I accept the Terms & Conditions (mandatory)',
-                      style: TextStyle(
-                        color: _showValidationErrors && !_isTermsValid ? AppColors.error : null,
+                    title: RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _showValidationErrors && !_isTermsValid ? AppColors.error : AppColors.textPrimary,
+                        ),
+                        children: [
+                          const TextSpan(text: 'I accept the '),
+                          TextSpan(
+                            text: 'Terms & Conditions',
+                            style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline),
+                            recognizer: TapGestureRecognizer()..onTap = _openTerms,
+                          ),
+                          const TextSpan(text: ' (mandatory)'),
+                        ],
                       ),
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
