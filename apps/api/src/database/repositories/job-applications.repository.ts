@@ -149,6 +149,17 @@ export class JobApplicationsRepository {
     return Number(result.rows[0].count) > 0;
   }
 
+  /** Every applied/accepted application on this job — used by
+   *  IndividualService.cancelRequirement to bulk-reject everything still
+   *  live when the patient cancels, regardless of how many there are. */
+  async findActiveForJob(jobId: string): Promise<JobApplicationRecord[]> {
+    const result = await this.db.query<JobApplicationRecord>(
+      `SELECT * FROM job_applications WHERE job_id = $1 AND status IN ('applied', 'accepted')`,
+      [jobId],
+    );
+    return result.rows;
+  }
+
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name

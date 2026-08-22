@@ -47,6 +47,11 @@ export interface JobRecord {
   /** Only set when an admin rejects a pending_review job — null otherwise,
    *  including for a normal close. */
   rejection_reason: string | null;
+  /** Only set when the posting individual cancels their own requirement —
+   *  distinct from rejection_reason (admin) and a plain close (filled).
+   *  Once set, the individual's own view of past applicants/phone numbers
+   *  is hidden (see IndividualService.getMyRequirementApplications). */
+  cancelled_at: Date | null;
   /** Effective "went live" timestamp — starts equal to created_at, bumped
    *  to NOW() only when a closed job is edited-and-reposted. The 3-day
    *  apply-by urgency window is always computed from this, not created_at. */
@@ -467,6 +472,18 @@ export class JobsRepository {
     await runner.query(
       `UPDATE jobs SET status = 'closed', rejection_reason = $2, updated_at = NOW() WHERE id = $1`,
       [id, reason],
+    );
+  }
+
+  /** The posting individual cancels their own requirement — see
+   *  IndividualService.cancelRequirement, which rejects any active
+   *  applications first. Distinct from close()/reject(): cancelled_at is
+   *  what the individual's own applicant-view check gates on. */
+  async cancel(id: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE jobs SET status = 'closed', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id],
     );
   }
 }

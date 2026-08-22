@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
+import {
+  AuditAction,
+  Config,
+  JobApplicationStatus,
+  JobStatus,
+  UserRole,
+  VerificationStatus,
+} from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
@@ -8,6 +15,7 @@ import { JobApplicationsRepository } from '../database/repositories/job-applicat
 import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
 import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
 import { AuditService } from '../audit/audit.service';
 import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
@@ -29,6 +37,7 @@ export class IndividualService {
     private readonly jobsService: JobsService,
     private readonly auditService: AuditService,
     private readonly caregiverService: CaregiverService,
+    private readonly adminCaregiversRepo: AdminCaregiversRepository,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -175,6 +184,68 @@ export class IndividualService {
     return job;
   }
 
+  /** Cancels the individual's own requirement — allowed at any point in
+   *  its lifecycle (pending_review, active, or already closed because a
+   *  candidate was accepted/filled), regardless of whether anyone has
+   *  applied. The only requirements that can't be cancelled are ones
+   *  already terminated some other way — admin-rejected
+   *  (rejection_reason set) or already cancelled once (JOB_015 either
+   *  way). Every still applied/accepted application is bulk-rejected with
+   *  a fixed system reason and, for any that was accepted, that caregiver
+   *  is flipped back to available — mirroring what an admin undoing a
+   *  single acceptance does, just for however many applications this job
+   *  happens to have at once (in practice 0 or 1 accepted, but possibly
+   *  several still-applied ones alongside it). Deliberately does NOT reuse
+   *  JobsService.decideApplication — its per-application accept/reopen
+   *  semantics don't fit a bulk cancel-and-close. Once cancelled, the
+   *  individual's own view of past applicants/phone numbers is hidden
+   *  (see getMyRequirementApplications/getApplicantProfile below); the
+   *  account can immediately post (or clone) a new requirement, since a
+   *  cancelled job no longer counts as "live" for JOB_009. */
+  async cancelRequirement(userId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+    if (existing.cancelled_at != null || existing.rejection_reason != null) {
+      throw new AppException('JOB_015');
+    }
+
+    const activeApplications = await this.jobApplicationsRepo.findActiveForJob(jobId);
+
+    await this.db.withTransaction(async (client) => {
+      for (const application of activeApplications) {
+        await this.jobApplicationsRepo.decide(
+          application.id,
+          JobApplicationStatus.REJECTED,
+          userId,
+          client,
+          'This requirement was cancelled.',
+        );
+        if (application.status === JobApplicationStatus.ACCEPTED) {
+          await this.adminCaregiversRepo.updateStatus(
+            application.profile_id,
+            VerificationStatus.AVAILABLE,
+            null,
+            userId,
+            client,
+          );
+        }
+      }
+      await this.jobsRepo.cancel(jobId, client);
+    });
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_CLOSED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: existing.status },
+      afterValue: { status: 'closed', cancelled: true, rejected_applications: activeApplications.length },
+      ipAddress,
+    });
+
+    return { message: 'Requirement cancelled', status: 'closed', rejected_applications: activeApplications.length };
+  }
+
   /** Full history (durable — a closed/rejected requirement stays visible,
    *  not just the current live one), each with its care_receiver joined in
    *  so the app can show the full requirement detail without a second
@@ -230,19 +301,29 @@ export class IndividualService {
     return { message: 'Login code updated' };
   }
 
+  /** Once cancelled (see cancelRequirement above), the individual can no
+   *  longer see who applied or their phone numbers — an empty list rather
+   *  than an error, so the UI doesn't need special-case handling beyond
+   *  hiding the applicants section entirely. */
   async getMyRequirementApplications(userId: string, jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    if (job.cancelled_at != null) return [];
     return this.jobApplicationsRepo.findByJobId(jobId);
   }
 
   /** Full profile of one applicant — ownership-checked both ways (the job
    *  is the individual's own, and the application actually belongs to that
    *  job) before delegating to CaregiverService's full applicant-view shape,
-   *  including Aadhaar/qualification-document URLs. */
+   *  including Aadhaar/qualification-document URLs. Unreachable once the
+   *  job is cancelled — same "you can no longer see who applied" rule as
+   *  getMyRequirementApplications above, treated as not-found rather than
+   *  a distinct error since the UI never surfaces a stale applicationId
+   *  for a cancelled requirement in the first place. */
   async getApplicantProfile(userId: string, jobId: string, applicationId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    if (job.cancelled_at != null) throw new AppException('GEN_002');
     const application = await this.jobApplicationsRepo.findById(applicationId);
     if (!application || application.job_id !== jobId) throw new AppException('GEN_002');
     return this.caregiverService.getApplicantProfile(application.profile_id);

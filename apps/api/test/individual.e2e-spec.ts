@@ -438,6 +438,259 @@ describe('Individual (NurseNow) (e2e)', () => {
     });
   });
 
+  describe('POST /v1/individual/requirements/:jobId/cancel', () => {
+    it('cancels a pending_review requirement with no applications', async () => {
+      const individual = await registerIndividual('0046');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const cancelled = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(cancelled.body.data).toEqual({
+        message: 'Requirement cancelled',
+        status: 'closed',
+        rejected_applications: 0,
+      });
+
+      const list = await request(app.getHttpServer())
+        .get('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const job = list.body.data.find((j: any) => j.id === jobId);
+      expect(job.status).toBe('closed');
+      expect(job.cancelled_at).not.toBeNull();
+    });
+
+    it('cancels an active requirement with an applied candidate — the application is rejected, and a new requirement can be posted immediately (JOB_009 no longer blocks)', async () => {
+      const individual = await registerIndividual('0047');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0144');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const cancelled = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(cancelled.body.data.rejected_applications).toBe(1);
+
+      const application = await db.query('SELECT status, decline_reason FROM job_applications WHERE job_id = $1', [
+        jobId,
+      ]);
+      expect(application.rows[0].status).toBe('rejected');
+      expect(application.rows[0].decline_reason).toBe('This requirement was cancelled.');
+
+      const applicantsAfterCancel = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(applicantsAfterCancel.body.data).toEqual([]);
+
+      // Cancelling freed up the one-live-requirement slot — this is the
+      // "clone" flow's precondition: post a fresh one right away.
+      await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ area: 'Whitefield' }))
+        .expect(201);
+    });
+
+    it('cancels an already-closed requirement with an accepted candidate — the caregiver flips back to available', async () => {
+      const individual = await registerIndividual('0048');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0145');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const assignedCheck = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(assignedCheck.rows[0].verification_status).toBe('assigned');
+
+      // The job is already 'closed' (accepting auto-closes it) — cancel is
+      // still allowed since it wasn't rejected or already cancelled.
+      const cancelled = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(cancelled.body.data.rejected_applications).toBe(1);
+
+      const availableCheck = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(availableCheck.rows[0].verification_status).toBe('available');
+
+      const applicantsAfterCancel = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(applicantsAfterCancel.body.data).toEqual([]);
+    });
+
+    it('hides a specific applicant profile (GEN_002) once cancelled, even with a previously-valid applicationId', async () => {
+      const individual = await registerIndividual('0049');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0146');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(404);
+      expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    it('rejects cancelling a requirement that belongs to a different individual (GEN_002)', async () => {
+      const owner = await registerIndividual('0050');
+      const outsider = await registerIndividual('0051');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${owner.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${outsider.access_token}`)
+        .expect(404);
+      expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    it('rejects cancelling an already-cancelled requirement (JOB_015)', async () => {
+      const individual = await registerIndividual('0052');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_015');
+    });
+
+    it('rejects cancelling an admin-rejected requirement (JOB_015)', async () => {
+      const individual = await registerIndividual('0053');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}/reject`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ reason: 'Not a good fit for the program' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${jobId}/cancel`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_015');
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const individual = await registerIndividual('0054');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const caregiver = await registerCaregiver('0147');
+      await request(app.getHttpServer())
+        .post(`/v1/individual/requirements/${created.body.data.id}/cancel`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(403);
+    });
+  });
+
   describe('Admin approval / rejection of a pending_review requirement', () => {
     it('approving via PATCH /v1/admin/jobs/:id sets frequency_of_care/salary_amount, activates it, and it becomes visible to the individual', async () => {
       const individual = await registerIndividual('0005');

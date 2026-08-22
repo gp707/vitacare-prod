@@ -95,6 +95,10 @@ class JobModel {
   /// Only set when an admin rejects a pending_review job — null otherwise,
   /// including for a normal close.
   final String? rejectionReason;
+  /// Only set when the posting NurseNow individual cancels their own
+  /// requirement — distinct from [rejectionReason] (admin) and a plain
+  /// close (filled). See [isCancelled].
+  final String? cancelledAt;
   /// Only present on admin-facing responses (via a users join) — the
   /// poster's role/name, e.g. 'individual' for a NurseNow patient/family
   /// posting vs 'admin'/'super_admin' for admin's own. Null on
@@ -127,6 +131,7 @@ class JobModel {
     this.careReceiver,
     this.jobPoster,
     this.rejectionReason,
+    this.cancelledAt,
     this.postedByRole,
     this.postedByName,
   });
@@ -162,6 +167,7 @@ class JobModel {
             ? null
             : JobPosterModel.fromJson(json['job_poster'] as Map<String, dynamic>),
         rejectionReason: json['rejection_reason'] as String?,
+        cancelledAt: json['cancelled_at'] as String?,
         postedByRole: json['posted_by_role'] as String?,
         postedByName: json['posted_by_name'] as String?,
       );
@@ -175,6 +181,11 @@ class JobModel {
   /// Whole calendar days left until [applyByDate]. 0 means "last day", a
   /// negative number means the window has passed.
   int get daysLeftToApply => applyByDate.difference(DateTime.now()).inDays;
+
+  /// Whether the posting individual cancelled this requirement themselves
+  /// — always implies [status] is 'closed', but distinct from a plain
+  /// close (filled) or an admin rejection ([rejectionReason] set).
+  bool get isCancelled => cancelledAt != null;
 }
 
 /// Human-friendly display id for a job — "ADMIN-JOB-<n>" or "PAT-JOB-<n>"

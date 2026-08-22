@@ -11,6 +11,7 @@ describe('IndividualService', () => {
   let jobsService: any;
   let auditService: any;
   let caregiverService: any;
+  let adminCaregiversRepo: any;
 
   const careReceiverDto = {
     age: 70,
@@ -35,11 +36,14 @@ describe('IndividualService', () => {
       listByPostedBy: jest.fn(),
       findLiveByPostedBy: jest.fn(),
       update: jest.fn(),
+      cancel: jest.fn(),
     };
     jobApplicationsRepo = {
       findByJobId: jest.fn(),
       findById: jest.fn(),
       hasActiveApplicationForJob: jest.fn().mockResolvedValue(false),
+      findActiveForJob: jest.fn().mockResolvedValue([]),
+      decide: jest.fn(),
     };
     careReceiversRepo = {
       create: jest.fn().mockResolvedValue({ id: 'cr-1' }),
@@ -56,6 +60,7 @@ describe('IndividualService', () => {
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
+    adminCaregiversRepo = { updateStatus: jest.fn() };
 
     service = new IndividualService(
       db,
@@ -67,6 +72,7 @@ describe('IndividualService', () => {
       jobsService,
       auditService,
       caregiverService,
+      adminCaregiversRepo,
     );
   });
 
@@ -379,10 +385,17 @@ describe('IndividualService', () => {
     });
 
     it('returns applications for a job the caller owns', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: null });
       jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getMyRequirementApplications('user-1', 'job-1');
       expect(result).toEqual([{ id: 'app-1' }]);
+    });
+
+    it('returns an empty list once the requirement has been cancelled, without querying applications', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: new Date() });
+      const result = await service.getMyRequirementApplications('user-1', 'job-1');
+      expect(result).toEqual([]);
+      expect(jobApplicationsRepo.findByJobId).not.toHaveBeenCalled();
     });
   });
 
@@ -405,12 +418,146 @@ describe('IndividualService', () => {
     });
 
     it("delegates to CaregiverService.getApplicantProfile with the application's profile_id", async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1' });
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: null });
       jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'profile-1' });
       caregiverService.getApplicantProfile.mockResolvedValue({ full_name: 'Nurse Nita' });
       const result = await service.getApplicantProfile('user-1', 'job-1', 'app-1');
       expect(caregiverService.getApplicantProfile).toHaveBeenCalledWith('profile-1');
       expect(result).toEqual({ full_name: 'Nurse Nita' });
+    });
+
+    it('throws GEN_002 once the requirement has been cancelled, without looking up the application', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: new Date() });
+      await expect(service.getApplicantProfile('user-1', 'job-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(jobApplicationsRepo.findById).not.toHaveBeenCalled();
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelRequirement', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.cancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws GEN_002 when the job belongs to someone else', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else', status: 'active' });
+      await expect(service.cancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_015 when the requirement was already cancelled', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'closed',
+        cancelled_at: new Date(),
+        rejection_reason: null,
+      });
+      await expect(service.cancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_015',
+      });
+    });
+
+    it('throws JOB_015 when the requirement was already admin-rejected', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'closed',
+        cancelled_at: null,
+        rejection_reason: 'Not a good fit for the program',
+      });
+      await expect(service.cancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_015',
+      });
+    });
+
+    it('allows cancelling an already-closed requirement that has a filled/accepted candidate', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'closed',
+        cancelled_at: null,
+        rejection_reason: null,
+      });
+      jobApplicationsRepo.findActiveForJob.mockResolvedValue([
+        { id: 'app-1', status: 'accepted', profile_id: 'profile-1' },
+      ]);
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      const result = await service.cancelRequirement('user-1', 'job-1', null);
+
+      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
+        'profile-1',
+        'available',
+        null,
+        'user-1',
+        client,
+      );
+      expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
+      expect(result.rejected_applications).toBe(1);
+    });
+
+    it('cancels a pending_review requirement with no applications — no cascading side effects', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'pending_review' });
+      jobApplicationsRepo.findActiveForJob.mockResolvedValue([]);
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      const result = await service.cancelRequirement('user-1', 'job-1', '127.0.0.1');
+
+      expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+      expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
+      expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'job_closed', entityId: 'job-1' }),
+      );
+      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed', rejected_applications: 0 });
+    });
+
+    it('rejects every applied/accepted application with a fixed reason and flips an accepted caregiver back to available', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active' });
+      jobApplicationsRepo.findActiveForJob.mockResolvedValue([
+        { id: 'app-1', status: 'applied', profile_id: 'profile-1' },
+        { id: 'app-2', status: 'accepted', profile_id: 'profile-2' },
+      ]);
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      const result = await service.cancelRequirement('user-1', 'job-1', null);
+
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'rejected',
+        'user-1',
+        client,
+        'This requirement was cancelled.',
+      );
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-2',
+        'rejected',
+        'user-1',
+        client,
+        'This requirement was cancelled.',
+      );
+      // Only the accepted applicant is flipped back to available — the
+      // still-applied one was never assigned in the first place.
+      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledTimes(1);
+      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
+        'profile-2',
+        'available',
+        null,
+        'user-1',
+        client,
+      );
+      expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
+      expect(result.rejected_applications).toBe(2);
     });
   });
 

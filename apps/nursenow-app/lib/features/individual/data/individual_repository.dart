@@ -148,6 +148,25 @@ class IndividualRepository {
     }
   }
 
+  /// Cancels the caller's own requirement — allowed at any point in its
+  /// lifecycle (pending_review, active, or already closed by an
+  /// acceptance), regardless of whether anyone applied. JOB_015 if it's
+  /// already been admin-rejected or cancelled once already. Any still
+  /// applied/accepted application is bulk-rejected server-side with a
+  /// fixed reason, and an accepted caregiver is flipped back to
+  /// available. After this call the individual can no longer see who
+  /// applied on this requirement (see listApplications/getApplicantProfile
+  /// below), and — since a cancelled requirement no longer counts as
+  /// "live" — can immediately post a new one, including a clone of this
+  /// one's fields.
+  Future<void> cancelRequirement(String jobId) async {
+    try {
+      await _dio.post(ApiRoutes.individualRequirementCancel(jobId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// In practice zero-or-one given the one-live-requirement rule, but
   /// shaped as a list for durable history (a closed/rejected/completed
   /// requirement stays visible instead of disappearing).

@@ -15,6 +15,7 @@ class ApiRoutes {
   static const individualMe = '/individual/me';
   static const individualRequirements = '/individual/requirements';
   static String individualRequirement(String jobId) => '/individual/requirements/$jobId';
+  static String individualRequirementCancel(String jobId) => '/individual/requirements/$jobId/cancel';
   static const individualProfilePhone = '/individual/profile/phone';
   static const individualProfileCode = '/individual/profile/code';
   static String individualRequirementApplications(String jobId) =>

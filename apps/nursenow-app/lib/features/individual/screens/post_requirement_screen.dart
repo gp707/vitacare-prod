@@ -22,8 +22,19 @@ class _MandatoryField {
 /// a mandatory field is missing, tapping it flags every missing mandatory
 /// field red and scrolls/focuses straight to the first one instead of
 /// submitting — rather than a single generic top-of-form error message.
+///
+/// [cloneFrom], when supplied, pre-fills every field from a past
+/// requirement (e.g. one the patient just cancelled and wants to repost)
+/// — everything except [JobModel.startDate], which is deliberately left
+/// blank since the source requirement's date has very likely already
+/// passed, and never salary/frequency, which this form never collects at
+/// all (admin sets them on approval, same as any other new posting). This
+/// still always creates a brand-new job with its own id and its own
+/// pending_review admin review — it's purely a form-prefill convenience.
 class PostRequirementScreen extends ConsumerStatefulWidget {
-  const PostRequirementScreen({super.key});
+  final JobModel? cloneFrom;
+
+  const PostRequirementScreen({super.key, this.cloneFrom});
 
   @override
   ConsumerState<PostRequirementScreen> createState() => _PostRequirementScreenState();
@@ -77,6 +88,40 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   // Only turns true once Submit has been pressed with something missing —
   // before that, fields don't show red just because they're empty.
   bool _showValidationErrors = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final source = widget.cloneFrom;
+    if (source == null) return;
+    final cr = source.careReceiver;
+    if (cr != null) {
+      _ageController.text = cr.age.toString();
+      _gender = cr.gender;
+      _weightController.text = cr.weightKg.toString();
+      _mobility = cr.mobility;
+      _communication = cr.communication;
+      _feedingType = cr.feedingType;
+      _medicalAssistance.addAll(cr.medicalAssistance);
+      _hasMedicalCondition = cr.hasMedicalCondition;
+      _medicalConditions.addAll(cr.medicalConditions);
+      _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
+      _toiletAssistance.addAll(cr.toiletAssistance);
+      _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
+      _requiresVitalMonitoring = cr.requiresVitalMonitoring;
+      _vitalMonitoringTypes.addAll(cr.vitalMonitoringTypes);
+    }
+    _city = source.city;
+    _areaController.text = source.area ?? '';
+    _descriptionController.text = source.description ?? '';
+    _dutyType = source.dutyType;
+    // start_date intentionally NOT carried over — the source requirement's
+    // date has very likely already passed; the patient must pick a fresh
+    // one (also avoids the date picker's initialDate < firstDate assert).
+    _languages.addAll(source.languages);
+    _preferredGender = source.preferredGender;
+    _preferredReligion = source.preferredReligion;
+  }
 
   @override
   void dispose() {
@@ -216,7 +261,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Post a Requirement')),
+      appBar: AppBar(title: Text(widget.cloneFrom != null ? 'Post Similar Requirement' : 'Post a Requirement')),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(

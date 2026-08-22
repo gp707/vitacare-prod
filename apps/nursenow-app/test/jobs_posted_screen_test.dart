@@ -20,6 +20,7 @@ JobModel _requirement({
   int? salaryAmount = 1800,
   String? frequencyOfCare = 'daily',
   String? rejectionReason,
+  String? cancelledAt,
   Map<String, dynamic>? careReceiver,
 }) {
   return JobModel.fromJson({
@@ -39,6 +40,7 @@ JobModel _requirement({
     'posted_at': '2026-08-01T10:00:00Z',
     'created_at': '2026-08-01T10:00:00Z',
     'rejection_reason': rejectionReason,
+    'cancelled_at': cancelledAt,
     if (careReceiver != null) 'care_receiver': careReceiver,
   });
 }
@@ -90,6 +92,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? profileFetchedJobId;
   String? profileFetchedApplicationId;
   String? editedJobId;
+  String? cancelledJobId;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}}) : super(Dio());
 
@@ -113,6 +116,11 @@ class _FakeIndividualRepository extends IndividualRepository {
   }) async {
     editedJobId = jobId;
     return requirements.firstWhere((r) => r.id == jobId);
+  }
+
+  @override
+  Future<void> cancelRequirement(String jobId) async {
+    cancelledJobId = jobId;
   }
 
   @override
@@ -433,6 +441,96 @@ void main() {
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
     final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
     expect(areaField.controller!.text, 'Indiranagar');
+  });
+
+  testWidgets('shows a Cancel Requirement button on a live requirement, and confirming it calls cancelRequirement',
+      (tester) async {
+    final repo = _FakeIndividualRepository(requirements: [_requirement(status: 'active')]);
+    await _pump(tester, repo);
+
+    expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel this requirement?'), findsOneWidget);
+    await tester.tap(find.text('Yes, cancel it'));
+    await tester.pumpAndSettle();
+
+    expect(repo.cancelledJobId, 'job-1');
+  });
+
+  testWidgets('cancelling the cancel-requirement confirmation dialog does not call cancelRequirement', (tester) async {
+    final repo = _FakeIndividualRepository(requirements: [_requirement(status: 'active')]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel Requirement'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No, keep it'));
+    await tester.pumpAndSettle();
+
+    expect(repo.cancelledJobId, isNull);
+  });
+
+  testWidgets('shows a Cancelled status and hides the applicants section once cancelled', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
+      ),
+    );
+
+    expect(find.text('Cancelled'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsNothing);
+    expect(find.textContaining('This requirement was cancelled.'), findsOneWidget);
+    expect(find.textContaining('candidate applied in total'), findsNothing);
+  });
+
+  testWidgets('hides Cancel Requirement once the requirement was admin-rejected', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [
+          _requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, rejectionReason: 'Duplicate posting'),
+        ],
+      ),
+    );
+
+    expect(find.text('Rejected'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsNothing);
+  });
+
+  testWidgets(
+      'shows Post Similar Requirement on a non-live requirement when there is no other live requirement, and it opens a pre-filled clone',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, careReceiver: _careReceiverJson)],
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'Post Similar Requirement'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Post Similar Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post Similar Requirement'), findsWidgets);
+    expect(find.text('74'), findsOneWidget);
+  });
+
+  testWidgets('hides Post Similar Requirement while another requirement is still live', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [
+          _requirement(id: 'job-1', jobNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-2', jobNumber: 43, status: 'active'),
+        ],
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'Post Similar Requirement'), findsNothing);
   });
 
   testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {

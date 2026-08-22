@@ -157,6 +157,51 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (edited == true) await _load();
   }
 
+  /// Allowed at any point in the requirement's lifecycle — regardless of
+  /// applications, and regardless of whether it's already closed by an
+  /// acceptance (see the backend's JOB_015, which only blocks cancelling
+  /// something already rejected/cancelled). Confirmed first since it's
+  /// irreversible and, when candidates are involved, notifies them by
+  /// rejecting their application.
+  Future<void> _cancelRequirement(JobModel requirement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this requirement?'),
+        content: const Text(
+          'Any candidates who applied or were accepted will have their application declined as '
+          "cancelled. You won't be able to see who applied afterward. This cannot be undone.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No, keep it')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Yes, cancel it', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(individualRepositoryProvider).cancelRequirement(requirement.id);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// Pre-fills a new posting from a past requirement's fields (see
+  /// PostRequirementScreen.cloneFrom) — only offered once there's no
+  /// current live requirement (mirrors the top Post CTA's own gating),
+  /// since attempting it otherwise would just 409 with JOB_009 anyway.
+  Future<void> _postSimilarRequirement(JobModel requirement) async {
+    final posted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => PostRequirementScreen(cloneFrom: requirement)),
+    );
+    if (posted == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
@@ -205,10 +250,13 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           requirement: requirement,
                           applications: _applicationsByJobId[requirement.id] ?? const [],
                           decidingApplicationId: _decidingApplicationId,
+                          canPostNew: !hasLiveRequirement,
                           onAccept: (applicationId) => _accept(requirement.id, applicationId),
                           onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
                           onEdit: () => _editRequirement(requirement),
+                          onCancel: () => _cancelRequirement(requirement),
+                          onPostSimilar: () => _postSimilarRequirement(requirement),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -261,22 +309,35 @@ class _RequirementCard extends StatelessWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
+  /// Whether the account currently has no other live requirement — gates
+  /// the "Post Similar Requirement" action, matching the top Post CTA.
+  final bool canPostNew;
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final VoidCallback onEdit;
+  final VoidCallback onCancel;
+  final VoidCallback onPostSimilar;
 
   const _RequirementCard({
     required this.requirement,
     required this.applications,
     required this.decidingApplicationId,
+    required this.canPostNew,
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
     required this.onEdit,
+    required this.onCancel,
+    required this.onPostSimilar,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
+
+  /// Mirrors the backend's own JOB_015 check — cancellable at any point in
+  /// the lifecycle except once it's already been terminated some other
+  /// way (admin-rejected or already cancelled once).
+  bool get _canCancel => !requirement.isCancelled && requirement.rejectionReason == null;
 
   /// Mirrors the backend's own JOB_014 check (job_applications.status IN
   /// ('applied', 'accepted')) — editing is blocked once a caregiver has
@@ -292,6 +353,7 @@ class _RequirementCard extends StatelessWidget {
       case JobStatus.active:
         return 'Live — visible to caregivers';
       case JobStatus.closed:
+        if (requirement.isCancelled) return 'Cancelled';
         if (requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
@@ -306,6 +368,7 @@ class _RequirementCard extends StatelessWidget {
       case JobStatus.active:
         return AppColors.success;
       case JobStatus.closed:
+        if (requirement.isCancelled) return AppColors.textSecondary;
         return requirement.rejectionReason != null ? AppColors.error : AppColors.textSecondary;
       default:
         return AppColors.textSecondary;
@@ -332,21 +395,46 @@ class _RequirementCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          // Editable regardless of the requirement's own status — the only
-          // gate is whether a caregiver has responded (see
-          // _hasActiveApplication doc comment).
-          Align(
-            alignment: Alignment.centerRight,
-            child: _hasActiveApplication
-                ? const Text(
-                    'Editing is locked while a candidate is awaiting your decision.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
-                  )
-                : TextButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: const Text('Edit'),
-                  ),
+          // Each action is gated independently: Edit on whether a caregiver
+          // has responded (see _hasActiveApplication doc comment); Cancel
+          // on whether this requirement hasn't already been terminated some
+          // other way (mirrors the backend's own JOB_015 — admin-rejected
+          // or already-cancelled are the only states it blocks, so e.g. a
+          // closed-and-filled requirement with no active application can
+          // show Edit, Cancel, AND (once it's not live) Post Similar all at
+          // once); Post Similar on there being no other live requirement
+          // (mirrors the top Post CTA's own gating — note this is never
+          // true for a currently-live requirement, since that would itself
+          // count as the account's live one).
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.sm,
+            children: [
+              if (_hasActiveApplication)
+                const Text(
+                  'Editing is locked while a candidate is awaiting your decision.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
+                )
+              else
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit'),
+                ),
+              if (_canCancel)
+                TextButton.icon(
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
+                  label: const Text('Cancel Requirement', style: TextStyle(color: AppColors.error)),
+                ),
+              if (canPostNew)
+                TextButton.icon(
+                  onPressed: onPostSimilar,
+                  icon: const Icon(Icons.copy_outlined, size: 16),
+                  label: const Text('Post Similar Requirement'),
+                ),
+            ],
           ),
           if (requirement.status == JobStatus.closed && requirement.rejectionReason != null) ...[
             const SizedBox(height: AppSpacing.xs),
@@ -431,13 +519,19 @@ class _RequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
-            _ApplicantsSection(
-              applications: applications,
-              decidingApplicationId: decidingApplicationId,
-              onAccept: onAccept,
-              onReject: onReject,
-              onViewProfile: onViewProfile,
-            ),
+            if (requirement.isCancelled)
+              const Text(
+                'This requirement was cancelled. Candidate applications are no longer available.',
+                style: TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+              )
+            else
+              _ApplicantsSection(
+                applications: applications,
+                decidingApplicationId: decidingApplicationId,
+                onAccept: onAccept,
+                onReject: onReject,
+                onViewProfile: onViewProfile,
+              ),
           ],
         ],
       ),

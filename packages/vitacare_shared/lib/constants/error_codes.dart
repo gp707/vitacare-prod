@@ -63,6 +63,7 @@ class ErrorCodes {
     'JOB_012': 'A reason is required when declining an applicant',
     'JOB_013': 'Salary and frequency of care can only be edited after admin has approved the requirement at least once',
     'JOB_014': 'This requirement cannot be edited while it has an active application',
+    'JOB_015': 'This requirement has already been rejected or cancelled',
     'ORG_001': 'End date cannot be before start date',
     'ORG_002': 'Weekday values must be between 1 (Monday) and 7 (Sunday)',
 
