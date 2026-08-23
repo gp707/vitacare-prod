@@ -19,6 +19,7 @@ import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
 import { CareReceiversRepository } from './repositories/care-receivers.repository';
 import { AppMinVersionsRepository } from './repositories/app-min-versions.repository';
+import { AdminReportsRepository } from './repositories/admin-reports.repository';
 
 const repositories = [
   UsersRepository,
@@ -40,6 +41,7 @@ const repositories = [
   JobApplicationsRepository,
   CareReceiversRepository,
   AppMinVersionsRepository,
+  AdminReportsRepository,
 ];
 
 @Global()

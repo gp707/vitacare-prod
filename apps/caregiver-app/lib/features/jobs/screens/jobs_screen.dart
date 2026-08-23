@@ -32,10 +32,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _applyingId = {};
-  // Defaults off — a job/requirement the caregiver already got rejected
-  // from (by either side — see _Listing.isRejectedByMe) isn't one they can
-  // still apply to, so it's hidden by default to keep the list focused on
-  // what's actually still open to them. One tap away to see everything.
+  // Defaults off — a job/requirement the caregiver is done with (rejected
+  // by either side, or closed themselves after being accepted — see
+  // _Listing.isHiddenByDefault) isn't one they can still apply to, so it's
+  // hidden by default to keep the list focused on what's actually still
+  // open to them. One tap away to see everything.
   bool _showAllJobs = false;
 
   @override
@@ -167,8 +168,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   @override
   Widget build(BuildContext context) {
     final listings = _mergedListings();
-    final hasRejected = listings.any((l) => l.isRejectedByMe);
-    final visible = _showAllJobs ? listings : listings.where((l) => !l.isRejectedByMe).toList();
+    final hasHiddenJobs = listings.any((l) => l.isHiddenByDefault);
+    final visible = _showAllJobs ? listings : listings.where((l) => !l.isHiddenByDefault).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jobs'),
@@ -202,7 +203,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                    if (hasRejected)
+                    if (hasHiddenJobs)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Show All Jobs'),
@@ -223,7 +224,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see ones you were rejected from.',
+                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see ones you were '
+                          'rejected from or closed yourself.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
@@ -261,12 +263,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 abstract class _Listing {
   DateTime get postedAt;
 
-  /// True once the caregiver has been rejected on this listing — either
-  /// the patient/employer declined them, or they closed/withdrew it
-  /// themselves before being accepted (both land on the same `rejected`
-  /// application status). Either way, it's no longer something they can
-  /// apply to.
-  bool get isRejectedByMe;
+  /// True once this listing is done from the caregiver's own point of
+  /// view — either they were rejected (by the patient/employer, or by
+  /// closing/withdrawing it themselves before being accepted, both land on
+  /// `rejected`), or they closed it themselves after being accepted
+  /// (`completed` — the job/requirement reopens to active for everyone
+  /// else, but this caregiver's own engagement with it is over). `applied`
+  /// (still pending) and `accepted` (currently active) stay visible.
+  bool get isHiddenByDefault;
 }
 
 class _JobListing extends _Listing {
@@ -275,7 +279,9 @@ class _JobListing extends _Listing {
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
   @override
-  bool get isRejectedByMe => job.myApplication?.status == JobApplicationStatus.rejected;
+  bool get isHiddenByDefault =>
+      job.myApplication?.status == JobApplicationStatus.rejected ||
+      job.myApplication?.status == JobApplicationStatus.completed;
 }
 
 class _RequirementListing extends _Listing {
@@ -284,7 +290,9 @@ class _RequirementListing extends _Listing {
   @override
   DateTime get postedAt => DateTime.parse(requirement.postedAt);
   @override
-  bool get isRejectedByMe => requirement.myApplication?.status == JobApplicationStatus.rejected;
+  bool get isHiddenByDefault =>
+      requirement.myApplication?.status == JobApplicationStatus.rejected ||
+      requirement.myApplication?.status == JobApplicationStatus.completed;
 }
 
 class _JobCard extends StatelessWidget {

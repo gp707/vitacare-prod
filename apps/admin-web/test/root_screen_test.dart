@@ -46,6 +46,7 @@ Future<void> _pumpRoot(
           '/jobs': (_) => const Scaffold(body: Text('Jobs Page')),
           '/patients-family': (_) =>
               const Scaffold(body: Text('Patients Family Page')),
+          '/reports': (_) => const Scaffold(body: Text('Reports Page')),
         },
       ),
     ),
@@ -87,6 +88,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Patients Family Page'), findsOneWidget);
+  });
+
+  testWidgets(
+      'restores /reports too — refreshing while on the Reports screen must not bounce to Dashboard',
+      (tester) async {
+    await _pumpRoot(
+      tester,
+      sessionResult:
+          const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+      initialDeepLinkRoute: '/reports',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reports Page'), findsOneWidget);
+    expect(find.text('Dashboard Page'), findsNothing);
   });
 
   testWidgets(

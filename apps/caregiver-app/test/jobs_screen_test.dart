@@ -719,6 +719,31 @@ void main() {
     );
   });
 
+  testWidgets(
+      'hides a job the caregiver closed themselves (completed) by default, revealed via Show All Jobs — '
+      'the job reopens to active for everyone else, but this caregiver is done with it', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'completed',
+          'applied_at': '2026-08-10T09:00:00Z',
+          'accepted_at': '2026-08-11T09:00:00Z',
+          'rejected_at': null,
+          'completed_at': '2026-08-17T09:00:00Z',
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.text('Show All Jobs'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsNothing);
+
+    await _showAllJobs(tester);
+
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+  });
+
   testWidgets('does not hide a job the caregiver has only applied to (not yet decided)', (tester) async {
     await _pump(
       tester,

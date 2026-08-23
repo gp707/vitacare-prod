@@ -63,4 +63,13 @@ void main() {
     await _pumpShellAs(tester, 'super_admin');
     expect(find.text('Patients/Family'), findsOneWidget);
   });
+
+  testWidgets('shows Reports for both admin and super_admin sessions',
+      (tester) async {
+    await _pumpShellAs(tester, 'admin');
+    expect(find.text('Reports'), findsOneWidget);
+
+    await _pumpShellAs(tester, 'super_admin');
+    expect(find.text('Reports'), findsOneWidget);
+  });
 }

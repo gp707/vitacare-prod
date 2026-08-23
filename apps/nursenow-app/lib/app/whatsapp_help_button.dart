@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 /// Persistent "reach out for help" entry point — shown on every screen (see
 /// each screen's AppBar `actions`/LoginScreen's own placement, since it has
@@ -35,10 +36,21 @@ class WhatsAppHelpButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: () => _open(context),
-      style: TextButton.styleFrom(foregroundColor: Colors.white),
-      child: const Text('Click for Help', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    // Filled red pill, not just colored text — plain text on the AppBar
+    // was easy for a senior citizen to miss; a solid, high-contrast button
+    // is much easier to spot at a glance.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      child: ElevatedButton.icon(
+        onPressed: () => _open(context),
+        icon: const Icon(Icons.phone_in_talk, size: 18),
+        label: const Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.error,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+      ),
     );
   }
 }

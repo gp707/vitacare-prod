@@ -24,6 +24,7 @@ const _restorableRoutes = {
   '/patients-family',
   '/rehab-hospitals',
   '/caregivers',
+  '/reports',
 };
 
 /// Checks for a stored session and redirects to /login, or back to

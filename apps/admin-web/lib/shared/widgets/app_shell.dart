@@ -10,6 +10,7 @@ enum AppShellSection {
   patientsFamily,
   jobs,
   rehabHospitals,
+  reports,
   auditLogs,
   adminManagement,
   appVersions,
@@ -146,6 +147,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.rehabHospitals,
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/rehab-hospitals', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.query_stats,
+                  label: 'Reports',
+                  selected: current == AppShellSection.reports,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/reports', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.history,

@@ -12,6 +12,7 @@ import '../features/individuals/screens/individuals_list_screen.dart';
 import '../features/individuals/screens/individual_detail_screen.dart';
 import '../features/organisations/screens/organisations_list_screen.dart';
 import '../features/organisations/screens/organisation_detail_screen.dart';
+import '../features/reports/screens/reports_screen.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
 /// /caregivers accepts an optional status filter, /jobs an optional
@@ -30,6 +31,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/app-versions': (context) => const AppVersionsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
+    '/reports': (context) => const ReportsScreen(),
   };
 }
 
