@@ -20,6 +20,10 @@ class _FakeAdminReportsRepository extends AdminReportsRepository {
   List<Map<String, dynamic>> patientNoPendingCandidateResult;
   List<Map<String, dynamic>> patientUnconvertedApplicantsResult;
   List<Map<String, dynamic>> patientActivityResult;
+  List<Map<String, dynamic>> organisationNoJobsPostedResult;
+  List<Map<String, dynamic>> organisationNoApplicantsResult;
+  List<Map<String, dynamic>> organisationUnconvertedApplicantsResult;
+  List<Map<String, dynamic>> organisationActivityResult;
 
   int? capturedStalledDutyDays;
   int? capturedMinJobs;
@@ -30,6 +34,11 @@ class _FakeAdminReportsRepository extends AdminReportsRepository {
   String? capturedPatientActivityOrder;
   bool patientNoPendingCandidateCalled = false;
   bool patientUnconvertedApplicantsCalled = false;
+  bool organisationNoJobsPostedCalled = false;
+  int? capturedOrganisationNoApplicantsDays;
+  bool organisationUnconvertedApplicantsCalled = false;
+  int? capturedOrganisationActivityDays;
+  String? capturedOrganisationActivityOrder;
 
   _FakeAdminReportsRepository({
     this.unassignedOrNoDutyResult = const [],
@@ -40,6 +49,10 @@ class _FakeAdminReportsRepository extends AdminReportsRepository {
     this.patientNoPendingCandidateResult = const [],
     this.patientUnconvertedApplicantsResult = const [],
     this.patientActivityResult = const [],
+    this.organisationNoJobsPostedResult = const [],
+    this.organisationNoApplicantsResult = const [],
+    this.organisationUnconvertedApplicantsResult = const [],
+    this.organisationActivityResult = const [],
   }) : super(Dio());
 
   @override
@@ -88,6 +101,31 @@ class _FakeAdminReportsRepository extends AdminReportsRepository {
     capturedPatientActivityOrder = order;
     return patientActivityResult;
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> organisationsWithNoJobsPosted() async {
+    organisationNoJobsPostedCalled = true;
+    return organisationNoJobsPostedResult;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> organisationsWithNoApplicants(int days) async {
+    capturedOrganisationNoApplicantsDays = days;
+    return organisationNoApplicantsResult;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> organisationsWithUnconvertedApplicants() async {
+    organisationUnconvertedApplicantsCalled = true;
+    return organisationUnconvertedApplicantsResult;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> organisationActivity(int days, {String order = 'desc'}) async {
+    capturedOrganisationActivityDays = days;
+    capturedOrganisationActivityOrder = order;
+    return organisationActivityResult;
+  }
 }
 
 Future<void> _pump(WidgetTester tester, _FakeAdminReportsRepository repo) async {
@@ -113,7 +151,7 @@ Future<void> _pump(WidgetTester tester, _FakeAdminReportsRepository repo) async 
 }
 
 void main() {
-  testWidgets('lists all 4 caregiver and 4 patient reports, none selected initially', (tester) async {
+  testWidgets('lists all 4 caregiver, 4 patient, and 4 organisation reports, none selected initially', (tester) async {
     await _pump(tester, _FakeAdminReportsRepository());
 
     expect(find.text('Unassigned or No Duty'), findsOneWidget);
@@ -122,8 +160,13 @@ void main() {
     expect(find.text('Caregiver Activity (Most/Least Active)'), findsOneWidget);
     expect(find.text('No Caregiver Applied in N Days'), findsOneWidget);
     expect(find.text('Live Job, No Pending Candidate'), findsOneWidget);
-    expect(find.text('Applicants Came, None Accepted'), findsOneWidget);
+    // "Applicants Came, None Accepted" appears once for Patients and once for
+    // Rehab/Hospitals — both entity types share that exact report title.
+    expect(find.text('Applicants Came, None Accepted'), findsNWidgets(2));
     expect(find.text('Patient Activity (Most/Least Active)'), findsOneWidget);
+    expect(find.text('No Jobs Posted, Ever'), findsOneWidget);
+    expect(find.text('Requirements Posted, No Applicant in N Days'), findsOneWidget);
+    expect(find.text('Organisation Activity (Most/Least Active)'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Run'), findsNothing);
   });
 
@@ -319,7 +362,7 @@ void main() {
     ]);
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Applicants Came, None Accepted'));
+    await tester.tap(find.text('Applicants Came, None Accepted').first);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
     await tester.pumpAndSettle();
@@ -491,5 +534,165 @@ void main() {
 
     expect(pushedRoute, '/caregiver-detail');
     expect(pushedArgs, 'profile-9');
+  });
+
+  testWidgets('No Jobs Posted, Ever needs no params and shows results on Run', (tester) async {
+    final repo = _FakeAdminReportsRepository(organisationNoJobsPostedResult: [
+      {
+        'profile_id': 'org-profile-1',
+        'user_id': 'org-user-1',
+        'org_number': 701,
+        'organisation_name': 'Sunrise Clinic',
+        'full_name': 'Dr. Nina Fernandes',
+        'phone': '+919876500020',
+      },
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('No Jobs Posted, Ever'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Days'), findsNothing);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
+    await tester.pumpAndSettle();
+
+    expect(repo.organisationNoJobsPostedCalled, isTrue);
+    expect(find.text('ORG-701 · Sunrise Clinic'), findsOneWidget);
+    expect(find.textContaining('No requirements posted, ever'), findsOneWidget);
+  });
+
+  testWidgets('Requirements Posted, No Applicant shows a Days field and sends it to the repository', (tester) async {
+    final repo = _FakeAdminReportsRepository(organisationNoApplicantsResult: [
+      {
+        'profile_id': 'org-profile-2',
+        'user_id': 'org-user-2',
+        'org_number': 702,
+        'organisation_name': 'Hopewell Rehab',
+        'full_name': 'Suresh Bhat',
+        'phone': '+919876500021',
+        'live_requirement_count': 2,
+      },
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Requirements Posted, No Applicant in N Days'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Days'), '5');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
+    await tester.pumpAndSettle();
+
+    expect(repo.capturedOrganisationNoApplicantsDays, 5);
+    expect(find.text('ORG-702 · Hopewell Rehab'), findsOneWidget);
+    expect(find.textContaining('2 live requirement(s)'), findsOneWidget);
+    expect(find.textContaining('No applicants in the window'), findsOneWidget);
+  });
+
+  testWidgets('Applicants Came, None Accepted (Rehab/Hospitals) needs no params and shows the applicant count',
+      (tester) async {
+    final repo = _FakeAdminReportsRepository(organisationUnconvertedApplicantsResult: [
+      {
+        'profile_id': 'org-profile-3',
+        'user_id': 'org-user-3',
+        'org_number': 703,
+        'organisation_name': 'Green Valley Hospital',
+        'full_name': 'Anil Kapoor',
+        'phone': '+919876500022',
+        'applicant_count': 4,
+      },
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Applicants Came, None Accepted').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
+    await tester.pumpAndSettle();
+
+    expect(repo.organisationUnconvertedApplicantsCalled, isTrue);
+    expect(find.textContaining('4 applicant(s), none accepted'), findsOneWidget);
+  });
+
+  testWidgets('Organisation Activity shows Days + Order fields and sends both to the repository', (tester) async {
+    final repo = _FakeAdminReportsRepository(organisationActivityResult: [
+      {
+        'profile_id': 'org-profile-4',
+        'user_id': 'org-user-4',
+        'org_number': 704,
+        'organisation_name': 'Lakeside Nursing Home',
+        'full_name': 'Priya Menon',
+        'phone': '+919876500023',
+        'activity_count': 6,
+      },
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Organisation Activity (Most/Least Active)'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Days'), '30');
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Order'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Least active first').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
+    await tester.pumpAndSettle();
+
+    expect(repo.capturedOrganisationActivityDays, 30);
+    expect(repo.capturedOrganisationActivityOrder, 'asc');
+    expect(find.textContaining('6 requirement(s) posted in the window'), findsOneWidget);
+  });
+
+  testWidgets('tapping an organisation result row navigates to /organisation-detail with the user id', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    await tester.binding.setSurfaceSize(const Size(1280, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = _FakeAdminReportsRepository(organisationNoJobsPostedResult: [
+      {
+        'profile_id': 'org-profile-5',
+        'user_id': 'org-user-5',
+        'org_number': 705,
+        'organisation_name': 'Harmony Hospice',
+        'full_name': 'Vikram Joshi',
+        'phone': '+919876500024',
+      },
+    ]);
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+          ),
+          adminReportsRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: MaterialApp(
+          home: const ReportsScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Organisation Detail Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('No Jobs Posted, Ever'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Run'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ORG-705 · Harmony Hospice'));
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/organisation-detail');
+    expect(pushedArgs, 'org-user-5');
   });
 }

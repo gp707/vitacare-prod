@@ -43,4 +43,16 @@ class AdminReportsRepository {
 
   Future<List<Map<String, dynamic>>> patientActivity(int days, {String order = 'desc'}) =>
       _get('/admin/reports/patients/activity', {'days': days, 'order': order});
+
+  Future<List<Map<String, dynamic>>> organisationsWithNoJobsPosted() =>
+      _get('/admin/reports/organisations/no-jobs-posted');
+
+  Future<List<Map<String, dynamic>>> organisationsWithNoApplicants(int days) =>
+      _get('/admin/reports/organisations/no-applicants', {'days': days});
+
+  Future<List<Map<String, dynamic>>> organisationsWithUnconvertedApplicants() =>
+      _get('/admin/reports/organisations/unconverted-applicants');
+
+  Future<List<Map<String, dynamic>>> organisationActivity(int days, {String order = 'desc'}) =>
+      _get('/admin/reports/organisations/activity', {'days': days, 'order': order});
 }

@@ -10,8 +10,7 @@ import '../../../shared/widgets/app_shell.dart';
 /// Reports section (caregivers idle/no-duty, patients with no applicants,
 /// organisations with unconverted applicants, activity rankings, etc.) —
 /// grouped by entity type, each with its own admin-typed threshold where
-/// relevant. Phase 1 wired the 4 Caregiver reports; Phase 2 adds the 4
-/// Patient reports. Organisation reports are added in a later phase.
+/// relevant.
 ///
 /// [_Report] is a marker interface both per-entity enums implement, so
 /// [_ReportsScreenState] can hold a single `_selectedReport` regardless of
@@ -22,6 +21,8 @@ sealed class _Report {}
 enum _CaregiverReport implements _Report { unassignedOrNoDuty, stalledDuty, overThresholdActive, activity }
 
 enum _PatientReport implements _Report { noApplicants, noPendingCandidate, unconvertedApplicants, activity }
+
+enum _OrganisationReport implements _Report { noJobsPosted, noApplicants, unconvertedApplicants, activity }
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -62,7 +63,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       _selectedReport == _CaregiverReport.stalledDuty ||
       _selectedReport == _CaregiverReport.activity ||
       _selectedReport == _PatientReport.noApplicants ||
-      _selectedReport == _PatientReport.activity;
+      _selectedReport == _PatientReport.activity ||
+      _selectedReport == _OrganisationReport.noApplicants ||
+      _selectedReport == _OrganisationReport.activity;
 
   Future<void> _run() async {
     final report = _selectedReport;
@@ -92,6 +95,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         _PatientReport.noPendingCandidate => await repo.patientsWithNoPendingCandidate(),
         _PatientReport.unconvertedApplicants => await repo.patientsWithUnconvertedApplicants(),
         _PatientReport.activity => await repo.patientActivity(_days!, order: _activityOrder),
+        _OrganisationReport.noJobsPosted => await repo.organisationsWithNoJobsPosted(),
+        _OrganisationReport.noApplicants => await repo.organisationsWithNoApplicants(_days!),
+        _OrganisationReport.unconvertedApplicants => await repo.organisationsWithUnconvertedApplicants(),
+        _OrganisationReport.activity => await repo.organisationActivity(_days!, order: _activityOrder),
       };
       if (mounted) setState(() => _results = results);
     } on ApiException catch (e) {
@@ -107,6 +114,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   void _openIndividual(String userId) {
     Navigator.of(context).pushNamed('/individual-detail', arguments: userId);
+  }
+
+  void _openOrganisation(String userId) {
+    Navigator.of(context).pushNamed('/organisation-detail', arguments: userId);
   }
 
   @override
@@ -177,6 +188,32 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: AppSpacing.md),
+                      _ReportGroup(
+                        title: 'Rehab/Hospitals',
+                        children: [
+                          _ReportTile(
+                            label: 'No Jobs Posted, Ever',
+                            selected: _selectedReport == _OrganisationReport.noJobsPosted,
+                            onTap: () => _selectReport(_OrganisationReport.noJobsPosted),
+                          ),
+                          _ReportTile(
+                            label: 'Requirements Posted, No Applicant in N Days',
+                            selected: _selectedReport == _OrganisationReport.noApplicants,
+                            onTap: () => _selectReport(_OrganisationReport.noApplicants),
+                          ),
+                          _ReportTile(
+                            label: 'Applicants Came, None Accepted',
+                            selected: _selectedReport == _OrganisationReport.unconvertedApplicants,
+                            onTap: () => _selectReport(_OrganisationReport.unconvertedApplicants),
+                          ),
+                          _ReportTile(
+                            label: 'Organisation Activity (Most/Least Active)',
+                            selected: _selectedReport == _OrganisationReport.activity,
+                            onTap: () => _selectReport(_OrganisationReport.activity),
+                          ),
+                        ],
+                      ),
                       if (_selectedReport != null) ...[
                         const SizedBox(height: AppSpacing.lg),
                         const Divider(),
@@ -205,7 +242,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final report = _selectedReport!;
     if (report == _CaregiverReport.unassignedOrNoDuty ||
         report == _PatientReport.noPendingCandidate ||
-        report == _PatientReport.unconvertedApplicants) {
+        report == _PatientReport.unconvertedApplicants ||
+        report == _OrganisationReport.noJobsPosted ||
+        report == _OrganisationReport.unconvertedApplicants) {
       return const SizedBox.shrink();
     }
     if (report == _CaregiverReport.overThresholdActive) {
@@ -218,9 +257,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         ),
       );
     }
-    final needsOrder = report == _CaregiverReport.activity || report == _PatientReport.activity;
+    final needsOrder = report == _CaregiverReport.activity ||
+        report == _PatientReport.activity ||
+        report == _OrganisationReport.activity;
     if (!needsOrder) {
-      // stalledDuty, patients.noApplicants — Days only.
+      // stalledDuty, patients.noApplicants, organisations.noApplicants — Days only.
       return SizedBox(
         width: 200,
         child: TextField(
@@ -277,7 +318,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Widget _buildResultRow(Map<String, dynamic> row) {
     final report = _selectedReport!;
     if (report is _CaregiverReport) return _buildCaregiverRow(report, row);
-    return _buildPatientRow(report as _PatientReport, row);
+    if (report is _PatientReport) return _buildPatientRow(report, row);
+    return _buildOrganisationRow(report as _OrganisationReport, row);
   }
 
   Widget _buildCaregiverRow(_CaregiverReport report, Map<String, dynamic> row) {
@@ -337,6 +379,33 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       phone: row['phone'] as String,
       subtitle: subtitle,
       onTap: () => _openIndividual(row['user_id'] as String),
+    );
+  }
+
+  Widget _buildOrganisationRow(_OrganisationReport report, Map<String, dynamic> row) {
+    final Widget subtitle = switch (report) {
+      _OrganisationReport.noJobsPosted => const Text(
+          'No requirements posted, ever',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      _OrganisationReport.noApplicants => Text(
+          '${row['live_requirement_count']} live requirement(s) · No applicants in the window',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      _OrganisationReport.unconvertedApplicants => Text(
+          '${row['applicant_count']} applicant(s), none accepted',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      _OrganisationReport.activity => Text(
+          '${row['activity_count']} requirement(s) posted in the window',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+    };
+    return _ResultCard(
+      title: '${organisationDisplayId(row['org_number'] as int?)} · ${row['organisation_name']}',
+      phone: row['phone'] as String,
+      subtitle: subtitle,
+      onTap: () => _openOrganisation(row['user_id'] as String),
     );
   }
 

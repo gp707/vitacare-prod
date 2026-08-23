@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 /// Persistent "reach out for help" entry point — shown in every main
 /// screen's AppBar regardless of verification status, so a caregiver can
@@ -30,23 +31,27 @@ class WhatsAppHelpButton extends StatelessWidget {
     }
   }
 
-  // WhatsApp's brand green — a plain white outline icon blended into the
-  // rest of the AppBar's white icons/text and was easy to miss. A filled
-  // green badge plus a visible "Help" label reads as an obviously
-  // tappable, distinct action instead.
-  static const _whatsAppGreen = Color(0xFF25D366);
-
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: () => _open(context),
-      style: TextButton.styleFrom(foregroundColor: Colors.white),
-      icon: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: const BoxDecoration(color: _whatsAppGreen, shape: BoxShape.circle),
-        child: const Icon(Icons.chat, size: 14, color: Colors.white),
+    // Compact padding/density — this button shares AppBar space with a
+    // filter icon and Logout, so the wide default ElevatedButton padding
+    // overflows a typical phone-width AppBar once all three are present.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: ElevatedButton.icon(
+        onPressed: () => _open(context),
+        icon: const Icon(Icons.phone_in_talk, size: 16),
+        label: const Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.error,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
       ),
-      label: const Text('Help', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 }

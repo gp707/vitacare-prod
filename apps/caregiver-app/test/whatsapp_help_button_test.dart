@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:caregiver_app/app/whatsapp_help_button.dart';
 
 void main() {
+  testWidgets('renders as a solid red button, not plain text — easy for a caregiver to spot', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(appBar: AppBar(actions: const [WhatsAppHelpButton()])),
+      ),
+    );
+
+    final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Click for Help'));
+    final backgroundColor = button.style?.backgroundColor?.resolve({});
+    expect(backgroundColor, AppColors.error);
+  });
+
   testWidgets('tapping the button opens the WhatsApp deep link for the support number', (tester) async {
     Uri? openedUri;
     await tester.pumpWidget(
@@ -23,8 +36,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Help'), findsOneWidget);
-    await tester.tap(find.text('Help'));
+    expect(find.text('Click for Help'), findsOneWidget);
+    await tester.tap(find.text('Click for Help'));
     await tester.pumpAndSettle();
 
     expect(openedUri, Uri.parse('https://wa.me/917259255869'));
@@ -43,8 +56,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Help'), findsOneWidget);
-    await tester.tap(find.text('Help'));
+    expect(find.text('Click for Help'), findsOneWidget);
+    await tester.tap(find.text('Click for Help'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Could not open WhatsApp'), findsOneWidget);
