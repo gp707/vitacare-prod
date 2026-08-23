@@ -207,8 +207,27 @@ void main() {
     expect(find.text('ADMIN-JOB-543'), findsOneWidget);
     // Only the accepted job gets the action button; the completed one shows a badge instead.
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
-    expect(find.text('Closed'), findsOneWidget);
+    expect(find.text('You closed this job'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
+  });
+
+  testWidgets(
+      'once closed, the poster\'s phone number and Call/WhatsApp actions disappear, but the name stays',
+      (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([
+        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+      ]),
+    );
+
+    // Both cards show the same fixture poster ("Admin Kumar") — the name
+    // appears on both, but the phone/actions only on the still-accepted one.
+    expect(find.text('Admin Kumar'), findsNWidgets(2));
+    expect(find.text('+919876500000'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
   });
 
   testWidgets('does not show the "Hide completed jobs" toggle when there are no completed jobs', (tester) async {
@@ -268,7 +287,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeRepo.completedJobId, 'job-1');
-    expect(find.text('Closed'), findsOneWidget);
+    expect(find.text('You closed this job'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
   });
 
@@ -333,7 +352,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(applicationStatus: 'completed')]),
     );
 
-    expect(find.text('Closed'), findsOneWidget);
+    expect(find.text('You closed this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
   });
 
@@ -351,7 +370,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(orgRepo.completedRequirementId, 'req-1');
-    expect(find.text('Closed'), findsOneWidget);
+    expect(find.text('You closed this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
   });
 

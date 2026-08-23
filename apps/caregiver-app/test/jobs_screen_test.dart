@@ -746,25 +746,9 @@ void main() {
     expect(find.text('Job Search Preferences'), findsOneWidget);
   });
 
-  testWidgets('reloads the job list after saving preferences', (tester) async {
-    final fakeJobsRepo = _FakeJobsRepository([_job()]);
-    await _pump(
-      tester,
-      fakeJobsRepo,
-      extraOverrides: [profileRepositoryProvider.overrideWithValue(_FakeProfileRepository())],
-    );
-    expect(fakeJobsRepo.listActiveJobsCallCount, 1);
-
-    await tester.tap(find.byIcon(Icons.tune));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Mumbai'));
-    await tester.pump();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(JobPreferencesScreen), findsNothing);
-    expect(fakeJobsRepo.listActiveJobsCallCount, 2);
-  });
+  // "reloads the job list after saving preferences" was removed —
+  // JobPreferencesScreen is temporarily read-only (no Save button, nothing
+  // to save), see job_preferences_screen_test.dart for coverage of that.
 
   // --- Merged organisation requirements ---
 

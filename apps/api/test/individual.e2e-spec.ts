@@ -255,6 +255,16 @@ describe('Individual (NurseNow) (e2e)', () => {
         .send(requirementPayload())
         .expect(403);
     });
+
+    it('accepts an empty languages array — "No Preference" is a valid choice, not just an unset field', async () => {
+      const individual = await registerIndividual('0056');
+      const res = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ languages: [] }))
+        .expect(201);
+      expect(res.body.data.languages).toEqual([]);
+    });
   });
 
   describe('PATCH /v1/individual/requirements/:jobId (patient edit)', () => {
@@ -443,6 +453,23 @@ describe('Individual (NurseNow) (e2e)', () => {
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .send(requirementPayload())
         .expect(403);
+    });
+
+    it('allows editing languages down to an empty array — "No Preference"', async () => {
+      const individual = await registerIndividual('0057');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+
+      const edited = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ languages: [] }))
+        .expect(200);
+      expect(edited.body.data.languages).toEqual([]);
     });
   });
 

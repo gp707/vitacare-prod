@@ -320,6 +320,16 @@ describe('OrganisationRequirementsService', () => {
       expect(result.verification_status).toBe('available');
     });
 
+    it('always reopens the requirement to active — a caregiver-initiated close is a self-rejection, not a statement the org\'s need is over', async () => {
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+
+      await service.completeRequirement('user-1', 'req-1', null);
+
+      expect(requirementsRepo.reopen).toHaveBeenCalledWith('req-1', {});
+    });
+
     it('leaves the caregiver assigned when another accepted requirement remains', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });

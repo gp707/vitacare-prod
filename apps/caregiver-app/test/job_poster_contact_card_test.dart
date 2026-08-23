@@ -74,4 +74,16 @@ void main() {
 
     expect(find.textContaining('Could not open the dialer'), findsOneWidget);
   });
+
+  testWidgets('showPhone: false hides the phone number and Call/WhatsApp actions, but keeps the name',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: JobPosterContactCard(poster: poster, showPhone: false))),
+    );
+
+    expect(find.text('Admin Kumar'), findsOneWidget);
+    expect(find.text('+919876500000'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsNothing);
+  });
 }

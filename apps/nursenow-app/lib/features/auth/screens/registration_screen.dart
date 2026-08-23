@@ -6,6 +6,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../data/auth_result.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
@@ -218,7 +219,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(title: const Text('Register'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(

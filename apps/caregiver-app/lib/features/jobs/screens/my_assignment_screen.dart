@@ -297,8 +297,12 @@ class _AssignedJobCard extends StatelessWidget {
           JobDetailCard(job: job),
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
+            // Completion is always caregiver-initiated (there's no
+            // admin/patient path to it) — say so explicitly rather than a
+            // bare "Closed", which could read as the patient/employer
+            // having ended it.
             const Text(
-              'Closed',
+              'You closed this job',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[
@@ -323,7 +327,7 @@ class _AssignedJobCard extends StatelessWidget {
           ],
           if (job.jobPoster != null) ...[
             const SizedBox(height: AppSpacing.md),
-            JobPosterContactCard(poster: job.jobPoster!),
+            JobPosterContactCard(poster: job.jobPoster!, showPhone: !isCompleted),
           ],
         ],
       ),
@@ -397,7 +401,7 @@ class _AssignedRequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(
-              'Closed',
+              'You closed this requirement',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[

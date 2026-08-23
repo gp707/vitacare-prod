@@ -38,7 +38,6 @@ CaregiverProfileModel _profile({
 class _FakeProfileRepository extends ProfileRepository {
   final CaregiverProfileModel profile;
   bool editProfileCalled = false;
-  Map<String, dynamic> captured = {};
 
   _FakeProfileRepository(this.profile) : super(Dio());
 
@@ -56,12 +55,6 @@ class _FakeProfileRepository extends ProfileRepository {
     int? minSalaryPerMonth,
   }) async {
     editProfileCalled = true;
-    captured = {
-      'preferredCities': preferredCities,
-      'preferredDutyTypes': preferredDutyTypes,
-      'minSalaryPerDay': minSalaryPerDay,
-      'minSalaryPerMonth': minSalaryPerMonth,
-    };
     return 'available';
   }
 }
@@ -72,13 +65,45 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(child);
 }
 
+/// JobPreferencesScreen is temporarily read-only (2026-08-23): Preferred
+/// Shift/Duty Type and both minimum-salary fields always display "select
+/// everything" (all 3 shifts, ₹0) regardless of what's actually stored,
+/// there's no Save button, and nothing can be edited. Preferred City is
+/// still shown as the caregiver's real stored value, just non-interactive.
 void main() {
-  testWidgets('loads and shows the current preferences', (tester) async {
+  testWidgets('shows all 3 shifts checked and both minimums as 0, regardless of what is actually stored',
+      (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(
-      preferredCities: ['bangalore'],
       preferredDutyTypes: [DutyType.dayDuty],
       minSalaryPerDay: 1500,
+      minSalaryPerMonth: 30000,
     ));
+    await _pumpTall(
+      tester,
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
+        child: const MaterialApp(home: JobPreferencesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final type in DutyType.all) {
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, DutyType.displayNames[type]!),
+      );
+      expect(chip.selected, isTrue, reason: '$type should show as selected');
+      expect(chip.onSelected, isNull, reason: '$type should not be tappable');
+    }
+    expect(find.text('Minimum Salary — ₹/day'), findsOneWidget);
+    expect(find.text('Minimum Salary — ₹/month'), findsOneWidget);
+    expect(find.text('0'), findsNWidgets(2));
+    // The real stored values (1500/30000/day_duty-only) are never shown.
+    expect(find.text('1500'), findsNothing);
+    expect(find.text('30000'), findsNothing);
+  });
+
+  testWidgets('shows the real stored preferred cities, but not interactively', (tester) async {
+    final fakeRepo = _FakeProfileRepository(_profile(preferredCities: ['bangalore']));
     await _pumpTall(
       tester,
       ProviderScope(
@@ -90,52 +115,14 @@ void main() {
 
     final bangaloreChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Bangalore'));
     expect(bangaloreChip.selected, isTrue);
-    final dayDutyChip = tester.widget<FilterChip>(
-      find.widgetWithText(FilterChip, DutyType.displayNames[DutyType.dayDuty]!),
-    );
-    expect(dayDutyChip.selected, isTrue);
-    expect(find.text('1500'), findsOneWidget);
+    expect(bangaloreChip.onSelected, isNull);
+    final mumbaiChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Mumbai'));
+    expect(mumbaiChip.selected, isFalse);
+    expect(mumbaiChip.onSelected, isNull);
   });
 
-  testWidgets('Save sends only what actually changed and pops with true', (tester) async {
-    final fakeRepo = _FakeProfileRepository(_profile());
-    late bool? popResult;
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: MaterialApp(
-          home: Builder(
-            builder: (context) => ElevatedButton(
-              child: const Text('open'),
-              onPressed: () async {
-                popResult = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(builder: (_) => const JobPreferencesScreen()),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Mumbai'));
-    await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, 'Minimum Salary — ₹/day (optional)'), '2000');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
-    await tester.pumpAndSettle();
-
-    expect(fakeRepo.editProfileCalled, isTrue);
-    expect(fakeRepo.captured['preferredCities'], ['mumbai']);
-    expect(fakeRepo.captured['minSalaryPerDay'], 2000);
-    expect(fakeRepo.captured['minSalaryPerMonth'], isNull);
-    expect(fakeRepo.captured['preferredDutyTypes'], isNull);
-    expect(popResult, isTrue);
-  });
-
-  testWidgets('rejects a non-numeric minimum salary without calling the repository', (tester) async {
+  testWidgets('has no Save button and never calls editProfile — editing is temporarily unavailable',
+      (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile());
     await _pumpTall(
       tester,
@@ -146,11 +133,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Minimum Salary — ₹/month (optional)'), 'abc');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
-    await tester.pumpAndSettle();
-
+    expect(find.widgetWithText(ElevatedButton, 'Save'), findsNothing);
     expect(fakeRepo.editProfileCalled, isFalse);
-    expect(find.text('Minimum salary per month must be a positive number'), findsOneWidget);
   });
 }

@@ -1,5 +1,4 @@
 import {
-  ArrayNotEmpty,
   IsArray,
   IsDateString,
   IsIn,
@@ -45,8 +44,8 @@ export class UpdateIndividualRequirementDto {
   @IsDateString({}, { message: 'GEN_001' })
   start_date!: string;
 
+  /** Empty array means "No Preference" — see CreateIndividualRequirementDto. */
   @IsArray({ message: 'GEN_001' })
-  @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })
   languages!: Language[];
 

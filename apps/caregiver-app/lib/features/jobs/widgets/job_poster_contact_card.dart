@@ -10,10 +10,16 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 class JobPosterContactCard extends StatelessWidget {
   final JobPosterModel poster;
 
+  /// Once the caregiver closes the job themselves, the phone number (and
+  /// Call/WhatsApp actions) disappear — there's no ongoing engagement left
+  /// to contact them about — but the poster's name stays, so the historical
+  /// record still shows who the job was for.
+  final bool showPhone;
+
   /// Injectable for widget tests — defaults to the real url_launcher call.
   final Future<bool> Function(Uri uri)? launcher;
 
-  const JobPosterContactCard({super.key, required this.poster, this.launcher});
+  const JobPosterContactCard({super.key, required this.poster, this.showPhone = true, this.launcher});
 
   Future<void> _open(BuildContext context, Uri uri, String failureMessage) async {
     bool launched;
@@ -47,35 +53,37 @@ class JobPosterContactCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(poster.fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          Text(poster.phone, style: const TextStyle(color: AppColors.textSecondary)),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _open(
-                    context,
-                    Uri(scheme: 'tel', path: poster.phone),
-                    'Could not open the dialer. Call ${poster.phone} directly.',
+          if (showPhone) ...[
+            Text(poster.phone, style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _open(
+                      context,
+                      Uri(scheme: 'tel', path: poster.phone),
+                      'Could not open the dialer. Call ${poster.phone} directly.',
+                    ),
+                    icon: const Icon(Icons.call, size: 18),
+                    label: const Text('Call'),
                   ),
-                  icon: const Icon(Icons.call, size: 18),
-                  label: const Text('Call'),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _open(
-                    context,
-                    Uri.parse('https://wa.me/$digits'),
-                    'Could not open WhatsApp. Message ${poster.phone} directly.',
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _open(
+                      context,
+                      Uri.parse('https://wa.me/$digits'),
+                      'Could not open WhatsApp. Message ${poster.phone} directly.',
+                    ),
+                    icon: const Icon(Icons.chat, size: 18, color: Color(0xFF25D366)),
+                    label: const Text('WhatsApp'),
                   ),
-                  icon: const Icon(Icons.chat, size: 18, color: Color(0xFF25D366)),
-                  label: const Text('WhatsApp'),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );

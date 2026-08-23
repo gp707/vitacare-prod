@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 
 /// Read-only "who applied" view for an individual/organisation reviewing a
@@ -47,7 +48,7 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
   Widget build(BuildContext context) {
     final profile = _profile;
     return Scaffold(
-      appBar: AppBar(title: Text(profile?.fullName ?? 'Caregiver Profile')),
+      appBar: AppBar(title: Text(profile?.fullName ?? 'Caregiver Profile'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: _loading

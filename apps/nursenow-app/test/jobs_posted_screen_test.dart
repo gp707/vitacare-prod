@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
@@ -158,6 +159,15 @@ class _FakeIndividualRepository extends IndividualRepository {
 }
 
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
+  // Requirement cards accumulate a lot of content (About Patient/Requirement
+  // tags, Edit/Cancel/Post Similar actions, applicant review section) — tall
+  // enough that the default 800x600 test viewport clips action buttons out
+  // of hit-testable range for some fixtures. A generous default surface
+  // avoids that for every test in this file, not just the ones that
+  // happened to need it first.
+  await tester.binding.setSurfaceSize(const Size(800, 3000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -258,6 +268,18 @@ void main() {
     expect(find.text('Accepted'), findsOneWidget);
   });
 
+  testWidgets('requirement card has a dark, wide border — senior-citizen-friendly visibility', (tester) async {
+    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('PAT-JOB-542'), matching: find.byType(Container)).first,
+    );
+    final decoration = container.decoration as BoxDecoration;
+    final border = decoration.border as Border;
+    expect(border.top.width, greaterThanOrEqualTo(2.5));
+    expect(border.top.color, AppColors.textPrimary);
+  });
+
   testWidgets('renders the full About Patient / requirement detail inline', (tester) async {
     await _pump(
       tester,
@@ -290,6 +312,67 @@ void main() {
     expect(find.text('Sita Devi'), findsNothing);
     expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets(
+      'once a candidate is accepted, any other still-applied candidate is never shown for review — the queue only advances on reject',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [
+            _application(id: 'app-1', fullName: 'Ramesh Kumar', status: 'accepted', appliedAt: '2026-08-01T10:00:00Z'),
+            _application(id: 'app-2', fullName: 'Sita Devi', appliedAt: '2026-08-02T10:00:00Z'),
+          ],
+        },
+      ),
+    );
+
+    expect(find.text('2 candidates applied in total'), findsOneWidget);
+    expect(find.textContaining('Reviewing'), findsNothing);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    // The still-applied candidate's name/profile is never surfaced.
+    expect(find.text('Sita Devi'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
+    // The one Reject button present belongs to the accepted candidate's own
+    // tile (undo the acceptance) — not a review action for anyone else.
+    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets(
+      'rejecting an already-accepted candidate undoes the acceptance, hides their phone, and reopens the queue',
+      (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      applicationsByJobId: {
+        'job-1': [
+          _application(id: 'app-1', fullName: 'Ramesh Kumar', status: 'accepted', appliedAt: '2026-08-01T10:00:00Z'),
+          _application(id: 'app-2', fullName: 'Sita Devi', appliedAt: '2026-08-02T10:00:00Z'),
+        ],
+      },
+    );
+    await _pump(tester, repo);
+
+    // Precondition: the accepted candidate's phone is visible, the second
+    // applicant is not yet surfaced for review.
+    expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.text('Sita Devi'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Decline this candidate'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Changed our mind');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedJobId, 'job-1');
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'rejected');
+    expect(repo.decidedReason, 'Changed our mind');
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right job and application id', (tester) async {
@@ -449,19 +532,21 @@ void main() {
     expect(find.text('Rejected by Caregiver'), findsNothing);
   });
 
-  testWidgets('shows "Closed by Caregiver" and still shows the phone for a completed engagement', (tester) async {
+  testWidgets('shows "Closed by Caregiver" but hides the phone number for a completed engagement, keeping the name',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
         requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
         applicationsByJobId: {
-          'job-1': [_application(status: 'completed')],
+          'job-1': [_application(status: 'completed', fullName: 'Ramesh Kumar')],
         },
       ),
     );
 
     expect(find.text('Closed by Caregiver'), findsOneWidget);
-    expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    expect(find.text('+919876543210'), findsNothing);
   });
 
   testWidgets('shows an Edit button when there is no active application', (tester) async {

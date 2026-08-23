@@ -112,7 +112,9 @@ void main() {
     expect(find.text('Area is required'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
     expect(find.text('Select a preferred start date'), findsOneWidget);
-    expect(find.text('Select at least one language'), findsOneWidget);
+    // Language Preference is never invalid — it defaults to "No
+    // Preference" rather than requiring an active choice.
+    expect(find.text('No Preference'), findsOneWidget);
     expect(repo.createCalled, isFalse);
   });
 
@@ -170,6 +172,61 @@ void main() {
     expect(repo.capturedArea, 'Indiranagar');
     expect(repo.capturedDutyType, 'live_in');
     expect(repo.capturedLanguages, ['hindi']);
+  });
+
+  testWidgets('defaults Language Preference to No Preference, submitting an empty array when untouched',
+      (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    final noPreferenceChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference'));
+    expect(noPreferenceChip.selected, isTrue);
+
+    await _fillMandatoryFields(tester); // taps 'Hindi' at the end — undo it for this test.
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.capturedLanguages, <String>[]);
+  });
+
+  testWidgets('tapping a real language deselects No Preference', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isFalse);
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Hindi')).selected, isTrue);
+  });
+
+  testWidgets('tapping No Preference after selecting a language clears the language selection', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'No Preference'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isTrue);
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Hindi')).selected, isFalse);
+  });
+
+  testWidgets('deselecting the only selected language falls back to No Preference', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi')); // deselect
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isTrue);
   });
 
   testWidgets('shows the server error message (e.g. JOB_009) when submission fails', (tester) async {

@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
+
+// A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
+// with every real language: picking a real language drops this, picking
+// this drops every real language. Translated to an empty `languages: []`
+// array at submission time, which the backend treats as "No Preference"
+// (see CreateIndividualRequirementDto/UpdateIndividualRequirementDto).
+const _noPreferenceLanguage = 'no_preference';
+const _noPreferenceLanguageLabel = 'No Preference';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -61,7 +70,9 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _descriptionController = TextEditingController();
   String? _dutyType;
   DateTime? _startDate;
-  final List<String> _languages = [];
+  // Defaults to "No Preference" — a real, deliberate choice, not an unset
+  // field (see _noPreferenceLanguage above).
+  final List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender;
   String? _preferredReligion;
 
@@ -118,7 +129,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     // start_date intentionally NOT carried over — the source requirement's
     // date has very likely already passed; the patient must pick a fresh
     // one (also avoids the date picker's initialDate < firstDate assert).
-    _languages.addAll(source.languages);
+    // Empty source.languages means the source was itself "No Preference"
+    // — _languages already defaults to that, so leave it untouched.
+    if (source.languages.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(source.languages);
+    }
     _preferredGender = source.preferredGender;
     _preferredReligion = source.preferredReligion;
   }
@@ -147,7 +164,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
-  bool get _isLanguagesValid => _languages.isNotEmpty;
 
   bool get _canSubmit =>
       !_saving &&
@@ -157,11 +173,12 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _isCityValid &&
       _isAreaValid &&
       _isDutyTypeValid &&
-      _isStartDateValid &&
-      _isLanguagesValid;
+      _isStartDateValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one the patient/family sees when Submit scrolls them to it.
+  /// Language Preference isn't here — it always defaults to "No
+  /// Preference" and can never be empty, so it's never invalid.
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
@@ -170,7 +187,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
-        _MandatoryField(_languagesKey, _isLanguagesValid),
       ];
 
   Future<void> _pickStartDate() async {
@@ -182,6 +198,31 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (picked != null) setState(() => _startDate = picked);
+  }
+
+  /// "No Preference" is mutually exclusive with every real language:
+  /// picking it clears any real selections, and picking a real language
+  /// clears "No Preference". Deselecting the last real language (or
+  /// re-tapping "No Preference" while it's the only thing selected) falls
+  /// back to "No Preference" — there's no truly-empty state. Must be
+  /// called inside setState.
+  void _applyLanguageSelection(List<String> next) {
+    final added = next.where((l) => !_languages.contains(l));
+    final removed = _languages.where((l) => !next.contains(l));
+    if (added.contains(_noPreferenceLanguage)) {
+      _languages
+        ..clear()
+        ..add(_noPreferenceLanguage);
+    } else if (added.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(next.where((l) => l != _noPreferenceLanguage));
+    } else if (removed.isNotEmpty) {
+      final remaining = next.where((l) => l != _noPreferenceLanguage).toList();
+      _languages
+        ..clear()
+        ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
+    }
   }
 
   /// Submit is always tappable — this is what runs when it's pressed. With
@@ -246,7 +287,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             description: _descriptionController.text.trim(),
             dutyType: _dutyType!,
             startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
-            languages: _languages,
+            languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
           );
@@ -261,7 +302,10 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.cloneFrom != null ? 'Post Similar Requirement' : 'Post a Requirement')),
+      appBar: AppBar(
+        title: Text(widget.cloneFrom != null ? 'Post Similar Requirement' : 'Post a Requirement'),
+        actions: const [WhatsAppHelpButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
@@ -511,29 +555,14 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Language Preference (Mandatory)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
-                    ),
-                  ),
+                  const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: AppSpacing.xs),
                   VitaMultiSelectChips(
-                    options: Language.all,
-                    labels: Language.displayNames,
+                    options: [_noPreferenceLanguage, ...Language.all],
+                    labels: {_noPreferenceLanguage: _noPreferenceLanguageLabel, ...Language.displayNames},
                     selected: _languages,
-                    onChanged: (next) => setState(() {
-                      _languages
-                        ..clear()
-                        ..addAll(next);
-                    }),
+                    onChanged: (next) => setState(() => _applyLanguageSelection(next)),
                   ),
-                  if (_showValidationErrors && !_isLanguagesValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Select at least one language', style: TextStyle(color: AppColors.error, fontSize: 12)),
-                    ),
                 ],
               ),
             ),

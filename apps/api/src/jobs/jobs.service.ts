@@ -401,7 +401,7 @@ export class JobsService {
     return { message: 'Application recorded', status: application.status };
   }
 
-  /** Caregiver self-service "I finished this job" — the only way out of
+  /** Caregiver self-service "I'm done with this job" — the only way out of
    *  `assigned` now that a caregiver can hold several accepted jobs at
    *  once (the old single global "Available for Jobs" button can't say
    *  which job it means). Marks just this application `completed`;
@@ -409,7 +409,16 @@ export class JobsService {
    *  accepted applications remain — if others are still active, it stays
    *  `assigned`. JOB_008 covers every case where this doesn't apply: never
    *  applied, still `applied`, already `rejected`, or already
-   *  `completed`. */
+   *  `completed`.
+   *
+   *  This is effectively the caregiver rejecting the job for herself, not
+   *  a statement that the underlying need is over — so the job is always
+   *  reopened to `active` (mirrors decideApplication's isUndoAccept), the
+   *  same way it would be if the patient/admin had un-accepted her
+   *  instead. A job only ever has one accepted application at a time, so
+   *  there's nothing to check before reopening — whether other `applied`
+   *  candidates remain or none at all, it goes straight back to `active`
+   *  and stays visible/postable again. */
   async completeJob(userId: string, jobId: string, ipAddress: string | null) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
@@ -422,6 +431,7 @@ export class JobsService {
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.markCompleted(application.id, client);
+      await this.jobsRepo.reopen(jobId, client);
       const remaining = await this.jobApplicationsRepo.countAcceptedByProfileId(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
@@ -437,6 +447,7 @@ export class JobsService {
       beforeValue: { status: 'accepted' },
       afterValue: {
         status: 'completed',
+        job_status: 'active',
         verification_status: stillAssigned ? 'assigned' : 'available',
       },
       ipAddress,

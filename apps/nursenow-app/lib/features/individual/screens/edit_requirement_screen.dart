@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
+
+// A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
+// with every real language: picking a real language drops this, picking
+// this drops every real language. Translated to an empty `languages: []`
+// array at submission time, which the backend treats as "No Preference"
+// (see CreateIndividualRequirementDto/UpdateIndividualRequirementDto).
+const _noPreferenceLanguage = 'no_preference';
+const _noPreferenceLanguageLabel = 'No Preference';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -56,7 +65,9 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   final _descriptionController = TextEditingController();
   String? _dutyType;
   DateTime? _startDate;
-  final List<String> _languages = [];
+  // Defaults to "No Preference" — a real, deliberate choice, not an unset
+  // field (see _noPreferenceLanguage above).
+  final List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender;
   String? _preferredReligion;
 
@@ -114,7 +125,13 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
     _descriptionController.text = job.description ?? '';
     _dutyType = job.dutyType;
     _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
-    _languages.addAll(job.languages);
+    // Empty job.languages means the job was itself "No Preference" —
+    // _languages already defaults to that, so leave it untouched.
+    if (job.languages.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(job.languages);
+    }
     _preferredGender = job.preferredGender;
     _preferredReligion = job.preferredReligion;
     _frequencyOfCare = job.frequencyOfCare;
@@ -148,7 +165,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
-  bool get _isLanguagesValid => _languages.isNotEmpty;
   bool get _isFrequencyValid => !_canEditSalaryFrequency || _frequencyOfCare != null;
   bool get _isSalaryValid =>
       !_canEditSalaryFrequency || (_salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000);
@@ -162,10 +178,11 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       _isAreaValid &&
       _isDutyTypeValid &&
       _isStartDateValid &&
-      _isLanguagesValid &&
       _isFrequencyValid &&
       _isSalaryValid;
 
+  /// Language Preference isn't here — it always defaults to "No
+  /// Preference" and can never be empty, so it's never invalid.
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
@@ -174,7 +191,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
-        _MandatoryField(_languagesKey, _isLanguagesValid),
         if (_canEditSalaryFrequency) _MandatoryField(_frequencyKey, _isFrequencyValid),
         if (_canEditSalaryFrequency) _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
       ];
@@ -188,6 +204,31 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (picked != null) setState(() => _startDate = picked);
+  }
+
+  /// "No Preference" is mutually exclusive with every real language:
+  /// picking it clears any real selections, and picking a real language
+  /// clears "No Preference". Deselecting the last real language (or
+  /// re-tapping "No Preference" while it's the only thing selected) falls
+  /// back to "No Preference" — there's no truly-empty state. Must be
+  /// called inside setState.
+  void _applyLanguageSelection(List<String> next) {
+    final added = next.where((l) => !_languages.contains(l));
+    final removed = _languages.where((l) => !next.contains(l));
+    if (added.contains(_noPreferenceLanguage)) {
+      _languages
+        ..clear()
+        ..add(_noPreferenceLanguage);
+    } else if (added.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(next.where((l) => l != _noPreferenceLanguage));
+    } else if (removed.isNotEmpty) {
+      final remaining = next.where((l) => l != _noPreferenceLanguage).toList();
+      _languages
+        ..clear()
+        ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
+    }
   }
 
   Future<void> _handleSubmitPressed() async {
@@ -250,7 +291,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
             description: _descriptionController.text.trim(),
             dutyType: _dutyType!,
             startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
-            languages: _languages,
+            languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
             frequencyOfCare: _canEditSalaryFrequency ? _frequencyOfCare : null,
@@ -267,7 +308,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Requirement')),
+      appBar: AppBar(title: const Text('Edit Requirement'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
@@ -506,29 +547,14 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Language Preference (Mandatory)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
-                    ),
-                  ),
+                  const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: AppSpacing.xs),
                   VitaMultiSelectChips(
-                    options: Language.all,
-                    labels: Language.displayNames,
+                    options: [_noPreferenceLanguage, ...Language.all],
+                    labels: {_noPreferenceLanguage: _noPreferenceLanguageLabel, ...Language.displayNames},
                     selected: _languages,
-                    onChanged: (next) => setState(() {
-                      _languages
-                        ..clear()
-                        ..addAll(next);
-                    }),
+                    onChanged: (next) => setState(() => _applyLanguageSelection(next)),
                   ),
-                  if (_showValidationErrors && !_isLanguagesValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Select at least one language', style: TextStyle(color: AppColors.error, fontSize: 12)),
-                    ),
                 ],
               ),
             ),

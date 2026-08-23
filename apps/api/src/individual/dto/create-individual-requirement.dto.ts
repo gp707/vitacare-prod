@@ -1,5 +1,4 @@
 import {
-  ArrayNotEmpty,
   IsArray,
   IsDateString,
   IsIn,
@@ -40,8 +39,11 @@ export class CreateIndividualRequirementDto {
   @IsDateString({}, { message: 'GEN_001' })
   start_date!: string;
 
+  /** Empty array means "No Preference" — a deliberate, non-mandatory
+   *  choice (see nursenow-app's Post/Edit Requirement screens), not
+   *  merely an unset field. Purely informational either way — never
+   *  enforced as a caregiver-eligibility filter (see CLAUDE.md). */
   @IsArray({ message: 'GEN_001' })
-  @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })
   languages!: Language[];
 

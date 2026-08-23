@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/nursenow_bottom_nav.dart';
+import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -209,7 +210,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final hasLiveRequirement = _requirements.any(_isLive);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Jobs Posted')),
+      appBar: AppBar(title: const Text('Jobs Posted'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 1),
       body: SafeArea(
@@ -380,8 +381,11 @@ class _RequirementCard extends StatelessWidget {
     final careReceiver = requirement.careReceiver;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
+      // A dark, wide border — easier for a senior citizen to see and tell
+      // apart from the page background/other cards than the default thin
+      // light-grey outline used elsewhere.
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.textPrimary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -545,7 +549,12 @@ class _RequirementCard extends StatelessWidget {
 /// rejecting always requires a reason (see _rejectWithReason). Already-
 /// decided candidates (from this or an earlier session) stay visible in a
 /// read-only list below, including who was accepted — that list is never
-/// hidden once the requirement closes.
+/// hidden once the requirement closes. Once a candidate has been accepted,
+/// the one-at-a-time review stops entirely — no further undecided
+/// candidate (or their profile) is ever surfaced, even if others are still
+/// sitting in `applied` (accepting doesn't touch them — see CLAUDE.md).
+/// The queue only keeps advancing through rejections, never past an
+/// acceptance, since the patient/family has already found their caregiver.
 class _ApplicantsSection extends StatelessWidget {
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
@@ -563,8 +572,13 @@ class _ApplicantsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final undecided = applications.where((a) => a.status == JobApplicationStatus.applied).toList()
-      ..sort((a, b) => (a.appliedAt ?? '').compareTo(b.appliedAt ?? ''));
+    final hasAccepted = applications.any((a) => a.status == JobApplicationStatus.accepted);
+    // Once someone's accepted, stop advancing the queue — no further
+    // undecided candidate (or their profile) is shown.
+    final undecided = hasAccepted
+        ? <JobApplicationModel>[]
+        : (applications.where((a) => a.status == JobApplicationStatus.applied).toList()
+          ..sort((a, b) => (a.appliedAt ?? '').compareTo(b.appliedAt ?? '')));
     final decided = applications.where((a) => a.status != JobApplicationStatus.applied).toList();
 
     return Column(
@@ -597,7 +611,11 @@ class _ApplicantsSection extends StatelessWidget {
             Text('Decided (${decided.length})', style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: AppSpacing.sm),
             for (final application in decided) ...[
-              _DecidedApplicantTile(application: application),
+              _DecidedApplicantTile(
+                application: application,
+                isDeciding: decidingApplicationId.contains(application.id),
+                onReject: onReject,
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
           ],
@@ -665,8 +683,17 @@ class _ReviewingApplicantTile extends StatelessWidget {
 
 class _DecidedApplicantTile extends StatelessWidget {
   final JobApplicationModel application;
+  final bool isDeciding;
 
-  const _DecidedApplicantTile({required this.application});
+  /// Only ever invoked for an accepted candidate — undoes the acceptance
+  /// (same mandatory-reason flow as declining an undecided candidate,
+  /// backed by the same server-side transition admin's own "undo accept"
+  /// uses: the job reopens to active and the caregiver drops back to
+  /// available, so the queue can resume with the next still-applied
+  /// candidate — see _ApplicantsSection's hasAccepted gate above).
+  final void Function(String applicationId) onReject;
+
+  const _DecidedApplicantTile({required this.application, required this.isDeciding, required this.onReject});
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
   bool get _isCompleted => application.status == JobApplicationStatus.completed;
@@ -722,16 +749,30 @@ class _DecidedApplicantTile extends StatelessWidget {
               ),
             ],
           ),
-          // Phone stays visible for an accepted OR closed (completed)
-          // engagement — only a rejection (by either side) hides it, since
-          // there's no ongoing relationship to contact them about anymore.
-          if (!_isRejected) Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+          // Phone is only shown while the engagement is actively accepted —
+          // once the caregiver closes/rejects/cancels it (completed) or
+          // it's rejected, there's no ongoing relationship to contact them
+          // about anymore, so only the name stays visible.
+          if (_isAccepted) Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
           if (_isRejected && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
               'Your reason: ${application.declineReason!}',
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
             ),
+          ],
+          if (_isAccepted) ...[
+            const SizedBox(height: AppSpacing.xs),
+            if (isDeciding)
+              const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+            else
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => onReject(application.id),
+                  child: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                ),
+              ),
           ],
         ],
       ),

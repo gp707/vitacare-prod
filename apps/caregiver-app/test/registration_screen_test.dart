@@ -223,4 +223,17 @@ void main() {
       Uri.parse('https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0'),
     );
   });
+
+  testWidgets('Preferred City shows every city selected and is not interactive', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    for (final city in City.all) {
+      final chip = tester.widget<FilterChip>(
+        find.widgetWithText(FilterChip, City.displayNames[city] ?? city),
+      );
+      expect(chip.selected, isTrue, reason: '$city should show as selected');
+      expect(chip.onSelected, isNull, reason: '$city should not be tappable');
+    }
+  });
 }

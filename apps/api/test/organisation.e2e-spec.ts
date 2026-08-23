@@ -593,6 +593,14 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .expect(200);
       expect(completion.body.data.verification_status).toBe('available');
 
+      // Completing is a self-rejection, not the end of the org's need — the
+      // requirement reopens to active immediately, same as jobs.
+      const requirementRowAfterComplete = await db.query(
+        'SELECT status FROM organisation_requirements WHERE id = $1',
+        [requirementId],
+      );
+      expect(requirementRowAfterComplete.rows[0].status).toBe('active');
+
       const assigned = await request(app.getHttpServer())
         .get('/v1/caregiver/organisation-requirements/assigned')
         .set('Authorization', `Bearer ${caregiver.access_token}`)

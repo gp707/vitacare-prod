@@ -665,6 +665,16 @@ describe('JobsService', () => {
       expect(result).toEqual({ message: 'Job marked complete', still_assigned: false });
     });
 
+    it('always reopens the job to active — a caregiver-initiated close is a self-rejection, not a statement the need is over', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+
+      await service.completeJob('user-1', 'job-1', null);
+
+      expect(jobsRepo.reopen).toHaveBeenCalledWith('job-1', expect.anything());
+    });
+
     it('leaves the caregiver assigned when another accepted job remains', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
@@ -690,7 +700,7 @@ describe('JobsService', () => {
           entityType: 'job_applications',
           entityId: 'app-1',
           beforeValue: { status: 'accepted' },
-          afterValue: { status: 'completed', verification_status: 'assigned' },
+          afterValue: { status: 'completed', job_status: 'active', verification_status: 'assigned' },
           ipAddress: '127.0.0.1',
         }),
       );

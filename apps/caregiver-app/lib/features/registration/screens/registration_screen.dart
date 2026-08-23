@@ -44,7 +44,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String _gender = Gender.female;
   final List<String> _languages = [];
   String? _religion;
-  final List<String> _preferredCities = [];
+  // Read-only, fixed to every city — see the Preferred City section below.
+  final List<String> _preferredCities = List<String>.from(City.all);
   String? _qualification;
   bool _termsAccepted = false;
   Uint8List? _selfieBytes;
@@ -413,17 +414,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               onChanged: (value) => setState(() => _religion = value),
             ),
             const SizedBox(height: AppSpacing.md),
-            const Text('Preferred City (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text('Preferred City', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            const Text(
+              "You're shown jobs in every city for now — this can't be narrowed at registration.",
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
             const SizedBox(height: AppSpacing.sm),
-            VitaMultiSelectChips(
-              options: City.all,
-              labels: City.displayNames,
-              selected: _preferredCities,
-              onChanged: (next) => setState(() {
-                _preferredCities
-                  ..clear()
-                  ..addAll(next);
-              }),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: City.all
+                  .map((city) => FilterChip(
+                        label: Text(City.displayNames[city] ?? city),
+                        selected: true,
+                        onSelected: null,
+                      ))
+                  .toList(),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

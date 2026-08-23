@@ -228,6 +228,12 @@ export class OrganisationRequirementsService {
     return { message: 'Application recorded', status: application.status };
   }
 
+  /** Caregiver self-service "I'm done with this requirement" — effectively
+   *  rejecting it for herself, not a statement that the org's need is
+   *  over, so the requirement is always reopened to `active` (mirrors
+   *  decideApplication's isUndoAccept) regardless of whether other
+   *  `applied` candidates remain or none at all. See JobsService.completeJob
+   *  for the full reasoning (identical shape, mirrored table). */
   async completeRequirement(userId: string, requirementId: string, ipAddress: string | null) {
     const profile = await this.caregiverProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
@@ -240,6 +246,7 @@ export class OrganisationRequirementsService {
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.markCompleted(application.id, client);
+      await this.requirementsRepo.reopen(requirementId, client);
       const remaining = await this.applicationsRepo.countAcceptedByProfileId(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
@@ -253,7 +260,11 @@ export class OrganisationRequirementsService {
       entityType: 'organisation_requirement_applications',
       entityId: application.id,
       beforeValue: { status: 'accepted' },
-      afterValue: { status: 'completed', verification_status: stillAssigned ? 'assigned' : 'available' },
+      afterValue: {
+        status: 'completed',
+        requirement_status: 'active',
+        verification_status: stillAssigned ? 'assigned' : 'available',
+      },
       ipAddress,
     });
 

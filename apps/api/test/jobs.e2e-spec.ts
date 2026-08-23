@@ -1553,7 +1553,7 @@ describe('Jobs (e2e)', () => {
 
     it('returns JOB_007 when accepting an already-accepted application', async () => {
       const job = await createJob();
-      const caregiver = await applyAsAvailableCaregiver('0013', job.id);
+      const caregiver = await applyAsAvailableCaregiver('0042', job.id);
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -1806,6 +1806,51 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(afterSecond.body.data).toHaveLength(2);
       expect(afterSecond.body.data.every((j: { my_application: { status: string } }) => j.my_application.status === 'completed')).toBe(true);
+    }, 30000);
+
+    it('reopens the job to active on complete — a caregiver-initiated close is a self-rejection, not the end of the need, so a new caregiver can immediately apply and be accepted', async () => {
+      const caregiver = await registerCaregiver('0040');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      await acceptOnto(job, caregiver);
+
+      const detailBeforeComplete = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detailBeforeComplete.body.data.status).toBe('closed');
+
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+
+      const detailAfterComplete = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detailAfterComplete.body.data.status).toBe('active');
+
+      // Reopened means it's visible again in the caregiver browse list and a
+      // new caregiver can apply and be accepted, same as any active job.
+      const secondCaregiver = await registerCaregiver('0041');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        secondCaregiver.user_id,
+      ]);
+      const browse = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${secondCaregiver.access_token}`)
+        .expect(200);
+      expect(browse.body.data.some((j: { id: string }) => j.id === job.id)).toBe(true);
+
+      await acceptOnto(job, secondCaregiver);
+      const detailAfterSecondAccept = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detailAfterSecondAccept.body.data.status).toBe('closed');
     }, 30000);
 
     it('rejects completing a job that was never applied to (JOB_008)', async () => {
