@@ -65,6 +65,7 @@ JobModel _job({
   String? postedByRole,
   String? postedByName,
   String postedAt = '2026-08-01T10:00:00Z',
+  List<String> languages = const ['hindi'],
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
@@ -76,7 +77,7 @@ JobModel _job({
     'duty_type': 'live_in',
     'frequency_of_care': frequencyOfCare,
     'start_date': '2026-08-10',
-    'languages': ['hindi'],
+    'languages': languages,
     'salary_amount': salaryAmount,
     'preferred_gender': 'female',
     'status': status,
@@ -90,7 +91,7 @@ JobModel _job({
 
 /// Full job detail — as returned by `GET /admin/jobs/:id` — with a nested
 /// care_receiver, used for the Edit dialog's pre-fill / "view full details".
-JobModel _jobWithCareReceiver({String status = 'active'}) {
+JobModel _jobWithCareReceiver({String status = 'active', List<String> languages = const ['hindi']}) {
   return JobModel.fromJson({
     'id': 'job-1',
     'job_number': 42,
@@ -101,7 +102,7 @@ JobModel _jobWithCareReceiver({String status = 'active'}) {
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
     'start_date': '2026-08-10',
-    'languages': ['hindi'],
+    'languages': languages,
     'salary_amount': 30000,
     'preferred_gender': 'female',
     'status': status,
@@ -174,13 +175,17 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? updatedJobId;
   String? updatedDescription;
   CareReceiverInput? submittedCareReceiver;
+  List<String>? submittedLanguages;
   JobListFilters? lastListFilters;
   int listCallCount = 0;
   String? rejectedJobId;
   String? rejectedReason;
+  List<String> detailLanguages;
 
   _FakeAdminJobsRepository(this.jobs,
-      {this.applications = const [], this.posters = const []})
+      {this.applications = const [],
+      this.posters = const [],
+      this.detailLanguages = const ['hindi']})
       : super(Dio());
 
   @override
@@ -196,7 +201,10 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
 
   @override
   Future<(JobModel, List<JobApplicationModel>)> getDetail(String jobId) async {
-    return (_jobWithCareReceiver(status: jobs.first.status), applications);
+    return (
+      _jobWithCareReceiver(status: jobs.first.status, languages: detailLanguages),
+      applications
+    );
   }
 
   @override
@@ -215,6 +223,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   }) async {
     createCalled = true;
     submittedCareReceiver = careReceiver;
+    submittedLanguages = languages;
     jobs = [...jobs, _job()];
   }
 
@@ -235,6 +244,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   }) async {
     updatedJobId = jobId;
     updatedDescription = description;
+    submittedLanguages = languages;
   }
 
   @override
@@ -668,6 +678,100 @@ void main() {
   });
 
   testWidgets(
+      'Language Preference defaults to No Preference and can never block submission — an untouched selection submits an empty array',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    // "No Preference" starts selected; deliberately never tap a real
+    // language chip.
+    await _fillAboutPatientRequiredFields(tester);
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+        '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.submittedLanguages, isEmpty);
+  });
+
+  testWidgets(
+      'tapping a real language after No Preference replaces it — mutual exclusivity, mirroring nursenow-app',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _fillAboutPatientRequiredFields(tester);
+    await _fillSalary(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+        '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
+    await _tapChip(tester, 'Hindi');
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.submittedLanguages, ['hindi']);
+  });
+
+  testWidgets(
+      "editing a job with no languages set pre-fills No Preference, and admin's own change is what gets submitted — same field, kept in sync with what the patient set",
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()], detailLanguages: const []);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    final noPreferenceChip =
+        tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference'));
+    expect(noPreferenceChip.selected, isTrue);
+
+    await _tapChip(tester, 'Hindi');
+
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.submittedLanguages, ['hindi']);
+  });
+
+  testWidgets(
+      'the job row and read-only detail view both show "No Preference" explicitly when languages is empty — never a blank gap',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminJobsRepository([_job(languages: const [])], detailLanguages: const []),
+    );
+
+    // Job row summary line joins area/languages into one Text — check via
+    // textContaining rather than an exact match.
+    expect(find.textContaining('No Preference'), findsOneWidget);
+
+    await tester.tap(find.text('ADMIN-JOB-542'));
+    await tester.pumpAndSettle();
+
+    // Read-only detail dialog renders "Languages" as its own exact-text row.
+    expect(find.text('No Preference'), findsOneWidget);
+  });
+
+  testWidgets(
       'Post New Job opens a dialog; filling required fields and submitting calls create()',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -835,7 +939,8 @@ void main() {
     expect(find.text('Please select duty hours'), findsOneWidget);
     expect(find.text('Please select a frequency'), findsOneWidget);
     expect(find.text('Please select a start date'), findsOneWidget);
-    expect(find.text('Select at least one language'), findsOneWidget);
+    // Language Preference can never be invalid — it defaults to "No
+    // Preference" and stays that way until the admin picks a real one.
   });
 
   testWidgets(

@@ -385,7 +385,7 @@ export class JobsRepository {
          LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1
          WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $2)
          ${preferenceFilters}
-         ORDER BY j.created_at DESC
+         ORDER BY j.posted_at DESC
          LIMIT $5 OFFSET $6`,
         [profileId, gender, minSalaryPerDay, minSalaryPerMonth, page.limit, offset],
       ),

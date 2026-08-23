@@ -36,6 +36,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   List<JobModel> _requirements = [];
   Map<String, List<JobApplicationModel>> _applicationsByJobId = {};
   final Set<String> _decidingApplicationId = {};
+  // Past (closed/cancelled/rejected) requirements are hidden by default —
+  // only the live one (if any) shows up-front — and revealed on demand via
+  // a single toggle button, instead of cluttering the screen with every
+  // past posting at once.
+  bool _showClosed = false;
 
   @override
   void initState() {
@@ -203,11 +208,42 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (posted == true) await _load();
   }
 
+  /// Whether this requirement should surface up front rather than behind
+  /// the "Show Closed/Cancelled Requirements" toggle — true for a live one
+  /// (_isLive), but ALSO true for a closed one with a currently-accepted
+  /// candidate: `status: closed` there just means "no longer accepting new
+  /// applicants", not "this engagement is over" — a family with an actual
+  /// caregiver assigned should still see it without digging through the
+  /// closed/cancelled section. It only drops into that section once the
+  /// engagement genuinely ends (rejected, or completed).
+  bool _shouldShowUpFront(JobModel requirement) {
+    if (_isLive(requirement)) return true;
+    final applications = _applicationsByJobId[requirement.id] ?? const [];
+    return applications.any((a) => a.status == JobApplicationStatus.accepted);
+  }
+
+  Widget _buildCard(JobModel requirement, bool hasLiveRequirement) {
+    return _RequirementCard(
+      requirement: requirement,
+      applications: _applicationsByJobId[requirement.id] ?? const [],
+      decidingApplicationId: _decidingApplicationId,
+      canPostNew: !hasLiveRequirement,
+      onAccept: (applicationId) => _accept(requirement.id, applicationId),
+      onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
+      onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
+      onEdit: () => _editRequirement(requirement),
+      onCancel: () => _cancelRequirement(requirement),
+      onPostSimilar: () => _postSimilarRequirement(requirement),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
     final isJobPostingBlocked = session is SessionAuthenticated && session.isJobPostingBlocked;
     final hasLiveRequirement = _requirements.any(_isLive);
+    final upFrontRequirements = _requirements.where(_shouldShowUpFront).toList();
+    final closedRequirements = _requirements.where((r) => !_shouldShowUpFront(r)).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Jobs Posted'), actions: const [WhatsAppHelpButton()]),
@@ -245,22 +281,29 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
-                    else
-                      for (final requirement in _requirements) ...[
-                        _RequirementCard(
-                          requirement: requirement,
-                          applications: _applicationsByJobId[requirement.id] ?? const [],
-                          decidingApplicationId: _decidingApplicationId,
-                          canPostNew: !hasLiveRequirement,
-                          onAccept: (applicationId) => _accept(requirement.id, applicationId),
-                          onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
-                          onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
-                          onEdit: () => _editRequirement(requirement),
-                          onCancel: () => _cancelRequirement(requirement),
-                          onPostSimilar: () => _postSimilarRequirement(requirement),
-                        ),
+                    else ...[
+                      for (final requirement in upFrontRequirements) ...[
+                        _buildCard(requirement, hasLiveRequirement),
                         const SizedBox(height: AppSpacing.md),
                       ],
+                      if (closedRequirements.isNotEmpty) ...[
+                        OutlinedButton.icon(
+                          onPressed: () => setState(() => _showClosed = !_showClosed),
+                          icon: Icon(_showClosed ? Icons.expand_less : Icons.expand_more),
+                          label: Text(
+                            _showClosed
+                                ? 'Hide Closed/Cancelled Requirements'
+                                : 'Show Closed/Cancelled Requirements (${closedRequirements.length})',
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        if (_showClosed)
+                          for (final requirement in closedRequirements) ...[
+                            _buildCard(requirement, hasLiveRequirement),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                      ],
+                    ],
                   ],
                 ),
         ),
@@ -306,7 +349,7 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _RequirementCard extends StatelessWidget {
+class _RequirementCard extends StatefulWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
@@ -333,44 +376,52 @@ class _RequirementCard extends StatelessWidget {
     required this.onPostSimilar,
   });
 
-  bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
+  @override
+  State<_RequirementCard> createState() => _RequirementCardState();
+}
+
+class _RequirementCardState extends State<_RequirementCard> {
+  bool _detailsExpanded = false;
+
+  bool get _hasAcceptedApplicant =>
+      widget.applications.any((a) => a.status == JobApplicationStatus.accepted);
 
   /// Mirrors the backend's own JOB_015 check — cancellable at any point in
   /// the lifecycle except once it's already been terminated some other
   /// way (admin-rejected or already cancelled once).
-  bool get _canCancel => !requirement.isCancelled && requirement.rejectionReason == null;
+  bool get _canCancel => !widget.requirement.isCancelled && widget.requirement.rejectionReason == null;
 
   /// Mirrors the backend's own JOB_014 check (job_applications.status IN
   /// ('applied', 'accepted')) — editing is blocked once a caregiver has
   /// responded, regardless of the requirement's own status. Rejected/
   /// completed applications never count.
-  bool get _hasActiveApplication =>
-      applications.any((a) => a.status == JobApplicationStatus.applied || a.status == JobApplicationStatus.accepted);
+  bool get _hasActiveApplication => widget.applications
+      .any((a) => a.status == JobApplicationStatus.applied || a.status == JobApplicationStatus.accepted);
 
   String get _statusLabel {
-    switch (requirement.status) {
+    switch (widget.requirement.status) {
       case JobStatus.pendingReview:
         return 'Pending admin review';
       case JobStatus.active:
         return 'Live — visible to caregivers';
       case JobStatus.closed:
-        if (requirement.isCancelled) return 'Cancelled';
-        if (requirement.rejectionReason != null) return 'Rejected';
+        if (widget.requirement.isCancelled) return 'Cancelled';
+        if (widget.requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
-        return requirement.status;
+        return widget.requirement.status;
     }
   }
 
   Color get _statusColor {
-    switch (requirement.status) {
+    switch (widget.requirement.status) {
       case JobStatus.pendingReview:
         return AppColors.warning;
       case JobStatus.active:
         return AppColors.success;
       case JobStatus.closed:
-        if (requirement.isCancelled) return AppColors.textSecondary;
-        return requirement.rejectionReason != null ? AppColors.error : AppColors.textSecondary;
+        if (widget.requirement.isCancelled) return AppColors.textSecondary;
+        return widget.requirement.rejectionReason != null ? AppColors.error : AppColors.textSecondary;
       default:
         return AppColors.textSecondary;
     }
@@ -378,7 +429,35 @@ class _RequirementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final requirement = widget.requirement;
     final careReceiver = requirement.careReceiver;
+    final locked = _hasActiveApplication;
+    // Post Similar takes priority as the primary action once this
+    // requirement is no longer the account's live one (posting fresh is
+    // the more common next step than re-editing an old listing) — Edit is
+    // then demoted to a secondary, tucked-away option. While locked (a
+    // candidate is awaiting a decision), Edit isn't offered at all, even
+    // as a secondary — only the one-line explanation is shown instead.
+    final showPostSimilarPrimary = widget.canPostNew;
+    final showEditPrimary = !showPostSimilarPrimary && !locked;
+    final secondaryActions = <MapEntry<String, VoidCallback>>[
+      if (_canCancel) MapEntry('Cancel Requirement', widget.onCancel),
+      if (showPostSimilarPrimary && !locked) MapEntry('Edit', widget.onEdit),
+    ];
+
+    String? primaryLabel;
+    IconData? primaryIcon;
+    VoidCallback? primaryAction;
+    if (showPostSimilarPrimary) {
+      primaryLabel = 'Post Similar Requirement';
+      primaryIcon = Icons.copy_outlined;
+      primaryAction = widget.onPostSimilar;
+    } else if (showEditPrimary) {
+      primaryLabel = 'Edit';
+      primaryIcon = Icons.edit;
+      primaryAction = widget.onEdit;
+    }
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       // A dark, wide border — easier for a senior citizen to see and tell
@@ -392,51 +471,39 @@ class _RequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(jobDisplayId(requirement), style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(_statusLabel, style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          // Each action is gated independently: Edit on whether a caregiver
-          // has responded (see _hasActiveApplication doc comment); Cancel
-          // on whether this requirement hasn't already been terminated some
-          // other way (mirrors the backend's own JOB_015 — admin-rejected
-          // or already-cancelled are the only states it blocks, so e.g. a
-          // closed-and-filled requirement with no active application can
-          // show Edit, Cancel, AND (once it's not live) Post Similar all at
-          // once); Post Similar on there being no other live requirement
-          // (mirrors the top Post CTA's own gating — note this is never
-          // true for a currently-live requirement, since that would itself
-          // count as the account's live one).
-          Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: AppSpacing.sm,
-            children: [
-              if (_hasActiveApplication)
-                const Text(
-                  'Editing is locked while a candidate is awaiting your decision.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
-                )
-              else
-                TextButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Edit'),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _StatusBadge(label: _statusLabel, color: _statusColor),
+                    const SizedBox(height: 4),
+                    Text(
+                      jobDisplayId(requirement),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  ],
                 ),
-              if (_canCancel)
-                TextButton.icon(
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
-                  label: const Text('Cancel Requirement', style: TextStyle(color: AppColors.error)),
-                ),
-              if (canPostNew)
-                TextButton.icon(
-                  onPressed: onPostSimilar,
-                  icon: const Icon(Icons.copy_outlined, size: 16),
-                  label: const Text('Post Similar Requirement'),
+              ),
+              // Secondary, less-common actions are tucked behind a single
+              // "More options" menu instead of always sitting on screen —
+              // fewer buttons visible at once is easier to scan.
+              if (secondaryActions.isNotEmpty)
+                PopupMenuButton<VoidCallback>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'More options',
+                  onSelected: (action) => action(),
+                  itemBuilder: (context) => [
+                    for (final action in secondaryActions)
+                      PopupMenuItem<VoidCallback>(
+                        value: action.value,
+                        child: Text(
+                          action.key,
+                          style: action.key == 'Cancel Requirement' ? const TextStyle(color: AppColors.error) : null,
+                        ),
+                      ),
+                  ],
                 ),
             ],
           ),
@@ -457,67 +524,96 @@ class _RequirementCard extends StatelessWidget {
             '${City.displayNames[requirement.city] ?? requirement.city}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
-          if (careReceiver != null) ...[
-            const _SectionLabel('About Patient'),
+          if (primaryLabel != null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: primaryAction,
+                icon: Icon(primaryIcon, size: 18),
+                label: Text(primaryLabel),
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+              ),
+            )
+          else if (locked)
+            const Text(
+              'Editing is locked while a candidate is awaiting your decision.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _detailsExpanded = !_detailsExpanded),
+              icon: Icon(_detailsExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
+              label: Text(_detailsExpanded ? 'Hide Full Details' : 'Show Full Details'),
+            ),
+          ),
+          if (_detailsExpanded) ...[
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            if (careReceiver != null) ...[
+              const _SectionLabel('About Patient'),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                children: [
+                  _Tag('${careReceiver.age} yrs'),
+                  _Tag(_capitalize(careReceiver.gender)),
+                  _Tag('${careReceiver.weightKg} kg'),
+                  _Tag(Mobility.displayNames[careReceiver.mobility] ?? careReceiver.mobility),
+                  _Tag(Communication.displayNames[careReceiver.communication] ?? careReceiver.communication),
+                  _Tag(FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType),
+                  for (final m in careReceiver.medicalAssistance) _Tag(MedicalAssistance.displayNames[m] ?? m),
+                  for (final t in careReceiver.toiletAssistance)
+                    _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
+                  if (careReceiver.hasMedicalCondition)
+                    for (final c in careReceiver.medicalConditions) _Tag(MedicalCondition.displayNames[c] ?? c),
+                  if (careReceiver.requiresVitalMonitoring)
+                    for (final v in careReceiver.vitalMonitoringTypes)
+                      _Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+                ],
+              ),
+              if (careReceiver.medicalConditionOther != null && careReceiver.medicalConditionOther!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Other condition: ${careReceiver.medicalConditionOther!}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+                ),
+              ],
+              if (careReceiver.toiletAssistanceOther != null && careReceiver.toiletAssistanceOther!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Other toilet assistance: ${careReceiver.toiletAssistanceOther!}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+            ],
+            const _SectionLabel('About Nurse/Caregiver Requirement'),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               children: [
-                _Tag('${careReceiver.age} yrs'),
-                _Tag(_capitalize(careReceiver.gender)),
-                _Tag('${careReceiver.weightKg} kg'),
-                _Tag(Mobility.displayNames[careReceiver.mobility] ?? careReceiver.mobility),
-                _Tag(Communication.displayNames[careReceiver.communication] ?? careReceiver.communication),
-                _Tag(FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType),
-                for (final m in careReceiver.medicalAssistance) _Tag(MedicalAssistance.displayNames[m] ?? m),
-                for (final t in careReceiver.toiletAssistance)
-                  _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-                if (careReceiver.hasMedicalCondition)
-                  for (final c in careReceiver.medicalConditions) _Tag(MedicalCondition.displayNames[c] ?? c),
-                if (careReceiver.requiresVitalMonitoring)
-                  for (final v in careReceiver.vitalMonitoringTypes)
-                    _Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+                _Tag(DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
+                // Always set on an active job (only ever null for a still
+                // pending_review posting, which has no applicants section
+                // shown at all — see below).
+                if (requirement.frequencyOfCare != null)
+                  _Tag(FrequencyOfCare.displayNames[requirement.frequencyOfCare!] ?? requirement.frequencyOfCare!),
+                if (requirement.area != null && requirement.area!.isNotEmpty) _Tag(requirement.area!),
+                if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
+                if (requirement.languages.isEmpty)
+                  const _Tag('No Preference')
+                else
+                  for (final lang in requirement.languages) _Tag(Language.displayNames[lang] ?? lang),
+                if (requirement.preferredGender != null) _Tag(_capitalize(requirement.preferredGender!)),
+                if (requirement.preferredReligion != null)
+                  _Tag(Religion.displayNames[requirement.preferredReligion] ?? requirement.preferredReligion!),
               ],
             ),
-            if (careReceiver.medicalConditionOther != null && careReceiver.medicalConditionOther!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Other condition: ${careReceiver.medicalConditionOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-              ),
+            if (requirement.description != null && requirement.description!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(requirement.description!),
             ],
-            if (careReceiver.toiletAssistanceOther != null && careReceiver.toiletAssistanceOther!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Other toilet assistance: ${careReceiver.toiletAssistanceOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-          ],
-          const _SectionLabel('About Nurse/Caregiver Requirement'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            children: [
-              _Tag(DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
-              // Always set on an active job (only ever null for a still
-              // pending_review posting, which has no applicants section
-              // shown at all — see below).
-              if (requirement.frequencyOfCare != null)
-                _Tag(FrequencyOfCare.displayNames[requirement.frequencyOfCare!] ?? requirement.frequencyOfCare!),
-              if (requirement.area != null && requirement.area!.isNotEmpty) _Tag(requirement.area!),
-              if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
-              for (final lang in requirement.languages) _Tag(Language.displayNames[lang] ?? lang),
-              if (requirement.preferredGender != null) _Tag(_capitalize(requirement.preferredGender!)),
-              if (requirement.preferredReligion != null)
-                _Tag(Religion.displayNames[requirement.preferredReligion] ?? requirement.preferredReligion!),
-            ],
-          ),
-          if (requirement.description != null && requirement.description!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(requirement.description!),
           ],
           if (requirement.status != JobStatus.pendingReview) ...[
             const SizedBox(height: AppSpacing.md),
@@ -530,15 +626,38 @@ class _RequirementCard extends StatelessWidget {
               )
             else
               _ApplicantsSection(
-                applications: applications,
-                decidingApplicationId: decidingApplicationId,
-                onAccept: onAccept,
-                onReject: onReject,
-                onViewProfile: onViewProfile,
+                applications: widget.applications,
+                decidingApplicationId: widget.decidingApplicationId,
+                onAccept: widget.onAccept,
+                onReject: widget.onReject,
+                onViewProfile: widget.onViewProfile,
               ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// A prominent, plain-language, color-coded status pill — the single most
+/// important thing to communicate at a glance, especially for a senior
+/// citizen scanning the card quickly.
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color, width: 1.5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
     );
   }
 }
@@ -615,6 +734,7 @@ class _ApplicantsSection extends StatelessWidget {
                 application: application,
                 isDeciding: decidingApplicationId.contains(application.id),
                 onReject: onReject,
+                onViewProfile: onViewProfile,
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
@@ -644,8 +764,11 @@ class _ReviewingApplicantTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
+      // Amber/highlighted — a candidate waiting on a decision stands out
+      // from a plain grey/green/red decided tile at a glance.
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.primary),
+        color: AppColors.warning.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.warning, width: 2),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -657,7 +780,16 @@ class _ReviewingApplicantTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(application.fullName,
+                              overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        const Icon(Icons.hourglass_top, color: AppColors.warning, size: 16),
+                      ],
+                    ),
                     Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
                   ],
                 ),
@@ -692,8 +824,14 @@ class _DecidedApplicantTile extends StatelessWidget {
   /// available, so the queue can resume with the next still-applied
   /// candidate — see _ApplicantsSection's hasAccepted gate above).
   final void Function(String applicationId) onReject;
+  final void Function(String applicationId) onViewProfile;
 
-  const _DecidedApplicantTile({required this.application, required this.isDeciding, required this.onReject});
+  const _DecidedApplicantTile({
+    required this.application,
+    required this.isDeciding,
+    required this.onReject,
+    required this.onViewProfile,
+  });
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
   bool get _isCompleted => application.status == JobApplicationStatus.completed;
@@ -712,13 +850,26 @@ class _DecidedApplicantTile extends StatelessWidget {
     return _capitalize(application.status);
   }
 
+  /// Rejection covers both flavors shown here — the patient's own decline
+  /// and a caregiver's self-withdrawal (_isRejectedByCaregiver) — both get
+  /// the same red cross; "Closed by Caregiver" (a completed engagement,
+  /// not a rejection) deliberately stays neutral grey, since it isn't a
+  /// rejected/accepted outcome.
+  Color get _statusColor {
+    if (_isAccepted) return AppColors.success;
+    if (_isRejected) return AppColors.error;
+    return AppColors.textSecondary;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: _isAccepted ? AppColors.success.withValues(alpha: 0.08) : null,
-        border: Border.all(color: _isAccepted ? AppColors.success : AppColors.border),
+        color: _isAccepted
+            ? AppColors.success.withValues(alpha: 0.08)
+            : (_isRejected ? AppColors.error.withValues(alpha: 0.06) : null),
+        border: Border.all(color: _statusColor == AppColors.textSecondary ? AppColors.border : _statusColor),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -736,6 +887,9 @@ class _DecidedApplicantTile extends StatelessWidget {
                     if (_isAccepted) ...[
                       const SizedBox(width: AppSpacing.xs),
                       const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                    ] else if (_isRejected) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const Icon(Icons.cancel, color: AppColors.error, size: 16),
                     ],
                   ],
                 ),
@@ -743,8 +897,8 @@ class _DecidedApplicantTile extends StatelessWidget {
               Text(
                 _statusLabel,
                 style: TextStyle(
-                  color: _isAccepted ? AppColors.success : AppColors.textSecondary,
-                  fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
+                  color: _statusColor,
+                  fontWeight: (_isAccepted || _isRejected) ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],
@@ -761,17 +915,29 @@ class _DecidedApplicantTile extends StatelessWidget {
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
             ),
           ],
+          // The candidate's profile stays viewable through applied and
+          // accepted, but becomes unreachable as soon as the engagement
+          // ends on either side — rejected (by the patient or the
+          // caregiver's own withdrawal) or completed (the caregiver
+          // closing an already-accepted job) all count as "closed" here;
+          // only an actively-accepted candidate keeps a live profile link.
           if (_isAccepted) ...[
             const SizedBox(height: AppSpacing.xs),
             if (isDeciding)
               const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
             else
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => onReject(application.id),
-                  child: const Text('Reject', style: TextStyle(color: AppColors.error)),
-                ),
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: () => onViewProfile(application.id),
+                    child: const Text('View Profile'),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => onReject(application.id),
+                    child: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                  ),
+                ],
               ),
           ],
         ],

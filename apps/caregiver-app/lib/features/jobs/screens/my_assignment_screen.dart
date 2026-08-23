@@ -35,7 +35,10 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   bool _loading = true;
   String? _errorMessage;
   String? _completingId;
-  bool _hideCompleted = false;
+  // Defaults on — a caregiver's list is dominated by active engagements
+  // day to day; completed ones are the historical record, not what they
+  // need to see first. Still one tap away to review.
+  bool _hideCompleted = true;
 
   @override
   void initState() {
@@ -288,7 +291,9 @@ class _AssignedJobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        // A bold, dark border clearly separates each job/requirement card
+        // from the next — matches the browse-list cards in jobs_screen.dart.
+        border: Border.all(color: AppColors.textPrimary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -348,7 +353,9 @@ class _AssignedRequirementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        // A bold, dark border clearly separates each job/requirement card
+        // from the next — matches the browse-list cards in jobs_screen.dart.
+        border: Border.all(color: AppColors.textPrimary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

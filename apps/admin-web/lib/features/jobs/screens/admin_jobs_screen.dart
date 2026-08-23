@@ -864,7 +864,9 @@ class _JobRow extends StatelessWidget {
         Text(
           [
             if (job.area != null && job.area!.isNotEmpty) job.area,
-            job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
+            job.languages.isEmpty
+                ? _noPreferenceLanguageLabel
+                : job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
           ].join(' • '),
           style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
         ),
@@ -1011,6 +1013,15 @@ class _MandatoryField {
   const _MandatoryField(this.key, this.isValid, {this.focusNode});
 }
 
+/// Sentinel for "No Preference" on Language Preference — mirrors
+/// nursenow-app's Post/Edit Requirement screens exactly, so admin's own
+/// create/edit form can represent (and preserve, when approving/editing a
+/// patient's posting) the exact same choice a patient made, never forcing
+/// a language selection that wasn't actually chosen. An empty array is
+/// sent to the server either way — see create-job.dto.ts.
+const _noPreferenceLanguage = 'no_preference';
+const _noPreferenceLanguageLabel = 'No Preference';
+
 /// Handles both posting a new job and editing an existing one. Pass [job] +
 /// [careReceiver] to open pre-filled in edit mode (same dialog doubles as
 /// the "view full details" surface, since every field is visible); leave
@@ -1082,7 +1093,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   String? _frequencyOfCare;
   DateTime? _startDate;
 
-  List<String> _languages = [];
+  List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender; // null = no preference
   String? _preferredReligion; // null = no preference
 
@@ -1104,7 +1115,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _frequencyOfCare = job.frequencyOfCare;
       _startDate =
           job.startDate == null ? null : DateTime.tryParse(job.startDate!);
-      _languages = List.of(job.languages);
+      _languages =
+          job.languages.isEmpty ? [_noPreferenceLanguage] : List.of(job.languages);
       _salaryController.text = job.salaryAmount?.toString() ?? '';
       _preferredGender = job.preferredGender;
       _preferredReligion = job.preferredReligion;
@@ -1159,10 +1171,16 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       !_requiresVitalMonitoring || _vitalMonitoringTypes.isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isFrequencyValid => _frequencyOfCare != null;
-  bool get _isLanguagesValid => _languages.isNotEmpty;
   bool get _isSalaryValid =>
       _salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000;
   bool get _isStartDateValid => _startDate != null;
+
+  /// What actually gets sent to the server — the sentinel is purely a
+  /// client-side selection aid, never a real language value (see
+  /// create-job.dto.ts: an empty array is how "No Preference" is
+  /// represented on the wire, same as individual/NurseNow postings).
+  List<String> get _effectiveLanguages =>
+      _languages.contains(_noPreferenceLanguage) ? [] : _languages;
 
   bool get _canSubmit =>
       !_submitting &&
@@ -1176,7 +1194,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _isDutyTypeValid &&
       _isFrequencyValid &&
       _isStartDateValid &&
-      _isLanguagesValid &&
       _isSalaryValid;
 
   /// In on-form order, so the first invalid one found here is genuinely
@@ -1195,8 +1212,30 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_salaryKey, _isSalaryValid,
             focusNode: _salaryFocusNode),
         _MandatoryField(_startDateKey, _isStartDateValid),
-        _MandatoryField(_languagesKey, _isLanguagesValid),
       ];
+
+  /// Mirrors nursenow-app's Post/Edit Requirement screens exactly: picking
+  /// a real language drops "No Preference"; picking "No Preference" clears
+  /// any real selections; deselecting the only remaining real language
+  /// falls back to "No Preference" rather than leaving the field empty.
+  void _applyLanguageSelection(List<String> next) {
+    final added = next.where((l) => !_languages.contains(l));
+    final removed = _languages.where((l) => !next.contains(l));
+    if (added.contains(_noPreferenceLanguage)) {
+      _languages
+        ..clear()
+        ..add(_noPreferenceLanguage);
+    } else if (added.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(next.where((l) => l != _noPreferenceLanguage));
+    } else if (removed.isNotEmpty) {
+      final remaining = next.where((l) => l != _noPreferenceLanguage).toList();
+      _languages
+        ..clear()
+        ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
+    }
+  }
 
   /// Post is always clickable — this is what runs when it's tapped. With
   /// something missing, it flags every missing mandatory field red and
@@ -1290,7 +1329,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               dutyType: _dutyType!,
               frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
-              languages: _languages,
+              languages: _effectiveLanguages,
               salaryAmount: _salaryAmount!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
@@ -1304,7 +1343,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               dutyType: _dutyType!,
               frequencyOfCare: _frequencyOfCare!,
               startDate: startDate,
-              languages: _languages,
+              languages: _effectiveLanguages,
               salaryAmount: _salaryAmount!,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
@@ -1708,31 +1747,21 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Language Preference (Mandatory)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: _showValidationErrors && !_isLanguagesValid
-                            ? AppColors.error
-                            : null,
-                      ),
+                    const Text(
+                      'Language Preference',
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     VitaMultiSelectChips(
-                      options: Language.all,
-                      labels: Language.displayNames,
+                      options: [_noPreferenceLanguage, ...Language.all],
+                      labels: {
+                        _noPreferenceLanguage: _noPreferenceLanguageLabel,
+                        ...Language.displayNames,
+                      },
                       selected: _languages,
-                      onChanged: (next) => setState(() => _languages = next),
+                      onChanged: (next) =>
+                          setState(() => _applyLanguageSelection(next)),
                     ),
-                    if (_showValidationErrors && !_isLanguagesValid)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Select at least one language',
-                          style:
-                              TextStyle(color: AppColors.error, fontSize: 12),
-                        ),
-                      ),
                   ],
                 ),
               ),

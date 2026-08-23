@@ -69,9 +69,11 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                 _DetailRow('Preferred Start Date', job.startDate!),
               _DetailRow(
                   'Languages',
-                  job.languages
-                      .map((l) => Language.displayNames[l] ?? l)
-                      .join(', ')),
+                  job.languages.isEmpty
+                      ? 'No Preference'
+                      : job.languages
+                          .map((l) => Language.displayNames[l] ?? l)
+                          .join(', ')),
               if (job.preferredGender != null)
                 _DetailRow(
                     'Preferred Gender',

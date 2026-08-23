@@ -32,6 +32,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _applyingId = {};
+  // Defaults off — a job/requirement the caregiver already got rejected
+  // from (by either side — see _Listing.isRejectedByMe) isn't one they can
+  // still apply to, so it's hidden by default to keep the list focused on
+  // what's actually still open to them. One tap away to see everything.
+  bool _showAllJobs = false;
 
   @override
   void initState() {
@@ -162,6 +167,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   @override
   Widget build(BuildContext context) {
     final listings = _mergedListings();
+    final hasRejected = listings.any((l) => l.isRejectedByMe);
+    final visible = _showAllJobs ? listings : listings.where((l) => !l.isRejectedByMe).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jobs'),
@@ -195,6 +202,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                    if (hasRejected)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show All Jobs'),
+                        subtitle: const Text('Includes jobs you were rejected from, or closed yourself'),
+                        value: _showAllJobs,
+                        onChanged: (value) => setState(() => _showAllJobs = value),
+                      ),
                     if (listings.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
@@ -203,8 +218,17 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
+                      )
+                    else if (visible.isEmpty && _errorMessage == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                        child: Text(
+                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see ones you were rejected from.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
                       ),
-                    for (final listing in listings) ...[
+                    for (final listing in visible) ...[
                       if (listing is _JobListing)
                         _JobCard(
                           job: listing.job,
@@ -236,6 +260,13 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 /// _JobCard/_RequirementCard below, which stay entirely separate widgets).
 abstract class _Listing {
   DateTime get postedAt;
+
+  /// True once the caregiver has been rejected on this listing — either
+  /// the patient/employer declined them, or they closed/withdrew it
+  /// themselves before being accepted (both land on the same `rejected`
+  /// application status). Either way, it's no longer something they can
+  /// apply to.
+  bool get isRejectedByMe;
 }
 
 class _JobListing extends _Listing {
@@ -243,6 +274,8 @@ class _JobListing extends _Listing {
   _JobListing(this.job);
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
+  @override
+  bool get isRejectedByMe => job.myApplication?.status == JobApplicationStatus.rejected;
 }
 
 class _RequirementListing extends _Listing {
@@ -250,6 +283,8 @@ class _RequirementListing extends _Listing {
   _RequirementListing(this.requirement);
   @override
   DateTime get postedAt => DateTime.parse(requirement.postedAt);
+  @override
+  bool get isRejectedByMe => requirement.myApplication?.status == JobApplicationStatus.rejected;
 }
 
 class _JobCard extends StatelessWidget {
@@ -272,7 +307,10 @@ class _JobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        // A bold, dark border clearly separates each job/requirement card
+        // from the next — easier to tell listings apart at a glance than
+        // the thin default outline used elsewhere.
+        border: Border.all(color: AppColors.textPrimary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -333,7 +371,10 @@ class _RequirementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        // A bold, dark border clearly separates each job/requirement card
+        // from the next — easier to tell listings apart at a glance than
+        // the thin default outline used elsewhere.
+        border: Border.all(color: AppColors.textPrimary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

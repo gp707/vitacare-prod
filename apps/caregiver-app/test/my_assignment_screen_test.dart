@@ -167,6 +167,13 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+// "Hide completed jobs" defaults on — tests exercising completed card
+// content must turn it off first to reveal them.
+Future<void> _showCompletedJobs(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(SwitchListTile, 'Hide completed jobs'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows the assigned job details, including care receiver', (tester) async {
     await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
@@ -202,6 +209,7 @@ void main() {
         _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
       ]),
     );
+    await _showCompletedJobs(tester);
 
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ADMIN-JOB-543'), findsOneWidget);
@@ -221,6 +229,7 @@ void main() {
         _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
       ]),
     );
+    await _showCompletedJobs(tester);
 
     // Both cards show the same fixture poster ("Admin Kumar") — the name
     // appears on both, but the phone/actions only on the still-accepted one.
@@ -236,7 +245,8 @@ void main() {
     expect(find.text('Hide completed jobs'), findsNothing);
   });
 
-  testWidgets('toggling "Hide completed jobs" hides completed cards but keeps accepted ones, and can be undone',
+  testWidgets(
+      'defaults to hiding completed cards but keeps accepted ones, and toggling reveals/re-hides them',
       (tester) async {
     await _pump(
       tester,
@@ -248,12 +258,7 @@ void main() {
 
     final toggle = find.widgetWithText(SwitchListTile, 'Hide completed jobs');
     expect(toggle, findsOneWidget);
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
-
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
-
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue, reason: 'on by default');
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ADMIN-JOB-543'), findsNothing);
 
@@ -262,13 +267,18 @@ void main() {
 
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ADMIN-JOB-543'), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-543'), findsNothing);
   });
 
   testWidgets('shows a message instead of the empty state when every job is completed and hidden', (tester) async {
     await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]));
 
-    await tester.tap(find.widgetWithText(SwitchListTile, 'Hide completed jobs'));
-    await tester.pumpAndSettle();
+    // "Hide completed jobs" is already on by default — no tap needed.
 
     expect(find.text("You don't have any accepted jobs yet."), findsNothing);
     expect(find.textContaining('are completed and hidden'), findsOneWidget);
@@ -287,6 +297,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeRepo.completedJobId, 'job-1');
+    // Now completed — hidden by default; reveal it to check the resulting
+    // badge/button state.
+    await _showCompletedJobs(tester);
     expect(find.text('You closed this job'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
   });
@@ -334,6 +347,25 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsOneWidget);
   });
 
+  testWidgets('assigned job and requirement cards each have a bold black border clearly separating them from one another',
+      (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([_assignedJob()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
+    );
+
+    for (final anchor in ['ADMIN-JOB-542', 'ORG-JOB-7']) {
+      final container = tester.widget<Container>(
+        find.ancestor(of: find.text(anchor), matching: find.byType(Container)).first,
+      );
+      final decoration = container.decoration as BoxDecoration;
+      final border = decoration.border as Border;
+      expect(border.top.width, greaterThanOrEqualTo(2.5));
+      expect(border.top.color, AppColors.textPrimary);
+    }
+  });
+
   testWidgets('sorts assigned jobs and requirements together by accepted date, oldest first', (tester) async {
     await _pump(
       tester,
@@ -351,6 +383,7 @@ void main() {
       tester,
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(applicationStatus: 'completed')]),
     );
+    await _showCompletedJobs(tester);
 
     expect(find.text('You closed this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
@@ -370,6 +403,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(orgRepo.completedRequirementId, 'req-1');
+    await _showCompletedJobs(tester);
     expect(find.text('You closed this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
   });

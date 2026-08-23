@@ -242,4 +242,66 @@ void main() {
 
     expect(find.text('You already have a requirement in progress'), findsOneWidget);
   });
+
+  testWidgets(
+      'warns that a male patient requesting a female caregiver reduces match chances by ~90%, without blocking submission',
+      (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '74');
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender (Mandatory)"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Male').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)"), '58');
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bangalore').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('24Hrs - Live In').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    // No warning yet — no caregiver gender preference set.
+    expect(find.textContaining('reduces your chances'), findsNothing);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Gender'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Female').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('reduces your chances of getting matched by about 90%'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Submit for Review'));
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue, reason: 'the warning is advisory only and never blocks submission');
+  });
+
+  testWidgets('does not show the warning for a female patient requesting a female caregiver', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+    await _fillMandatoryFields(tester); // patient gender = Female
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Gender'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Female').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('reduces your chances'), findsNothing);
+  });
 }

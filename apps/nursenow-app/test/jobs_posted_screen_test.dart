@@ -23,6 +23,7 @@ JobModel _requirement({
   String? rejectionReason,
   String? cancelledAt,
   Map<String, dynamic>? careReceiver,
+  List<String> languages = const ['hindi'],
 }) {
   return JobModel.fromJson({
     'id': id,
@@ -34,7 +35,7 @@ JobModel _requirement({
     'duty_type': 'live_in',
     'frequency_of_care': frequencyOfCare,
     'start_date': '2026-09-01',
-    'languages': ['hindi'],
+    'languages': languages,
     'salary_amount': salaryAmount,
     'status': status,
     'posted_by': 'individual-1',
@@ -193,6 +194,14 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
   await tester.pumpAndSettle();
 }
 
+/// Closed/cancelled/rejected requirements are hidden by default behind a
+/// toggle button — tests exercising their card content need to reveal them
+/// first.
+Future<void> _revealClosedRequirements(WidgetTester tester) async {
+  await tester.tap(find.textContaining('Show Closed/Cancelled Requirements'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows an empty state with a Post CTA when there are no requirements yet', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
@@ -236,7 +245,9 @@ void main() {
     expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsNothing);
   });
 
-  testWidgets('shows the full requirement history, most recent first, not just the current one', (tester) async {
+  testWidgets(
+      'shows the live requirement up front, and the full history (most recent first) once Show Closed/Cancelled is tapped',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -248,10 +259,18 @@ void main() {
     );
 
     expect(find.text('PAT-JOB-543'), findsOneWidget);
+    expect(find.text('PAT-JOB-542'), findsNothing);
+    expect(find.text('Show Closed/Cancelled Requirements (1)'), findsOneWidget);
+
+    await _revealClosedRequirements(tester);
+
+    expect(find.text('PAT-JOB-543'), findsOneWidget);
     expect(find.text('PAT-JOB-542'), findsOneWidget);
   });
 
-  testWidgets('shows the accepted caregiver on a closed requirement, not just while active', (tester) async {
+  testWidgets(
+      'shows the accepted caregiver on a closed requirement up front, not just while active — an accepted candidate keeps it out of the closed/cancelled section',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -262,6 +281,8 @@ void main() {
       ),
     );
 
+    // No toggle needed — visible immediately, same as a live requirement.
+    expect(find.textContaining('Show Closed/Cancelled Requirements'), findsNothing);
     expect(find.text('Closed — caregiver assigned'), findsOneWidget);
     expect(find.text('1 candidate applied in total'), findsOneWidget);
     expect(find.text('Test Caregiver'), findsOneWidget);
@@ -280,16 +301,41 @@ void main() {
     expect(border.top.color, AppColors.textPrimary);
   });
 
-  testWidgets('renders the full About Patient / requirement detail inline', (tester) async {
+  testWidgets('the full About Patient / requirement detail is collapsed by default, and expands on tap',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
+    // Collapsed by default — not confusing the screen with every field.
+    expect(find.text('About Patient'), findsNothing);
+    expect(find.text('74 yrs'), findsNothing);
+    expect(find.text('Show Full Details'), findsOneWidget);
+
+    await tester.tap(find.text('Show Full Details'));
+    await tester.pumpAndSettle();
+
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('74 yrs'), findsOneWidget);
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
+    expect(find.text('Hide Full Details'), findsOneWidget);
+  });
+
+  testWidgets('shows a "No Preference" tag under About Nurse/Caregiver Requirement when languages is empty — '
+      'kept in sync with what admin sees, never a blank gap', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(languages: const [], careReceiver: _careReceiverJson)],
+      ),
+    );
+
+    await tester.tap(find.text('Show Full Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No Preference'), findsOneWidget);
   });
 
   testWidgets('with multiple applicants, only the first undecided one is shown for review', (tester) async {
@@ -312,6 +358,58 @@ void main() {
     expect(find.text('Sita Devi'), findsNothing);
     expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets('a candidate awaiting a decision is highlighted with an amber border and an hourglass icon',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application()],
+        },
+      ),
+    );
+
+    expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+    final tile = tester.widget<Container>(
+      find.ancestor(of: find.byIcon(Icons.hourglass_top), matching: find.byType(Container)).first,
+    );
+    final decoration = tile.decoration as BoxDecoration;
+    expect((decoration.border as Border).top.color, AppColors.warning);
+  });
+
+  testWidgets('an accepted candidate shows a green check icon', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'accepted')],
+        },
+      ),
+    );
+
+    final icon = tester.widget<Icon>(find.byIcon(Icons.check_circle));
+    expect(icon.color, AppColors.success);
+    expect(find.byIcon(Icons.cancel), findsNothing);
+  });
+
+  testWidgets('a rejected candidate shows a red cross icon', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
+        },
+      ),
+    );
+
+    final icon = tester.widget<Icon>(find.byIcon(Icons.cancel));
+    expect(icon.color, AppColors.error);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
   });
 
   testWidgets(
@@ -409,6 +507,91 @@ void main() {
     expect(find.text('30 yrs'), findsOneWidget);
     expect(find.text('Registered Nurse above 2 years of experience'), findsOneWidget);
     expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
+  });
+
+  testWidgets('View Profile stays available for an accepted candidate', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement()],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'accepted')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
+    await tester.pumpAndSettle();
+
+    expect(repo.profileFetchedJobId, 'job-1');
+    expect(repo.profileFetchedApplicationId, 'app-1');
+    expect(find.text('30 yrs'), findsOneWidget);
+  });
+
+  testWidgets('View Profile is not offered once the engagement is completed (Closed by Caregiver)', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'completed')],
+      },
+    );
+    await _pump(tester, repo);
+    await _revealClosedRequirements(tester);
+
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
+  });
+
+  testWidgets('View Profile is not offered once a candidate is rejected by the patient', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
+        },
+      ),
+    );
+
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
+  });
+
+  testWidgets('View Profile is not offered once a candidate self-withdraws (rejected by the caregiver)', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected')], // decidedBy omitted — self-withdrawal
+        },
+      ),
+    );
+
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
+  });
+
+  testWidgets(
+      'a closed requirement with a currently-accepted candidate stays visible up front, unlike a plain closed one which stays hidden behind the toggle',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [
+          _requirement(id: 'job-1', jobNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-2', jobNumber: 43, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+        ],
+        applicationsByJobId: {
+          'job-2': [_application(status: 'accepted')],
+        },
+      ),
+    );
+
+    // job-2 (accepted candidate) is up front; job-1 (no accepted candidate)
+    // stays behind the toggle.
+    expect(find.text('PAT-JOB-543'), findsOneWidget);
+    expect(find.text('PAT-JOB-542'), findsNothing);
+    expect(find.text('Show Closed/Cancelled Requirements (1)'), findsOneWidget);
+
+    await _revealClosedRequirements(tester);
+
+    expect(find.text('PAT-JOB-542'), findsOneWidget);
   });
 
   testWidgets('rejecting requires a reason — Confirm stays disabled until something is typed', (tester) async {
@@ -543,21 +726,22 @@ void main() {
         },
       ),
     );
+    await _revealClosedRequirements(tester);
 
     expect(find.text('Closed by Caregiver'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
     expect(find.text('+919876543210'), findsNothing);
   });
 
-  testWidgets('shows an Edit button when there is no active application', (tester) async {
+  testWidgets('shows Edit as the primary button when there is no active application', (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
 
-    expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Edit'), findsOneWidget);
     expect(find.textContaining('Editing is locked'), findsNothing);
   });
 
   testWidgets(
-      'hides Edit and shows a locked message while there is an active (applied) application',
+      'hides the Edit button and shows a locked message while there is an active (applied) application',
       (tester) async {
     await _pump(
       tester,
@@ -569,11 +753,12 @@ void main() {
       ),
     );
 
-    expect(find.widgetWithText(TextButton, 'Edit'), findsNothing);
+    expect(find.widgetWithText(ElevatedButton, 'Edit'), findsNothing);
+    expect(find.text('Edit'), findsNothing);
     expect(find.textContaining('Editing is locked'), findsOneWidget);
   });
 
-  testWidgets('rejected/completed applications do not lock editing', (tester) async {
+  testWidgets('rejected/completed applications do not lock editing — Edit is offered via More options', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -583,8 +768,15 @@ void main() {
         },
       ),
     );
+    await _revealClosedRequirements(tester);
 
-    expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+    // Not live and no other live requirement — Post Similar is primary,
+    // Edit is demoted to the "More options" menu, not shown top-level.
+    expect(find.widgetWithText(ElevatedButton, 'Post Similar Requirement'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit'), findsOneWidget);
   });
 
   testWidgets('tapping Edit opens the edit screen pre-filled with the requirement\'s current values', (tester) async {
@@ -595,7 +787,7 @@ void main() {
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
-    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Edit'));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit Requirement'), findsOneWidget);
@@ -605,13 +797,16 @@ void main() {
     expect(areaField.controller!.text, 'Indiranagar');
   });
 
-  testWidgets('shows a Cancel Requirement button on a live requirement, and confirming it calls cancelRequirement',
+  testWidgets(
+      'offers Cancel Requirement via More options on a live requirement, and confirming it calls cancelRequirement',
       (tester) async {
     final repo = _FakeIndividualRepository(requirements: [_requirement(status: 'active')]);
     await _pump(tester, repo);
 
-    expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel Requirement'));
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel Requirement'), findsOneWidget);
+    await tester.tap(find.text('Cancel Requirement'));
     await tester.pumpAndSettle();
 
     expect(find.text('Cancel this requirement?'), findsOneWidget);
@@ -625,7 +820,9 @@ void main() {
     final repo = _FakeIndividualRepository(requirements: [_requirement(status: 'active')]);
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel Requirement'));
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel Requirement'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('No, keep it'));
     await tester.pumpAndSettle();
@@ -640,6 +837,7 @@ void main() {
         requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
       ),
     );
+    await _revealClosedRequirements(tester);
 
     expect(find.text('Cancelled'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsNothing);
@@ -656,6 +854,7 @@ void main() {
         ],
       ),
     );
+    await _revealClosedRequirements(tester);
 
     expect(find.text('Rejected'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Cancel Requirement'), findsNothing);
@@ -672,9 +871,10 @@ void main() {
         requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, careReceiver: _careReceiverJson)],
       ),
     );
+    await _revealClosedRequirements(tester);
 
-    expect(find.widgetWithText(TextButton, 'Post Similar Requirement'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Post Similar Requirement'));
+    expect(find.widgetWithText(ElevatedButton, 'Post Similar Requirement'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post Similar Requirement'));
     await tester.pumpAndSettle();
 
     expect(find.text('Post Similar Requirement'), findsWidgets);
@@ -691,8 +891,9 @@ void main() {
         ],
       ),
     );
+    await _revealClosedRequirements(tester);
 
-    expect(find.widgetWithText(TextButton, 'Post Similar Requirement'), findsNothing);
+    expect(find.text('Post Similar Requirement'), findsNothing);
   });
 
   testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {

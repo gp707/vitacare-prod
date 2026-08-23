@@ -148,8 +148,15 @@ export class CreateJobDto {
   @Max(1000000, { message: 'GEN_001' })
   salary_amount!: number;
 
+  /** Empty array means "No Preference" — a deliberate, non-mandatory
+   *  choice, same as individual/NurseNow postings (see
+   *  create-individual-requirement.dto.ts and nursenow-app's Post/Edit
+   *  Requirement screens) — kept identical here so admin's own create/edit
+   *  form can represent and preserve exactly what a patient set, never
+   *  forcing a language selection that wasn't actually chosen. Purely
+   *  informational either way — never enforced as a caregiver-eligibility
+   *  filter (see CLAUDE.md). */
   @IsArray({ message: 'GEN_001' })
-  @ArrayNotEmpty({ message: 'GEN_001' })
   @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })
   languages!: Language[];
 

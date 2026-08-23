@@ -165,6 +165,12 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
+
+  /// Purely advisory, never blocks submission — a male patient requesting
+  /// a female caregiver is a much harder match to fill than any other
+  /// combination, so we say so up front rather than letting the family
+  /// find out only after posting.
+  bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
   bool get _isFrequencyValid => !_canEditSalaryFrequency || _frequencyOfCare != null;
   bool get _isSalaryValid =>
       !_canEditSalaryFrequency || (_salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000);
@@ -570,6 +576,30 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
               ],
               onChanged: (value) => setState(() => _preferredGender = value),
             ),
+            if (_showGenderMismatchWarning) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.warning),
+                  borderRadius: BorderRadius.circular(AppSpacing.sm),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                    SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'Requesting a female caregiver for a male patient reduces your chances of '
+                        'getting matched by about 90%.',
+                        style: TextStyle(color: AppColors.warning),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
               isExpanded: true,

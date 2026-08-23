@@ -520,22 +520,13 @@ describe('Jobs (e2e)', () => {
       expect(row.rows[0].frequency_of_care).toBe('monthly');
     });
 
-    it('rejects an empty languages array (GEN_001)', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/admin/jobs')
+    it('accepts an empty languages array — "No Preference", same as individual/NurseNow postings', async () => {
+      const job = await createJob({ languages: [] });
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({
-          care_receiver: defaultCareReceiver,
-          city: 'bangalore',
-          area: 'Indiranagar',
-          description: `${jobDescriptionPrefix} empty languages`,
-          duty_type: 'live_in',
-          frequency_of_care: 'daily',
-          languages: [],
-          salary_amount: 30000,
-        })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
+        .expect(200);
+      expect(detail.body.data.languages).toEqual([]);
     });
 
     it('accepts multiple language preferences', async () => {
@@ -1081,6 +1072,41 @@ describe('Jobs (e2e)', () => {
       expect(
         res.body.data.find((j: { id: string }) => j.id === activeJob.id).my_application,
       ).toBeNull();
+    });
+
+    it('sorts by posted_at, not created_at — a reposted older job outranks a never-reposted newer one', async () => {
+      const caregiver = await registerCaregiver('0043');
+      const olderJob = await createJob();
+      const newerJob = await createJob();
+
+      // Close and repost the OLDER job — this bumps its posted_at to now,
+      // even though it was created before newerJob.
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${olderJob.id}/close`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${olderJob.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: defaultCareReceiver,
+          city: 'bangalore',
+          area: 'Koramangala',
+          description: `${jobDescriptionPrefix} reposted`,
+          duty_type: 'day_duty',
+          frequency_of_care: 'daily',
+          start_date: '2026-09-01',
+          languages: ['hindi'],
+          salary_amount: 32000,
+        })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const ids = res.body.data.map((j: { id: string }) => j.id);
+      expect(ids.indexOf(olderJob.id)).toBeLessThan(ids.indexOf(newerJob.id));
     });
 
     it('includes the full care_receiver (About Patient / Condition details) on every job, not just admin detail', async () => {

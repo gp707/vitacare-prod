@@ -206,6 +206,14 @@ Future<void> _expandDetails(WidgetTester tester, {int index = 0}) async {
   await tester.pumpAndSettle();
 }
 
+// A job/requirement the caregiver was rejected from (by either side) is
+// hidden by default — tests exercising its card content must reveal it via
+// the "Show All Jobs" toggle first.
+Future<void> _showAllJobs(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(SwitchListTile, 'Show All Jobs'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       'job cards start collapsed (About Patient/Requirement hidden) and expand/collapse on tap, '
@@ -582,6 +590,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.text('Applied: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Declined: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
@@ -603,6 +612,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.text('Applied: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Accepted: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
@@ -624,6 +634,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.text('Reason: Requirement was cancelled by the patient/family.'), findsOneWidget);
   });
@@ -641,6 +652,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.textContaining('Reason:'), findsNothing);
   });
@@ -669,6 +681,81 @@ void main() {
     await _pump(tester, _FakeJobsRepository([]));
 
     expect(find.textContaining('No jobs posted right now'), findsOneWidget);
+  });
+
+  testWidgets('does not show the "Show All Jobs" toggle when nothing has been rejected', (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job()]));
+
+    expect(find.text('Show All Jobs'), findsNothing);
+  });
+
+  testWidgets('hides a job the caregiver was rejected from by default, revealed via Show All Jobs', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': '2026-08-17T09:05:00Z',
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.text('Show All Jobs'), findsOneWidget);
+    expect(find.text('ADMIN-JOB-542'), findsNothing);
+    expect(
+      find.textContaining('No jobs you can currently apply to'),
+      findsOneWidget,
+    );
+
+    await _showAllJobs(tester);
+
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(
+      find.textContaining('No jobs you can currently apply to'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('does not hide a job the caregiver has only applied to (not yet decided)', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'applied',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': null,
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.text('Show All Jobs'), findsNothing);
+    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+  });
+
+  testWidgets('hides a rejected organisation requirement by default too, revealed via Show All Jobs',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([
+        _requirement(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': '2026-08-17T09:05:00Z',
+          'decided_by_admin': true,
+        }),
+      ]),
+    );
+
+    expect(find.text('ORG-JOB-7'), findsNothing);
+    await _showAllJobs(tester);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
   });
 
   testWidgets('shows a Close Job button while still applied (not yet accepted), and confirming it withdraws',
@@ -768,6 +855,25 @@ void main() {
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Post-surgery wound care'), findsOneWidget);
+  });
+
+  testWidgets('job and requirement cards each have a bold black border clearly separating them from one another',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
+
+    for (final anchor in ['ADMIN-JOB-542', 'ORG-JOB-7']) {
+      final container = tester.widget<Container>(
+        find.ancestor(of: find.text(anchor), matching: find.byType(Container)).first,
+      );
+      final decoration = container.decoration as BoxDecoration;
+      final border = decoration.border as Border;
+      expect(border.top.width, greaterThanOrEqualTo(2.5));
+      expect(border.top.color, AppColors.textPrimary);
+    }
   });
 
   testWidgets('sorts jobs and organisation requirements together by posted date, newest first', (tester) async {
