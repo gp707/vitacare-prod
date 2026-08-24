@@ -13,6 +13,7 @@ describe('AuthService', () => {
   let individualProfilesRepo: any;
   let organisationProfilesRepo: any;
   let refreshTokensRepo: any;
+  let otpAuthSettingsRepo: any;
   let tokenService: any;
   let emailService: any;
   let auditService: any;
@@ -43,12 +44,17 @@ describe('AuthService', () => {
       revokeAllForUser: jest.fn(),
       pruneStaleForUser: jest.fn(),
     };
+    // Default OFF for every existing test — OTP mode is opt-in per app, and
+    // this keeps every pre-existing PIN-based test unaffected (regression
+    // safety). Tests that specifically exercise OTP mode override this.
+    otpAuthSettingsRepo = { findByApp: jest.fn().mockResolvedValue({ enabled: false }) };
     tokenService = {
       signAccessToken: jest.fn().mockReturnValue('access-token'),
       signRefreshToken: jest
         .fn()
         .mockReturnValue({ token: 'refresh-token', expiresAt: new Date() }),
       verifyRefreshToken: jest.fn(),
+      verifyPhoneVerificationToken: jest.fn(),
     };
 
     refreshTokensRepo.create.mockResolvedValue({ id: 'rt-1' });
@@ -64,6 +70,7 @@ describe('AuthService', () => {
       individualProfilesRepo,
       organisationProfilesRepo,
       refreshTokensRepo,
+      otpAuthSettingsRepo,
       tokenService,
       emailService,
       auditService,
@@ -204,6 +211,100 @@ describe('AuthService', () => {
       const storedHash = insertParams[3];
       expect(storedHash).not.toBe('1234');
       await expect(bcrypt.compare('1234', storedHash)).resolves.toBe(true);
+    });
+
+    it('when OTP mode is enabled for nursejobs, throws AUTH_010 if no phone_verification_token is given (code is ignored)', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      otpAuthSettingsRepo.findByApp.mockResolvedValue({ enabled: true });
+
+      await expect(
+        service.register({
+          phone: baseUser.phone,
+          full_name: 'Ramesh Kumar',
+          gender: 'male' as any,
+          age: 30,
+          languages: ['hindi'] as any,
+          religion: 'hindu' as any,
+          highest_qualification: 'rn_above_2_years' as any,
+          terms_accepted: true,
+          code: '1234',
+        }),
+      ).rejects.toMatchObject({ code: 'AUTH_010' });
+    });
+
+    it('when OTP mode is enabled and code is omitted (PIN mode), throws AUTH_009', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      otpAuthSettingsRepo.findByApp.mockResolvedValue({ enabled: false });
+
+      await expect(
+        service.register({
+          phone: baseUser.phone,
+          full_name: 'Ramesh Kumar',
+          gender: 'male' as any,
+          age: 30,
+          languages: ['hindi'] as any,
+          religion: 'hindu' as any,
+          highest_qualification: 'rn_above_2_years' as any,
+          terms_accepted: true,
+        } as any),
+      ).rejects.toMatchObject({ code: 'AUTH_009' });
+    });
+
+    it('when OTP mode is enabled with a valid phone_verification_token, stores a null code_hash', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      otpAuthSettingsRepo.findByApp.mockResolvedValue({ enabled: true });
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        purpose: 'register',
+        type: 'phone_verification',
+      });
+      const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      caregiverProfilesRepo.create.mockResolvedValue({
+        id: 'profile-1',
+        verification_status: VerificationStatus.PENDING_CALL,
+      });
+
+      await service.register({
+        phone: baseUser.phone,
+        full_name: 'Ramesh Kumar',
+        gender: 'male' as any,
+        age: 30,
+        languages: ['hindi'] as any,
+        religion: 'hindu' as any,
+        highest_qualification: 'rn_above_2_years' as any,
+        terms_accepted: true,
+        phone_verification_token: 'verified-token',
+      } as any);
+
+      const [, insertParams] = client.query.mock.calls[0];
+      expect(insertParams[3]).toBeNull();
+    });
+
+    it('when OTP mode is enabled, a token issued for a different phone is rejected with AUTH_011', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      otpAuthSettingsRepo.findByApp.mockResolvedValue({ enabled: true });
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: '+919999999999',
+        app: 'nursejobs',
+        purpose: 'register',
+        type: 'phone_verification',
+      });
+
+      await expect(
+        service.register({
+          phone: baseUser.phone,
+          full_name: 'Ramesh Kumar',
+          gender: 'male' as any,
+          age: 30,
+          languages: ['hindi'] as any,
+          religion: 'hindu' as any,
+          highest_qualification: 'rn_above_2_years' as any,
+          terms_accepted: true,
+          phone_verification_token: 'verified-token',
+        } as any),
+      ).rejects.toMatchObject({ code: 'AUTH_011' });
     });
   });
 
@@ -375,6 +476,85 @@ describe('AuthService', () => {
       await expect(
         service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' }),
       ).rejects.toMatchObject({ code: 'AUTH_002' });
+    });
+  });
+
+  describe('loginOtp', () => {
+    it('throws AUTH_011 for an invalid/expired token', async () => {
+      tokenService.verifyPhoneVerificationToken.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+      await expect(
+        service.loginOtp({ phone: baseUser.phone, app: 'nursejobs', phone_verification_token: 'bad' }),
+      ).rejects.toMatchObject({ code: 'AUTH_011' });
+    });
+
+    it('throws AUTH_011 when the token purpose is register, not login (no cross-purpose replay)', async () => {
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        purpose: 'register',
+        type: 'phone_verification',
+      });
+      await expect(
+        service.loginOtp({ phone: baseUser.phone, app: 'nursejobs', phone_verification_token: 'tok' }),
+      ).rejects.toMatchObject({ code: 'AUTH_011' });
+    });
+
+    it('throws AUTH_002 when no account exists in the requested app bucket', async () => {
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        purpose: 'login',
+        type: 'phone_verification',
+      });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      await expect(
+        service.loginOtp({ phone: baseUser.phone, app: 'nursejobs', phone_verification_token: 'tok' }),
+      ).rejects.toMatchObject({ code: 'AUTH_002' });
+    });
+
+    it('succeeds for an account that has a PIN set (code_hash is never consulted)', async () => {
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        purpose: 'login',
+        type: 'phone_verification',
+      });
+      const codeHash = await bcrypt.hash('1234', 4);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ verification_status: VerificationStatus.AVAILABLE });
+
+      const result = await service.loginOtp({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        phone_verification_token: 'tok',
+      });
+      expect((result as { verification_status: string }).verification_status).toBe('available');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: baseUser.id, afterValue: expect.objectContaining({ method: 'otp' }) }),
+      );
+    });
+
+    it('succeeds for an account with NO PIN set (code_hash null) — this is the revert-safety-net guarantee: an account registered while OTP mode was on can still log in via OTP even after OTP mode is later disabled, since this endpoint is never gated by the flag', async () => {
+      tokenService.verifyPhoneVerificationToken.mockReturnValue({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        purpose: 'login',
+        type: 'phone_verification',
+      });
+      // otpAuthSettingsRepo defaults to { enabled: false } in beforeEach —
+      // OTP mode is OFF here, yet loginOtp still succeeds.
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: null });
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ verification_status: VerificationStatus.AVAILABLE });
+
+      const result = await service.loginOtp({
+        phone: baseUser.phone,
+        app: 'nursejobs',
+        phone_verification_token: 'tok',
+      });
+      expect(result.user_id).toBe(baseUser.id);
+      expect(otpAuthSettingsRepo.findByApp).not.toHaveBeenCalled();
     });
   });
 

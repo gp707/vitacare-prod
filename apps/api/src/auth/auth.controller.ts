@@ -4,6 +4,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RegisterIndividualDto } from './dto/register-individual.dto';
 import { RegisterOrganisationDto } from './dto/register-organisation.dto';
 import { LoginCodeDto } from './dto/login-code.dto';
+import { LoginOtpDto } from './dto/login-otp.dto';
 import { LoginEmailDto } from './dto/login-email.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -37,6 +38,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   loginCode(@Body() dto: LoginCodeDto, @ClientIp() ip: string | null) {
     return this.authService.loginCode(dto, ip);
+  }
+
+  @Post('login/otp')
+  @HttpCode(HttpStatus.OK)
+  loginOtp(@Body() dto: LoginOtpDto, @ClientIp() ip: string | null) {
+    return this.authService.loginOtp(dto, ip);
   }
 
   @Post('login/email')

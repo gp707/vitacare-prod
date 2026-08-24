@@ -520,6 +520,13 @@ class LoginApp {
   static const nursenow = 'nursenow';
 }
 
+// Scopes an OTP send/verify to what it's proving — a register OTP can never
+// be replayed to satisfy a login, and vice versa.
+class OtpPurpose {
+  static const register = 'register';
+  static const login = 'login';
+}
+
 /// organisation_profiles.city is validated against City.all plus this one
 /// extra sentinel — a separate org-scoped list, not an extension of the
 /// shared City enum.

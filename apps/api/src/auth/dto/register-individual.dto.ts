@@ -1,4 +1,4 @@
-import { Equals, IsNotEmpty, Matches } from 'class-validator';
+import { Equals, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { Validation } from '@vitacare/shared-constants';
 
 /** Individual (patient/family) registration is deliberately minimal —
@@ -20,7 +20,13 @@ export class RegisterIndividualDto {
   terms_accepted!: boolean;
 
   /** Logs in with phone + this code from the very first session onward,
-   *  same as a caregiver. */
+   *  same as a caregiver — EXCEPT when OTP mode is enabled for nursenow,
+   *  see RegisterDto.code for the full explanation (identical pattern). */
+  @IsOptional()
   @Matches(Validation.CODE_REGEX, { message: 'PROFILE_016' })
-  code!: string;
+  code?: string;
+
+  @IsOptional()
+  @IsString({ message: 'GEN_001' })
+  phone_verification_token?: string;
 }

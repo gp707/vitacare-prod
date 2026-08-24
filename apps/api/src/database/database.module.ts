@@ -20,6 +20,8 @@ import { JobApplicationsRepository } from './repositories/job-applications.repos
 import { CareReceiversRepository } from './repositories/care-receivers.repository';
 import { AppMinVersionsRepository } from './repositories/app-min-versions.repository';
 import { AdminReportsRepository } from './repositories/admin-reports.repository';
+import { OtpAuthSettingsRepository } from './repositories/otp-auth-settings.repository';
+import { OtpVerificationsRepository } from './repositories/otp-verifications.repository';
 
 const repositories = [
   UsersRepository,
@@ -42,6 +44,8 @@ const repositories = [
   CareReceiversRepository,
   AppMinVersionsRepository,
   AdminReportsRepository,
+  OtpAuthSettingsRepository,
+  OtpVerificationsRepository,
 ];
 
 @Global()

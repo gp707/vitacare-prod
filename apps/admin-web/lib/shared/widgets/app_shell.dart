@@ -14,6 +14,7 @@ enum AppShellSection {
   auditLogs,
   adminManagement,
   appVersions,
+  loginSettings,
 }
 
 /// Nav shell used by every authenticated screen. Below the tablet
@@ -176,6 +177,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.appVersions,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/app-versions', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.password,
+                  label: 'Login Settings',
+                  selected: current == AppShellSection.loginSettings,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/login-settings', (r) => false),
                 ),
               ],
             ),

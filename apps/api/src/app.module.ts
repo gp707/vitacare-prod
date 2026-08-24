@@ -12,6 +12,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { IndividualModule } from './individual/individual.module';
 import { OrganisationModule } from './organisation/organisation.module';
 import { AppConfigModule } from './app-config/app-config.module';
+import { OtpModule } from './otp/otp.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -32,6 +33,7 @@ import { validateEnv } from './config/env.validation';
     IndividualModule,
     OrganisationModule,
     AppConfigModule,
+    OtpModule,
   ],
 })
 export class AppModule {}

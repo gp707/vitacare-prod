@@ -4,6 +4,7 @@ import 'network/api_client.dart';
 import 'storage/local_storage.dart';
 import 'fcm/fcm_service.dart';
 import 'version/app_version_repository.dart';
+import 'auth_config/auth_config_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
@@ -41,3 +42,14 @@ final organisationOpeningsRepositoryProvider = Provider<OrganisationOpeningsRepo
 final appVersionRepositoryProvider = Provider<AppVersionRepository>((ref) {
   return AppVersionRepository(ref.watch(apiClientProvider).dio);
 });
+
+final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {
+  return AuthConfigRepository(ref.watch(apiClientProvider).dio);
+});
+
+/// Whether OTP mode is enabled for this app (nursejobs) — set once at
+/// splash time from AuthConfigRepository.isOtpEnabled(), read by
+/// LoginScreen/RegistrationScreen to decide whether to show phone+OTP or
+/// phone+PIN. Defaults to false (PIN mode), the known-safe default this
+/// falls back to on any error.
+final otpModeProvider = StateProvider<bool>((ref) => false);

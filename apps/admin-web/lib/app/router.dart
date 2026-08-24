@@ -8,6 +8,7 @@ import '../features/admin_management/screens/admin_management_screen.dart';
 import '../features/audit_logs/screens/audit_logs_screen.dart';
 import '../features/jobs/screens/admin_jobs_screen.dart';
 import '../features/app_versions/screens/app_versions_screen.dart';
+import '../features/login_settings/screens/login_settings_screen.dart';
 import '../features/individuals/screens/individuals_list_screen.dart';
 import '../features/individuals/screens/individual_detail_screen.dart';
 import '../features/organisations/screens/organisations_list_screen.dart';
@@ -29,6 +30,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/dashboard': (context) => const DashboardScreen(),
     '/admins': (context) => const AdminManagementScreen(),
     '/app-versions': (context) => const AppVersionsScreen(),
+    '/login-settings': (context) => const LoginSettingsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
     '/reports': (context) => const ReportsScreen(),

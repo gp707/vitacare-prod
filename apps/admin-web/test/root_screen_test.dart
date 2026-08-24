@@ -47,6 +47,8 @@ Future<void> _pumpRoot(
           '/patients-family': (_) =>
               const Scaffold(body: Text('Patients Family Page')),
           '/reports': (_) => const Scaffold(body: Text('Reports Page')),
+          '/login-settings': (_) =>
+              const Scaffold(body: Text('Login Settings Page')),
         },
       ),
     ),
@@ -102,6 +104,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Reports Page'), findsOneWidget);
+    expect(find.text('Dashboard Page'), findsNothing);
+  });
+
+  testWidgets(
+      'restores /login-settings too — refreshing while on the Login Settings screen must not bounce to Dashboard',
+      (tester) async {
+    await _pumpRoot(
+      tester,
+      sessionResult:
+          const AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+      initialDeepLinkRoute: '/login-settings',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login Settings Page'), findsOneWidget);
     expect(find.text('Dashboard Page'), findsNothing);
   });
 

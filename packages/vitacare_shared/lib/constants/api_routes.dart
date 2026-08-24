@@ -59,4 +59,9 @@ class ApiRoutes {
   static const caregiverJobsAssigned = '/caregiver/jobs/assigned';
 
   static const appVersionCheck = '/app-versions/check';
+
+  static const otpSend = '/auth/otp/send';
+  static const otpVerify = '/auth/otp/verify';
+  static const loginOtp = '/auth/login/otp';
+  static const otpSettingsCheck = '/auth/otp-settings';
 }

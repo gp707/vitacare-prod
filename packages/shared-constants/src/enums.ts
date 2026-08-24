@@ -187,6 +187,7 @@ export const AuditAction = {
   ORG_REQUIREMENT_UPDATED: 'org_requirement_updated',
   ORG_REQUIREMENT_REJECTED: 'org_requirement_rejected',
   ORG_REQUIREMENT_APPLICATION_DECIDED: 'org_requirement_application_decided',
+  OTP_SETTING_UPDATED: 'otp_setting_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -261,6 +262,14 @@ export const LoginApp = {
   NURSENOW: 'nursenow',
 } as const;
 export type LoginApp = (typeof LoginApp)[keyof typeof LoginApp];
+
+// Scopes an OTP send/verify to what it's proving — a register OTP can never
+// be replayed to satisfy a login, and vice versa.
+export const OtpPurpose = {
+  REGISTER: 'register',
+  LOGIN: 'login',
+} as const;
+export type OtpPurpose = (typeof OtpPurpose)[keyof typeof OtpPurpose];
 
 // organisation_profiles.city is validated against City.all plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the

@@ -168,7 +168,7 @@ describe('Auth (e2e)', () => {
       expect(res.body.error.code).toBe('PROFILE_016');
     });
 
-    it('rejects a missing code with PROFILE_016 / 400', async () => {
+    it('rejects a missing code with AUTH_009 / 400 (PIN mode is the default — code is optional at the DTO layer only because OTP mode uses phone_verification_token instead; AuthService.resolveCredential enforces one of the two is actually present)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send({
@@ -183,7 +183,7 @@ describe('Auth (e2e)', () => {
         })
         .expect(400);
 
-      expect(res.body.error.code).toBe('PROFILE_016');
+      expect(res.body.error.code).toBe('AUTH_009');
     });
 
     it('rejects an invalid highest_qualification with PROFILE_018 / 400', async () => {

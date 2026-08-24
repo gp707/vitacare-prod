@@ -52,9 +52,14 @@ class RegistrationScreen extends ConsumerStatefulWidget {
 class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
+  final _otpController = TextEditingController();
   final _fullNameController = TextEditingController();
   final _organisationNameController = TextEditingController();
   final _areaController = TextEditingController();
+  bool _otpSent = false;
+  bool _sendingOtp = false;
+  bool _verifyingOtp = false;
+  String? _verificationToken;
   _AccountType? _accountType;
   String? _organisationType;
   String? _city;
@@ -85,11 +90,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool get _isOrganisation => _accountType == _AccountType.organisation;
 
   String get _phone => '+91${_phoneController.text.trim()}';
+  bool get _otpMode => ref.read(otpModeProvider);
 
   @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
+    _otpController.dispose();
     _fullNameController.dispose();
     _organisationNameController.dispose();
     _areaController.dispose();
@@ -101,8 +108,47 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     super.dispose();
   }
 
+  Future<void> _sendRegistrationOtp() async {
+    if (!_isPhoneValid) {
+      setState(() => _showValidationErrors = true);
+      return;
+    }
+    setState(() => _sendingOtp = true);
+    try {
+      await ref.read(authRepositoryProvider).sendOtp(phone: _phone, purpose: OtpPurpose.register);
+      if (mounted) setState(() => _otpSent = true);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _sendingOtp = false);
+    }
+  }
+
+  Future<void> _verifyRegistrationOtp() async {
+    if (!Validators.isValidOtp(_otpController.text.trim())) {
+      setState(() => _errorMessage = 'Enter the 6-digit code');
+      return;
+    }
+    setState(() {
+      _verifyingOtp = true;
+      _errorMessage = null;
+    });
+    try {
+      final token = await ref.read(authRepositoryProvider).verifyOtp(
+            phone: _phone,
+            otp: _otpController.text.trim(),
+            purpose: OtpPurpose.register,
+          );
+      if (mounted) setState(() => _verificationToken = token);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _verifyingOtp = false);
+    }
+  }
+
   bool get _isPhoneValid => Validators.isValidPhone(_phone);
-  bool get _isCodeValid => Validators.isValidCode(_codeController.text.trim());
+  bool get _isCodeValid => _otpMode ? _verificationToken != null : Validators.isValidCode(_codeController.text.trim());
   bool get _isFullNameValid => Validators.isValidName(_fullNameController.text.trim());
   bool get _isAccountTypeValid => _accountType != null;
   bool get _isOrganisationNameValid => !_isOrganisation || _organisationNameController.text.trim().isNotEmpty;
@@ -187,7 +233,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final AuthResult result = _isOrganisation
           ? await authRepo.registerOrganisation(
               phone: _phone,
-              code: _codeController.text.trim(),
+              code: _otpMode ? null : _codeController.text.trim(),
+              phoneVerificationToken: _otpMode ? _verificationToken : null,
               organisationName: _organisationNameController.text.trim(),
               contactPersonName: _fullNameController.text.trim(),
               organisationType: _organisationType!,
@@ -199,7 +246,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               phone: _phone,
               fullName: _fullNameController.text.trim(),
               termsAccepted: _termsAccepted,
-              code: _codeController.text.trim(),
+              code: _otpMode ? null : _codeController.text.trim(),
+              phoneVerificationToken: _otpMode ? _verificationToken : null,
             );
       final localStorage = ref.read(localStorageProvider);
       await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
@@ -239,20 +287,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _codeKey,
-              controller: _codeController,
-              focusNode: _codeFocusNode,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              obscureText: true,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'Create a 4-digit PIN (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isCodeValid ? 'Enter a 4-digit PIN' : null,
-              ),
-            ),
+            if (_otpMode) _buildOtpVerificationBlock() else _buildPinField(),
             const SizedBox(height: AppSpacing.md),
             TextField(
               key: _fullNameKey,
@@ -422,6 +457,98 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPinField() {
+    return TextField(
+      key: _codeKey,
+      controller: _codeController,
+      focusNode: _codeFocusNode,
+      keyboardType: TextInputType.number,
+      maxLength: 4,
+      obscureText: true,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        labelText: 'Create a 4-digit PIN (Mandatory)',
+        border: const OutlineInputBorder(),
+        errorText: _showValidationErrors && !_isCodeValid ? 'Enter a 4-digit PIN' : null,
+      ),
+    );
+  }
+
+  /// OTP-mode counterpart to _buildPinField — verifying the phone number
+  /// (via a full send/verify round trip) is what satisfies this mandatory
+  /// field instead of setting a PIN. Three states: not yet sent, sent
+  /// (awaiting the code), and verified.
+  Widget _buildOtpVerificationBlock() {
+    return KeyedSubtree(
+      key: _codeKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Verify Phone Number (Mandatory)',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: _showValidationErrors && !_isCodeValid ? AppColors.error : null,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (_verificationToken != null)
+            Row(
+              children: const [
+                Icon(Icons.check_circle, color: AppColors.success),
+                SizedBox(width: AppSpacing.sm),
+                Text('Phone number verified'),
+              ],
+            )
+          else if (!_otpSent)
+            OutlinedButton(
+              onPressed: _sendingOtp ? null : _sendRegistrationOtp,
+              child: _sendingOtp
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Send OTP to verify'),
+            )
+          else ...[
+            TextField(
+              controller: _otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(labelText: '6-digit OTP', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _verifyingOtp ? null : _verifyRegistrationOtp,
+                  child: _verifyingOtp
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Verify'),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                TextButton(
+                  onPressed: _sendingOtp ? null : _sendRegistrationOtp,
+                  child: const Text('Resend OTP'),
+                ),
+              ],
+            ),
+          ],
+          if (_showValidationErrors && !_isCodeValid)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('Verify your phone number to continue', style: TextStyle(color: AppColors.error, fontSize: 12)),
+            ),
+        ],
       ),
     );
   }

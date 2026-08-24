@@ -13,6 +13,7 @@ import '../features/individuals/data/admin_individuals_repository.dart';
 import '../features/organisations/data/admin_organisations_repository.dart';
 import '../features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
 import '../features/reports/data/admin_reports_repository.dart';
+import '../features/login_settings/data/otp_settings_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -51,6 +52,10 @@ final adminJobsRepositoryProvider = Provider<AdminJobsRepository>((ref) {
 
 final appVersionsRepositoryProvider = Provider<AppVersionsRepository>((ref) {
   return AppVersionsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final otpSettingsRepositoryProvider = Provider<OtpSettingsRepository>((ref) {
+  return OtpSettingsRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminIndividualsRepositoryProvider =

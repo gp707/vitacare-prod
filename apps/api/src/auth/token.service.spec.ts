@@ -57,4 +57,39 @@ describe('TokenService', () => {
       expect(decoded.exp! - decoded.iat!).toBe(60);
     });
   });
+
+  describe('signPhoneVerificationToken / verifyPhoneVerificationToken', () => {
+    it('round-trips phone/app/purpose and expires in 10 minutes', () => {
+      const token = service.signPhoneVerificationToken({
+        phone: '+919876543210',
+        app: 'nursejobs',
+        purpose: 'register',
+      });
+      const payload = service.verifyPhoneVerificationToken(token);
+      expect(payload).toMatchObject({
+        phone: '+919876543210',
+        app: 'nursejobs',
+        purpose: 'register',
+        type: 'phone_verification',
+      });
+      expect(payload.exp! - payload.iat!).toBe(600);
+    });
+
+    it('throws on an expired token', () => {
+      const expired = jwt.sign(
+        { phone: '+919876543210', app: 'nursejobs', purpose: 'register', type: 'phone_verification' },
+        secret,
+        { expiresIn: -1 },
+      );
+      expect(() => service.verifyPhoneVerificationToken(expired)).toThrow();
+    });
+
+    it('throws on a token signed with a different secret', () => {
+      const forged = jwt.sign(
+        { phone: '+919876543210', app: 'nursejobs', purpose: 'register', type: 'phone_verification' },
+        'wrong-secret',
+      );
+      expect(() => service.verifyPhoneVerificationToken(forged)).toThrow();
+    });
+  });
 });

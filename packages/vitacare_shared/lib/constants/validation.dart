@@ -5,6 +5,8 @@ class Validation {
   static const nameMaxLength = 100;
   static const codeLength = 4;
   static final RegExp codeRegex = RegExp(r'^\d{4}$');
+  static const otpLength = 6;
+  static final RegExp otpRegex = RegExp(r'^\d{6}$');
   static const ageMin = 18;
   static const ageMax = 65;
   static const rejectionMessageMaxLength = 1000;

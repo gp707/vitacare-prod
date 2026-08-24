@@ -1,4 +1,4 @@
-import { Equals, IsIn, IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { Equals, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { City, OrganisationType, Validation } from '@vitacare/shared-constants';
 
 /** Organisation (hospital/rehab/clinic) registration — phone/PIN like
@@ -11,9 +11,16 @@ export class RegisterOrganisationDto {
   @Matches(Validation.PHONE_REGEX, { message: 'PROFILE_007' })
   phone!: string;
 
-  /** Logs in with phone + this code from the very first session onward. */
+  /** Logs in with phone + this code from the very first session onward —
+   *  EXCEPT when OTP mode is enabled for nursenow, see RegisterDto.code for
+   *  the full explanation (identical pattern). */
+  @IsOptional()
   @Matches(Validation.CODE_REGEX, { message: 'PROFILE_016' })
-  code!: string;
+  code?: string;
+
+  @IsOptional()
+  @IsString({ message: 'GEN_001' })
+  phone_verification_token?: string;
 
   @IsNotEmpty({ message: 'GEN_001' })
   @MaxLength(200, { message: 'GEN_001' })

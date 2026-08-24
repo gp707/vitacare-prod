@@ -10,5 +10,7 @@ class Validators {
 
   static bool isValidCode(String value) => Validation.codeRegex.hasMatch(value);
 
+  static bool isValidOtp(String value) => Validation.otpRegex.hasMatch(value);
+
   static bool isValidAge(int age) => age >= Validation.ageMin && age <= Validation.ageMax;
 }

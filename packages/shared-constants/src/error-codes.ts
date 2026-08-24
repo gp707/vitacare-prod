@@ -13,6 +13,12 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   AUTH_006: { status: 401, message: 'Invalid refresh token' },
   AUTH_007: { status: 403, message: 'Insufficient permissions' },
   AUTH_008: { status: 401, message: 'Invalid code' },
+  AUTH_009: { status: 400, message: 'A login code is required' },
+  AUTH_010: { status: 400, message: 'Phone verification is required' },
+  AUTH_011: { status: 401, message: 'Invalid or expired phone verification' },
+  AUTH_012: { status: 401, message: 'Invalid or expired OTP' },
+  AUTH_013: { status: 429, message: 'Too many incorrect attempts — request a new code' },
+  AUTH_014: { status: 500, message: 'SMS provider is unavailable — please try again shortly' },
 
   // Profile errors
   PROFILE_001: { status: 400, message: 'Full name is required' },

@@ -1,4 +1,16 @@
-import { ArrayMinSize, Equals, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, Matches, Max, Min } from 'class-validator';
+import {
+  ArrayMinSize,
+  Equals,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 import { City, Gender, Language, Qualification, Religion, Validation } from '@vitacare/shared-constants';
 
 export class RegisterDto {
@@ -37,7 +49,18 @@ export class RegisterDto {
   terms_accepted!: boolean;
 
   /** Caregiver logs in with phone + this code from the very first session
-   * onward. */
+   *  onward — EXCEPT when OTP mode is enabled for nursejobs, in which case
+   *  `phone_verification_token` is sent instead and this is omitted. Which
+   *  one is actually required is decided server-side in
+   *  AuthService.resolveCredential (reads the live otp_auth_settings flag,
+   *  never trusts the client) — hence both fields are optional here. */
+  @IsOptional()
   @Matches(Validation.CODE_REGEX, { message: 'PROFILE_016' })
-  code!: string;
+  code?: string;
+
+  /** Proves phone ownership when OTP mode is enabled — issued by
+   *  POST /auth/otp/verify (purpose: 'register'). */
+  @IsOptional()
+  @IsString({ message: 'GEN_001' })
+  phone_verification_token?: string;
 }

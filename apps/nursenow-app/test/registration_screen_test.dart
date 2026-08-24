@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
@@ -20,11 +21,16 @@ class _FakeAuthRepository extends AuthRepository {
   String? capturedPhone;
   String? capturedFullName;
   String? capturedCode;
+  String? capturedPhoneVerificationToken;
   String? capturedOrganisationName;
   String? capturedContactPersonName;
   String? capturedOrganisationType;
   String? capturedCity;
   String? capturedArea;
+  String? capturedOtpPurpose;
+  String verifyOtpReturnValue = 'verified-token';
+  bool throwOnSendOtp = false;
+  bool throwOnVerifyOtp = false;
 
   _FakeAuthRepository({this.registerError}) : super(Dio());
 
@@ -35,13 +41,15 @@ class _FakeAuthRepository extends AuthRepository {
     required String phone,
     required String fullName,
     required bool termsAccepted,
-    required String code,
+    String? code,
+    String? phoneVerificationToken,
   }) async {
     registerCalled = true;
     capturedPhone = phone;
     capturedFullName = fullName;
     capturedTermsAccepted = termsAccepted;
     capturedCode = code;
+    capturedPhoneVerificationToken = phoneVerificationToken;
     if (registerError != null) throw registerError!;
     return const AuthResult(userId: 'u1', accessToken: 'access', refreshToken: 'refresh');
   }
@@ -49,17 +57,19 @@ class _FakeAuthRepository extends AuthRepository {
   @override
   Future<AuthResult> registerOrganisation({
     required String phone,
-    required String code,
     required String organisationName,
     required String contactPersonName,
     required String organisationType,
     required String city,
     required String area,
     required bool termsAccepted,
+    String? code,
+    String? phoneVerificationToken,
   }) async {
     registerOrganisationCalled = true;
     capturedPhone = phone;
     capturedCode = code;
+    capturedPhoneVerificationToken = phoneVerificationToken;
     capturedOrganisationName = organisationName;
     capturedContactPersonName = contactPersonName;
     capturedOrganisationType = organisationType;
@@ -68,6 +78,23 @@ class _FakeAuthRepository extends AuthRepository {
     capturedTermsAccepted = termsAccepted;
     if (registerError != null) throw registerError!;
     return const AuthResult(userId: 'org-1', accessToken: 'access', refreshToken: 'refresh');
+  }
+
+  @override
+  Future<void> sendOtp({required String phone, required String purpose}) async {
+    capturedOtpPurpose = purpose;
+    if (throwOnSendOtp) {
+      throw const ApiException(code: 'GEN_004', message: 'Please wait before requesting another code');
+    }
+  }
+
+  @override
+  Future<String> verifyOtp({required String phone, required String otp, required String purpose}) async {
+    capturedOtpPurpose = purpose;
+    if (throwOnVerifyOtp) {
+      throw const ApiException(code: 'AUTH_012', message: 'Invalid or expired OTP');
+    }
+    return verifyOtpReturnValue;
   }
 }
 
@@ -83,7 +110,11 @@ class _FakeIndividualRepository extends IndividualRepository {
       );
 }
 
-Future<void> _pumpRegistration(WidgetTester tester, {required _FakeAuthRepository authRepo}) async {
+Future<void> _pumpRegistration(
+  WidgetTester tester, {
+  required _FakeAuthRepository authRepo,
+  bool otpMode = false,
+}) async {
   // The organisation fields push the form well past the default 800x600
   // viewport + cache extent — a plain ListView's sliver won't mount
   // widgets that far below the fold without a taller surface.
@@ -100,6 +131,7 @@ Future<void> _pumpRegistration(WidgetTester tester, {required _FakeAuthRepositor
         localStorageProvider.overrideWithValue(localStorage),
         authRepositoryProvider.overrideWithValue(authRepo),
         individualRepositoryProvider.overrideWithValue(_FakeIndividualRepository()),
+        otpModeProvider.overrideWith((ref) => otpMode),
       ],
       child: MaterialApp(
         home: const RegistrationScreen(),
@@ -298,5 +330,112 @@ void main() {
 
     expect(find.byType(Checkbox), findsOneWidget);
     expect(find.textContaining('Terms & Conditions', findRichText: true), findsOneWidget);
+  });
+
+  group('OTP mode', () {
+    testWidgets('shows "Send OTP to verify" instead of the 4-digit PIN field', (tester) async {
+      final authRepo = _FakeAuthRepository();
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      expect(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), findsNothing);
+      expect(find.text('Send OTP to verify'), findsOneWidget);
+    });
+
+    testWidgets('tapping Send OTP calls sendOtp with purpose register and reveals the OTP field', (tester) async {
+      final authRepo = _FakeAuthRepository();
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+      await tester.tap(find.text('Send OTP to verify'));
+      await tester.pumpAndSettle();
+
+      expect(authRepo.capturedOtpPurpose, OtpPurpose.register);
+      expect(find.widgetWithText(TextField, '6-digit OTP'), findsOneWidget);
+    });
+
+    testWidgets('registers an Individual account with a verified phone, sending phoneVerificationToken and no code',
+        (tester) async {
+      final authRepo = _FakeAuthRepository();
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+      await tester.tap(find.text('Send OTP to verify'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, '6-digit OTP'), '123456');
+      await tester.tap(find.text('Verify'));
+      await tester.pumpAndSettle();
+      expect(find.text('Phone number verified'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
+      await tester.tap(find.text('Individual'));
+      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.pumpAndSettle();
+
+      expect(authRepo.registerCalled, isTrue);
+      expect(authRepo.capturedCode, isNull);
+      expect(authRepo.capturedPhoneVerificationToken, 'verified-token');
+    });
+
+    testWidgets(
+        'registers an Organisation account with a verified phone, sending phoneVerificationToken and no code',
+        (tester) async {
+      final authRepo = _FakeAuthRepository();
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+      await tester.tap(find.text('Send OTP to verify'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, '6-digit OTP'), '123456');
+      await tester.tap(find.text('Verify'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Hospital / Rehab'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
+      await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of organisation (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hospital').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bangalore').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.pumpAndSettle();
+
+      expect(authRepo.registerOrganisationCalled, isTrue);
+      expect(authRepo.capturedCode, isNull);
+      expect(authRepo.capturedPhoneVerificationToken, 'verified-token');
+    });
+
+    testWidgets('shows the server error when sendOtp fails', (tester) async {
+      final authRepo = _FakeAuthRepository()..throwOnSendOtp = true;
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+      await tester.tap(find.text('Send OTP to verify'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Please wait before requesting another code'), findsOneWidget);
+    });
+
+    testWidgets('shows the server error when verifyOtp fails', (tester) async {
+      final authRepo = _FakeAuthRepository()..throwOnVerifyOtp = true;
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+      await tester.tap(find.text('Send OTP to verify'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, '6-digit OTP'), '000000');
+      await tester.tap(find.text('Verify'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid or expired OTP'), findsOneWidget);
+      expect(find.text('Phone number verified'), findsNothing);
+    });
   });
 }

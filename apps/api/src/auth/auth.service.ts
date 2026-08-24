@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { AuditAction, Config, LoginApp, UserRole, VerificationStatus } from '@vitacare/shared-constants';
+import { AuditAction, Config, LoginApp, OtpPurpose, UserRole, VerificationStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { UsersRepository, UserRecord } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
@@ -10,6 +10,7 @@ import { CaregiverPreferredCitiesRepository } from '../database/repositories/car
 import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
 import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository';
+import { OtpAuthSettingsRepository } from '../database/repositories/otp-auth-settings.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
@@ -19,6 +20,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RegisterIndividualDto } from './dto/register-individual.dto';
 import { RegisterOrganisationDto } from './dto/register-organisation.dto';
 import { LoginCodeDto } from './dto/login-code.dto';
+import { LoginOtpDto } from './dto/login-otp.dto';
 import { LoginEmailDto } from './dto/login-email.dto';
 
 // Caregiver and both NurseNow account types (individual, organisation) log
@@ -47,6 +49,7 @@ export class AuthService {
     private readonly individualProfilesRepo: IndividualProfilesRepository,
     private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly refreshTokensRepo: RefreshTokensRepository,
+    private readonly otpAuthSettingsRepo: OtpAuthSettingsRepository,
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
@@ -58,7 +61,7 @@ export class AuthService {
       throw new AppException('AUTH_001');
     }
 
-    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    const { codeHash } = await this.resolveCredential(LoginApp.NURSEJOBS, dto, OtpPurpose.REGISTER, dto.phone);
 
     const { user, profile } = await this.db.withTransaction(async (client) => {
       const userResult = await client.query<UserRecord>(
@@ -131,6 +134,33 @@ export class AuthService {
       throw new AppException('AUTH_008');
     }
 
+    return this.finishLogin(user, ipAddress, 'code');
+  }
+
+  /** Proves phone ownership via a phone-verification-token (issued by
+   *  POST /auth/otp/verify, purpose 'login') instead of a PIN — reuses
+   *  findByPhoneAndRoles' same role-bucket lookup, so it works identically
+   *  for an account that has a PIN and one that doesn't (code_hash is
+   *  never consulted here at all). Deliberately NOT gated by the
+   *  otp_auth_settings flag — this stays callable even if OTP mode is
+   *  later disabled, so an account that registered while it was on (and so
+   *  has no PIN) is never locked out. */
+  async loginOtp(dto: LoginOtpDto, ipAddress: string | null = null) {
+    this.verifyPhoneToken(dto.phone_verification_token, dto.phone, dto.app, OtpPurpose.LOGIN);
+
+    const roles = CODE_LOGIN_ROLES_BY_APP[dto.app];
+    const user = await this.usersRepo.findByPhoneAndRoles(dto.phone, roles);
+    if (!user) {
+      throw new AppException('AUTH_002');
+    }
+    if (!user.is_active) {
+      throw new AppException('AUTH_004');
+    }
+
+    return this.finishLogin(user, ipAddress, 'otp');
+  }
+
+  private async finishLogin(user: UserRecord, ipAddress: string | null, method: 'code' | 'otp') {
     await this.refreshTokensRepo.pruneStaleForUser(user.id);
     const tokens = await this.issueTokens(user);
 
@@ -139,7 +169,7 @@ export class AuthService {
       action: AuditAction.LOGIN,
       entityType: 'users',
       entityId: user.id,
-      afterValue: { timestamp: new Date().toISOString(), method: 'code' },
+      afterValue: { timestamp: new Date().toISOString(), method },
       ipAddress,
     });
 
@@ -172,7 +202,7 @@ export class AuthService {
       throw new AppException('AUTH_001');
     }
 
-    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    const { codeHash } = await this.resolveCredential(LoginApp.NURSENOW, dto, OtpPurpose.REGISTER, dto.phone);
 
     const user = await this.db.withTransaction(async (client) => {
       const userResult = await client.query<UserRecord>(
@@ -212,7 +242,7 @@ export class AuthService {
       throw new AppException('AUTH_001');
     }
 
-    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    const { codeHash } = await this.resolveCredential(LoginApp.NURSENOW, dto, OtpPurpose.REGISTER, dto.phone);
 
     const user = await this.db.withTransaction(async (client) => {
       const userResult = await client.query<UserRecord>(
@@ -318,6 +348,56 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     await this.refreshTokensRepo.revokeAllForUser(userId);
+  }
+
+  /** Picks the credential path for a registration: PIN (today's default)
+   *  or OTP-verified phone token, based on the LIVE otp_auth_settings flag
+   *  for that app — read server-side, never trusted from the request body,
+   *  so a client can't bypass an admin's toggle by simply sending a `code`
+   *  anyway. */
+  private async resolveCredential(
+    app: string,
+    dto: { code?: string; phone_verification_token?: string },
+    purpose: string,
+    phone: string,
+  ): Promise<{ codeHash: string | null }> {
+    const setting = await this.otpAuthSettingsRepo.findByApp(app);
+    const otpEnabled = setting?.enabled ?? false;
+
+    if (otpEnabled) {
+      if (!dto.phone_verification_token) {
+        throw new AppException('AUTH_010');
+      }
+      this.verifyPhoneToken(dto.phone_verification_token, phone, app, purpose);
+      return { codeHash: null };
+    }
+
+    if (!dto.code) {
+      throw new AppException('AUTH_009');
+    }
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    return { codeHash };
+  }
+
+  /** Throws AUTH_011 for anything wrong with the token — expired, bad
+   *  signature, or a mismatch on phone/app/purpose (e.g. a 'register'
+   *  token replayed against login, or one issued for a different phone/
+   *  app than the request claims). */
+  private verifyPhoneToken(token: string, phone: string, app: string, purpose: string): void {
+    let payload;
+    try {
+      payload = this.tokenService.verifyPhoneVerificationToken(token);
+    } catch {
+      throw new AppException('AUTH_011');
+    }
+    if (
+      payload.type !== 'phone_verification' ||
+      payload.phone !== phone ||
+      payload.app !== app ||
+      payload.purpose !== purpose
+    ) {
+      throw new AppException('AUTH_011');
+    }
   }
 
   private async issueTokens(user: {

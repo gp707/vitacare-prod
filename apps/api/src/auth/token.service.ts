@@ -58,4 +58,31 @@ export class TokenService {
   verifyRefreshToken(token: string): RefreshTokenPayload {
     return jwt.verify(token, this.secret) as RefreshTokenPayload;
   }
+
+  /** Issued once an OTP is successfully verified — proves phone ownership
+   *  for exactly one purpose (register/login) on exactly one app, for 10
+   *  minutes, so it can't be replayed against the other purpose or left
+   *  usable indefinitely. The `type` discriminator keeps it from ever being
+   *  confused with an access/refresh token if replayed against the wrong
+   *  endpoint. */
+  signPhoneVerificationToken(payload: { phone: string; app: string; purpose: string }): string {
+    const body: Omit<PhoneVerificationTokenPayload, 'iat' | 'exp'> = {
+      ...payload,
+      type: 'phone_verification',
+    };
+    return jwt.sign(body, this.secret, { expiresIn: 600 });
+  }
+
+  verifyPhoneVerificationToken(token: string): PhoneVerificationTokenPayload {
+    return jwt.verify(token, this.secret) as PhoneVerificationTokenPayload;
+  }
+}
+
+export interface PhoneVerificationTokenPayload {
+  phone: string;
+  app: string;
+  purpose: string;
+  type: 'phone_verification';
+  iat?: number;
+  exp?: number;
 }

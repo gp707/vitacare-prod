@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
+import '../../../core/providers.dart';
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's buildRoutes() map except the pre-auth ones
@@ -29,9 +30,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(sessionProvider.notifier).loadSession();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAuthConfigThenLoadSession());
+  }
+
+  /// Unlike caregiver-app, nursenow-app has no existing pre-check to
+  /// extend (no app-version-check here) — this is new wiring, not an
+  /// extension. Unauthenticated and fails open to false (PIN mode), same
+  /// contract as AuthConfigRepository.isOtpEnabled itself.
+  Future<void> _checkAuthConfigThenLoadSession() async {
+    final otpEnabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+    if (!mounted) return;
+    ref.read(otpModeProvider.notifier).state = otpEnabled;
+    ref.read(sessionProvider.notifier).loadSession();
   }
 
   @override
