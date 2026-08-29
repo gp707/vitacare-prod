@@ -6,3 +6,4 @@ export 'widgets/vita_loading_indicator.dart';
 export 'widgets/vita_multi_select_chips.dart';
 export 'widgets/vita_offline_banner.dart';
 export 'widgets/vita_status_badge.dart';
+export 'widgets/vita_splash_branding.dart';

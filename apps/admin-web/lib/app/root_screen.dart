@@ -69,7 +69,16 @@ class _RootScreenState extends ConsumerState<RootScreen> {
 
     return const Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(child: VitaLoadingIndicator()),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            VitaSplashBranding(appLabel: 'VITACARE ADMIN'),
+            SizedBox(height: AppSpacing.xl),
+            VitaLoadingIndicator(),
+          ],
+        ),
+      ),
     );
   }
 }

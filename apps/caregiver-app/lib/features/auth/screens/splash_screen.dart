@@ -79,11 +79,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'NurseJobs',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
-            SizedBox(height: AppSpacing.lg),
+            VitaSplashBranding(appLabel: 'NURSEJOBS'),
+            SizedBox(height: AppSpacing.xl),
             VitaLoadingIndicator(),
           ],
         ),
