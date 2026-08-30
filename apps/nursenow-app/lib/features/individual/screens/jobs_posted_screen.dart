@@ -345,22 +345,26 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
+/// A single label/value line in the expanded details — label on its own
+/// line in a small secondary color, value below it in the default body
+/// style, so every field is unambiguous at a glance instead of relying on
+/// a reader to infer meaning from a bare chip's text alone.
+class _DetailRow extends StatelessWidget {
   final String label;
+  final String value;
 
-  const _Tag(this.label);
+  const _DetailRow(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.xs, bottom: AppSpacing.xs),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(AppSpacing.sm),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          Text(value),
+        ],
       ),
     );
   }
@@ -569,62 +573,68 @@ class _RequirementCardState extends State<_RequirementCard> {
           if (_detailsExpanded) ...[
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
+            // Labeled rows grouped under the same two headings as the
+            // Post/Edit Requirement form (Patient Details / Care
+            // Preferences), in the same field order — so what a patient
+            // sees here when reviewing matches what they filled in when
+            // posting, instead of an undifferentiated wall of chips where
+            // e.g. a bare "Male" tag couldn't say whether it meant the
+            // patient's own gender or a caregiver preference.
             if (careReceiver != null) ...[
-              const _SectionLabel('About Patient'),
+              const _SectionLabel('Patient Details'),
               const SizedBox(height: AppSpacing.xs),
-              Wrap(
-                children: [
-                  _Tag('${careReceiver.age} yrs'),
-                  _Tag(_capitalize(careReceiver.gender)),
-                  _Tag('${careReceiver.weightKg} kg'),
-                  _Tag(FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType),
-                  for (final t in careReceiver.toiletAssistance)
-                    _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-                  if (careReceiver.hasMedicalCondition)
-                    for (final c in careReceiver.medicalConditions) _Tag(MedicalCondition.displayNames[c] ?? c),
-                ],
+              _DetailRow('Age', '${careReceiver.age} yrs'),
+              _DetailRow('Gender', _capitalize(careReceiver.gender)),
+              _DetailRow('Weight', '${careReceiver.weightKg} kg'),
+              _DetailRow('City', City.displayNames[requirement.city] ?? requirement.city),
+              if (requirement.area != null && requirement.area!.isNotEmpty)
+                _DetailRow('Area', requirement.area!),
+              _DetailRow(
+                'Medical Condition',
+                careReceiver.hasMedicalCondition && careReceiver.medicalConditions.isNotEmpty
+                    ? careReceiver.medicalConditions.map((c) => MedicalCondition.displayNames[c] ?? c).join(', ')
+                    : 'None',
               ),
-              if (careReceiver.medicalConditionOther != null && careReceiver.medicalConditionOther!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Other condition: ${careReceiver.medicalConditionOther!}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-                ),
-              ],
-              if (careReceiver.toiletAssistanceOther != null && careReceiver.toiletAssistanceOther!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Other toilet assistance: ${careReceiver.toiletAssistanceOther!}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-                ),
-              ],
+              if (careReceiver.medicalConditionOther != null && careReceiver.medicalConditionOther!.isNotEmpty)
+                _DetailRow('Other Condition', careReceiver.medicalConditionOther!),
               const SizedBox(height: AppSpacing.md),
             ],
-            const _SectionLabel('Patient Care Requirement'),
+            const _SectionLabel('Care Preferences'),
             const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              children: [
-                _Tag(DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
-                // Always set on an active job (only ever null for a still
-                // pending_review posting, which has no applicants section
-                // shown at all — see below).
-                if (requirement.frequencyOfCare != null)
-                  _Tag(FrequencyOfCare.displayNames[requirement.frequencyOfCare!] ?? requirement.frequencyOfCare!),
-                if (requirement.area != null && requirement.area!.isNotEmpty) _Tag(requirement.area!),
-                if (requirement.startDate != null) _Tag('Start: ${requirement.startDate!}'),
-                if (requirement.languages.isEmpty)
-                  const _Tag('No Preference')
-                else
-                  for (final lang in requirement.languages) _Tag(Language.displayNames[lang] ?? lang),
-                if (requirement.preferredGender != null) _Tag(_capitalize(requirement.preferredGender!)),
-                if (requirement.preferredReligion != null)
-                  _Tag(Religion.displayNames[requirement.preferredReligion] ?? requirement.preferredReligion!),
-              ],
-            ),
-            if (requirement.description != null && requirement.description!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(requirement.description!),
+            _DetailRow('Hours Care Needed', DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
+            if (requirement.startDate != null) _DetailRow('Preferred Start Date', requirement.startDate!),
+            if (careReceiver != null) ...[
+              _DetailRow(
+                'Toilet Assistance',
+                careReceiver.toiletAssistance.isEmpty
+                    ? 'None'
+                    : careReceiver.toiletAssistance.map((t) => ToiletAssistance.displayNames[t] ?? t).join(', '),
+              ),
+              if (careReceiver.toiletAssistanceOther != null && careReceiver.toiletAssistanceOther!.isNotEmpty)
+                _DetailRow('Other Toilet Assistance', careReceiver.toiletAssistanceOther!),
+              _DetailRow(
+                'Feeding/Medicine Assistance',
+                FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType,
+              ),
             ],
+            _DetailRow(
+              'Preferred Caregiver Gender',
+              requirement.preferredGender != null ? _capitalize(requirement.preferredGender!) : 'No preference',
+            ),
+            _DetailRow(
+              'Language Preference',
+              requirement.languages.isEmpty
+                  ? 'No Preference'
+                  : requirement.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
+            ),
+            _DetailRow(
+              'Preferred Caregiver Religion',
+              requirement.preferredReligion != null
+                  ? (Religion.displayNames[requirement.preferredReligion] ?? requirement.preferredReligion!)
+                  : 'No preference',
+            ),
+            if (requirement.description != null && requirement.description!.isNotEmpty)
+              _DetailRow('More Details', requirement.description!),
           ],
           if (requirement.status != JobStatus.pendingReview) ...[
             const SizedBox(height: AppSpacing.md),

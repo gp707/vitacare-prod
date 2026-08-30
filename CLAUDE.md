@@ -225,7 +225,13 @@ location) that didn't fit the Individual/admin jobs-table model.
   Salary"** section (only shown once the requirement has been approved at least once) as its own
   third `SectionBox`, unchanged in behavior. The free-text "More details you want to share about
   patient" field is removed from both forms entirely (NurseNow-specific — admin-web's own job
-  posting form still has its own equivalent `description` field, untouched).
+  posting form still has its own equivalent `description` field, untouched). **`JobsPostedScreen`'s
+  own read-only "Show Full Details" expander mirrors this same grouping** — a `_DetailRow`
+  label-above-value line per field (label small/secondary, value default body text), under the
+  same "Patient Details"/"Care Preferences" headings in the same field order, replacing the old
+  "About Patient"/"Patient Care Requirement" headings and their undifferentiated `Wrap` of bare
+  `_Tag` chips (which made e.g. a lone "Male" chip ambiguous — patient's own gender, or a
+  caregiver preference?). `_Tag` was removed as dead code once nothing referenced it anymore.
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
   **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account

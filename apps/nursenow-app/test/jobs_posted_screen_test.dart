@@ -302,7 +302,7 @@ void main() {
     expect(border.top.color, AppColors.textPrimary);
   });
 
-  testWidgets('the full About Patient / requirement detail is collapsed by default, and expands on tap',
+  testWidgets('the full Patient Details / Care Preferences detail is collapsed by default, and expands on tap',
       (tester) async {
     await _pump(
       tester,
@@ -310,21 +310,23 @@ void main() {
     );
 
     // Collapsed by default — not confusing the screen with every field.
-    expect(find.text('About Patient'), findsNothing);
+    expect(find.text('Patient Details'), findsNothing);
     expect(find.text('74 yrs'), findsNothing);
     expect(find.text('Show Full Details'), findsOneWidget);
 
     await tester.tap(find.text('Show Full Details'));
     await tester.pumpAndSettle();
 
-    expect(find.text('About Patient'), findsOneWidget);
+    // Same two headings, in the same field order, as the Post/Edit
+    // Requirement form — labeled rows, not an undifferentiated chip cloud.
+    expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('74 yrs'), findsOneWidget);
-    expect(find.text('Patient Care Requirement'), findsOneWidget);
+    expect(find.text('Care Preferences'), findsOneWidget);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
     expect(find.text('Hide Full Details'), findsOneWidget);
   });
 
-  testWidgets('shows a "No Preference" tag under Patient Care Requirement when languages is empty — '
+  testWidgets('shows "No Preference" under Language Preference when languages is empty — '
       'kept in sync with what admin sees, never a blank gap', (tester) async {
     await _pump(
       tester,
@@ -336,6 +338,7 @@ void main() {
     await tester.tap(find.text('Show Full Details'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Language Preference'), findsOneWidget);
     expect(find.text('No Preference'), findsOneWidget);
   });
 
