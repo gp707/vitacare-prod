@@ -37,7 +37,7 @@ class WhatsAppHelpButton extends StatelessWidget {
     // filter icon and Logout, so the wide default ElevatedButton padding
     // overflows a typical phone-width AppBar once all three are present.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: EdgeInsets.zero,
       child: ElevatedButton.icon(
         onPressed: () => _open(context),
         icon: const Icon(Icons.phone_in_talk, size: 16),
@@ -45,7 +45,7 @@ class WhatsAppHelpButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.error,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,

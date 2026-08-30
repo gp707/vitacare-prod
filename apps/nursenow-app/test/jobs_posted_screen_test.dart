@@ -55,7 +55,6 @@ final _careReceiverJson = {
   'mobility': 'walks_independently',
   'communication': 'verbal',
   'feeding_type': 'oral_independent',
-  'medical_assistance': ['medication_reminders'],
   'has_medical_condition': false,
   'medical_conditions': [],
   'toilet_assistance': ['independent'],
@@ -71,6 +70,8 @@ JobApplicationModel _application({
   String appliedAt = '2026-08-01T10:00:00Z',
   String? declineReason,
   String? decidedBy,
+  String updatedAt = '2026-08-01T10:00:00Z',
+  String? reappliedAt,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -82,7 +83,8 @@ JobApplicationModel _application({
     'applied_at': appliedAt,
     'decline_reason': declineReason,
     'decided_by': decidedBy,
-    'updated_at': '2026-08-01T10:00:00Z',
+    'updated_at': updatedAt,
+    'reapplied_at': reappliedAt,
   });
 }
 
@@ -318,12 +320,12 @@ void main() {
 
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('74 yrs'), findsOneWidget);
-    expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
+    expect(find.text('Patient Care Requirement'), findsOneWidget);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
     expect(find.text('Hide Full Details'), findsOneWidget);
   });
 
-  testWidgets('shows a "No Preference" tag under About Nurse/Caregiver Requirement when languages is empty — '
+  testWidgets('shows a "No Preference" tag under Patient Care Requirement when languages is empty — '
       'kept in sync with what admin sees, never a blank gap', (tester) async {
     await _pump(
       tester,
@@ -338,7 +340,8 @@ void main() {
     expect(find.text('No Preference'), findsOneWidget);
   });
 
-  testWidgets('with multiple applicants, only the first undecided one is shown for review', (tester) async {
+  testWidgets('with multiple applicants and nobody accepted yet, every candidate is shown, each with Accept/Reject',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -353,11 +356,50 @@ void main() {
     );
 
     expect(find.text('2 candidates applied in total'), findsOneWidget);
-    expect(find.text('Reviewing candidate 1 of 2 awaiting your decision'), findsOneWidget);
+    expect(find.text('2 candidates awaiting your decision'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
-    expect(find.text('Sita Devi'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+    expect(find.text('Sita Devi'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Accept'), findsNWidgets(2));
+    expect(find.widgetWithText(TextButton, 'Reject'), findsNWidgets(2));
+  });
+
+  testWidgets('shows a Re-applied line for a candidate under review who previously rejected/closed this job',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [
+            _application(appliedAt: '2026-08-05T10:00:00Z', reappliedAt: '2026-08-05T10:00:00Z'),
+          ],
+        },
+      ),
+    );
+
+    final expected = DateTime.parse('2026-08-05T10:00:00Z').toLocal();
+    expect(
+      find.text(
+        'Re-applied: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
+        '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
+        '${expected.second.toString().padLeft(2, '0')}',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows no Re-applied line for a first-time applicant', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application()],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Re-applied:'), findsNothing);
   });
 
   testWidgets('a candidate awaiting a decision is highlighted with an amber border and an hourglass icon',
@@ -413,7 +455,8 @@ void main() {
   });
 
   testWidgets(
-      'once a candidate is accepted, any other still-applied candidate is never shown for review — the queue only advances on reject',
+      'once a candidate is accepted, every other candidate — including a still-applied one — stays visible '
+      'but loses the Accept option; only the accepted one offers Reject (to undo)',
       (tester) async {
     await _pump(
       tester,
@@ -429,18 +472,22 @@ void main() {
     );
 
     expect(find.text('2 candidates applied in total'), findsOneWidget);
-    expect(find.textContaining('Reviewing'), findsNothing);
+    expect(find.text('You have accepted a candidate. Reject them to be able to accept someone else.'),
+        findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
-    // The still-applied candidate's name/profile is never surfaced.
-    expect(find.text('Sita Devi'), findsNothing);
+    // The still-applied candidate stays fully visible — just without Accept.
+    expect(find.text('Sita Devi'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
     // The one Reject button present belongs to the accepted candidate's own
-    // tile (undo the acceptance) — not a review action for anyone else.
+    // tile (undo the acceptance) — Sita, still just 'applied', offers
+    // neither Accept nor Reject while someone else is accepted.
     expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+    // Both candidates' profiles/phones stay reachable regardless.
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNWidgets(2));
   });
 
-  testWidgets(
-      'rejecting an already-accepted candidate undoes the acceptance, hides their phone, and reopens the queue',
+  testWidgets('rejecting an already-accepted candidate undoes the acceptance, via the same mandatory-reason flow',
       (tester) async {
     final repo = _FakeIndividualRepository(
       requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
@@ -453,10 +500,10 @@ void main() {
     );
     await _pump(tester, repo);
 
-    // Precondition: the accepted candidate's phone is visible, the second
-    // applicant is not yet surfaced for review.
-    expect(find.text('+919876543210'), findsOneWidget);
-    expect(find.text('Sita Devi'), findsNothing);
+    // Precondition: both candidates are visible, with only one Reject
+    // button (the accepted candidate's undo action).
+    expect(find.text('+919876543210'), findsNWidgets(2));
+    expect(find.text('Sita Devi'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, 'Reject'));
     await tester.pumpAndSettle();
@@ -471,6 +518,66 @@ void main() {
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'rejected');
     expect(repo.decidedReason, 'Changed our mind');
+  });
+
+  testWidgets('a candidate previously rejected can still be accepted, labeled "Accept Anyway"', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement()],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
+      },
+    );
+    await _pump(tester, repo);
+
+    expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
+    // A candidate already decided (rejected) can't be rejected again.
+    expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedJobId, 'job-1');
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets(
+      'a candidate the caregiver self-withdrew from (rejected by caregiver) can still be accepted by the patient',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'rejected')], // decidedBy omitted — self-withdrawal
+        },
+      ),
+    );
+
+    expect(find.text('Rejected by Caregiver'), findsOneWidget);
+    expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
+  });
+
+  testWidgets('a completed engagement offers View Profile but never an Accept option', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [_application(status: 'completed')],
+        },
+      ),
+    );
+    await _revealClosedRequirements(tester);
+
+    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right job and application id', (tester) async {
@@ -524,47 +631,6 @@ void main() {
     expect(repo.profileFetchedJobId, 'job-1');
     expect(repo.profileFetchedApplicationId, 'app-1');
     expect(find.text('30 yrs'), findsOneWidget);
-  });
-
-  testWidgets('View Profile is not offered once the engagement is completed (Closed by Caregiver)', (tester) async {
-    final repo = _FakeIndividualRepository(
-      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
-      applicationsByJobId: {
-        'job-1': [_application(status: 'completed')],
-      },
-    );
-    await _pump(tester, repo);
-    await _revealClosedRequirements(tester);
-
-    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
-  });
-
-  testWidgets('View Profile is not offered once a candidate is rejected by the patient', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement()],
-        applicationsByJobId: {
-          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
-        },
-      ),
-    );
-
-    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
-  });
-
-  testWidgets('View Profile is not offered once a candidate self-withdraws (rejected by the caregiver)', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement()],
-        applicationsByJobId: {
-          'job-1': [_application(status: 'rejected')], // decidedBy omitted — self-withdrawal
-        },
-      ),
-    );
-
-    expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNothing);
   });
 
   testWidgets(
@@ -655,7 +721,7 @@ void main() {
     expect(find.text('Your reason: Not available on weekends'), findsOneWidget);
   });
 
-  testWidgets('hides a rejected candidate\'s phone number in the read-only history', (tester) async {
+  testWidgets('still shows a rejected candidate\'s phone number — they can always be reconsidered', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -666,7 +732,7 @@ void main() {
       ),
     );
 
-    expect(find.text('+919876543210'), findsNothing);
+    expect(find.text('+919876543210'), findsOneWidget);
   });
 
   testWidgets('still shows an accepted candidate\'s phone number', (tester) async {
@@ -690,13 +756,24 @@ void main() {
       _FakeIndividualRepository(
         requirements: [_requirement()],
         applicationsByJobId: {
-          'job-1': [_application(status: 'rejected')], // decidedBy omitted — self-withdrawal
+          // decidedBy omitted — self-withdrawal.
+          'job-1': [_application(status: 'rejected', updatedAt: '2026-08-05T14:32:00Z')],
         },
       ),
     );
 
     expect(find.text('Rejected by Caregiver'), findsOneWidget);
-    expect(find.text('+919876543210'), findsNothing);
+    expect(find.text('+919876543210'), findsOneWidget);
+    // Full detail: exactly when the caregiver rejected it, not just the label.
+    final expected = DateTime.parse('2026-08-05T14:32:00Z').toLocal();
+    expect(
+      find.text(
+        'Rejected: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
+        '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
+        '${expected.second.toString().padLeft(2, '0')}',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows plain "Rejected" (not "by Caregiver") when the patient was the one who declined them',
@@ -715,14 +792,16 @@ void main() {
     expect(find.text('Rejected by Caregiver'), findsNothing);
   });
 
-  testWidgets('shows "Closed by Caregiver" but hides the phone number for a completed engagement, keeping the name',
+  testWidgets('shows "Closed by Caregiver" and still keeps the phone number for a completed engagement',
       (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
         requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
         applicationsByJobId: {
-          'job-1': [_application(status: 'completed', fullName: 'Ramesh Kumar')],
+          'job-1': [
+            _application(status: 'completed', fullName: 'Ramesh Kumar', updatedAt: '2026-08-06T09:05:00Z'),
+          ],
         },
       ),
     );
@@ -730,7 +809,17 @@ void main() {
 
     expect(find.text('Closed by Caregiver'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
-    expect(find.text('+919876543210'), findsNothing);
+    expect(find.text('+919876543210'), findsOneWidget);
+    // Full detail: exactly when the caregiver closed it, not just the label.
+    final expected = DateTime.parse('2026-08-06T09:05:00Z').toLocal();
+    expect(
+      find.text(
+        'Closed: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
+        '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
+        '${expected.second.toString().padLeft(2, '0')}',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows Edit as the primary button when there is no active application', (tester) async {

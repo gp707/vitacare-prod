@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -32,11 +33,12 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _applyingId = {};
-  // Defaults off — a job/requirement the caregiver is done with (rejected
-  // by either side, or closed themselves after being accepted — see
-  // _Listing.isHiddenByDefault) isn't one they can still apply to, so it's
-  // hidden by default to keep the list focused on what's actually still
-  // open to them. One tap away to see everything.
+  // Defaults off — an organisation requirement the caregiver is done with
+  // (rejected by either side, or closed themselves after being accepted —
+  // see _Listing.isHiddenByDefault) is hidden by default to keep the list
+  // focused on what's still open to them. One tap away to see everything.
+  // Jobs are never hidden this way — a rejected/completed job can always be
+  // re-applied to, so it stays visible with its own "Apply Again" action.
   bool _showAllJobs = false;
 
   @override
@@ -101,6 +103,40 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
+  /// A plain, pre-apply decline — the caregiver has never applied to this
+  /// job at all, they're just saying no from the browse list. Every reject
+  /// action needs a confirmation first (see [_withdrawJob], the other path
+  /// that lands on the same 'rejected' status), so this always shows the
+  /// dialog before calling through to [_applyToJob].
+  Future<void> _rejectJob(JobModel job) async {
+    if (!await _confirmReject(jobDisplayId(job))) return;
+    await _applyToJob(job, JobApplicationStatus.rejected);
+  }
+
+  /// Same as [_rejectJob], for an organisation requirement.
+  Future<void> _rejectRequirement(OrganisationRequirementModel requirement) async {
+    if (!await _confirmReject(organisationJobDisplayId(requirement))) return;
+    await _applyToRequirement(requirement, JobApplicationStatus.rejected);
+  }
+
+  Future<bool> _confirmReject(String displayId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reject this job?'),
+        content: const Text('Are you sure you want to reject the job?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   /// Withdraws a still-`applied` (not yet accepted) application — reuses
   /// the exact same apply endpoint with status 'rejected' that the
   /// pre-apply "Reject" button already calls (a caregiver-initiated
@@ -115,16 +151,16 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this job?'),
+        title: const Text('Reject this job?'),
         content: const Text(
-          "This withdraws your application. The patient/employer won't be able to accept you for this job "
-          "anymore, and your contact details will no longer be shown to them.",
+          "Are you sure you want to reject the job? This withdraws your application — the patient/employer "
+          "won't be able to accept you for it anymore, and your contact details will no longer be shown to them.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Job'),
+            child: const Text('Reject Job'),
           ),
         ],
       ),
@@ -138,16 +174,16 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this requirement?'),
+        title: const Text('Reject this requirement?'),
         content: const Text(
-          "This withdraws your application. The organisation won't be able to accept you for this "
-          "requirement anymore, and your contact details will no longer be shown to them.",
+          "Are you sure you want to reject the job? This withdraws your application — the organisation "
+          "won't be able to accept you for it anymore, and your contact details will no longer be shown to them.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Requirement'),
+            child: const Text('Reject Requirement'),
           ),
         ],
       ),
@@ -175,12 +211,21 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
         title: const Text('Jobs'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.tune),
+            icon: const Icon(Icons.tune, size: 20),
             tooltip: 'Job Search Preferences',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
             onPressed: _openJobPreferences,
           ),
+          const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             onPressed: () {
               final navigator = Navigator.of(context);
               ref.read(sessionProvider.notifier).logout().then((_) {
@@ -207,7 +252,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Show All Jobs'),
-                        subtitle: const Text('Includes jobs you were rejected from, or closed yourself'),
+                        subtitle: const Text(
+                          'Includes organisation requirements you were rejected from, or closed yourself',
+                        ),
                         value: _showAllJobs,
                         onChanged: (value) => setState(() => _showAllJobs = value),
                       ),
@@ -224,8 +271,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see ones you were '
-                          'rejected from or closed yourself.',
+                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see organisation '
+                          'requirements you were rejected from or closed yourself.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
@@ -236,7 +283,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           job: listing.job,
                           isApplying: _applyingId.contains(listing.job.id),
                           onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
-                          onReject: () => _applyToJob(listing.job, JobApplicationStatus.rejected),
+                          onReject: () => _rejectJob(listing.job),
                           onWithdraw: () => _withdrawJob(listing.job),
                         )
                       else if (listing is _RequirementListing)
@@ -244,7 +291,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           requirement: listing.requirement,
                           isApplying: _applyingId.contains(listing.requirement.id),
                           onApply: () => _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
-                          onReject: () => _applyToRequirement(listing.requirement, JobApplicationStatus.rejected),
+                          onReject: () => _rejectRequirement(listing.requirement),
                           onWithdraw: () => _withdrawRequirement(listing.requirement),
                         ),
                       const SizedBox(height: AppSpacing.md),
@@ -264,12 +311,11 @@ abstract class _Listing {
   DateTime get postedAt;
 
   /// True once this listing is done from the caregiver's own point of
-  /// view — either they were rejected (by the patient/employer, or by
-  /// closing/withdrawing it themselves before being accepted, both land on
-  /// `rejected`), or they closed it themselves after being accepted
-  /// (`completed` — the job/requirement reopens to active for everyone
-  /// else, but this caregiver's own engagement with it is over). `applied`
-  /// (still pending) and `accepted` (currently active) stay visible.
+  /// view and there's nothing further they can do about it. Requirements
+  /// hide once rejected (by the org, or by closing/withdrawing themselves
+  /// before being accepted) or closed themselves after being accepted
+  /// (`completed`) — the requirement reopens to active for everyone else,
+  /// but this caregiver's own engagement with it is over.
   bool get isHiddenByDefault;
 }
 
@@ -278,10 +324,12 @@ class _JobListing extends _Listing {
   _JobListing(this.job);
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
+  // Jobs are never hidden by default, even once rejected/completed — this
+  // list only ever contains active jobs, and a rejected/completed
+  // application on an active job can always be re-applied to (see
+  // _JobCard's "Apply Again" button), so it stays actionable and visible.
   @override
-  bool get isHiddenByDefault =>
-      job.myApplication?.status == JobApplicationStatus.rejected ||
-      job.myApplication?.status == JobApplicationStatus.completed;
+  bool get isHiddenByDefault => false;
 }
 
 class _RequirementListing extends _Listing {
@@ -332,13 +380,22 @@ class _JobCard extends StatelessWidget {
             _ApplicationTimeline(job.myApplication!),
             // A caregiver can withdraw anytime while the patient/employer
             // still hasn't decided — once accepted, closing happens from
-            // MyJobs instead (see my_assignment_screen.dart), and once
-            // already rejected/completed there's nothing left to close.
+            // MyJobs instead (see my_assignment_screen.dart). A rejected or
+            // completed application can be re-applied to instead, as long
+            // as the job is still live — this list only ever shows active
+            // jobs, so that's always true here.
             if (job.myApplication!.status == JobApplicationStatus.applied) ...[
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Close Job')),
+                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Reject Job')),
+              ),
+            ] else if (job.myApplication!.status == JobApplicationStatus.rejected ||
+                job.myApplication!.status == JobApplicationStatus.completed) ...[
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(onPressed: onApply, child: const Text('Apply Again')),
               ),
             ],
           ] else
@@ -461,7 +518,7 @@ class _RequirementCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Close Requirement')),
+                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Reject Requirement')),
               ),
             ],
           ] else
@@ -503,33 +560,109 @@ class _Tag extends StatelessWidget {
 /// both read the same to the caregiver: the employer said no). Shared by
 /// both _JobCard and _RequirementCard — MyApplicationModel is the same
 /// shape either way.
-class _ApplicationTimeline extends StatelessWidget {
+class _ApplicationTimeline extends StatefulWidget {
   final MyApplicationModel application;
 
   const _ApplicationTimeline(this.application);
 
   @override
+  State<_ApplicationTimeline> createState() => _ApplicationTimelineState();
+}
+
+class _ApplicationTimelineState extends State<_ApplicationTimeline> {
+  // Fixed per-row heights, rather than relying on inherited text-theme
+  // metrics — the ambient DefaultTextStyle isn't stable enough to guess at
+  // "roughly 3 lines" of pixels; picking a known font size and row height
+  // instead makes the maxHeight below (and whether 3 rows actually
+  // overflow it) exact instead of a fragile trial-and-error guess.
+  static const _fontSize = 13.0;
+  static const _rowHeight = 20.0;
+  static const _reasonRowHeight = 36.0; // a "Declined + Reason" row wraps to two lines
+  // Strictly less than 4 plain rows (80) and strictly more than 3 (60), so
+  // a 4th entry always genuinely overflows and the scrollbar is never shown
+  // without something real to scroll to.
+  static const _maxHeight = 66.0;
+
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final lines = <String>[];
+    final application = widget.application;
+    // Every line names who did it — "you" for the caregiver's own actions
+    // (apply/re-apply are never anyone else's), "employer" for whoever
+    // posted the job/requirement deciding on it (admin, or the NurseNow
+    // patient/organisation themselves — see decidedByAdmin below, which
+    // despite the name covers both).
+    final entries = <MapEntry<DateTime, String>>[];
     if (application.appliedAt != null) {
-      lines.add('Applied: ${formatDateTime(DateTime.parse(application.appliedAt!).toLocal())}');
+      final at = DateTime.parse(application.appliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Applied by you: ${formatDateTime(at)}'));
+    }
+    // Full detail on a re-apply — reappliedAt survives even after this same
+    // apply clears rejectedAt/completedAt, so it's the only place left that
+    // shows a prior rejection/close ever happened at all (see
+    // JobApplicationsRepository.upsert).
+    if (application.reappliedAt != null) {
+      final at = DateTime.parse(application.reappliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Re-applied by you: ${formatDateTime(at)}'));
     }
     if (application.acceptedAt != null) {
-      lines.add('Accepted: ${formatDateTime(DateTime.parse(application.acceptedAt!).toLocal())}');
+      final at = DateTime.parse(application.acceptedAt!).toLocal();
+      entries.add(MapEntry(at, 'Accepted by employer: ${formatDateTime(at)}'));
     }
     if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
-      final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined';
-      lines.add('$label: ${formatDateTime(DateTime.parse(application.rejectedAt!).toLocal())}');
+      final at = DateTime.parse(application.rejectedAt!).toLocal();
+      final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined by you';
+      var text = '$label: ${formatDateTime(at)}';
       if (application.declineReason != null && application.declineReason!.isNotEmpty) {
-        lines.add('Reason: ${application.declineReason!}');
+        text = '$text\nReason: ${application.declineReason!}';
       }
+      entries.add(MapEntry(at, text));
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final line in lines)
-          Text(line, style: const TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
-      ],
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    // Newest first — the current status is the one worth seeing without
+    // having to scroll for it.
+    entries.sort((a, b) => b.key.compareTo(a.key));
+
+    final totalHeight = entries.fold<double>(
+      0,
+      (sum, entry) => sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: _maxHeight),
+      child: Scrollbar(
+        controller: _controller,
+        // Only forced visible when there's genuinely something to scroll to
+        // — otherwise a full-track, undraggable thumb looks broken.
+        thumbVisibility: totalHeight > _maxHeight,
+        child: ListView(
+          controller: _controller,
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          children: [
+            for (final entry in entries)
+              SizedBox(
+                height: entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
+                child: Text(
+                  entry.value,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                    fontSize: _fontSize,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

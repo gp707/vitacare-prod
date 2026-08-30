@@ -22,6 +22,7 @@ import { AppMinVersionsRepository } from './repositories/app-min-versions.reposi
 import { AdminReportsRepository } from './repositories/admin-reports.repository';
 import { OtpAuthSettingsRepository } from './repositories/otp-auth-settings.repository';
 import { OtpVerificationsRepository } from './repositories/otp-verifications.repository';
+import { RateCardRepository } from './repositories/rate-card.repository';
 
 const repositories = [
   UsersRepository,
@@ -46,6 +47,7 @@ const repositories = [
   AdminReportsRepository,
   OtpAuthSettingsRepository,
   OtpVerificationsRepository,
+  RateCardRepository,
 ];
 
 @Global()

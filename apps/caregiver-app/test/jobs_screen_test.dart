@@ -50,7 +50,6 @@ JobModel _job({
       'mobility': 'uses_wheelchair',
       'communication': 'verbal',
       'feeding_type': 'oral_needs_assistance',
-      'medical_assistance': ['medication_reminders'],
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
       'medical_condition_other': 'Recovering from hip surgery',
@@ -274,7 +273,6 @@ void main() {
             'mobility': 'walks_independently',
             'communication': 'verbal',
             'feeding_type': 'oral_independent',
-            'medical_assistance': ['medication_reminders'],
             'has_medical_condition': false,
             'medical_conditions': [],
             'toilet_assistance': ['independent'],
@@ -336,7 +334,7 @@ void main() {
     expect(find.text('Uses wheelchair'), findsOneWidget);
     expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
-    expect(find.text('Medicine Reminders'), findsOneWidget);
+    expect(find.text('Medicine Reminders'), findsNothing);
     expect(find.text('Toilet: Uses diapers'), findsOneWidget);
     expect(find.text('Toilet: Uses catheter'), findsOneWidget);
     expect(find.text('Diabetes'), findsOneWidget);
@@ -377,7 +375,6 @@ void main() {
         'mobility': 'uses_wheelchair',
         'communication': 'verbal',
         'feeding_type': 'oral_needs_assistance',
-        'medical_assistance': ['medication_reminders'],
         'has_medical_condition': false,
         'medical_conditions': [],
         'toilet_assistance': ['uses_diapers'],
@@ -572,7 +569,7 @@ void main() {
       ]),
     );
 
-    expect(find.text('Applied: ${_expected('2026-08-17T10:00:00Z')}'), findsOneWidget);
+    expect(find.text('Applied by you: ${_expected('2026-08-17T10:00:00Z')}'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply'), findsNothing);
   });
 
@@ -590,10 +587,9 @@ void main() {
         }),
       ]),
     );
-    await _showAllJobs(tester);
 
-    expect(find.text('Applied: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
-    expect(find.text('Declined: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
+    expect(find.text('Applied by you: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Declined by you: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
     expect(find.textContaining('Declined by employer'), findsNothing);
   });
 
@@ -612,12 +608,16 @@ void main() {
         }),
       ]),
     );
-    await _showAllJobs(tester);
 
-    expect(find.text('Applied: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
-    expect(find.text('Accepted: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Accepted by employer: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Declined by employer: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
     expect(find.text('You declined'), findsNothing);
+
+    // Newest entry (Declined) sits above the oldest (Applied).
+    final declinedTop = tester.getTopLeft(find.text('Declined by employer: ${_expected('2026-08-17T09:00:00Z')}')).dy;
+    final appliedTop = tester.getTopLeft(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}')).dy;
+    expect(declinedTop, lessThan(appliedTop));
   });
 
   testWidgets('shows the decline reason underneath the timeline when one was given', (tester) async {
@@ -634,9 +634,8 @@ void main() {
         }),
       ]),
     );
-    await _showAllJobs(tester);
 
-    expect(find.text('Reason: Requirement was cancelled by the patient/family.'), findsOneWidget);
+    expect(find.textContaining('Reason: Requirement was cancelled by the patient/family.'), findsOneWidget);
   });
 
   testWidgets('shows no Reason line when no decline reason was given', (tester) async {
@@ -652,7 +651,6 @@ void main() {
         }),
       ]),
     );
-    await _showAllJobs(tester);
 
     expect(find.textContaining('Reason:'), findsNothing);
   });
@@ -667,14 +665,34 @@ void main() {
     expect(fakeRepo.appliedWith, 'applied');
   });
 
-  testWidgets('tapping Reject calls applyToJob with rejected', (tester) async {
+  testWidgets('tapping Reject shows a confirmation dialog; confirming calls applyToJob with rejected',
+      (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pump(tester, fakeRepo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
     await tester.pumpAndSettle();
 
+    expect(fakeRepo.appliedWith, isNull);
+    expect(find.text('Reject this job?'), findsOneWidget);
+    expect(find.text('Are you sure you want to reject the job?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject'));
+    await tester.pumpAndSettle();
+
     expect(fakeRepo.appliedWith, 'rejected');
+  });
+
+  testWidgets('cancelling the Reject confirmation dialog does not call applyToJob', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_job()]);
+    await _pump(tester, fakeRepo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.appliedWith, isNull);
   });
 
   testWidgets('shows an empty state when there are no active jobs or organisation requirements', (tester) async {
@@ -689,7 +707,9 @@ void main() {
     expect(find.text('Show All Jobs'), findsNothing);
   });
 
-  testWidgets('hides a job the caregiver was rejected from by default, revealed via Show All Jobs', (tester) async {
+  testWidgets(
+      'does NOT hide a job the caregiver was rejected from — it stays visible with an Apply Again button, '
+      'since this list only ever contains active (re-appliable) jobs', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -703,25 +723,14 @@ void main() {
       ]),
     );
 
-    expect(find.text('Show All Jobs'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-542'), findsNothing);
-    expect(
-      find.textContaining('No jobs you can currently apply to'),
-      findsOneWidget,
-    );
-
-    await _showAllJobs(tester);
-
+    expect(find.text('Show All Jobs'), findsNothing);
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(
-      find.textContaining('No jobs you can currently apply to'),
-      findsNothing,
-    );
+    expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
   });
 
   testWidgets(
-      'hides a job the caregiver closed themselves (completed) by default, revealed via Show All Jobs — '
-      'the job reopens to active for everyone else, but this caregiver is done with it', (tester) async {
+      'does NOT hide a job the caregiver closed themselves (completed) — it stays visible with an Apply Again '
+      'button — the job reopens to active for everyone else, and this caregiver can re-apply too', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -736,12 +745,100 @@ void main() {
       ]),
     );
 
-    expect(find.text('Show All Jobs'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-542'), findsNothing);
-
-    await _showAllJobs(tester);
-
+    expect(find.text('Show All Jobs'), findsNothing);
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
+  });
+
+  testWidgets('tapping Apply Again on a rejected job calls applyToJob with applied, no confirmation needed',
+      (tester) async {
+    final fakeRepo = _FakeJobsRepository([
+      _job(myApplication: {
+        'status': 'rejected',
+        'applied_at': '2026-08-17T09:00:00Z',
+        'accepted_at': null,
+        'rejected_at': '2026-08-17T09:05:00Z',
+        'decided_by_admin': false,
+      }),
+    ]);
+    await _pump(tester, fakeRepo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Again'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.appliedWith, 'applied');
+  });
+
+  testWidgets('shows a Re-applied line in the timeline once reapplied_at is set', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'applied',
+          'applied_at': '2026-08-18T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': null,
+          'reapplied_at': '2026-08-18T09:00:00Z',
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.text('Applied by you: ${_expected('2026-08-18T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Re-applied by you: ${_expected('2026-08-18T09:00:00Z')}'), findsOneWidget);
+  });
+
+  testWidgets('shows a visible scrollbar thumb once the timeline has more than 3 entries', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-15T09:00:00Z',
+          'accepted_at': '2026-08-16T09:00:00Z',
+          'rejected_at': '2026-08-18T09:00:00Z',
+          'reapplied_at': '2026-08-17T09:00:00Z',
+          'decided_by_admin': true,
+        }),
+      ]),
+    );
+
+    // 4 entries: Applied, Accepted, Re-applied, Declined by employer.
+    final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
+    expect(scrollbar.thumbVisibility, isTrue);
+
+    // Not just visible — actually scrollable, so the thumb isn't a
+    // full-track dead end (the earlier bug: it looked scrollable but
+    // nothing happened when you tried).
+    final listViewFinder = find.byType(ListView).last;
+    final state = tester.state<ScrollableState>(find.descendant(of: listViewFinder, matching: find.byType(Scrollable)));
+    expect(state.position.maxScrollExtent, greaterThan(0));
+
+    final oldestEntryTopBefore =
+        tester.getTopLeft(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}')).dy;
+    await tester.drag(listViewFinder, const Offset(0, -50));
+    await tester.pump();
+    final oldestEntryTopAfter =
+        tester.getTopLeft(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}')).dy;
+    expect(oldestEntryTopAfter, lessThan(oldestEntryTopBefore));
+  });
+
+  testWidgets('does not show a scrollbar thumb when the timeline has 3 or fewer entries', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'applied',
+          'applied_at': '2026-08-17T10:00:00Z',
+          'accepted_at': null,
+          'rejected_at': null,
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
+    expect(scrollbar.thumbVisibility, isFalse);
   });
 
   testWidgets('does not hide a job the caregiver has only applied to (not yet decided)', (tester) async {
@@ -783,7 +880,7 @@ void main() {
     expect(find.text('ORG-JOB-7'), findsOneWidget);
   });
 
-  testWidgets('shows a Close Job button while still applied (not yet accepted), and confirming it withdraws',
+  testWidgets('shows a Reject Job button while still applied (not yet accepted), and confirming it withdraws',
       (tester) async {
     final fakeRepo = _FakeJobsRepository([
       _job(myApplication: {
@@ -796,18 +893,19 @@ void main() {
     ]);
     await _pump(tester, fakeRepo);
 
-    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
+    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Job'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Close this job?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
+    expect(find.text('Reject this job?'), findsOneWidget);
+    expect(find.textContaining('Are you sure you want to reject the job?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject Job'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.appliedWith, 'rejected');
   });
 
-  testWidgets('cancelling the Close Job confirmation dialog does not withdraw the application', (tester) async {
+  testWidgets('cancelling the Reject Job confirmation dialog does not withdraw the application', (tester) async {
     final fakeRepo = _FakeJobsRepository([
       _job(myApplication: {
         'status': 'applied',
@@ -819,7 +917,7 @@ void main() {
     ]);
     await _pump(tester, fakeRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Job'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
@@ -827,7 +925,8 @@ void main() {
     expect(fakeRepo.appliedWith, isNull);
   });
 
-  testWidgets('hides Close Job once already accepted, rejected, or completed', (tester) async {
+  testWidgets('hides both Reject Job and Apply Again once already accepted — nothing left to do until decided',
+      (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -841,7 +940,8 @@ void main() {
       ]),
     );
 
-    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsNothing);
+    expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsNothing);
   });
 
   testWidgets('tapping the gear icon opens Job Search Preferences', (tester) async {
@@ -923,11 +1023,19 @@ void main() {
     expect(orgRepo.appliedWith, 'applied');
   });
 
-  testWidgets('tapping Reject on a requirement calls the organisation repository with rejected', (tester) async {
+  testWidgets(
+      'tapping Reject on a requirement shows a confirmation dialog; confirming calls the organisation '
+      'repository with rejected', (tester) async {
     final orgRepo = _FakeOrganisationOpeningsRepository([_requirement()]);
     await _pump(tester, _FakeJobsRepository([]), orgRepo: orgRepo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(orgRepo.appliedWith, isNull);
+    expect(find.text('Are you sure you want to reject the job?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject'));
     await tester.pumpAndSettle();
 
     expect(orgRepo.appliedWith, 'rejected');
@@ -949,7 +1057,7 @@ void main() {
       ]),
     );
 
-    expect(find.text('Applied: ${_expected('2026-08-17T10:00:00Z')}'), findsOneWidget);
+    expect(find.text('Applied by you: ${_expected('2026-08-17T10:00:00Z')}'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply'), findsNothing);
   });
 }

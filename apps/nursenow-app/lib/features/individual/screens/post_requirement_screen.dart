@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
@@ -14,6 +15,15 @@ import '../data/individual_repository.dart';
 // (see CreateIndividualRequirementDto/UpdateIndividualRequirementDto).
 const _noPreferenceLanguage = 'no_preference';
 const _noPreferenceLanguageLabel = 'No Preference';
+
+// A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
+// with every real condition: picking a real condition drops this, picking
+// this drops every real condition. Translated to
+// `has_medical_condition: false` (and no `medical_conditions`) at
+// submission time — the mandatory-but-can-be-none equivalent of
+// _noPreferenceLanguage above.
+const _noneMedicalCondition = 'none';
+const _noneMedicalConditionLabel = 'None';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -54,16 +64,14 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   String? _gender;
   final _weightController = TextEditingController();
   String? _mobility;
-  String? _communication;
   String? _feedingType;
-  final List<String> _medicalAssistance = [];
-  bool _hasMedicalCondition = false;
-  final List<String> _medicalConditions = [];
+  // Defaults to "None" — a real, deliberate choice, not an unset field
+  // (see _noneMedicalCondition above). Mandatory: always holds at least one
+  // value, so it can never be truly empty.
+  final List<String> _medicalConditions = [_noneMedicalCondition];
   final _medicalConditionOtherController = TextEditingController();
   final List<String> _toiletAssistance = [];
   final _toiletAssistanceOtherController = TextEditingController();
-  bool _requiresVitalMonitoring = false;
-  final List<String> _vitalMonitoringTypes = [];
 
   String? _city;
   final _areaController = TextEditingController();
@@ -111,16 +119,17 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
       _mobility = cr.mobility;
-      _communication = cr.communication;
       _feedingType = cr.feedingType;
-      _medicalAssistance.addAll(cr.medicalAssistance);
-      _hasMedicalCondition = cr.hasMedicalCondition;
-      _medicalConditions.addAll(cr.medicalConditions);
+      // Empty/false source means the source was itself "None" —
+      // _medicalConditions already defaults to that, so leave it untouched.
+      if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
+        _medicalConditions
+          ..clear()
+          ..addAll(cr.medicalConditions);
+      }
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
       _toiletAssistance.addAll(cr.toiletAssistance);
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
-      _requiresVitalMonitoring = cr.requiresVitalMonitoring;
-      _vitalMonitoringTypes.addAll(cr.vitalMonitoringTypes);
     }
     _city = source.city;
     _areaController.text = source.area ?? '';
@@ -171,6 +180,17 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   /// find out only after posting.
   bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
 
+  /// Purely advisory, never blocks submission — picking any real language
+  /// (rather than leaving it at "No Preference") narrows the caregiver pool
+  /// down to just those who speak it, so we say so up front.
+  bool get _showLanguagePreferenceWarning => !_languages.contains(_noPreferenceLanguage);
+
+  /// Purely advisory, never blocks submission — same rationale as the
+  /// language-preference warning above, for the same reason: a specific
+  /// religion preference eliminates a large pool of candidates who could
+  /// otherwise help the patient.
+  bool get _showReligionPreferenceWarning => _preferredReligion != null;
+
   bool get _canSubmit =>
       !_saving &&
       _isAgeValid &&
@@ -189,10 +209,10 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
         _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
-        _MandatoryField(_cityKey, _isCityValid),
-        _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
+        _MandatoryField(_cityKey, _isCityValid),
+        _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
       ];
 
   Future<void> _pickStartDate() async {
@@ -228,6 +248,32 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _languages
         ..clear()
         ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
+    }
+  }
+
+  /// "None" is mutually exclusive with every real condition: picking it
+  /// clears any real selections, and picking a real condition clears
+  /// "None". Deselecting the last real condition (or re-tapping "None"
+  /// while it's the only thing selected) falls back to "None" — there's no
+  /// truly-empty state, which is what makes this field mandatory without
+  /// needing a separate red-highlight check. Must be called inside
+  /// setState.
+  void _applyMedicalConditionSelection(List<String> next) {
+    final added = next.where((c) => !_medicalConditions.contains(c));
+    final removed = _medicalConditions.where((c) => !next.contains(c));
+    if (added.contains(_noneMedicalCondition)) {
+      _medicalConditions
+        ..clear()
+        ..add(_noneMedicalCondition);
+    } else if (added.isNotEmpty) {
+      _medicalConditions
+        ..clear()
+        ..addAll(next.where((c) => c != _noneMedicalCondition));
+    } else if (removed.isNotEmpty) {
+      final remaining = next.where((c) => c != _noneMedicalCondition).toList();
+      _medicalConditions
+        ..clear()
+        ..addAll(remaining.isEmpty ? [_noneMedicalCondition] : remaining);
     }
   }
 
@@ -277,16 +323,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               gender: _gender!,
               weightKg: _weightKg!,
               mobility: _mobility,
-              communication: _communication,
               feedingType: _feedingType,
-              medicalAssistance: _medicalAssistance.isEmpty ? null : _medicalAssistance,
-              hasMedicalCondition: _hasMedicalCondition,
-              medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
+              hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+              medicalConditions:
+                  _medicalConditions.contains(_noneMedicalCondition) ? null : _medicalConditions,
               medicalConditionOther: _medicalConditionOtherController.text.trim(),
               toiletAssistance: _toiletAssistance.isEmpty ? null : _toiletAssistance,
               toiletAssistanceOther: _toiletAssistanceOtherController.text.trim(),
-              requiresVitalMonitoring: _requiresVitalMonitoring,
-              vitalMonitoringTypes: _requiresVitalMonitoring ? _vitalMonitoringTypes : null,
             ),
             city: _city!,
             area: _areaController.text.trim(),
@@ -310,7 +353,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.cloneFrom != null ? 'Post Similar Requirement' : 'Post a Requirement'),
-        actions: const [WhatsAppHelpButton()],
+        actions: const [RateCardButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -372,148 +415,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _mobility,
-              decoration: const InputDecoration(labelText: 'Mobility (optional)', border: OutlineInputBorder()),
-              items: Mobility.all
-                  .map((m) => DropdownMenuItem(value: m, child: Text(Mobility.displayNames[m] ?? m)))
-                  .toList(),
-              onChanged: (value) => setState(() => _mobility = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _communication,
-              decoration: const InputDecoration(labelText: 'Communication (optional)', border: OutlineInputBorder()),
-              items: Communication.all
-                  .map((c) => DropdownMenuItem(value: c, child: Text(Communication.displayNames[c] ?? c)))
-                  .toList(),
-              onChanged: (value) => setState(() => _communication = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _feedingType,
-              decoration: const InputDecoration(labelText: 'Feeding (optional)', border: OutlineInputBorder()),
-              items: FeedingType.all
-                  .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
-                  .toList(),
-              onChanged: (value) => setState(() => _feedingType = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Text('Medicine (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: AppSpacing.sm),
-            VitaMultiSelectChips(
-              options: MedicalAssistance.all,
-              labels: MedicalAssistance.displayNames,
-              selected: _medicalAssistance,
-              onChanged: (next) => setState(() {
-                _medicalAssistance
-                  ..clear()
-                  ..addAll(next);
-              }),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Has a medical condition?'),
-              value: _hasMedicalCondition,
-              onChanged: (value) => setState(() => _hasMedicalCondition = value),
-            ),
-            if (_hasMedicalCondition) ...[
-              VitaMultiSelectChips(
-                options: MedicalCondition.all,
-                labels: MedicalCondition.displayNames,
-                selected: _medicalConditions,
-                onChanged: (next) => setState(() {
-                  _medicalConditions
-                    ..clear()
-                    ..addAll(next);
-                }),
-              ),
-              if (_medicalConditions.contains(MedicalCondition.other)) ...[
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _medicalConditionOtherController,
-                  decoration: const InputDecoration(
-                    labelText: 'Please describe the other condition',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: AppSpacing.md),
-            const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: AppSpacing.sm),
-            VitaMultiSelectChips(
-              options: ToiletAssistance.all,
-              labels: ToiletAssistance.displayNames,
-              selected: _toiletAssistance,
-              onChanged: (next) => setState(() {
-                _toiletAssistance
-                  ..clear()
-                  ..addAll(next);
-              }),
-            ),
-            if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _toiletAssistanceOtherController,
-                decoration: const InputDecoration(
-                  labelText: 'Please describe the other toilet assistance',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Is regular vital monitoring required?'),
-              value: _requiresVitalMonitoring,
-              onChanged: (value) => setState(() => _requiresVitalMonitoring = value),
-            ),
-            if (_requiresVitalMonitoring)
-              VitaMultiSelectChips(
-                options: VitalMonitoringType.all,
-                labels: VitalMonitoringType.displayNames,
-                selected: _vitalMonitoringTypes,
-                onChanged: (next) => setState(() {
-                  _vitalMonitoringTypes
-                    ..clear()
-                    ..addAll(next);
-                }),
-              ),
-            const SizedBox(height: AppSpacing.xl),
-            const Text('Job Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<String>(
-              key: _cityKey,
-              isExpanded: true,
-              initialValue: _city,
-              decoration: InputDecoration(
-                labelText: 'City (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
-              ),
-              items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
-              onChanged: (value) => setState(() => _city = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _areaKey,
-              controller: _areaController,
-              focusNode: _areaFocusNode,
-              decoration: InputDecoration(
-                labelText: 'Area (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            const Text('About Nurse/Caregiver Requirement', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<String>(
               key: _dutyTypeKey,
               isExpanded: true,
               initialValue: _dutyType,
@@ -555,7 +456,96 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpacing.xl),
+            const Text('Care Location', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<String>(
+              key: _cityKey,
+              isExpanded: true,
+              initialValue: _city,
+              decoration: InputDecoration(
+                labelText: 'City (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+              ),
+              items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
+              onChanged: (value) => setState(() => _city = value),
+            ),
             const SizedBox(height: AppSpacing.md),
+            TextField(
+              key: _areaKey,
+              controller: _areaController,
+              focusNode: _areaFocusNode,
+              decoration: InputDecoration(
+                labelText: 'Area (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text('Medical Condition (Mandatory)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpacing.sm),
+            VitaMultiSelectChips(
+              options: [_noneMedicalCondition, ...MedicalCondition.all],
+              labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
+              selected: _medicalConditions,
+              onChanged: (next) => setState(() => _applyMedicalConditionSelection(next)),
+            ),
+            if (_medicalConditions.contains(MedicalCondition.other)) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _medicalConditionOtherController,
+                decoration: const InputDecoration(
+                  labelText: 'Please describe the other condition',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _mobility,
+              decoration: const InputDecoration(labelText: 'Mobility (optional)', border: OutlineInputBorder()),
+              items: Mobility.all
+                  .map((m) => DropdownMenuItem(value: m, child: Text(Mobility.displayNames[m] ?? m)))
+                  .toList(),
+              onChanged: (value) => setState(() => _mobility = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _feedingType,
+              decoration: const InputDecoration(labelText: 'Feeding (optional)', border: OutlineInputBorder()),
+              items: FeedingType.all
+                  .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
+                  .toList(),
+              onChanged: (value) => setState(() => _feedingType = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpacing.sm),
+            VitaMultiSelectChips(
+              options: ToiletAssistance.all,
+              labels: ToiletAssistance.displayNames,
+              selected: _toiletAssistance,
+              onChanged: (next) => setState(() {
+                _toiletAssistance
+                  ..clear()
+                  ..addAll(next);
+              }),
+            ),
+            if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _toiletAssistanceOtherController,
+                decoration: const InputDecoration(
+                  labelText: 'Please describe the other toilet assistance',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.xl),
             KeyedSubtree(
               key: _languagesKey,
               child: Column(
@@ -569,6 +559,29 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                     selected: _languages,
                     onChanged: (next) => setState(() => _applyLanguageSelection(next)),
                   ),
+                  if (_showLanguagePreferenceWarning) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.1),
+                        border: Border.all(color: AppColors.warning),
+                        borderRadius: BorderRadius.circular(AppSpacing.sm),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                          SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              'A specific language preference may restrict potential candidates significantly.',
+                              style: TextStyle(color: AppColors.warning),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -620,6 +633,30 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               ],
               onChanged: (value) => setState(() => _preferredReligion = value),
             ),
+            if (_showReligionPreferenceWarning) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.warning),
+                  borderRadius: BorderRadius.circular(AppSpacing.sm),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                    SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'We strongly suggest No Preference for the religion. Selecting a specific '
+                        'religion eliminates a large pool of candidates who could really help the patient.',
+                        style: TextStyle(color: AppColors.warning),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _descriptionController,

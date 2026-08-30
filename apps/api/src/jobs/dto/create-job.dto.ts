@@ -23,7 +23,6 @@ import {
   FrequencyOfCare,
   Gender,
   Language,
-  MedicalAssistance,
   MedicalCondition,
   Mobility,
   Religion,
@@ -60,13 +59,6 @@ export class CareReceiverDto {
   @IsOptional()
   @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
   feeding_type?: FeedingType;
-
-  // Not required — an empty/omitted selection defaults to
-  // [medication_reminders] when omitted.
-  @IsOptional()
-  @IsArray({ message: 'GEN_001' })
-  @IsIn(Object.values(MedicalAssistance), { each: true, message: 'GEN_001' })
-  medical_assistance?: MedicalAssistance[];
 
   // Not required — defaults to false ("no health conditions") when omitted.
   @IsOptional()

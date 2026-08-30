@@ -21,7 +21,6 @@ describe('JobsService', () => {
     mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
-    medical_assistance: [],
     has_medical_condition: false,
     medical_conditions: [],
     toilet_assistance: ['others'],
@@ -70,6 +69,7 @@ describe('JobsService', () => {
       upsert: jest.fn(),
       findById: jest.fn(),
       findByJobAndProfile: jest.fn(),
+      findAcceptedForJob: jest.fn(),
       decide: jest.fn(),
       findByJobId: jest.fn(),
       markCompleted: jest.fn(),
@@ -107,7 +107,6 @@ describe('JobsService', () => {
         mobility: 'walks_independently' as any,
         communication: 'verbal' as any,
         feeding_type: 'oral_independent' as any,
-        medical_assistance: [] as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,
         requires_vital_monitoring: false,
@@ -131,7 +130,6 @@ describe('JobsService', () => {
         expect.objectContaining({
           age: 72,
           mobility: 'walks_independently',
-          medical_assistance: ['medication_reminders'],
           toilet_assistance: ['others'],
         }),
         expect.anything(),
@@ -187,7 +185,6 @@ describe('JobsService', () => {
           mobility: 'walks_independently',
           communication: 'verbal',
           feeding_type: 'oral_independent',
-          medical_assistance: ['medication_reminders'],
           has_medical_condition: false,
           medical_conditions: [],
           medical_condition_other: null,
@@ -235,7 +232,6 @@ describe('JobsService', () => {
         mobility: 'walks_independently' as any,
         communication: 'verbal' as any,
         feeding_type: 'oral_independent' as any,
-        medical_assistance: [] as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,
         requires_vital_monitoring: false,
@@ -270,7 +266,6 @@ describe('JobsService', () => {
         expect.objectContaining({
           age: 73,
           mobility: 'walks_independently',
-          medical_assistance: ['medication_reminders'],
           toilet_assistance: ['others'],
         }),
         expect.anything(),
@@ -631,6 +626,51 @@ describe('JobsService', () => {
         }),
       );
     });
+
+    it.each(['rejected', 'completed'])(
+      'audit-logs a fresh apply on top of a %s application as job_reapplied, not job_response',
+      async (priorStatus) => {
+        profilesRepo.findByUserId.mockResolvedValue({
+          id: 'profile-1',
+          verification_status: VerificationStatus.AVAILABLE,
+        });
+        jobsRepo.findById.mockResolvedValue(job);
+        jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: priorStatus });
+        jobApplicationsRepo.upsert.mockResolvedValue({ id: 'app-1', status: 'applied' });
+        await service.applyToJob('user-1', 'job-1', dto, '127.0.0.1');
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'job_reapplied',
+            beforeValue: { status: priorStatus },
+            afterValue: { job_id: 'job-1', status: 'applied' },
+          }),
+        );
+      },
+    );
+
+    it('does not log job_reapplied for a plain first-time decline (no prior application)', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({
+        id: 'profile-1',
+        verification_status: VerificationStatus.AVAILABLE,
+      });
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue(null);
+      jobApplicationsRepo.upsert.mockResolvedValue({ id: 'app-1', status: 'rejected' });
+      await service.applyToJob('user-1', 'job-1', { status: 'rejected' as any }, null);
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'job_response' }));
+    });
+
+    it('does not log job_reapplied when withdrawing an already-applied (not rejected/completed) application', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({
+        id: 'profile-1',
+        verification_status: VerificationStatus.AVAILABLE,
+      });
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'applied' });
+      jobApplicationsRepo.upsert.mockResolvedValue({ id: 'app-1', status: 'rejected' });
+      await service.applyToJob('user-1', 'job-1', { status: 'rejected' as any }, null);
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'job_response' }));
+    });
   });
 
   describe('completeJob', () => {
@@ -837,14 +877,65 @@ describe('JobsService', () => {
       ).rejects.toMatchObject({ code: 'JOB_007' });
     });
 
-    it('throws JOB_007 when deciding an already-rejected application', async () => {
+    it('throws JOB_007 when re-rejecting an already-rejected application', async () => {
       jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'rejected' });
       await expect(
         service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null),
       ).rejects.toMatchObject({ code: 'JOB_007' });
-      await expect(
-        service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'accepted' as any }, null),
-      ).rejects.toMatchObject({ code: 'JOB_007' });
+    });
+
+    it('accepts a previously-rejected application (either side can reconsider), closing the job and '
+      + 'assigning the caregiver same as a fresh accept', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'rejected' });
+      jobApplicationsRepo.findAcceptedForJob.mockResolvedValue(null);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      const result = await service.decideApplication(
+        'admin-1',
+        'job-1',
+        'app-1',
+        { status: 'accepted' as any },
+        null,
+      );
+
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'accepted',
+        'admin-1',
+        expect.anything(),
+        undefined,
+      );
+      expect(jobsRepo.close).toHaveBeenCalledWith('job-1', expect.anything());
+      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
+        'profile-1',
+        'assigned',
+        null,
+        'admin-1',
+        expect.anything(),
+      );
+      expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
+    });
+
+    it.each(['applied', 'rejected'])(
+      'throws JOB_016 when accepting a %s application while a different one is already accepted for the job',
+      async (status) => {
+        jobApplicationsRepo.findById.mockResolvedValue({ ...application, status });
+        jobApplicationsRepo.findAcceptedForJob.mockResolvedValue({ ...application, id: 'app-2', status: 'accepted' });
+
+        await expect(
+          service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'accepted' as any }, null),
+        ).rejects.toMatchObject({ code: 'JOB_016' });
+        expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not consult findAcceptedForJob at all for a reject (only accepting checks for a conflict)', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue(application);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
+
+      expect(jobApplicationsRepo.findAcceptedForJob).not.toHaveBeenCalled();
     });
   });
 });

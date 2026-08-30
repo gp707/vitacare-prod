@@ -13,6 +13,7 @@ import { IndividualModule } from './individual/individual.module';
 import { OrganisationModule } from './organisation/organisation.module';
 import { AppConfigModule } from './app-config/app-config.module';
 import { OtpModule } from './otp/otp.module';
+import { RateCardModule } from './rate-card/rate-card.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -34,6 +35,7 @@ import { validateEnv } from './config/env.validation';
     OrganisationModule,
     AppConfigModule,
     OtpModule,
+    RateCardModule,
   ],
 })
 export class AppModule {}

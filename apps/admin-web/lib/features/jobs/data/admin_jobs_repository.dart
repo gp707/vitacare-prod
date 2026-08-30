@@ -13,7 +13,6 @@ class CareReceiverInput {
   final String? mobility;
   final String? communication;
   final String? feedingType;
-  final List<String> medicalAssistance;
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
   final String? medicalConditionOther;
@@ -29,7 +28,6 @@ class CareReceiverInput {
     this.mobility,
     this.communication,
     this.feedingType,
-    required this.medicalAssistance,
     required this.hasMedicalCondition,
     this.medicalConditions,
     this.medicalConditionOther,
@@ -46,7 +44,6 @@ class CareReceiverInput {
         if (mobility != null) 'mobility': mobility,
         if (communication != null) 'communication': communication,
         if (feedingType != null) 'feeding_type': feedingType,
-        'medical_assistance': medicalAssistance,
         'has_medical_condition': hasMedicalCondition,
         if (medicalConditions != null) 'medical_conditions': medicalConditions,
         if (medicalConditionOther != null && medicalConditionOther!.isNotEmpty)

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../profile/data/profile_repository.dart';
@@ -337,7 +338,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(
+        title: const Text('Register'),
+        actions: const [RateCardButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(

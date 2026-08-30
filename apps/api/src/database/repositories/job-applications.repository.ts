@@ -13,6 +13,7 @@ export interface JobApplicationRecord {
   accepted_at: Date | null;
   rejected_at: Date | null;
   completed_at: Date | null;
+  reapplied_at: Date | null;
   decline_reason: string | null;
   created_at: Date;
   updated_at: Date;
@@ -41,8 +42,15 @@ export class JobApplicationsRepository {
   ): Promise<JobApplicationRecord> {
     if (status === JobApplicationStatus.APPLIED) {
       // A fresh 'applied' starts a new cycle — clear any accepted_at/
-      // rejected_at/decided_by left over from a previous one (e.g. they
-      // were rejected, the job reopened, and they applied again).
+      // rejected_at/completed_at/decided_by left over from a previous one
+      // (e.g. they were rejected, the job reopened, and they applied
+      // again — or they'd been accepted and then rejected/completed the
+      // job themselves, which also reopens the job to active). Before
+      // clearing those, stamp reapplied_at if the row being overwritten
+      // was 'rejected' or 'completed' — otherwise re-applying would leave
+      // no trace it ever happened (see JobsService.applyToJob, which also
+      // uses the pre-upsert status to decide whether to audit-log this as
+      // a plain response or a distinct "re-applied" event).
       const result = await this.db.query<JobApplicationRecord>(
         `INSERT INTO job_applications (job_id, profile_id, status, applied_at)
          VALUES ($1, $2, $3, NOW())
@@ -52,7 +60,12 @@ export class JobApplicationsRepository {
            applied_at = NOW(),
            accepted_at = NULL,
            rejected_at = NULL,
+           completed_at = NULL,
            decided_by = NULL,
+           reapplied_at = CASE
+             WHEN job_applications.status IN ('rejected', 'completed') THEN NOW()
+             ELSE job_applications.reapplied_at
+           END,
            updated_at = NOW()
          RETURNING *`,
         [jobId, profileId, status],
@@ -109,6 +122,19 @@ export class JobApplicationsRepository {
     const result = await this.db.query<JobApplicationRecord>(
       'SELECT * FROM job_applications WHERE job_id = $1 AND profile_id = $2',
       [jobId, profileId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /** The job's current accepted applicant, if any — a job can only ever
+   *  have at most one `accepted` application at a time (enforced by
+   *  JobsService.decideApplication's JOB_016 guard, not a DB constraint),
+   *  so this is used to block accepting a *different* applicant while one
+   *  is already accepted. */
+  async findAcceptedForJob(jobId: string): Promise<JobApplicationRecord | null> {
+    const result = await this.db.query<JobApplicationRecord>(
+      `SELECT * FROM job_applications WHERE job_id = $1 AND status = 'accepted' LIMIT 1`,
+      [jobId],
     );
     return result.rows[0] ?? null;
   }

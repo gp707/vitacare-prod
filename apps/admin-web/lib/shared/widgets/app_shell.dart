@@ -15,6 +15,7 @@ enum AppShellSection {
   adminManagement,
   appVersions,
   loginSettings,
+  rateCard,
 }
 
 /// Nav shell used by every authenticated screen. Below the tablet
@@ -184,6 +185,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.loginSettings,
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/login-settings', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.currency_rupee,
+                  label: 'Rate Card',
+                  selected: current == AppShellSection.rateCard,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/rate-card', (r) => false),
                 ),
               ],
             ),

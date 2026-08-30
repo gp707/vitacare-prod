@@ -114,12 +114,6 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                     FeedingType.displayNames[careReceiver.feedingType] ??
                         careReceiver.feedingType),
                 _DetailRow(
-                  'Medical Assistance',
-                  careReceiver.medicalAssistance
-                      .map((m) => MedicalAssistance.displayNames[m] ?? m)
-                      .join(', '),
-                ),
-                _DetailRow(
                   'Medical Condition',
                   careReceiver.hasMedicalCondition
                       ? careReceiver.medicalConditions

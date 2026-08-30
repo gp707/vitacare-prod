@@ -7,7 +7,6 @@ import {
   FeedingType,
   JobApplicationStatus,
   JobStatus,
-  MedicalAssistance,
   Mobility,
   ToiletAssistance,
   VerificationStatus,
@@ -74,7 +73,6 @@ const CARE_RECEIVER_DEFAULTS = {
   mobility: Mobility.WALKS_INDEPENDENTLY,
   communication: Communication.VERBAL,
   feeding_type: FeedingType.ORAL_INDEPENDENT,
-  medical_assistance: [MedicalAssistance.MEDICATION_REMINDERS],
   toilet_assistance: [ToiletAssistance.INDEPENDENT],
 } as const;
 
@@ -89,10 +87,6 @@ export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareRecei
     mobility: dto.mobility ?? CARE_RECEIVER_DEFAULTS.mobility,
     communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
     feeding_type: dto.feeding_type ?? CARE_RECEIVER_DEFAULTS.feeding_type,
-    medical_assistance:
-      dto.medical_assistance && dto.medical_assistance.length > 0
-        ? dto.medical_assistance
-        : [...CARE_RECEIVER_DEFAULTS.medical_assistance],
     has_medical_condition: dto.has_medical_condition ?? false,
     medical_conditions: dto.medical_conditions ?? [],
     medical_condition_other: dto.medical_condition_other ?? null,
@@ -387,13 +381,25 @@ export class JobsService {
     if (!job) throw new AppException('GEN_002');
     if (job.status !== 'active') throw new AppException('JOB_002');
 
+    // Re-applying — a fresh 'applied' on top of a 'rejected' (pre-acceptance
+    // decline/withdrawal) or 'completed' (self-rejected after acceptance)
+    // row — is audit-logged distinctly from a first-time apply/decline, so
+    // the caregiver's own history and the patient/employer's applicant view
+    // can both show a real "Re-applied: <date>" entry (see
+    // JobApplicationsRepository.upsert's reapplied_at handling).
+    const existing = await this.jobApplicationsRepo.findByJobAndProfile(jobId, profile.id);
+    const isReapply =
+      dto.status === JobApplicationStatus.APPLIED &&
+      (existing?.status === JobApplicationStatus.REJECTED || existing?.status === JobApplicationStatus.COMPLETED);
+
     const application = await this.jobApplicationsRepo.upsert(jobId, profile.id, dto.status);
 
     await this.auditService.log({
       userId,
-      action: AuditAction.JOB_RESPONSE,
+      action: isReapply ? AuditAction.JOB_REAPPLIED : AuditAction.JOB_RESPONSE,
       entityType: 'job_applications',
       entityId: application.id,
+      beforeValue: existing ? { status: existing.status } : undefined,
       afterValue: { job_id: jobId, status: dto.status },
       ipAddress,
     });
@@ -456,15 +462,19 @@ export class JobsService {
     return { message: 'Job marked complete', still_assigned: stillAssigned };
   }
 
-  /** Admin decision on a specific applicant. `accepted` closes the job and
-   *  moves the caregiver to `assigned` (this IS the offer confirmation —
-   *  admin has already agreed terms with the caregiver outside the app).
-   *  `rejected` on a previously-`accepted` application reopens the job and
-   *  moves the caregiver back to `available`; `rejected` on a still-
-   *  `applied` application just declines it, no side effects. Only
-   *  `applied` -> accepted/rejected and `accepted` -> rejected are valid
-   *  transitions — anything else (double-accept, re-deciding an already-
-   *  rejected application) is JOB_007. */
+  /** Admin (or, via IndividualService, the patient/family) decision on a
+   *  specific applicant. `accepted` closes the job and moves the caregiver
+   *  to `assigned` (this IS the offer confirmation) — valid from either
+   *  `applied` (a normal accept) or `rejected` (re-accepting a candidate
+   *  either side had previously declined, e.g. after reconsidering). Only
+   *  ever one applicant can be `accepted` on a job at a time — accepting a
+   *  *different* application while one is already accepted is JOB_016;
+   *  the currently-accepted one must be rejected (undone) first. `rejected`
+   *  on a previously-`accepted` application reopens the job and moves the
+   *  caregiver back to `available`; `rejected` on a still-`applied`
+   *  application just declines it, no side effects. Anything else
+   *  (double-accept of the same application, rejecting an already-rejected
+   *  one) is JOB_007. */
   async decideApplication(
     adminId: string,
     jobId: string,
@@ -477,13 +487,23 @@ export class JobsService {
 
     const isAcceptFromApplied =
       dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.APPLIED;
+    const isAcceptFromRejected =
+      dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.REJECTED;
     const isUndoAccept =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.ACCEPTED;
     const isRejectFromApplied =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.APPLIED;
+    const isAccepting = isAcceptFromApplied || isAcceptFromRejected;
 
-    if (!isAcceptFromApplied && !isUndoAccept && !isRejectFromApplied) {
+    if (!isAccepting && !isUndoAccept && !isRejectFromApplied) {
       throw new AppException('JOB_007');
+    }
+
+    if (isAccepting) {
+      const existingAccepted = await this.jobApplicationsRepo.findAcceptedForJob(jobId);
+      if (existingAccepted && existingAccepted.id !== applicationId) {
+        throw new AppException('JOB_016');
+      }
     }
 
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
@@ -491,7 +511,7 @@ export class JobsService {
 
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client, dto.reason);
-      if (isAcceptFromApplied) {
+      if (isAccepting) {
         await this.jobsRepo.close(jobId, client);
         await this.adminCaregiversRepo.updateStatus(
           application.profile_id,
@@ -521,7 +541,7 @@ export class JobsService {
       beforeValue: { status: application.status },
       afterValue: {
         status: dto.status,
-        ...(isAcceptFromApplied ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
+        ...(isAccepting ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
         ...(isUndoAccept ? { job_status: 'active', caregiver_status: 'available' } : {}),
       },
       ipAddress,

@@ -56,7 +56,7 @@ class _FakeIndividualRepository extends IndividualRepository {
 }
 
 Future<void> _pumpTall(WidgetTester tester, _FakeIndividualRepository repo) async {
-  await tester.binding.setSurfaceSize(const Size(400, 3200));
+  await tester.binding.setSurfaceSize(const Size(400, 4200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
@@ -303,5 +303,56 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('reduces your chances'), findsNothing);
+  });
+
+  testWidgets('shows no language-preference warning while Language Preference is untouched (No Preference)',
+      (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    expect(find.textContaining('restrict potential candidates'), findsNothing);
+  });
+
+  testWidgets('shows a warning that a specific language preference may restrict candidates', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('restrict potential candidates'), findsOneWidget);
+
+    // Falling back to No Preference clears the warning too.
+    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('restrict potential candidates'), findsNothing);
+  });
+
+  testWidgets('shows no religion-preference warning while Preferred Caregiver Religion is untouched (No preference)',
+      (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
+  });
+
+  testWidgets('shows a warning that a specific religion preference eliminates candidates', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Religion'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hindu').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('strongly suggest No Preference for the religion'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Religion'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No preference').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
   });
 }

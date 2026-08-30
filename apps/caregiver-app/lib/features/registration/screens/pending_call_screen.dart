@@ -7,6 +7,7 @@ import '../../auth/state/session_state.dart';
 import '../../../app/route_for_status.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 
 /// SPEC.md section 12.3: waiting screen shown while verification_status is
 /// pending_call. No back navigation to Registration — this is a dead end
@@ -34,6 +35,7 @@ class PendingCallScreen extends ConsumerWidget {
           title: const Text('NurseJobs'),
           automaticallyImplyLeading: false,
           actions: [
+            const RateCardButton(),
             const WhatsAppHelpButton(),
             TextButton(
               onPressed: () {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/providers.dart';
+import '../../../app/rate_card_button.dart';
 
 /// Reachable via the gear icon on the Jobs tab. **Temporarily read-only**
 /// (per explicit request, 2026-08-23) — editing is disabled for every
@@ -48,7 +49,10 @@ class _JobPreferencesScreenState extends ConsumerState<JobPreferencesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Job Search Preferences')),
+      appBar: AppBar(
+        title: const Text('Job Search Preferences'),
+        actions: const [RateCardButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: _loading

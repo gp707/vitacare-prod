@@ -8,4 +8,5 @@ export 'models/care_receiver_model.dart';
 export 'models/display_id.dart';
 export 'models/job_model.dart';
 export 'models/organisation_requirement_model.dart';
+export 'models/rate_card_model.dart';
 export 'utils/validators.dart';

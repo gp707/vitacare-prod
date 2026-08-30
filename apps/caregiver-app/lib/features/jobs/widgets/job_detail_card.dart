@@ -5,8 +5,15 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+// Seconds are included (not just hours:minutes) so two actions taken within
+// the same minute — e.g. one caregiver applying right after another — still
+// display in a visibly distinguishable, correctly ordered sequence. The
+// underlying DateTime already carries full precision from the backend
+// (Postgres timestamptz); this only affects what's shown, not how anything
+// is sorted (sorting already compares full DateTime/ISO values).
 String formatDateTime(DateTime date) =>
-    '${formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    '${formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
+    '${date.second.toString().padLeft(2, '0')}';
 
 /// Purely informational urgency message — never blocks applying, even once
 /// the 3-day window has passed.
@@ -209,8 +216,6 @@ class _JobDetailCardState extends State<JobDetailCard> {
                 Tag(Communication.displayNames[job.careReceiver!.communication] ??
                     job.careReceiver!.communication),
                 Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
-                for (final m in job.careReceiver!.medicalAssistance)
-                  Tag(MedicalAssistance.displayNames[m] ?? m),
                 for (final t in job.careReceiver!.toiletAssistance)
                   Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
                 if (job.careReceiver!.hasMedicalCondition)

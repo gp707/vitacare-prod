@@ -1081,7 +1081,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   String? _mobility;
   String? _communication;
   String? _feedingType;
-  List<String> _medicalAssistance = [];
   bool _hasMedicalCondition = false;
   List<String> _medicalConditions = [];
   List<String> _toiletAssistance = [];
@@ -1127,7 +1126,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _mobility = cr.mobility;
       _communication = cr.communication;
       _feedingType = cr.feedingType;
-      _medicalAssistance = List.of(cr.medicalAssistance);
       _hasMedicalCondition = cr.hasMedicalCondition;
       _medicalConditions = List.of(cr.medicalConditions);
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
@@ -1295,7 +1293,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         mobility: _mobility,
         communication: _communication,
         feedingType: _feedingType,
-        medicalAssistance: _medicalAssistance,
         hasMedicalCondition: _hasMedicalCondition,
         medicalConditions: _hasMedicalCondition ? _medicalConditions : null,
         medicalConditionOther:
@@ -1500,16 +1497,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 onChanged: (value) => setState(() => _feedingType = value),
               ),
               const SizedBox(height: AppSpacing.lg),
-              const Text('Medicine',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              VitaMultiSelectChips(
-                options: MedicalAssistance.all,
-                labels: MedicalAssistance.displayNames,
-                selected: _medicalAssistance,
-                onChanged: (next) => setState(() => _medicalAssistance = next),
-              ),
-              const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text(

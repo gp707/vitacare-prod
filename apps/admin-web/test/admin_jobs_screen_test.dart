@@ -117,7 +117,6 @@ JobModel _jobWithCareReceiver({String status = 'active', List<String> languages 
       'mobility': 'walks_independently',
       'communication': 'verbal',
       'feeding_type': 'oral_independent',
-      'medical_assistance': [],
       'has_medical_condition': false,
       'medical_conditions': [],
       'toilet_assistance': ['others'],
@@ -160,7 +159,9 @@ String _expectedDateTime(String isoUtc) {
   final d = DateTime.parse(isoUtc).toLocal();
   final date =
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  return '$date ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  final time =
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
+  return '$date $time';
 }
 
 class _FakeAdminJobsRepository extends AdminJobsRepository {
@@ -784,7 +785,7 @@ void main() {
         find.text('Post New Job'), findsWidgets); // button label + dialog title
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('About Patient Condition'), findsNothing);
-    expect(find.text('Medicine'), findsOneWidget);
+    expect(find.text('Medicine'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
 
     await _fillAboutPatientRequiredFields(tester);
@@ -863,7 +864,7 @@ void main() {
 
   testWidgets(
       'only age/weight/gender/city/area/start-date are hard-required — mobility, communication, feeding, '
-      'toilet assistance, medical assistance, and description can all be left unselected/empty',
+      'toilet assistance, and description can all be left unselected/empty',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
@@ -892,8 +893,8 @@ void main() {
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
 
-    // Deliberately skip Mobility, Communication, Feeding, Toilet Assistance,
-    // and Medical Assistance — none of them should block submission.
+    // Deliberately skip Mobility, Communication, Feeding, and Toilet
+    // Assistance — none of them should block submission.
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
@@ -909,7 +910,7 @@ void main() {
 
     expect(repo.createCalled, isTrue,
         reason:
-            'mobility/communication/feeding/toilet assistance/medical assistance/description are optional now');
+            'mobility/communication/feeding/toilet assistance/description are optional now');
   });
 
   testWidgets(

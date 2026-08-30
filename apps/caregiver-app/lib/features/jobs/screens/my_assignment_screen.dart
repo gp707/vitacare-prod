@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -67,26 +68,28 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     }
   }
 
-  /// Closing an accepted job is the only exit from `assigned` for it —
+  /// Rejecting an accepted job is the only exit from `assigned` for it —
   /// same server call as the old "Mark Complete" (job_applications.status
-  /// -> completed), relabeled since a caregiver-initiated close IS the
+  /// -> completed), relabeled since a caregiver-initiated reject IS the
   /// completion event now; no separate "mark complete" step exists. The
   /// patient/family sees this as "closed by the caregiver" on their side
-  /// (see nursenow-app's _DecidedApplicantTile).
+  /// (see nursenow-app's _DecidedApplicantTile — kept as "closed" there,
+  /// distinct from a pre-acceptance decline which reads as "rejected", so
+  /// the patient can always tell the two outcomes apart).
   Future<void> _completeJob(JobModel job) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this job?'),
+        title: const Text('Reject this job?'),
         content: Text(
-          "This marks ${jobDisplayId(job)} as closed. If you don't have any other accepted jobs, "
+          "This marks ${jobDisplayId(job)} as rejected. If you don't have any other accepted jobs, "
           "you'll be shown as available for new ones again.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Job'),
+            child: const Text('Reject Job'),
           ),
         ],
       ),
@@ -101,8 +104,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               stillAssigned
-                  ? '${jobDisplayId(job)} closed.'
-                  : "${jobDisplayId(job)} closed. You're now available for new jobs.",
+                  ? '${jobDisplayId(job)} rejected.'
+                  : "${jobDisplayId(job)} rejected. You're now available for new jobs.",
             ),
           ),
         );
@@ -121,16 +124,16 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this requirement?'),
+        title: const Text('Reject this requirement?'),
         content: Text(
-          "This marks ${organisationJobDisplayId(requirement)} as closed. If you don't have any other "
+          "This marks ${organisationJobDisplayId(requirement)} as rejected. If you don't have any other "
           "accepted jobs or requirements, you'll be shown as available for new ones again.",
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Requirement'),
+            child: const Text('Reject Requirement'),
           ),
         ],
       ),
@@ -145,8 +148,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           SnackBar(
             content: Text(
               verificationStatus == VerificationStatus.assigned
-                  ? '${organisationJobDisplayId(requirement)} closed.'
-                  : "${organisationJobDisplayId(requirement)} closed. You're now available for new jobs.",
+                  ? '${organisationJobDisplayId(requirement)} rejected.'
+                  : "${organisationJobDisplayId(requirement)} rejected. You're now available for new jobs.",
             ),
           ),
         );
@@ -166,7 +169,9 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       ..._jobs.map(_JobAssignment.new),
       ..._requirements.map(_RequirementAssignment.new),
     ];
-    assignments.sort((a, b) => a.decidedAt.compareTo(b.decidedAt));
+    // Newest first — the job/requirement most recently accepted is the one
+    // most likely to need attention right now.
+    assignments.sort((a, b) => b.decidedAt.compareTo(a.decidedAt));
     return assignments;
   }
 
@@ -179,6 +184,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       appBar: AppBar(
         title: const Text('MyJobs'),
         actions: [
+          const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
             onPressed: () {
@@ -304,10 +310,10 @@ class _AssignedJobCard extends StatelessWidget {
           if (isCompleted)
             // Completion is always caregiver-initiated (there's no
             // admin/patient path to it) — say so explicitly rather than a
-            // bare "Closed", which could read as the patient/employer
+            // bare "Rejected", which could read as the patient/employer
             // having ended it.
             const Text(
-              'You closed this job',
+              'You rejected this job',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[
@@ -326,7 +332,7 @@ class _AssignedJobCard extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Close Job'),
+                    : const Text('Reject Job'),
               ),
             ),
           ],
@@ -408,7 +414,7 @@ class _AssignedRequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(
-              'You closed this requirement',
+              'You rejected this requirement',
               style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
             )
           else ...[
@@ -427,7 +433,7 @@ class _AssignedRequirementCard extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Close Requirement'),
+                    : const Text('Reject Requirement'),
               ),
             ),
           ],

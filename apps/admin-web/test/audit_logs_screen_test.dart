@@ -81,7 +81,6 @@ JobModel _jobWithCareReceiver() {
       'mobility': 'walks_independently',
       'communication': 'verbal',
       'feeding_type': 'oral_independent',
-      'medical_assistance': [],
       'has_medical_condition': false,
       'medical_conditions': [],
       'toilet_assistance': ['others'],

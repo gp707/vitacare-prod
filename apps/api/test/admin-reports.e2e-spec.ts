@@ -144,7 +144,6 @@ describe('Admin Reports (e2e)', () => {
     mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
-    medical_assistance: [],
     has_medical_condition: false,
     toilet_assistance: ['others'],
     requires_vital_monitoring: false,

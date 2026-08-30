@@ -187,30 +187,6 @@ class FeedingType {
   };
 }
 
-class MedicalAssistance {
-  static const medicationReminders = 'medication_reminders';
-  static const medicationAdministration = 'medication_administration';
-  static const insulinAdministration = 'insulin_administration';
-  static const otherInjections = 'other_injections';
-  static const other = 'other';
-
-  static const all = [
-    medicationReminders,
-    medicationAdministration,
-    insulinAdministration,
-    otherInjections,
-    other,
-  ];
-
-  static const displayNames = {
-    medicationReminders: 'Medicine Reminders',
-    medicationAdministration: 'Oral Medicine Administration',
-    insulinAdministration: 'Insulin administration',
-    otherInjections: 'Other injections',
-    other: 'Others/Cannula/Tube',
-  };
-}
-
 class MedicalCondition {
   static const cancer = 'cancer';
   static const stroke = 'stroke';
@@ -223,6 +199,13 @@ class MedicalCondition {
   static const colostomy = 'colostomy';
   static const paralysis = 'paralysis';
   static const tb = 'tb';
+  static const bp = 'bp';
+  static const oxygenSupport = 'oxygen_support';
+  static const insulinAdministrationSupport = 'insulin_administration_support';
+  static const injectionSupport = 'injection_support';
+  static const cannulaCare = 'cannula_care';
+  static const catheterCare = 'catheter_care';
+  static const nebulisationSupport = 'nebulisation_support';
   static const other = 'other';
 
   static const all = [
@@ -237,6 +220,13 @@ class MedicalCondition {
     colostomy,
     paralysis,
     tb,
+    bp,
+    oxygenSupport,
+    insulinAdministrationSupport,
+    injectionSupport,
+    cannulaCare,
+    catheterCare,
+    nebulisationSupport,
     other,
   ];
 
@@ -252,6 +242,13 @@ class MedicalCondition {
     colostomy: 'Colostomy',
     paralysis: 'Paralysis',
     tb: 'TB',
+    bp: 'BP',
+    oxygenSupport: 'Oxygen support',
+    insulinAdministrationSupport: 'Insulin administration support',
+    injectionSupport: 'Injection support',
+    cannulaCare: 'Cannula care',
+    catheterCare: 'Catheter care',
+    nebulisationSupport: 'Nebulisation support',
     other: 'Other',
   };
 }
@@ -374,10 +371,12 @@ class AuditAction {
   static const jobReminderSent = 'job_reminder_sent';
   static const jobUpdated = 'job_updated';
   static const jobCompleted = 'job_completed';
+  static const jobReapplied = 'job_reapplied';
   static const orgRequirementPosted = 'org_requirement_posted';
   static const orgRequirementUpdated = 'org_requirement_updated';
   static const orgRequirementRejected = 'org_requirement_rejected';
   static const orgRequirementApplicationDecided = 'org_requirement_application_decided';
+  static const rateCardUpdated = 'rate_card_updated';
 
   static const all = [
     registration,
@@ -401,10 +400,12 @@ class AuditAction {
     jobReminderSent,
     jobUpdated,
     jobCompleted,
+    jobReapplied,
     orgRequirementPosted,
     orgRequirementUpdated,
     orgRequirementRejected,
     orgRequirementApplicationDecided,
+    rateCardUpdated,
   ];
 }
 

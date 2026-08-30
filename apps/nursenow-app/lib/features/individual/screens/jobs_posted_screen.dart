@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -246,7 +247,10 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final closedRequirements = _requirements.where((r) => !_shouldShowUpFront(r)).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Jobs Posted'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(
+        title: const Text('Jobs Posted'),
+        actions: const [RateCardButton(), WhatsAppHelpButton()],
+      ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 1),
       body: SafeArea(
@@ -313,6 +317,19 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
 }
 
 String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+String _formatDate(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+// Seconds are included (not just hours:minutes) so two actions taken within
+// the same minute — e.g. a caregiver rejecting right after another applied —
+// still display in a visibly distinguishable, correctly ordered sequence.
+// The underlying DateTime already carries full precision from the backend
+// (Postgres timestamptz); this only affects what's shown, not how anything
+// is sorted (sorting already compares full DateTime/ISO values).
+String _formatDateTime(DateTime date) =>
+    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
+    '${date.second.toString().padLeft(2, '0')}';
 
 class _SectionLabel extends StatelessWidget {
   final String text;
@@ -561,16 +578,11 @@ class _RequirementCardState extends State<_RequirementCard> {
                   _Tag(_capitalize(careReceiver.gender)),
                   _Tag('${careReceiver.weightKg} kg'),
                   _Tag(Mobility.displayNames[careReceiver.mobility] ?? careReceiver.mobility),
-                  _Tag(Communication.displayNames[careReceiver.communication] ?? careReceiver.communication),
                   _Tag(FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType),
-                  for (final m in careReceiver.medicalAssistance) _Tag(MedicalAssistance.displayNames[m] ?? m),
                   for (final t in careReceiver.toiletAssistance)
                     _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
                   if (careReceiver.hasMedicalCondition)
                     for (final c in careReceiver.medicalConditions) _Tag(MedicalCondition.displayNames[c] ?? c),
-                  if (careReceiver.requiresVitalMonitoring)
-                    for (final v in careReceiver.vitalMonitoringTypes)
-                      _Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
                 ],
               ),
               if (careReceiver.medicalConditionOther != null && careReceiver.medicalConditionOther!.isNotEmpty) ...[
@@ -589,7 +601,7 @@ class _RequirementCardState extends State<_RequirementCard> {
               ],
               const SizedBox(height: AppSpacing.md),
             ],
-            const _SectionLabel('About Nurse/Caregiver Requirement'),
+            const _SectionLabel('Patient Care Requirement'),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               children: [
@@ -662,18 +674,17 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-/// Shows the total applicant count up front, then forces a one-at-a-time
-/// review of anyone still `applied` (undecided) before revealing the next
-/// — a patient/family can't skip past a candidate without deciding, and
-/// rejecting always requires a reason (see _rejectWithReason). Already-
-/// decided candidates (from this or an earlier session) stay visible in a
-/// read-only list below, including who was accepted — that list is never
-/// hidden once the requirement closes. Once a candidate has been accepted,
-/// the one-at-a-time review stops entirely — no further undecided
-/// candidate (or their profile) is ever surfaced, even if others are still
-/// sitting in `applied` (accepting doesn't touch them — see CLAUDE.md).
-/// The queue only keeps advancing through rejections, never past an
-/// acceptance, since the patient/family has already found their caregiver.
+/// Shows the total applicant count up front, then every applicant — no
+/// candidate's profile/phone is ever hidden, whichever side rejected them
+/// (or if the caregiver closed an accepted engagement themselves): the
+/// patient/family can always look them up and reconsider. At most one
+/// candidate can be `accepted` at a time (JOB_016 backstops this
+/// server-side) — the accepted one is pinned to the top; while anyone is
+/// accepted, no other candidate offers an Accept action (not even a
+/// candidate this account or the caregiver had previously rejected) until
+/// that acceptance is undone. Rejecting (declining an undecided candidate,
+/// or undoing an acceptance) always requires a reason — see
+/// _rejectWithReason.
 class _ApplicantsSection extends StatelessWidget {
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
@@ -692,13 +703,17 @@ class _ApplicantsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasAccepted = applications.any((a) => a.status == JobApplicationStatus.accepted);
-    // Once someone's accepted, stop advancing the queue — no further
-    // undecided candidate (or their profile) is shown.
-    final undecided = hasAccepted
-        ? <JobApplicationModel>[]
-        : (applications.where((a) => a.status == JobApplicationStatus.applied).toList()
-          ..sort((a, b) => (a.appliedAt ?? '').compareTo(b.appliedAt ?? '')));
-    final decided = applications.where((a) => a.status != JobApplicationStatus.applied).toList();
+    final awaitingCount = applications.where((a) => a.status == JobApplicationStatus.applied).length;
+
+    // Accepted candidate first (the one engagement that matters most right
+    // now), then everyone else by most recent activity.
+    final sorted = List<JobApplicationModel>.of(applications)
+      ..sort((a, b) {
+        final aAccepted = a.status == JobApplicationStatus.accepted;
+        final bAccepted = b.status == JobApplicationStatus.accepted;
+        if (aAccepted != bAccepted) return aAccepted ? -1 : 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -709,35 +724,49 @@ class _ApplicantsSection extends StatelessWidget {
         if (applications.isEmpty)
           const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))
         else ...[
-          if (undecided.isNotEmpty) ...[
-            Text(
-              undecided.length == 1
-                  ? 'Reviewing 1 candidate awaiting your decision'
-                  : 'Reviewing candidate 1 of ${undecided.length} awaiting your decision',
-              style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _ReviewingApplicantTile(
-              application: undecided.first,
-              isDeciding: decidingApplicationId.contains(undecided.first.id),
-              onAccept: () => onAccept(undecided.first.id),
-              onReject: () => onReject(undecided.first.id),
-              onViewProfile: () => onViewProfile(undecided.first.id),
-            ),
-            if (decided.isNotEmpty) const SizedBox(height: AppSpacing.md),
-          ],
-          if (decided.isNotEmpty) ...[
-            Text('Decided (${decided.length})', style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: AppSpacing.sm),
-            for (final application in decided) ...[
-              _DecidedApplicantTile(
-                application: application,
-                isDeciding: decidingApplicationId.contains(application.id),
-                onReject: onReject,
-                onViewProfile: onViewProfile,
+          if (hasAccepted)
+            const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                'You have accepted a candidate. Reject them to be able to accept someone else.',
+                style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
               ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
+            )
+          else if (awaitingCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                awaitingCount == 1
+                    ? '1 candidate awaiting your decision'
+                    : '$awaitingCount candidates awaiting your decision',
+                style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
+              ),
+            ),
+          for (final application in sorted) ...[
+            _ApplicantTile(
+              application: application,
+              isDeciding: decidingApplicationId.contains(application.id),
+              // A completed engagement is a finished chapter (the caregiver
+              // themselves closed it after actually doing the job) — not
+              // reversible the way a plain rejection is, so it's excluded
+              // from re-accept. Anyone already accepted obviously can't be
+              // accepted again via this button (see _isAccepted below —
+              // Reject-to-undo is the only action offered for them
+              // instead), and while someone else is accepted, no one else
+              // is offered Accept at all.
+              canAccept: !hasAccepted && application.status != JobApplicationStatus.completed,
+              // An undecided candidate is only actionable (accept OR
+              // reject) while no one else is accepted — once someone is,
+              // the rest are simply on hold, not something you need to
+              // actively decline. The currently-accepted candidate's own
+              // Reject (undo) always stays available regardless.
+              canReject: (application.status == JobApplicationStatus.applied && !hasAccepted) ||
+                  application.status == JobApplicationStatus.accepted,
+              onAccept: () => onAccept(application.id),
+              onReject: () => onReject(application.id),
+              onViewProfile: () => onViewProfile(application.id),
+            ),
+            const SizedBox(height: AppSpacing.sm),
           ],
         ],
       ],
@@ -745,95 +774,27 @@ class _ApplicantsSection extends StatelessWidget {
   }
 }
 
-class _ReviewingApplicantTile extends StatelessWidget {
+class _ApplicantTile extends StatelessWidget {
   final JobApplicationModel application;
   final bool isDeciding;
+  final bool canAccept;
+  final bool canReject;
   final VoidCallback onAccept;
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
 
-  const _ReviewingApplicantTile({
+  const _ApplicantTile({
     required this.application,
     required this.isDeciding,
+    required this.canAccept,
+    required this.canReject,
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      // Amber/highlighted — a candidate waiting on a decision stands out
-      // from a plain grey/green/red decided tile at a glance.
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.warning, width: 2),
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(application.fullName,
-                              overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        const Icon(Icons.hourglass_top, color: AppColors.warning, size: 16),
-                      ],
-                    ),
-                    Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              if (isDeciding) const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          if (!isDeciding)
-            Row(
-              children: [
-                OutlinedButton(onPressed: onViewProfile, child: const Text('View Profile')),
-                const Spacer(),
-                TextButton(onPressed: onAccept, child: const Text('Accept')),
-                TextButton(onPressed: onReject, child: const Text('Reject')),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DecidedApplicantTile extends StatelessWidget {
-  final JobApplicationModel application;
-  final bool isDeciding;
-
-  /// Only ever invoked for an accepted candidate — undoes the acceptance
-  /// (same mandatory-reason flow as declining an undecided candidate,
-  /// backed by the same server-side transition admin's own "undo accept"
-  /// uses: the job reopens to active and the caregiver drops back to
-  /// available, so the queue can resume with the next still-applied
-  /// candidate — see _ApplicantsSection's hasAccepted gate above).
-  final void Function(String applicationId) onReject;
-  final void Function(String applicationId) onViewProfile;
-
-  const _DecidedApplicantTile({
-    required this.application,
-    required this.isDeciding,
-    required this.onReject,
-    required this.onViewProfile,
-  });
-
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
+  bool get _isApplied => application.status == JobApplicationStatus.applied;
   bool get _isCompleted => application.status == JobApplicationStatus.completed;
   bool get _isRejected => application.status == JobApplicationStatus.rejected;
 
@@ -845,18 +806,15 @@ class _DecidedApplicantTile extends StatelessWidget {
 
   String get _statusLabel {
     if (_isAccepted) return 'Accepted';
+    if (_isApplied) return 'Awaiting your decision';
     if (_isCompleted) return 'Closed by Caregiver';
     if (_isRejectedByCaregiver) return 'Rejected by Caregiver';
     return _capitalize(application.status);
   }
 
-  /// Rejection covers both flavors shown here — the patient's own decline
-  /// and a caregiver's self-withdrawal (_isRejectedByCaregiver) — both get
-  /// the same red cross; "Closed by Caregiver" (a completed engagement,
-  /// not a rejection) deliberately stays neutral grey, since it isn't a
-  /// rejected/accepted outcome.
   Color get _statusColor {
     if (_isAccepted) return AppColors.success;
+    if (_isApplied) return AppColors.warning;
     if (_isRejected) return AppColors.error;
     return AppColors.textSecondary;
   }
@@ -868,8 +826,16 @@ class _DecidedApplicantTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: _isAccepted
             ? AppColors.success.withValues(alpha: 0.08)
-            : (_isRejected ? AppColors.error.withValues(alpha: 0.06) : null),
-        border: Border.all(color: _statusColor == AppColors.textSecondary ? AppColors.border : _statusColor),
+            : _isApplied
+                ? AppColors.warning.withValues(alpha: 0.08)
+                : (_isRejected ? AppColors.error.withValues(alpha: 0.06) : null),
+        // Amber/highlighted with a wider border — a candidate waiting on a
+        // decision stands out from a plain grey/green/red decided tile at
+        // a glance.
+        border: Border.all(
+          color: _isApplied ? AppColors.warning : (_statusColor == AppColors.textSecondary ? AppColors.border : _statusColor),
+          width: _isApplied ? 2 : 1,
+        ),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -887,6 +853,9 @@ class _DecidedApplicantTile extends StatelessWidget {
                     if (_isAccepted) ...[
                       const SizedBox(width: AppSpacing.xs),
                       const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                    ] else if (_isApplied) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const Icon(Icons.hourglass_top, color: AppColors.warning, size: 16),
                     ] else if (_isRejected) ...[
                       const SizedBox(width: AppSpacing.xs),
                       const Icon(Icons.cancel, color: AppColors.error, size: 16),
@@ -903,11 +872,34 @@ class _DecidedApplicantTile extends StatelessWidget {
               ),
             ],
           ),
-          // Phone is only shown while the engagement is actively accepted —
-          // once the caregiver closes/rejects/cancels it (completed) or
-          // it's rejected, there's no ongoing relationship to contact them
-          // about anymore, so only the name stays visible.
-          if (_isAccepted) Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+          // The phone number and profile stay visible no matter the
+          // outcome — rejected (by either side) or completed candidates
+          // are never hidden, so the patient/family can always look them
+          // up again and reconsider.
+          Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+          // Full detail on a caregiver-initiated outcome — exactly when it
+          // happened, alongside the name already shown above — so this
+          // reads as e.g. "Rejected by <name>" / "Closed by <name>" with a
+          // real timestamp, not just a bare status word. `updatedAt` is
+          // always set and reflects the most recent transition on this row
+          // (rejected_at/completed_at, whichever applies).
+          if (_isCompleted || _isRejectedByCaregiver) ...[
+            const SizedBox(height: 2),
+            Text(
+              '${_isCompleted ? 'Closed' : 'Rejected'}: '
+              '${_formatDateTime(DateTime.parse(application.updatedAt).toLocal())}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ],
+          // A candidate can re-apply, then be decided on again — this
+          // shows the full history rather than just the latest outcome.
+          if (application.reappliedAt != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Re-applied: ${_formatDateTime(DateTime.parse(application.reappliedAt!).toLocal())}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ],
           if (_isRejected && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
@@ -915,31 +907,23 @@ class _DecidedApplicantTile extends StatelessWidget {
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
             ),
           ],
-          // The candidate's profile stays viewable through applied and
-          // accepted, but becomes unreachable as soon as the engagement
-          // ends on either side — rejected (by the patient or the
-          // caregiver's own withdrawal) or completed (the caregiver
-          // closing an already-accepted job) all count as "closed" here;
-          // only an actively-accepted candidate keeps a live profile link.
-          if (_isAccepted) ...[
-            const SizedBox(height: AppSpacing.xs),
-            if (isDeciding)
-              const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
-            else
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: () => onViewProfile(application.id),
-                    child: const Text('View Profile'),
-                  ),
-                  const Spacer(),
+          const SizedBox(height: AppSpacing.xs),
+          if (isDeciding)
+            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+          else
+            Row(
+              children: [
+                OutlinedButton(onPressed: onViewProfile, child: const Text('View Profile')),
+                const Spacer(),
+                if (canAccept)
+                  TextButton(onPressed: onAccept, child: Text(_isRejected ? 'Accept Anyway' : 'Accept')),
+                if (canReject)
                   TextButton(
-                    onPressed: () => onReject(application.id),
-                    child: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                    onPressed: onReject,
+                    child: Text('Reject', style: _isAccepted ? const TextStyle(color: AppColors.error) : null),
                   ),
-                ],
-              ),
-          ],
+              ],
+            ),
         ],
       ),
     );

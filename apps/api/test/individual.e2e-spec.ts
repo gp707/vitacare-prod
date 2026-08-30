@@ -58,6 +58,11 @@ describe('Individual (NurseNow) (e2e)', () => {
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700003%')`,
     );
     await db.query("DELETE FROM individual_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700003%')");
+    // caregiver_profiles.verified_by can point at a DIFFERENT test user in
+    // this same prefix (the individual who accepted them) — must be
+    // deleted before the bulk `users` delete below, or that other user's
+    // row can't be removed (FK violation on caregiver_profiles_verified_by_fkey).
+    await db.query("DELETE FROM caregiver_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700003%')");
     await db.query("DELETE FROM users WHERE phone LIKE '+91700003%'");
   }
 
@@ -878,6 +883,141 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(jobRow.rows[0].status).toBe('closed');
       void applyRes;
     });
+
+    it('lets the individual accept a candidate they (or the caregiver) had previously rejected — the '
+      + 'profile/phone were never hidden, and accepting works the same as a fresh accept', async () => {
+      const individual = await registerIndividual('0058');
+      const created = await request(app.getHttpServer())
+        .post('/v1/individual/requirements')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const jobId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0148');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${jobId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+
+      // The patient declines them first.
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'rejected', reason: 'Second thoughts' })
+        .expect(200);
+
+      // Their profile is still fetchable — never hidden by status.
+      await request(app.getHttpServer())
+        .get(`/v1/individual/requirements/${jobId}/applications/${applicationId}/profile`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+
+      // The patient reconsiders and accepts them anyway.
+      await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const caregiverProfile = await db.query(
+        'SELECT verification_status FROM caregiver_profiles WHERE user_id = $1',
+        [caregiver.user_id],
+      );
+      expect(caregiverProfile.rows[0].verification_status).toBe('assigned');
+      const jobRow = await db.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
+      expect(jobRow.rows[0].status).toBe('closed');
+    });
+
+    it('rejects accepting a second candidate while one is already accepted for the same requirement (JOB_016)',
+      async () => {
+        const individual = await registerIndividual('0059');
+        const created = await request(app.getHttpServer())
+          .post('/v1/individual/requirements')
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .send(requirementPayload())
+          .expect(201);
+        const jobId = created.body.data.id;
+        await request(app.getHttpServer())
+          .patch(`/v1/admin/jobs/${jobId}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+          .expect(200);
+
+        const firstCaregiver = await registerCaregiver('0149');
+        await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+          firstCaregiver.user_id,
+        ]);
+        await request(app.getHttpServer())
+          .post(`/v1/caregiver/jobs/${jobId}/apply`)
+          .set('Authorization', `Bearer ${firstCaregiver.access_token}`)
+          .send({ status: 'applied' })
+          .expect(200);
+
+        const secondCaregiver = await registerCaregiver('0150');
+        await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+          secondCaregiver.user_id,
+        ]);
+        // The job is still active at this point (nobody accepted yet), so
+        // a second caregiver can apply too.
+        await request(app.getHttpServer())
+          .post(`/v1/caregiver/jobs/${jobId}/apply`)
+          .set('Authorization', `Bearer ${secondCaregiver.access_token}`)
+          .send({ status: 'applied' })
+          .expect(200);
+
+        const applicants = await request(app.getHttpServer())
+          .get(`/v1/individual/requirements/${jobId}/applications`)
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .expect(200);
+        const firstApplicationId = applicants.body.data.find(
+          (a: { profile_id: string }) => a.profile_id === firstCaregiver.profile_id,
+        ).id;
+        const secondApplicationId = applicants.body.data.find(
+          (a: { profile_id: string }) => a.profile_id === secondCaregiver.profile_id,
+        ).id;
+
+        await request(app.getHttpServer())
+          .patch(`/v1/individual/requirements/${jobId}/applications/${firstApplicationId}`)
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .send({ status: 'accepted' })
+          .expect(200);
+
+        const res = await request(app.getHttpServer())
+          .patch(`/v1/individual/requirements/${jobId}/applications/${secondApplicationId}`)
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .send({ status: 'accepted' })
+          .expect(400);
+        expect(res.body.error.code).toBe('JOB_016');
+
+        // Rejecting (undoing) the first acceptance frees the job up again —
+        // the second candidate can now be accepted.
+        await request(app.getHttpServer())
+          .patch(`/v1/individual/requirements/${jobId}/applications/${firstApplicationId}`)
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .send({ status: 'rejected', reason: 'Changed my mind' })
+          .expect(200);
+        await request(app.getHttpServer())
+          .patch(`/v1/individual/requirements/${jobId}/applications/${secondApplicationId}`)
+          .set('Authorization', `Bearer ${individual.access_token}`)
+          .send({ status: 'accepted' })
+          .expect(200);
+      },
+      30000);
 
     it("lets the individual view an applicant's full profile, ownership-checked, including Aadhaar/qualification-document URLs", async () => {
       const individual = await registerIndividual('0028');

@@ -4,7 +4,6 @@ import {
   Communication,
   FeedingType,
   Gender,
-  MedicalAssistance,
   MedicalCondition,
   Mobility,
   ToiletAssistance,
@@ -20,7 +19,6 @@ export interface CareReceiverRecord {
   mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
-  medical_assistance: MedicalAssistance[];
   has_medical_condition: boolean;
   medical_conditions: MedicalCondition[];
   medical_condition_other: string | null;
@@ -39,7 +37,6 @@ export interface CreateCareReceiverInput {
   mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
-  medical_assistance: MedicalAssistance[];
   has_medical_condition: boolean;
   medical_conditions?: MedicalCondition[];
   medical_condition_other?: string | null;
@@ -58,10 +55,10 @@ export class CareReceiversRepository {
     const result = await runner.query<CareReceiverRecord>(
       `INSERT INTO care_receivers
          (age, gender, weight_kg, mobility, communication, feeding_type,
-          medical_assistance, has_medical_condition, medical_conditions,
+          has_medical_condition, medical_conditions,
           medical_condition_other, toilet_assistance, toilet_assistance_other,
           requires_vital_monitoring, vital_monitoring_types)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.age,
@@ -70,7 +67,6 @@ export class CareReceiversRepository {
         input.mobility,
         input.communication,
         input.feeding_type,
-        JSON.stringify(input.medical_assistance),
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
         input.medical_condition_other ?? null,
@@ -100,12 +96,12 @@ export class CareReceiversRepository {
     const result = await runner.query<CareReceiverRecord>(
       `UPDATE care_receivers SET
          age = $1, gender = $2, weight_kg = $3, mobility = $4, communication = $5,
-         feeding_type = $6, medical_assistance = $7,
-         has_medical_condition = $8, medical_conditions = $9,
-         medical_condition_other = $10, toilet_assistance = $11, toilet_assistance_other = $12,
-         requires_vital_monitoring = $13, vital_monitoring_types = $14,
+         feeding_type = $6,
+         has_medical_condition = $7, medical_conditions = $8,
+         medical_condition_other = $9, toilet_assistance = $10, toilet_assistance_other = $11,
+         requires_vital_monitoring = $12, vital_monitoring_types = $13,
          updated_at = NOW()
-       WHERE id = $15
+       WHERE id = $14
        RETURNING *`,
       [
         input.age,
@@ -114,7 +110,6 @@ export class CareReceiversRepository {
         input.mobility,
         input.communication,
         input.feeding_type,
-        JSON.stringify(input.medical_assistance),
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
         input.medical_condition_other ?? null,

@@ -7,6 +7,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
+import '../../../app/rate_card_button.dart';
 
 const _reReviewStatuses = [
   VerificationStatus.available,
@@ -226,7 +227,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
+      appBar: AppBar(
+        title: const Text('Edit Profile'),
+        actions: const [RateCardButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: _loading

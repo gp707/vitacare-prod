@@ -8,8 +8,15 @@ import '../../../core/providers.dart';
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+// Seconds are included (not just hours:minutes) so two actions taken within
+// the same minute — e.g. two applicants deciding within seconds of each
+// other — still display in a visibly distinguishable, correctly ordered
+// sequence. The underlying DateTime already carries full precision from the
+// backend (Postgres timestamptz); this only affects what's shown, not how
+// anything is sorted (sorting already compares full DateTime/ISO values).
 String _formatDateTime(DateTime date) =>
-    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
+    '${date.second.toString().padLeft(2, '0')}';
 
 /// Applicants dialog for a single job, fetched by [jobId] — usable from
 /// anywhere a job id is known (the Jobs list's own "Applicants" button, or

@@ -74,7 +74,6 @@ describe('Jobs (e2e)', () => {
     mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
-    medical_assistance: [],
     has_medical_condition: false,
     toilet_assistance: ['others'],
     requires_vital_monitoring: false,
@@ -341,7 +340,6 @@ describe('Jobs (e2e)', () => {
         mobility: 'walks_independently',
         communication: 'verbal',
         feeding_type: 'oral_independent',
-        medical_assistance: ['medication_reminders'],
         has_medical_condition: false,
         toilet_assistance: ['independent'],
         requires_vital_monitoring: false,
@@ -1386,6 +1384,50 @@ describe('Jobs (e2e)', () => {
       expect(myApplicationAfterDecline.applied_at).not.toBeNull();
       expect(myApplicationAfterDecline.rejected_at).not.toBeNull();
       expect(myApplicationAfterDecline.decided_by_admin).toBe(false);
+    });
+
+    it('re-applying after rejecting sets reapplied_at, clears rejected_at, and audit-logs job_reapplied '
+      + '(not job_response)', async () => {
+      const caregiver = await registerCaregiver('0044');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'rejected' })
+        .expect(200);
+
+      // A plain first-time decline (never applied) is job_response, not job_reapplied.
+      const afterFirstReject = await db.query(
+        `SELECT action FROM audit_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [caregiver.user_id],
+      );
+      expect(afterFirstReject.rows[0].action).toBe('job_response');
+
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const myJobs = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const myApplication = myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application;
+      expect(myApplication.status).toBe('applied');
+      expect(myApplication.rejected_at).toBeNull();
+      expect(myApplication.reapplied_at).not.toBeNull();
+
+      const afterReapply = await db.query(
+        `SELECT action, before_value FROM audit_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [caregiver.user_id],
+      );
+      expect(afterReapply.rows[0].action).toBe('job_reapplied');
+      expect(afterReapply.rows[0].before_value).toEqual({ status: 'rejected' });
     });
 
     it('allows an assigned caregiver to apply too', async () => {

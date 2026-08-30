@@ -64,4 +64,6 @@ class ApiRoutes {
   static const otpVerify = '/auth/otp/verify';
   static const loginOtp = '/auth/login/otp';
   static const otpSettingsCheck = '/auth/otp-settings';
+
+  static const rateCard = '/rate-card';
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'network/api_client.dart';
 import 'storage/local_storage.dart';
 import 'auth_config/auth_config_repository.dart';
+import 'rate_card/rate_card_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/individual/data/individual_repository.dart';
 import '../features/organisation/data/organisation_repository.dart';
@@ -30,6 +31,10 @@ final organisationRepositoryProvider = Provider<OrganisationRepository>((ref) {
 
 final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {
   return AuthConfigRepository(ref.watch(apiClientProvider).dio);
+});
+
+final rateCardRepositoryProvider = Provider<RateCardRepository>((ref) {
+  return RateCardRepository(ref.watch(apiClientProvider).dio);
 });
 
 /// Whether OTP mode is enabled for this app (nursenow) — set once at splash

@@ -11,32 +11,24 @@ class CareReceiverInput {
   final String gender;
   final int weightKg;
   final String? mobility;
-  final String? communication;
   final String? feedingType;
-  final List<String>? medicalAssistance;
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
   final String? medicalConditionOther;
   final List<String>? toiletAssistance;
   final String? toiletAssistanceOther;
-  final bool requiresVitalMonitoring;
-  final List<String>? vitalMonitoringTypes;
 
   const CareReceiverInput({
     required this.age,
     required this.gender,
     required this.weightKg,
     this.mobility,
-    this.communication,
     this.feedingType,
-    this.medicalAssistance,
     this.hasMedicalCondition = false,
     this.medicalConditions,
     this.medicalConditionOther,
     this.toiletAssistance,
     this.toiletAssistanceOther,
-    this.requiresVitalMonitoring = false,
-    this.vitalMonitoringTypes,
   });
 
   Map<String, dynamic> toJson() => {
@@ -44,9 +36,7 @@ class CareReceiverInput {
         'gender': gender,
         'weight_kg': weightKg,
         if (mobility != null) 'mobility': mobility,
-        if (communication != null) 'communication': communication,
         if (feedingType != null) 'feeding_type': feedingType,
-        if (medicalAssistance != null) 'medical_assistance': medicalAssistance,
         'has_medical_condition': hasMedicalCondition,
         if (medicalConditions != null) 'medical_conditions': medicalConditions,
         if (medicalConditionOther != null && medicalConditionOther!.isNotEmpty)
@@ -54,8 +44,6 @@ class CareReceiverInput {
         if (toiletAssistance != null) 'toilet_assistance': toiletAssistance,
         if (toiletAssistanceOther != null && toiletAssistanceOther!.isNotEmpty)
           'toilet_assistance_other': toiletAssistanceOther,
-        'requires_vital_monitoring': requiresVitalMonitoring,
-        if (vitalMonitoringTypes != null) 'vital_monitoring_types': vitalMonitoringTypes,
       };
 }
 

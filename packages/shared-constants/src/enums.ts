@@ -91,15 +91,6 @@ export const FeedingType = {
 } as const;
 export type FeedingType = (typeof FeedingType)[keyof typeof FeedingType];
 
-export const MedicalAssistance = {
-  MEDICATION_REMINDERS: 'medication_reminders',
-  MEDICATION_ADMINISTRATION: 'medication_administration',
-  INSULIN_ADMINISTRATION: 'insulin_administration',
-  OTHER_INJECTIONS: 'other_injections',
-  OTHER: 'other',
-} as const;
-export type MedicalAssistance = (typeof MedicalAssistance)[keyof typeof MedicalAssistance];
-
 export const MedicalCondition = {
   CANCER: 'cancer',
   STROKE: 'stroke',
@@ -112,6 +103,13 @@ export const MedicalCondition = {
   COLOSTOMY: 'colostomy',
   PARALYSIS: 'paralysis',
   TB: 'tb',
+  BP: 'bp',
+  OXYGEN_SUPPORT: 'oxygen_support',
+  INSULIN_ADMINISTRATION_SUPPORT: 'insulin_administration_support',
+  INJECTION_SUPPORT: 'injection_support',
+  CANNULA_CARE: 'cannula_care',
+  CATHETER_CARE: 'catheter_care',
+  NEBULISATION_SUPPORT: 'nebulisation_support',
   OTHER: 'other',
 } as const;
 export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];
@@ -179,6 +177,7 @@ export const AuditAction = {
   JOB_REMINDER_SENT: 'job_reminder_sent',
   JOB_UPDATED: 'job_updated',
   JOB_COMPLETED: 'job_completed',
+  JOB_REAPPLIED: 'job_reapplied',
   APP_VERSION_UPDATED: 'app_version_updated',
   // NurseNow Organisation phase — kept distinct from job_* even though the
   // shape mirrors it, since organisation_requirements is a separate table
@@ -188,6 +187,7 @@ export const AuditAction = {
   ORG_REQUIREMENT_REJECTED: 'org_requirement_rejected',
   ORG_REQUIREMENT_APPLICATION_DECIDED: 'org_requirement_application_decided',
   OTP_SETTING_UPDATED: 'otp_setting_updated',
+  RATE_CARD_UPDATED: 'rate_card_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

@@ -81,6 +81,11 @@ export interface MyApplicationSummary {
   accepted_at: Date | null;
   rejected_at: Date | null;
   completed_at: Date | null;
+  /** Set the moment a fresh 'applied' lands on top of a 'rejected' or
+   *  'completed' row — preserved even though rejected_at/completed_at get
+   *  cleared on that same upsert, so the caregiver can still see "I
+   *  re-applied to this on <date>" (see JobApplicationsRepository.upsert). */
+  reapplied_at: Date | null;
   decided_by_admin: boolean;
   /** Only ever set when status is 'rejected' — surfaced so the caregiver
    *  can see why, not just that they were declined. */
@@ -377,6 +382,7 @@ export class JobsRepository {
              'accepted_at', ja.accepted_at,
              'rejected_at', ja.rejected_at,
              'completed_at', ja.completed_at,
+             'reapplied_at', ja.reapplied_at,
              'decided_by_admin', ja.decided_by IS NOT NULL,
              'decline_reason', ja.decline_reason
            ) END AS my_application
@@ -413,6 +419,7 @@ export class JobsRepository {
            'accepted_at', ja.accepted_at,
            'rejected_at', ja.rejected_at,
            'completed_at', ja.completed_at,
+           'reapplied_at', ja.reapplied_at,
            'decided_by_admin', ja.decided_by IS NOT NULL,
            'decline_reason', ja.decline_reason
          ) AS my_application,

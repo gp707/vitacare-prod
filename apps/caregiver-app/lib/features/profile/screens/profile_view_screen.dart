@@ -8,6 +8,7 @@ import '../../auth/state/session_notifier.dart';
 import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/rate_card_button.dart';
 
 /// Full read-only view of the caregiver's own profile, reachable at any
 /// verification status. The single Edit entry point hands off to
@@ -90,6 +91,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       appBar: AppBar(
         title: const Text('My Profile'),
         actions: [
+          const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
             onPressed: () {

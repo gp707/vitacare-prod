@@ -9,7 +9,6 @@ class CareReceiverModel {
   final String mobility;
   final String communication;
   final String feedingType;
-  final List<String> medicalAssistance;
   final bool hasMedicalCondition;
   final List<String> medicalConditions;
   final String? medicalConditionOther;
@@ -26,7 +25,6 @@ class CareReceiverModel {
     required this.mobility,
     required this.communication,
     required this.feedingType,
-    required this.medicalAssistance,
     required this.hasMedicalCondition,
     required this.medicalConditions,
     this.medicalConditionOther,
@@ -44,7 +42,6 @@ class CareReceiverModel {
         mobility: json['mobility'] as String,
         communication: json['communication'] as String,
         feedingType: json['feeding_type'] as String,
-        medicalAssistance: List<String>.from(json['medical_assistance'] as List? ?? const []),
         hasMedicalCondition: json['has_medical_condition'] as bool? ?? false,
         medicalConditions: List<String>.from(json['medical_conditions'] as List? ?? const []),
         medicalConditionOther: json['medical_condition_other'] as String?,

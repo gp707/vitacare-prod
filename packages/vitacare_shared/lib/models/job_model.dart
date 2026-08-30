@@ -30,6 +30,12 @@ class MyApplicationModel {
   final String? acceptedAt;
   final String? rejectedAt;
   final String? completedAt;
+  /// Set the moment a fresh apply lands on top of a 'rejected' or
+  /// 'completed' row — preserved even though rejectedAt/completedAt get
+  /// cleared on that same re-apply, so the caregiver can still see "I
+  /// re-applied to this on <date>" instead of the prior decline/close
+  /// silently vanishing.
+  final String? reappliedAt;
   final bool decidedByAdmin;
   /// Only ever set when [status] is 'rejected' — the reason text the
   /// decider gave (mandatory for a NurseNow individual's own reject/cancel
@@ -43,6 +49,7 @@ class MyApplicationModel {
     this.acceptedAt,
     this.rejectedAt,
     this.completedAt,
+    this.reappliedAt,
     required this.decidedByAdmin,
     this.declineReason,
   });
@@ -53,6 +60,7 @@ class MyApplicationModel {
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
         completedAt: json['completed_at'] as String?,
+        reappliedAt: json['reapplied_at'] as String?,
         decidedByAdmin: json['decided_by_admin'] as bool,
         declineReason: json['decline_reason'] as String?,
       );
@@ -231,6 +239,9 @@ class JobApplicationModel {
   final String? appliedAt;
   final String? acceptedAt;
   final String? rejectedAt;
+  /// Set the moment a fresh apply lands on top of a 'rejected' or
+  /// 'completed' row — see MyApplicationModel.reappliedAt.
+  final String? reappliedAt;
   final String? declineReason;
   final String updatedAt;
 
@@ -246,6 +257,7 @@ class JobApplicationModel {
     this.appliedAt,
     this.acceptedAt,
     this.rejectedAt,
+    this.reappliedAt,
     this.declineReason,
     required this.updatedAt,
   });
@@ -262,6 +274,7 @@ class JobApplicationModel {
         appliedAt: json['applied_at'] as String?,
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
+        reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         updatedAt: json['updated_at'] as String,
       );
