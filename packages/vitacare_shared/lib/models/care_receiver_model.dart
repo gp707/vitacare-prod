@@ -6,7 +6,6 @@ class CareReceiverModel {
   final int age;
   final String gender;
   final int weightKg;
-  final String mobility;
   final String communication;
   final String feedingType;
   final bool hasMedicalCondition;
@@ -22,7 +21,6 @@ class CareReceiverModel {
     required this.age,
     required this.gender,
     required this.weightKg,
-    required this.mobility,
     required this.communication,
     required this.feedingType,
     required this.hasMedicalCondition,
@@ -39,7 +37,6 @@ class CareReceiverModel {
         age: json['age'] as int,
         gender: json['gender'] as String,
         weightKg: json['weight_kg'] as int,
-        mobility: json['mobility'] as String,
         communication: json['communication'] as String,
         feedingType: json['feeding_type'] as String,
         hasMedicalCondition: json['has_medical_condition'] as bool? ?? false,

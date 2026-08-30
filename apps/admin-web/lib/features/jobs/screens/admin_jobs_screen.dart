@@ -1078,7 +1078,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   // About Patient
   String? _gender;
-  String? _mobility;
   String? _communication;
   String? _feedingType;
   bool _hasMedicalCondition = false;
@@ -1123,7 +1122,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
-      _mobility = cr.mobility;
       _communication = cr.communication;
       _feedingType = cr.feedingType;
       _hasMedicalCondition = cr.hasMedicalCondition;
@@ -1290,7 +1288,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         age: _age!,
         gender: _gender!,
         weightKg: _weightKg!,
-        mobility: _mobility,
         communication: _communication,
         feedingType: _feedingType,
         hasMedicalCondition: _hasMedicalCondition,
@@ -1460,17 +1457,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _mobility,
-                decoration: const InputDecoration(labelText: 'Mobility'),
-                items: Mobility.all
-                    .map((m) => DropdownMenuItem(
-                        value: m, child: Text(Mobility.displayNames[m] ?? m)))
-                    .toList(),
-                onChanged: (value) => setState(() => _mobility = value),
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<String>(

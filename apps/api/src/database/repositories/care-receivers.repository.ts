@@ -5,7 +5,6 @@ import {
   FeedingType,
   Gender,
   MedicalCondition,
-  Mobility,
   ToiletAssistance,
   VitalMonitoringType,
 } from '@vitacare/shared-constants';
@@ -16,7 +15,6 @@ export interface CareReceiverRecord {
   age: number;
   gender: Gender;
   weight_kg: number;
-  mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
   has_medical_condition: boolean;
@@ -34,7 +32,6 @@ export interface CreateCareReceiverInput {
   age: number;
   gender: Gender;
   weight_kg: number;
-  mobility: Mobility;
   communication: Communication;
   feeding_type: FeedingType;
   has_medical_condition: boolean;
@@ -54,17 +51,16 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `INSERT INTO care_receivers
-         (age, gender, weight_kg, mobility, communication, feeding_type,
+         (age, gender, weight_kg, communication, feeding_type,
           has_medical_condition, medical_conditions,
           medical_condition_other, toilet_assistance, toilet_assistance_other,
           requires_vital_monitoring, vital_monitoring_types)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         input.age,
         input.gender,
         input.weight_kg,
-        input.mobility,
         input.communication,
         input.feeding_type,
         input.has_medical_condition,
@@ -95,19 +91,18 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `UPDATE care_receivers SET
-         age = $1, gender = $2, weight_kg = $3, mobility = $4, communication = $5,
-         feeding_type = $6,
-         has_medical_condition = $7, medical_conditions = $8,
-         medical_condition_other = $9, toilet_assistance = $10, toilet_assistance_other = $11,
-         requires_vital_monitoring = $12, vital_monitoring_types = $13,
+         age = $1, gender = $2, weight_kg = $3, communication = $4,
+         feeding_type = $5,
+         has_medical_condition = $6, medical_conditions = $7,
+         medical_condition_other = $8, toilet_assistance = $9, toilet_assistance_other = $10,
+         requires_vital_monitoring = $11, vital_monitoring_types = $12,
          updated_at = NOW()
-       WHERE id = $14
+       WHERE id = $13
        RETURNING *`,
       [
         input.age,
         input.gender,
         input.weight_kg,
-        input.mobility,
         input.communication,
         input.feeding_type,
         input.has_medical_condition,

@@ -141,7 +141,6 @@ describe('Admin Reports (e2e)', () => {
     age: 72,
     gender: 'female',
     weight_kg: 58,
-    mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
     has_medical_condition: false,

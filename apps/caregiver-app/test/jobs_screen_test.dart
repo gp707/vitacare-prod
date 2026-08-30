@@ -47,7 +47,6 @@ JobModel _job({
       'age': 78,
       'gender': 'female',
       'weight_kg': 60,
-      'mobility': 'uses_wheelchair',
       'communication': 'verbal',
       'feeding_type': 'oral_needs_assistance',
       'has_medical_condition': true,
@@ -270,7 +269,6 @@ void main() {
             'age': 70,
             'gender': 'male',
             'weight_kg': 65,
-            'mobility': 'walks_independently',
             'communication': 'verbal',
             'feeding_type': 'oral_independent',
             'has_medical_condition': false,
@@ -331,7 +329,6 @@ void main() {
     expect(find.text('78 yrs'), findsOneWidget);
     expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
     expect(find.text('60 kg'), findsOneWidget);
-    expect(find.text('Uses wheelchair'), findsOneWidget);
     expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
     expect(find.text('Medicine Reminders'), findsNothing);
@@ -372,7 +369,6 @@ void main() {
         'age': 78,
         'gender': 'female',
         'weight_kg': 60,
-        'mobility': 'uses_wheelchair',
         'communication': 'verbal',
         'feeding_type': 'oral_needs_assistance',
         'has_medical_condition': false,

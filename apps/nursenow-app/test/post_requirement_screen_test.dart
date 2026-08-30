@@ -355,4 +355,50 @@ void main() {
 
     expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
   });
+
+  testWidgets(
+      'groups fields under two headed sections — Patient Details and Care Preferences — '
+      'and no longer offers Mobility or the free-text "more details" field',
+      (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    expect(find.text('Patient Details'), findsOneWidget);
+    expect(find.text('Care Preferences'), findsOneWidget);
+    // The old section headings are gone — everything now lives under the
+    // two new ones.
+    expect(find.text('About Patient'), findsNothing);
+    expect(find.text('Care Location'), findsNothing);
+    // Mobility was removed from the product entirely.
+    expect(find.text('Mobility (optional)'), findsNothing);
+    // The free-text "more details" field was removed too.
+    expect(find.text('More details you want to share about patient (optional)'), findsNothing);
+    // Feeding Type is relabeled per the new grouping.
+    expect(find.text('Feeding/Medicine Assistance (optional)'), findsOneWidget);
+
+    // Patient Details' own fields appear before Care Location's fields
+    // moved into it (city/area) — and Care Preferences' fields (hours
+    // care needed, start date) come after, matching the new order.
+    final patientDetailsTop = tester.getTopLeft(find.text('Patient Details')).dy;
+    final carePreferencesTop = tester.getTopLeft(find.text('Care Preferences')).dy;
+    final cityFieldTop = tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)')).dy;
+    final dutyTypeFieldTop =
+        tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)')).dy;
+    expect(patientDetailsTop, lessThan(cityFieldTop));
+    expect(cityFieldTop, lessThan(carePreferencesTop));
+    expect(carePreferencesTop, lessThan(dutyTypeFieldTop));
+  });
+
+  testWidgets('submitting no longer sends mobility or description', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+    await _fillMandatoryFields(tester);
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    final sentBody = repo.capturedCareReceiver!.toJson();
+    expect(sentBody.containsKey('mobility'), isFalse);
+  });
 }

@@ -18,7 +18,6 @@ describe('JobsService', () => {
     age: 72,
     gender: 'female',
     weight_kg: 58,
-    mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
     has_medical_condition: false,
@@ -104,7 +103,6 @@ describe('JobsService', () => {
         age: 72 as any,
         gender: 'female' as any,
         weight_kg: 58 as any,
-        mobility: 'walks_independently' as any,
         communication: 'verbal' as any,
         feeding_type: 'oral_independent' as any,
         has_medical_condition: false,
@@ -129,7 +127,6 @@ describe('JobsService', () => {
       expect(careReceiversRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           age: 72,
-          mobility: 'walks_independently',
           toilet_assistance: ['others'],
         }),
         expect.anything(),
@@ -182,7 +179,6 @@ describe('JobsService', () => {
           age: 72,
           gender: 'female',
           weight_kg: 58,
-          mobility: 'walks_independently',
           communication: 'verbal',
           feeding_type: 'oral_independent',
           has_medical_condition: false,
@@ -229,7 +225,6 @@ describe('JobsService', () => {
         age: 73 as any,
         gender: 'female' as any,
         weight_kg: 60 as any,
-        mobility: 'walks_independently' as any,
         communication: 'verbal' as any,
         feeding_type: 'oral_independent' as any,
         has_medical_condition: false,
@@ -265,7 +260,6 @@ describe('JobsService', () => {
         'cr-1',
         expect.objectContaining({
           age: 73,
-          mobility: 'walks_independently',
           toilet_assistance: ['others'],
         }),
         expect.anything(),

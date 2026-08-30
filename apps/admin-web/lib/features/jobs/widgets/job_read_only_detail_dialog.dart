@@ -101,10 +101,6 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                         careReceiver.gender),
                 _DetailRow('Weight', '${careReceiver.weightKg} kg'),
                 _DetailRow(
-                    'Mobility',
-                    Mobility.displayNames[careReceiver.mobility] ??
-                        careReceiver.mobility),
-                _DetailRow(
                   'Communication',
                   Communication.displayNames[careReceiver.communication] ??
                       careReceiver.communication,

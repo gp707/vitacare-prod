@@ -133,30 +133,6 @@ class FrequencyOfCare {
   };
 }
 
-class Mobility {
-  static const walksIndependently = 'walks_independently';
-  static const walksWithAssistance = 'walks_with_assistance';
-  static const usesWalker = 'uses_walker';
-  static const usesWheelchair = 'uses_wheelchair';
-  static const bedridden = 'bedridden';
-
-  static const all = [
-    walksIndependently,
-    walksWithAssistance,
-    usesWalker,
-    usesWheelchair,
-    bedridden,
-  ];
-
-  static const displayNames = {
-    walksIndependently: 'Walks independently',
-    walksWithAssistance: 'Walks with assistance',
-    usesWalker: 'Uses walker',
-    usesWheelchair: 'Uses wheelchair',
-    bedridden: 'Bedridden',
-  };
-}
-
 class Communication {
   static const verbal = 'verbal';
   static const difficultyCommunicating = 'difficulty_communicating';

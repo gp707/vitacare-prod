@@ -114,7 +114,6 @@ JobModel _jobWithCareReceiver({String status = 'active', List<String> languages 
       'age': 72,
       'gender': 'female',
       'weight_kg': 58,
-      'mobility': 'walks_independently',
       'communication': 'verbal',
       'feeding_type': 'oral_independent',
       'has_medical_condition': false,
@@ -380,7 +379,6 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await tester.enterText(weight, '58');
   await tester.pumpAndSettle();
 
-  await _selectDropdown(tester, 'Mobility', 'Walks independently');
   await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
   await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
   await _tapChip(tester, 'Others');
@@ -863,7 +861,7 @@ void main() {
   });
 
   testWidgets(
-      'only age/weight/gender/city/area/start-date are hard-required — mobility, communication, feeding, '
+      'only age/weight/gender/city/area/start-date are hard-required — communication, feeding, '
       'toilet assistance, and description can all be left unselected/empty',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -893,8 +891,8 @@ void main() {
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
 
-    // Deliberately skip Mobility, Communication, Feeding, and Toilet
-    // Assistance — none of them should block submission.
+    // Deliberately skip Communication, Feeding, and Toilet Assistance —
+    // none of them should block submission.
     await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
@@ -909,8 +907,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.createCalled, isTrue,
-        reason:
-            'mobility/communication/feeding/toilet assistance/description are optional now');
+        reason: 'communication/feeding/toilet assistance/description are optional now');
   });
 
   testWidgets(
@@ -1067,7 +1064,6 @@ void main() {
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'Mobility', 'Walks independently');
     await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
     await _selectDropdown(tester, 'Feeding', 'Tube feeding');
     await _tapChip(tester, 'Others');

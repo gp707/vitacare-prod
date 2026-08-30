@@ -7,7 +7,6 @@ import {
   FeedingType,
   JobApplicationStatus,
   JobStatus,
-  Mobility,
   ToiletAssistance,
   VerificationStatus,
 } from '@vitacare/shared-constants';
@@ -70,7 +69,6 @@ const CITY_LABELS: Record<City, string> = {
 // so the persisted (and later admin-edited / caregiver-visible) value is
 // always a real, explicit selection rather than null/empty.
 const CARE_RECEIVER_DEFAULTS = {
-  mobility: Mobility.WALKS_INDEPENDENTLY,
   communication: Communication.VERBAL,
   feeding_type: FeedingType.ORAL_INDEPENDENT,
   toilet_assistance: [ToiletAssistance.INDEPENDENT],
@@ -84,7 +82,6 @@ export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareRecei
     age: dto.age,
     gender: dto.gender,
     weight_kg: dto.weight_kg,
-    mobility: dto.mobility ?? CARE_RECEIVER_DEFAULTS.mobility,
     communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
     feeding_type: dto.feeding_type ?? CARE_RECEIVER_DEFAULTS.feeding_type,
     has_medical_condition: dto.has_medical_condition ?? false,

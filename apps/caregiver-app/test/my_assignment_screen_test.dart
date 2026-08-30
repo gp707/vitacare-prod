@@ -45,7 +45,6 @@ JobModel _assignedJob({
       'age': 78,
       'gender': 'female',
       'weight_kg': 60,
-      'mobility': 'uses_wheelchair',
       'communication': 'verbal',
       'feeding_type': 'oral_needs_assistance',
       'has_medical_condition': false,

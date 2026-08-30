@@ -67,15 +67,6 @@ export const FrequencyOfCare = {
 } as const;
 export type FrequencyOfCare = (typeof FrequencyOfCare)[keyof typeof FrequencyOfCare];
 
-export const Mobility = {
-  WALKS_INDEPENDENTLY: 'walks_independently',
-  WALKS_WITH_ASSISTANCE: 'walks_with_assistance',
-  USES_WALKER: 'uses_walker',
-  USES_WHEELCHAIR: 'uses_wheelchair',
-  BEDRIDDEN: 'bedridden',
-} as const;
-export type Mobility = (typeof Mobility)[keyof typeof Mobility];
-
 export const Communication = {
   VERBAL: 'verbal',
   DIFFICULTY_COMMUNICATING: 'difficulty_communicating',

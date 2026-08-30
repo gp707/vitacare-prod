@@ -212,7 +212,6 @@ class _JobDetailCardState extends State<JobDetailCard> {
                 Tag('${job.careReceiver!.age} yrs'),
                 Tag(capitalize(job.careReceiver!.gender)),
                 Tag('${job.careReceiver!.weightKg} kg'),
-                Tag(Mobility.displayNames[job.careReceiver!.mobility] ?? job.careReceiver!.mobility),
                 Tag(Communication.displayNames[job.careReceiver!.communication] ??
                     job.careReceiver!.communication),
                 Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),

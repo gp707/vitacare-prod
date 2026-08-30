@@ -577,7 +577,6 @@ class _RequirementCardState extends State<_RequirementCard> {
                   _Tag('${careReceiver.age} yrs'),
                   _Tag(_capitalize(careReceiver.gender)),
                   _Tag('${careReceiver.weightKg} kg'),
-                  _Tag(Mobility.displayNames[careReceiver.mobility] ?? careReceiver.mobility),
                   _Tag(FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType),
                   for (final t in careReceiver.toiletAssistance)
                     _Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),

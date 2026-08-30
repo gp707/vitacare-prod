@@ -71,7 +71,6 @@ describe('Jobs (e2e)', () => {
     age: 72,
     gender: 'female',
     weight_kg: 58,
-    mobility: 'walks_independently',
     communication: 'verbal',
     feeding_type: 'oral_independent',
     has_medical_condition: false,
@@ -198,7 +197,6 @@ describe('Jobs (e2e)', () => {
       const careReceiver = await db.query('SELECT * FROM care_receivers WHERE id = $1', [
         job.care_receiver_id,
       ]);
-      expect(careReceiver.rows[0].mobility).toBe('walks_independently');
       expect(careReceiver.rows[0].age).toBe(72);
       expect(careReceiver.rows[0].gender).toBe('female');
       expect(careReceiver.rows[0].weight_kg).toBe(58);
@@ -337,7 +335,6 @@ describe('Jobs (e2e)', () => {
         age: 65,
         gender: 'male',
         weight_kg: 70,
-        mobility: 'walks_independently',
         communication: 'verbal',
         feeding_type: 'oral_independent',
         has_medical_condition: false,
@@ -675,7 +672,7 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
       expect(res.body.data.applications).toEqual([]);
-      expect(res.body.data.care_receiver).toEqual(expect.objectContaining({ mobility: 'walks_independently' }));
+      expect(res.body.data.care_receiver).toEqual(expect.objectContaining({ communication: 'verbal' }));
     });
 
     it('returns GEN_002 for a non-existent job', async () => {
@@ -1112,7 +1109,6 @@ describe('Jobs (e2e)', () => {
       const job = await createJob({
         care_receiver: {
           age: 81,
-          mobility: 'uses_wheelchair',
           toilet_assistance: ['uses_catheter'],
           requires_vital_monitoring: true,
           vital_monitoring_types: ['blood_pressure'],
@@ -1126,7 +1122,6 @@ describe('Jobs (e2e)', () => {
       const listed = res.body.data.find((j: { id: string }) => j.id === job.id);
       expect(listed.care_receiver).toBeDefined();
       expect(listed.care_receiver.age).toBe(81);
-      expect(listed.care_receiver.mobility).toBe('uses_wheelchair');
       expect(listed.care_receiver.toilet_assistance).toEqual(['uses_catheter']);
       expect(listed.care_receiver.requires_vital_monitoring).toBe(true);
       expect(listed.care_receiver.vital_monitoring_types).toEqual(['blood_pressure']);
@@ -1708,7 +1703,6 @@ describe('Jobs (e2e)', () => {
       expect(assigned.id).toBe(job.id);
       expect(assigned.status).toBe('closed');
       expect(assigned.care_receiver).toBeDefined();
-      expect(assigned.care_receiver.mobility).toBe('walks_independently');
       expect(assigned.my_application.status).toBe('accepted');
       expect(assigned.job_poster).toEqual({
         full_name: 'Jobs E2E Super Admin',

@@ -24,7 +24,6 @@ import {
   Gender,
   Language,
   MedicalCondition,
-  Mobility,
   Religion,
   ToiletAssistance,
   VitalMonitoringType,
@@ -43,12 +42,6 @@ export class CareReceiverDto {
   @Min(1, { message: 'GEN_001' })
   @Max(300, { message: 'GEN_001' })
   weight_kg!: number;
-
-  // Not required — defaults to walks_independently when omitted (see
-  // CARE_RECEIVER_DEFAULTS in jobs.service.ts).
-  @IsOptional()
-  @IsIn(Object.values(Mobility), { message: 'GEN_001' })
-  mobility?: Mobility;
 
   // Not required — defaults to verbal ("Can Speak/Communicate") when omitted.
   @IsOptional()
