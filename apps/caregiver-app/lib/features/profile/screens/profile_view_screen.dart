@@ -21,15 +21,9 @@ class ProfileViewScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileViewScreen> createState() => _ProfileViewScreenState();
 }
 
-// 'assigned' is deliberately not here — a caregiver can hold several
-// accepted jobs at once, and this button can't say which one it means.
-// MyJobs' per-job "Mark Complete" is the only way out of `assigned` now.
-const _kMarkAvailableEligibleStatuses = ['available', 'unavailable'];
-
 class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   CaregiverProfileModel? _profile;
   bool _loading = true;
-  bool _markingAvailable = false;
   String? _errorMessage;
 
   @override
@@ -57,34 +51,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     }
   }
 
-  Future<void> _markAvailable() async {
-    if (_profile == null || _markingAvailable) return;
-
-    if (_profile!.verificationStatus == 'available') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are already marked as available')),
-      );
-      return;
-    }
-
-    setState(() => _markingAvailable = true);
-    try {
-      await ref.read(profileRepositoryProvider).markAvailable();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You're now marked as available")),
-        );
-      }
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    } finally {
-      if (mounted) setState(() => _markingAvailable = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,13 +60,18 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             onPressed: () {
               final navigator = Navigator.of(context);
               ref.read(sessionProvider.notifier).logout().then((_) {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               });
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
           ),
         ],
       ),
@@ -143,21 +114,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           statusMessageFor(profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
-        if (_kMarkAvailableEligibleStatuses.contains(profile.verificationStatus)) ...[
-          const SizedBox(height: AppSpacing.md),
-          Center(
-            child: ElevatedButton(
-              onPressed: _markingAvailable ? null : _markAvailable,
-              child: _markingAvailable
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Available for Jobs'),
-            ),
-          ),
-        ],
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',
@@ -177,12 +133,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           children: [
             _Field('Qualification', Qualification.displayNames[profile.highestQualification] ?? '—'),
             _Field('Religion', Religion.displayNames[profile.religion] ?? '—'),
-            _Field(
-              'Preferred City',
-              profile.preferredCities.isEmpty
-                  ? '—'
-                  : profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', '),
-            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),

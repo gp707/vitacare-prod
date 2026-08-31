@@ -33,24 +33,30 @@ class WhatsAppHelpButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Compact padding/density — this button shares AppBar space with a
-    // filter icon and Logout, so the wide default ElevatedButton padding
-    // overflows a typical phone-width AppBar once all three are present.
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: ElevatedButton.icon(
-        onPressed: () => _open(context),
-        icon: const Icon(Icons.phone_in_talk, size: 16),
-        label: const Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.error,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
+    // Compact padding/density — this button shares AppBar space with
+    // RateCardButton and Logout, so the wide default ElevatedButton
+    // padding overflows a typical phone-width AppBar once all three are
+    // present. Built from ElevatedButton (not ElevatedButton.icon, which
+    // forces an 8px icon-label gap) with a hand-built Row so the gap can
+    // shrink to 2px instead.
+    return ElevatedButton(
+      onPressed: () => _open(context),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.error,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.phone_in_talk, size: 14),
+          SizedBox(width: 1),
+          Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        ],
       ),
     );
   }

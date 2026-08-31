@@ -22,9 +22,6 @@ class CaregiverProfileModel {
   final String verificationStatus;
   final String? rejectionMessage;
   final List<String> preferredCities;
-  final List<String> preferredDutyTypes;
-  final int? minSalaryPerDay;
-  final int? minSalaryPerMonth;
   final String createdAt;
 
   const CaregiverProfileModel({
@@ -47,9 +44,6 @@ class CaregiverProfileModel {
     required this.verificationStatus,
     this.rejectionMessage,
     required this.preferredCities,
-    required this.preferredDutyTypes,
-    this.minSalaryPerDay,
-    this.minSalaryPerMonth,
     required this.createdAt,
   });
 
@@ -74,9 +68,6 @@ class CaregiverProfileModel {
       verificationStatus: json['verification_status'] as String,
       rejectionMessage: json['rejection_message'] as String?,
       preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
-      preferredDutyTypes: List<String>.from(json['preferred_duty_types'] as List? ?? const []),
-      minSalaryPerDay: json['min_salary_per_day'] as int?,
-      minSalaryPerMonth: json['min_salary_per_month'] as int?,
       createdAt: json['created_at'] as String,
     );
   }

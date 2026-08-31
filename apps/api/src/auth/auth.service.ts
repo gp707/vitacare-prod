@@ -6,7 +6,6 @@ import { AppException } from '../common/exceptions/app.exception';
 import { UsersRepository, UserRecord } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
-import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { IndividualProfilesRepository } from '../database/repositories/individual-profiles.repository';
 import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository';
@@ -45,7 +44,6 @@ export class AuthService {
     private readonly usersRepo: UsersRepository,
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
     private readonly caregiverLanguagesRepo: CaregiverLanguagesRepository,
-    private readonly caregiverPreferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly individualProfilesRepo: IndividualProfilesRepository,
     private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly refreshTokensRepo: RefreshTokensRepository,
@@ -83,9 +81,6 @@ export class AuthService {
       );
 
       await this.caregiverLanguagesRepo.createMany(profile.id, dto.languages, client);
-      if (dto.preferred_cities?.length) {
-        await this.caregiverPreferredCitiesRepo.createMany(profile.id, dto.preferred_cities, client);
-      }
 
       return { user, profile };
     });

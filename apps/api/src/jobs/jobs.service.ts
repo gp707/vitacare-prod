@@ -338,8 +338,6 @@ export class JobsService {
     const { items, total } = await this.jobsRepo.listActiveForCaregiver(
       profile.id,
       profile.gender,
-      profile.min_salary_per_day,
-      profile.min_salary_per_month,
       { page: query.page, limit: query.limit },
     );
     const meta: PaginationMeta = {

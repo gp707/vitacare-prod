@@ -53,7 +53,6 @@ class ApiRoutes {
   static const caregiverProfileSelfie = '/caregiver/profile/selfie';
   static const caregiverProfileDocuments = '/caregiver/profile/documents';
   static const caregiverVerificationStatus = '/caregiver/verification-status';
-  static const caregiverMarkAvailable = '/caregiver/mark-available';
   static const caregiverFcmToken = '/caregiver/fcm-token';
   static const caregiverJobs = '/caregiver/jobs';
   static const caregiverJobsAssigned = '/caregiver/jobs/assigned';
@@ -66,4 +65,6 @@ class ApiRoutes {
   static const otpSettingsCheck = '/auth/otp-settings';
 
   static const rateCard = '/rate-card';
+
+  static const scopeOfWork = '/scope-of-work';
 }

@@ -43,7 +43,6 @@ describe('Caregiver (e2e)', () => {
     phoneSuffix: string,
     overrides: {
       religion?: string;
-      preferred_cities?: string[];
       highest_qualification?: string;
       terms_accepted?: boolean;
     } = {},
@@ -59,7 +58,6 @@ describe('Caregiver (e2e)', () => {
         religion: overrides.religion ?? 'hindu',
         highest_qualification: overrides.highest_qualification ?? 'rn_above_2_years',
         terms_accepted: overrides.terms_accepted ?? true,
-        ...(overrides.preferred_cities ? { preferred_cities: overrides.preferred_cities } : {}),
         code: '1234',
       });
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
@@ -160,7 +158,7 @@ describe('Caregiver (e2e)', () => {
   });
 
   describe('PATCH /v1/caregiver/profile', () => {
-    it('updates age/languages/highest_qualification/preferred_cities without changing verification_status', async () => {
+    it('updates age/languages/highest_qualification without changing verification_status', async () => {
       const res = await request(app.getHttpServer())
         .patch('/v1/caregiver/profile')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -185,116 +183,12 @@ describe('Caregiver (e2e)', () => {
       );
     });
 
-    it('replaces preferred_cities via a partial edit', async () => {
-      const created = await registerTestCaregiver('0011', { preferred_cities: ['bangalore'] });
-      const token = created.access_token as string;
-
-      const res = await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ preferred_cities: ['mumbai', 'pune'] })
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Profile updated',
-        has_pending_edits: true,
-        verification_status: 'pending_call',
-      });
-
-      const profile = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-      expect(profile.body.data.preferred_cities.sort()).toEqual(['mumbai', 'pune']);
-    });
-
-    it('rejects a preferred_cities value outside the enum (GEN_001)', async () => {
-      const created = await registerTestCaregiver('0012');
+    it('rejects preferred_cities as an unknown field — job search preferences were removed from self-edit entirely (GEN_001, whitelist enforced)', async () => {
+      const created = await registerTestCaregiver('0011');
       const res = await request(app.getHttpServer())
         .patch('/v1/caregiver/profile')
         .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ preferred_cities: ['atlantis'] })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
-    });
-
-    it('replaces preferred_duty_types via a partial edit, without changing verification_status', async () => {
-      const created = await registerTestCaregiver('0040');
-      const res = await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ preferred_duty_types: ['day_duty', 'night_duty'] })
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Profile updated',
-        has_pending_edits: true,
-        verification_status: 'pending_call',
-      });
-
-      const profile = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(profile.body.data.preferred_duty_types.sort()).toEqual(['day_duty', 'night_duty']);
-    });
-
-    it('clears preferred_duty_types back to empty (no preference) via an empty array', async () => {
-      const created = await registerTestCaregiver('0041');
-      await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ preferred_duty_types: ['live_in'] })
-        .expect(200);
-
-      await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ preferred_duty_types: [] })
-        .expect(200);
-
-      const profile = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(profile.body.data.preferred_duty_types).toEqual([]);
-    });
-
-    it('rejects a preferred_duty_types value outside the 3 fixed shifts (GEN_001)', async () => {
-      const created = await registerTestCaregiver('0042');
-      const res = await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ preferred_duty_types: ['weekend_only'] })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
-    });
-
-    it('updates min_salary_per_day and min_salary_per_month without changing verification_status', async () => {
-      const created = await registerTestCaregiver('0043');
-      const res = await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ min_salary_per_day: 1500, min_salary_per_month: 25000 })
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Profile updated',
-        has_pending_edits: true,
-        verification_status: 'pending_call',
-      });
-
-      const profile = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(profile.body.data.min_salary_per_day).toBe(1500);
-      expect(profile.body.data.min_salary_per_month).toBe(25000);
-    });
-
-    it('rejects a min_salary_per_day of 0 (GEN_001)', async () => {
-      const created = await registerTestCaregiver('0044');
-      const res = await request(app.getHttpServer())
-        .patch('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .send({ min_salary_per_day: 0 })
+        .send({ preferred_cities: ['mumbai'] })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
     });
@@ -436,23 +330,33 @@ describe('Caregiver (e2e)', () => {
       expect(res.body.error.code).toBe('UPLOAD_003');
     });
 
-    it('sets preferred_cities from registration; stays empty when omitted', async () => {
-      const withCities = await registerTestCaregiver('0018', {
-        preferred_cities: ['bangalore', 'mumbai'],
-      });
-      const withoutCities = await registerTestCaregiver('0019');
+    it('preferred_cities is always empty at registration — a caregiver can no longer set it themselves (only admin can, via PUT /admin/caregivers/:id)', async () => {
+      const created = await registerTestCaregiver('0018');
 
-      const profileWithCities = await request(app.getHttpServer())
+      const profile = await request(app.getHttpServer())
         .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${withCities.access_token}`)
+        .set('Authorization', `Bearer ${created.access_token}`)
         .expect(200);
-      expect(profileWithCities.body.data.preferred_cities.sort()).toEqual(['bangalore', 'mumbai']);
+      expect(profile.body.data.preferred_cities).toEqual([]);
+    });
 
-      const profileWithoutCities = await request(app.getHttpServer())
-        .get('/v1/caregiver/profile')
-        .set('Authorization', `Bearer ${withoutCities.access_token}`)
-        .expect(200);
-      expect(profileWithoutCities.body.data.preferred_cities).toEqual([]);
+    it('rejects preferred_cities as an unknown field at registration too (GEN_001, whitelist enforced)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          phone: testPhone('0019'),
+          full_name: 'Caregiver Test',
+          gender: 'female',
+          age: 28,
+          languages: ['hindi'],
+          religion: 'hindu',
+          highest_qualification: 'rn_above_2_years',
+          terms_accepted: true,
+          preferred_cities: ['bangalore'],
+          code: '1234',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
     });
   });
 
@@ -650,92 +554,4 @@ describe('Caregiver (e2e)', () => {
     });
   });
 
-  describe('POST /v1/caregiver/mark-available', () => {
-    async function registerWithStatus(phoneSuffix: string, status: string) {
-      const created = await registerTestCaregiver(phoneSuffix);
-      await db.query('UPDATE caregiver_profiles SET verification_status = $2 WHERE id = $1', [
-        created.profile_id,
-        status,
-      ]);
-      return created;
-    }
-
-    it('rejects from pending_call (PROFILE_022)', async () => {
-      const created = await registerTestCaregiver('0093'); // fresh registration starts pending_call
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(400);
-      expect(res.body.error.code).toBe('PROFILE_022');
-
-      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE id = $1', [
-        created.profile_id,
-      ]);
-      expect(profile.rows[0].verification_status).toBe('pending_call');
-    });
-
-    it('rejects from rejected (PROFILE_022) — must edit profile to resubmit instead', async () => {
-      const created = await registerWithStatus('0094', 'rejected');
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(400);
-      expect(res.body.error.code).toBe('PROFILE_022');
-    });
-
-    it('is a no-op when already available — returns already_available without an error', async () => {
-      const created = await registerWithStatus('0095', 'available');
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'You are already marked as available',
-        verification_status: 'available',
-        already_available: true,
-      });
-    });
-
-    it('updates unavailable -> available', async () => {
-      const created = await registerWithStatus('0096', 'unavailable');
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(res.body.data).toEqual({
-        message: 'Status updated',
-        verification_status: 'available',
-        already_available: false,
-      });
-
-      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE id = $1', [
-        created.profile_id,
-      ]);
-      expect(profile.rows[0].verification_status).toBe('available');
-    });
-
-    it('updates assigned -> available (self-service unassign) without touching jobs/applications', async () => {
-      const created = await registerWithStatus('0097', 'assigned');
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .set('Authorization', `Bearer ${created.access_token}`)
-        .expect(200);
-      expect(res.body.data.verification_status).toBe('available');
-
-      const audit = await db.query(
-        `SELECT action, before_value, after_value FROM audit_logs
-         WHERE user_id = $1 AND action = 'status_changed' ORDER BY created_at DESC LIMIT 1`,
-        [created.user_id],
-      );
-      expect(audit.rows[0].before_value).toEqual({ verification_status: 'assigned' });
-      expect(audit.rows[0].after_value).toEqual({ verification_status: 'available' });
-    });
-
-    it('rejects without a token (AUTH_005)', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/caregiver/mark-available')
-        .expect(401);
-      expect(res.body.error.code).toBe('AUTH_005');
-    });
-  });
 });

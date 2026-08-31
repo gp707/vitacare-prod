@@ -16,17 +16,34 @@ class RateCardButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Compact constraints/padding — shares AppBar space with WhatsApp help
-    // and other actions, same reasoning as WhatsAppHelpButton's own styling.
-    return IconButton(
-      icon: const Icon(Icons.currency_rupee, size: 20),
-      tooltip: 'Salary Guidance',
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      visualDensity: VisualDensity.compact,
+    // A bare rupee icon read as unclear/ambiguous — spelling out "Rate
+    // Card" as a visible label removes any doubt about what it opens.
+    // Built from ElevatedButton (not ElevatedButton.icon, which forces an
+    // 8px icon-label gap that doesn't fit this AppBar's already-tight
+    // budget) with a hand-built Row so the icon-label gap can shrink to 1px
+    // — shares AppBar space with WhatsApp help and other actions, same
+    // reasoning as WhatsAppHelpButton's own compact styling.
+    return ElevatedButton(
       onPressed: () => showDialog(
         context: context,
         builder: (_) => _RateCardDialog(repository: ref.read(rateCardRepositoryProvider)),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.success,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.currency_rupee, size: 14),
+          SizedBox(width: 1),
+          Text('Rate Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        ],
       ),
     );
   }

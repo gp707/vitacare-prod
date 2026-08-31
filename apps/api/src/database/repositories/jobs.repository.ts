@@ -344,35 +344,17 @@ export class JobsRepository {
    *  Condition details directly on the jobs list, without a second
    *  round trip per job. Filtered to jobs whose preferred_gender is either
    *  unset (no preference) or matches the caregiver's own gender — a
-   *  caregiver never sees a job posted for the other gender — plus the
-   *  caregiver's own dynamic job-search preferences: preferred_cities and
-   *  preferred_duty_types (both via EXISTS/NOT EXISTS against their
-   *  junction tables, keyed on profileId — no rows stored for either means
-   *  no filter on that dimension) and min_salary_per_day/
-   *  min_salary_per_month (each only ever compared against a job of the
-   *  matching frequency_of_care — a daily job's salary is never compared
-   *  against min_salary_per_month and vice versa). All of this is read
-   *  fresh from the caregiver's current profile on every call, so changing
-   *  a preference takes effect on the very next list request. */
+   *  caregiver never sees a job posted for the other gender. Job-search
+   *  preferences (preferred city/duty type/minimum salary) used to further
+   *  narrow this list but have been removed from the product entirely —
+   *  every caregiver now sees every active job regardless of their own
+   *  profile data. */
   async listActiveForCaregiver(
     profileId: string,
     gender: Gender,
-    minSalaryPerDay: number | null,
-    minSalaryPerMonth: number | null,
     page: ListPage,
   ): Promise<{ items: JobWithMyApplication[]; total: number }> {
     const offset = (page.page - 1) * page.limit;
-    const preferenceFilters = `
-         AND (
-           NOT EXISTS (SELECT 1 FROM caregiver_preferred_cities cpc WHERE cpc.profile_id = $1)
-           OR EXISTS (SELECT 1 FROM caregiver_preferred_cities cpc WHERE cpc.profile_id = $1 AND cpc.city = j.city)
-         )
-         AND (
-           NOT EXISTS (SELECT 1 FROM caregiver_preferred_duty_types cpd WHERE cpd.profile_id = $1)
-           OR EXISTS (SELECT 1 FROM caregiver_preferred_duty_types cpd WHERE cpd.profile_id = $1 AND cpd.duty_type = j.duty_type)
-         )
-         AND (j.frequency_of_care != 'daily' OR $3::int IS NULL OR j.salary_amount >= $3)
-         AND (j.frequency_of_care != 'monthly' OR $4::int IS NULL OR j.salary_amount >= $4)`;
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobWithMyApplication>(
         `SELECT j.*, to_jsonb(cr) AS care_receiver,
@@ -390,16 +372,14 @@ export class JobsRepository {
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.profile_id = $1
          WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $2)
-         ${preferenceFilters}
          ORDER BY j.posted_at DESC
-         LIMIT $5 OFFSET $6`,
-        [profileId, gender, minSalaryPerDay, minSalaryPerMonth, page.limit, offset],
+         LIMIT $3 OFFSET $4`,
+        [profileId, gender, page.limit, offset],
       ),
       this.db.query<{ count: string }>(
         `SELECT COUNT(*) FROM jobs j
-         WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $2)
-         ${preferenceFilters}`,
-        [profileId, gender, minSalaryPerDay, minSalaryPerMonth],
+         WHERE j.status = 'active' AND (j.preferred_gender IS NULL OR j.preferred_gender = $1)`,
+        [gender],
       ),
     ]);
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };

@@ -37,10 +37,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
     message: 'Name must contain only alphabetic characters and spaces',
   },
   PROFILE_021: { status: 400, message: 'FCM token is required' },
-  PROFILE_022: {
-    status: 400,
-    message: 'Cannot mark yourself available from your current status',
-  },
 
   // Upload errors
   UPLOAD_001: { status: 400, message: 'File is required' },
@@ -92,6 +88,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
 
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
+  SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },

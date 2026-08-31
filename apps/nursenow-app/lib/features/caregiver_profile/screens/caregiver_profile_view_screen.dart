@@ -89,10 +89,7 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                             _InfoCard(profile: profile),
                             const SizedBox(height: AppSpacing.md),
                             _DocumentsCard(profile: profile),
-                            if (profile.preferredCities.isNotEmpty ||
-                                profile.preferredDutyTypes.isNotEmpty ||
-                                profile.minSalaryPerDay != null ||
-                                profile.minSalaryPerMonth != null) ...[
+                            if (profile.preferredCities.isNotEmpty) ...[
                               const SizedBox(height: AppSpacing.md),
                               _PreferencesCard(profile: profile),
                             ],
@@ -292,10 +289,6 @@ class _PreferencesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final salaryParts = <String>[
-      if (profile.minSalaryPerDay != null) '₹${profile.minSalaryPerDay}/day',
-      if (profile.minSalaryPerMonth != null) '₹${profile.minSalaryPerMonth}/month',
-    ];
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -306,19 +299,9 @@ class _PreferencesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Job Search Preferences', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('Preferred Cities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: AppSpacing.xs),
-          if (profile.preferredCities.isNotEmpty)
-            _InfoRow(
-              'Preferred Cities',
-              profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', '),
-            ),
-          if (profile.preferredDutyTypes.isNotEmpty)
-            _InfoRow(
-              'Hours Care Needed',
-              profile.preferredDutyTypes.map((d) => DutyType.displayNames[d] ?? d).join(', '),
-            ),
-          if (salaryParts.isNotEmpty) _InfoRow('Min. Salary', salaryParts.join(', ')),
+          Text(profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', ')),
         ],
       ),
     );

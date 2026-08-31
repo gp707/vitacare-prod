@@ -353,6 +353,7 @@ class AuditAction {
   static const orgRequirementRejected = 'org_requirement_rejected';
   static const orgRequirementApplicationDecided = 'org_requirement_application_decided';
   static const rateCardUpdated = 'rate_card_updated';
+  static const scopeOfWorkUpdated = 'scope_of_work_updated';
 
   static const all = [
     registration,
@@ -382,6 +383,7 @@ class AuditAction {
     orgRequirementRejected,
     orgRequirementApplicationDecided,
     rateCardUpdated,
+    scopeOfWorkUpdated,
   ];
 }
 

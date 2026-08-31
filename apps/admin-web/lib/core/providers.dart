@@ -15,6 +15,7 @@ import '../features/organisation_requirements/data/admin_organisation_requiremen
 import '../features/reports/data/admin_reports_repository.dart';
 import '../features/login_settings/data/otp_settings_repository.dart';
 import '../features/rate_card/data/rate_card_repository.dart';
+import '../features/scope_of_work/data/scope_of_work_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -61,6 +62,10 @@ final otpSettingsRepositoryProvider = Provider<OtpSettingsRepository>((ref) {
 
 final rateCardRepositoryProvider = Provider<RateCardRepository>((ref) {
   return RateCardRepository(ref.watch(apiClientProvider).dio);
+});
+
+final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
+  return ScopeOfWorkRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminIndividualsRepositoryProvider =

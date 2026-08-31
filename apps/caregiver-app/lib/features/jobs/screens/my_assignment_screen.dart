@@ -187,13 +187,18 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             onPressed: () {
               final navigator = Navigator.of(context);
               ref.read(sessionProvider.notifier).logout().then((_) {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               });
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
           ),
         ],
       ),

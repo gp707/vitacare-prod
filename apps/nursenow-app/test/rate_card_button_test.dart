@@ -44,10 +44,17 @@ Future<void> _pump(WidgetTester tester, RateCardRepository repo) async {
 }
 
 void main() {
-  testWidgets('tapping the icon opens a dialog showing the title, labels, and cells', (tester) async {
+  testWidgets('shows a visible "Rate Card" label, not just a bare icon', (tester) async {
     await _pump(tester, _FakeRateCardRepository(result: _rateCard));
 
-    await tester.tap(find.byIcon(Icons.currency_rupee));
+    expect(find.text('Rate Card'), findsOneWidget);
+    expect(find.byIcon(Icons.currency_rupee), findsOneWidget);
+  });
+
+  testWidgets('tapping the button opens a dialog showing the title, labels, and cells', (tester) async {
+    await _pump(tester, _FakeRateCardRepository(result: _rateCard));
+
+    await tester.tap(find.text('Rate Card'));
     await tester.pumpAndSettle();
 
     expect(find.text('Salary Guidelines (12 hrs/24 hrs duty)'), findsOneWidget);
@@ -60,7 +67,7 @@ void main() {
   testWidgets('shows a friendly error instead of crashing when the fetch fails', (tester) async {
     await _pump(tester, _FakeRateCardRepository(error: Exception('network down')));
 
-    await tester.tap(find.byIcon(Icons.currency_rupee));
+    await tester.tap(find.text('Rate Card'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Could not load salary guidance'), findsOneWidget);
@@ -69,7 +76,7 @@ void main() {
   testWidgets('Close dismisses the dialog', (tester) async {
     await _pump(tester, _FakeRateCardRepository(result: _rateCard));
 
-    await tester.tap(find.byIcon(Icons.currency_rupee));
+    await tester.tap(find.text('Rate Card'));
     await tester.pumpAndSettle();
     expect(find.text('Salary Guidelines (12 hrs/24 hrs duty)'), findsOneWidget);
 

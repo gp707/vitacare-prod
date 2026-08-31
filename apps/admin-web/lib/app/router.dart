@@ -10,6 +10,7 @@ import '../features/jobs/screens/admin_jobs_screen.dart';
 import '../features/app_versions/screens/app_versions_screen.dart';
 import '../features/login_settings/screens/login_settings_screen.dart';
 import '../features/rate_card/screens/rate_card_screen.dart';
+import '../features/scope_of_work/screens/scope_of_work_screen.dart';
 import '../features/individuals/screens/individuals_list_screen.dart';
 import '../features/individuals/screens/individual_detail_screen.dart';
 import '../features/organisations/screens/organisations_list_screen.dart';
@@ -33,6 +34,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/app-versions': (context) => const AppVersionsScreen(),
     '/login-settings': (context) => const LoginSettingsScreen(),
     '/rate-card': (context) => const RateCardScreen(),
+    '/scope-of-work': (context) => const ScopeOfWorkScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
     '/reports': (context) => const ReportsScreen(),

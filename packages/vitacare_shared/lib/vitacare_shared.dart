@@ -9,4 +9,6 @@ export 'models/display_id.dart';
 export 'models/job_model.dart';
 export 'models/organisation_requirement_model.dart';
 export 'models/rate_card_model.dart';
+export 'models/scope_of_work_model.dart';
+export 'models/care_tier.dart';
 export 'utils/validators.dart';

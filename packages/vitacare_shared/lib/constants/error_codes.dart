@@ -26,7 +26,6 @@ class ErrorCodes {
     'PROFILE_019': 'Caregiver profile not found',
     'PROFILE_020': 'Name must contain only alphabetic characters and spaces',
     'PROFILE_021': 'FCM token is required',
-    'PROFILE_022': 'Cannot mark yourself available from your current status',
 
     // Upload
     'UPLOAD_001': 'File is required',
@@ -68,6 +67,7 @@ class ErrorCodes {
     'ORG_001': 'End date cannot be before start date',
     'ORG_002': 'Weekday values must be between 1 (Monday) and 7 (Sunday)',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
+    'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
 
     // General
     'GEN_001': 'Invalid request body',

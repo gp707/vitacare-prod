@@ -9,7 +9,6 @@ describe('AuthService', () => {
   let usersRepo: any;
   let caregiverProfilesRepo: any;
   let caregiverLanguagesRepo: any;
-  let caregiverPreferredCitiesRepo: any;
   let individualProfilesRepo: any;
   let organisationProfilesRepo: any;
   let refreshTokensRepo: any;
@@ -34,7 +33,6 @@ describe('AuthService', () => {
     usersRepo = { findByPhoneAndRoles: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
     caregiverProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     caregiverLanguagesRepo = { createMany: jest.fn() };
-    caregiverPreferredCitiesRepo = { createMany: jest.fn() };
     individualProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     organisationProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     refreshTokensRepo = {
@@ -66,7 +64,6 @@ describe('AuthService', () => {
       usersRepo,
       caregiverProfilesRepo,
       caregiverLanguagesRepo,
-      caregiverPreferredCitiesRepo,
       individualProfilesRepo,
       organisationProfilesRepo,
       refreshTokensRepo,
@@ -141,48 +138,6 @@ describe('AuthService', () => {
           afterValue: expect.objectContaining({ religion: 'hindu' }),
         }),
       );
-    });
-
-    it('creates preferred cities when provided, skips when omitted', async () => {
-      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
-      const client = { query: jest.fn().mockResolvedValue({ rows: [baseUser] }) };
-      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
-      caregiverProfilesRepo.create.mockResolvedValue({
-        id: 'profile-1',
-        verification_status: VerificationStatus.PENDING_CALL,
-      });
-
-      await service.register({
-        phone: baseUser.phone,
-        full_name: 'Ramesh Kumar',
-        gender: 'male' as any,
-        age: 30,
-        languages: ['hindi'] as any,
-        religion: 'hindu' as any,
-        highest_qualification: 'rn_above_2_years' as any,
-        terms_accepted: true,
-        preferred_cities: ['bangalore', 'mumbai'] as any,
-        code: '1234',
-      });
-      expect(caregiverPreferredCitiesRepo.createMany).toHaveBeenCalledWith(
-        'profile-1',
-        ['bangalore', 'mumbai'],
-        client,
-      );
-
-      caregiverPreferredCitiesRepo.createMany.mockClear();
-      await service.register({
-        phone: baseUser.phone,
-        full_name: 'Ramesh Kumar',
-        gender: 'male' as any,
-        age: 30,
-        languages: ['hindi'] as any,
-        religion: 'hindu' as any,
-        highest_qualification: 'rn_above_2_years' as any,
-        terms_accepted: true,
-        code: '1234',
-      });
-      expect(caregiverPreferredCitiesRepo.createMany).not.toHaveBeenCalled();
     });
 
     it('hashes the code and stores it on the new user row (login code is set from registration onward)', async () => {

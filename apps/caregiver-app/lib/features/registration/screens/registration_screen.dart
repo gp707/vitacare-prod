@@ -50,8 +50,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String _gender = Gender.female;
   final List<String> _languages = [];
   String? _religion;
-  // Read-only, fixed to every city — see the Preferred City section below.
-  final List<String> _preferredCities = List<String>.from(City.all);
   String? _qualification;
   bool _termsAccepted = false;
   Uint8List? _selfieBytes;
@@ -285,7 +283,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         code: _otpMode ? null : _codeController.text.trim(),
         phoneVerificationToken: _otpMode ? _verificationToken : null,
         religion: _religion!,
-        preferredCities: _preferredCities.isEmpty ? null : _preferredCities,
         highestQualification: _qualification!,
         termsAccepted: _termsAccepted,
       );
@@ -447,25 +444,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   .map((r) => DropdownMenuItem(value: r, child: Text(Religion.displayNames[r] ?? r)))
                   .toList(),
               onChanged: (value) => setState(() => _religion = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Text('Preferred City', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            const Text(
-              "You're shown jobs in every city for now — this can't be narrowed at registration.",
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: City.all
-                  .map((city) => FilterChip(
-                        label: Text(City.displayNames[city] ?? city),
-                        selected: true,
-                        onSelected: null,
-                      ))
-                  .toList(),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

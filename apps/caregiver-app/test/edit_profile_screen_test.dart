@@ -46,20 +46,12 @@ class _FakeProfileRepository extends ProfileRepository {
     int? age,
     List<String>? languages,
     String? highestQualification,
-    List<String>? preferredCities,
-    List<String>? preferredDutyTypes,
-    int? minSalaryPerDay,
-    int? minSalaryPerMonth,
   }) async {
     editProfileCalled = true;
     captured = {
       'age': age,
       'languages': languages,
       'highestQualification': highestQualification,
-      'preferredCities': preferredCities,
-      'preferredDutyTypes': preferredDutyTypes,
-      'minSalaryPerDay': minSalaryPerDay,
-      'minSalaryPerMonth': minSalaryPerMonth,
     };
     return editProfileReturnStatus;
   }

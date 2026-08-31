@@ -35,7 +35,6 @@ class _FakeAuthRepository extends AuthRepository {
     required bool termsAccepted,
     String? code,
     String? phoneVerificationToken,
-    List<String>? preferredCities,
   }) async {
     registerCalled = true;
     capturedCode = code;
@@ -135,7 +134,7 @@ void main() {
     await tester.tap(find.text('Hindi'));
     await tester.pump();
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     expect(find.text("Set a 4-digit code — you'll use it with your phone to log in"), findsOneWidget);
@@ -147,7 +146,7 @@ void main() {
     await _pumpRegistration(tester, authRepo);
     await _fillUpToCode(tester);
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     expect(find.text('Select your religion'), findsOneWidget);
@@ -160,7 +159,7 @@ void main() {
     await _fillUpToCode(tester);
     await _selectReligion(tester);
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     expect(find.text('Select your highest qualification'), findsOneWidget);
@@ -174,7 +173,7 @@ void main() {
     await _selectReligion(tester);
     await _selectQualification(tester);
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     expect(find.text('Take a selfie to continue'), findsOneWidget);
@@ -186,7 +185,7 @@ void main() {
     await _pumpRegistration(tester, authRepo);
 
     await tester.enterText(find.widgetWithText(TextField, 'Full Name (Mandatory)'), 'Ramesh123');
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     expect(find.text('Enter a valid full name (letters and spaces only)'), findsOneWidget);
@@ -198,7 +197,7 @@ void main() {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.byType(ElevatedButton).first);
     await tester.pump();
 
     // Every mandatory field's error is shown simultaneously — not just the
@@ -249,19 +248,6 @@ void main() {
       openedUri,
       Uri.parse('https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0'),
     );
-  });
-
-  testWidgets('Preferred City shows every city selected and is not interactive', (tester) async {
-    final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo);
-
-    for (final city in City.all) {
-      final chip = tester.widget<FilterChip>(
-        find.widgetWithText(FilterChip, City.displayNames[city] ?? city),
-      );
-      expect(chip.selected, isTrue, reason: '$city should show as selected');
-      expect(chip.onSelected, isNull, reason: '$city should not be tappable');
-    }
   });
 
   group('OTP mode', () {

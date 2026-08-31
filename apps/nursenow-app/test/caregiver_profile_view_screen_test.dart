@@ -24,8 +24,6 @@ CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileMode
       'terms_accepted': true,
       'verification_status': 'assigned',
       'preferred_cities': ['bangalore'],
-      'preferred_duty_types': ['day_duty'],
-      'min_salary_per_day': 1500,
       'created_at': '2026-08-01T10:00:00Z',
     });
 
@@ -51,14 +49,16 @@ void main() {
     // assigned counts as verified too, not just available.
     expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
     expect(find.text('nita@example.com'), findsOneWidget);
-    // Aadhaar/qualification/other documents and job-search preferences are
-    // now shown in full, not trimmed.
+    // Aadhaar/qualification/other documents and preferred cities are shown
+    // in full, not trimmed. Job search preferences (duty type/min salary)
+    // were removed from the product entirely — only preferred cities
+    // remains, since admin-web still filters/displays it.
     expect(find.text('Aadhaar Card'), findsOneWidget);
     expect(find.text('Qualification Document'), findsOneWidget);
     expect(find.text('Other Document 1'), findsOneWidget);
     expect(find.text('View'), findsNWidgets(3));
+    expect(find.text('Preferred Cities'), findsOneWidget);
     expect(find.text('Bangalore'), findsOneWidget);
-    expect(find.textContaining('₹1500/day'), findsOneWidget);
   });
 
   testWidgets('shows a person icon placeholder when there is no selfie photo', (tester) async {

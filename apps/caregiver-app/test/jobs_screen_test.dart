@@ -8,10 +8,8 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/jobs_screen.dart';
-import 'package:caregiver_app/features/jobs/screens/job_preferences_screen.dart';
 import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
 import 'package:caregiver_app/features/organisation_openings/data/organisation_openings_repository.dart';
-import 'package:caregiver_app/features/profile/data/profile_repository.dart';
 
 // Same conversion the app applies (UTC -> local) so assertions don't
 // depend on the test machine's timezone.
@@ -141,39 +139,6 @@ class _FakeOrganisationOpeningsRepository extends OrganisationOpeningsRepository
     appliedWith = status;
     return status;
   }
-}
-
-class _FakeProfileRepository extends ProfileRepository {
-  _FakeProfileRepository() : super(Dio());
-
-  @override
-  Future<CaregiverProfileModel> getProfile() async => CaregiverProfileModel.fromJson({
-        'user_id': 'u1',
-        'profile_id': 'p1',
-        'full_name': 'Test Caregiver',
-        'phone': '+919876543210',
-        'gender': 'male',
-        'age': 30,
-        'languages': ['hindi'],
-        'other_document_urls': [],
-        'terms_accepted': true,
-        'verification_status': 'available',
-        'created_at': '2026-08-01T10:00:00Z',
-        'preferred_cities': [],
-        'preferred_duty_types': [],
-      });
-
-  @override
-  Future<String> editProfile({
-    int? age,
-    List<String>? languages,
-    String? highestQualification,
-    List<String>? preferredCities,
-    List<String>? preferredDutyTypes,
-    int? minSalaryPerDay,
-    int? minSalaryPerMonth,
-  }) async =>
-      'available';
 }
 
 Future<void> _pump(
@@ -939,24 +904,6 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsNothing);
     expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsNothing);
   });
-
-  testWidgets('tapping the gear icon opens Job Search Preferences', (tester) async {
-    await _pump(
-      tester,
-      _FakeJobsRepository([_job()]),
-      extraOverrides: [profileRepositoryProvider.overrideWithValue(_FakeProfileRepository())],
-    );
-
-    await tester.tap(find.byIcon(Icons.tune));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(JobPreferencesScreen), findsOneWidget);
-    expect(find.text('Job Search Preferences'), findsOneWidget);
-  });
-
-  // "reloads the job list after saving preferences" was removed —
-  // JobPreferencesScreen is temporarily read-only (no Save button, nothing
-  // to save), see job_preferences_screen_test.dart for coverage of that.
 
   // --- Merged organisation requirements ---
 

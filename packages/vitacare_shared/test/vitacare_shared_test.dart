@@ -130,4 +130,134 @@ void main() {
       );
     });
   });
+
+  group('ScopeOfWorkModel', () {
+    final scopeOfWork = ScopeOfWorkModel(
+      companionCare: ['Emotional companionship', 'Walking & mobility support'],
+      bedsideCare: ['Diaper changing & hygiene care', 'Feeding assistance'],
+      criticalCare: ['Catheter care', 'Vitals monitoring'],
+    );
+
+    test('bulletsFor companionCare returns only the companion bullets', () {
+      expect(scopeOfWork.bulletsFor(CareTier.companionCare), scopeOfWork.companionCare);
+    });
+
+    test('bulletsFor bedsideCare stacks companion + bedside', () {
+      expect(
+        scopeOfWork.bulletsFor(CareTier.bedsideCare),
+        [...scopeOfWork.companionCare, ...scopeOfWork.bedsideCare],
+      );
+    });
+
+    test('bulletsFor criticalCare stacks all 3 tiers', () {
+      expect(
+        scopeOfWork.bulletsFor(CareTier.criticalCare),
+        [...scopeOfWork.companionCare, ...scopeOfWork.bedsideCare, ...scopeOfWork.criticalCare],
+      );
+    });
+  });
+
+  group('deriveCareTier', () {
+    CareReceiverModel careReceiver({
+      String feedingType = FeedingType.oralIndependent,
+      bool hasMedicalCondition = false,
+      List<String> medicalConditions = const [],
+      List<String> toiletAssistance = const [ToiletAssistance.independent],
+      bool requiresVitalMonitoring = false,
+    }) =>
+        CareReceiverModel(
+          id: 'cr-1',
+          age: 70,
+          gender: 'male',
+          weightKg: 60,
+          communication: Communication.verbal,
+          feedingType: feedingType,
+          hasMedicalCondition: hasMedicalCondition,
+          medicalConditions: medicalConditions,
+          toiletAssistance: toiletAssistance,
+          requiresVitalMonitoring: requiresVitalMonitoring,
+          vitalMonitoringTypes: const [],
+        );
+
+    test('an independent patient with no medical needs derives to companionCare', () {
+      expect(deriveCareTier(careReceiver()), CareTier.companionCare);
+    });
+
+    test('diaper assistance derives to bedsideCare', () {
+      expect(
+        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.usesDiapers])),
+        CareTier.bedsideCare,
+      );
+    });
+
+    test('bed pan assistance derives to bedsideCare', () {
+      expect(
+        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.usesBedPan])),
+        CareTier.bedsideCare,
+      );
+    });
+
+    test('feeding assistance derives to bedsideCare', () {
+      expect(
+        deriveCareTier(careReceiver(feedingType: FeedingType.oralNeedsAssistance)),
+        CareTier.bedsideCare,
+      );
+    });
+
+    test('any other medical condition derives to bedsideCare', () {
+      expect(
+        deriveCareTier(careReceiver(hasMedicalCondition: true, medicalConditions: const [MedicalCondition.diabetes])),
+        CareTier.bedsideCare,
+      );
+    });
+
+    test('catheter use derives to criticalCare', () {
+      expect(
+        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.usesCatheter])),
+        CareTier.criticalCare,
+      );
+    });
+
+    test('tube feeding derives to criticalCare', () {
+      expect(deriveCareTier(careReceiver(feedingType: FeedingType.tubeFeeding)), CareTier.criticalCare);
+    });
+
+    test('oral and tube feeding derives to criticalCare', () {
+      expect(deriveCareTier(careReceiver(feedingType: FeedingType.oralAndTube)), CareTier.criticalCare);
+    });
+
+    test('requiring vital monitoring derives to criticalCare', () {
+      expect(deriveCareTier(careReceiver(requiresVitalMonitoring: true)), CareTier.criticalCare);
+    });
+
+    test('insulin administration support derives to criticalCare', () {
+      expect(
+        deriveCareTier(careReceiver(
+          hasMedicalCondition: true,
+          medicalConditions: const [MedicalCondition.insulinAdministrationSupport],
+        )),
+        CareTier.criticalCare,
+      );
+    });
+
+    test('oxygen support derives to criticalCare', () {
+      expect(
+        deriveCareTier(
+          careReceiver(hasMedicalCondition: true, medicalConditions: const [MedicalCondition.oxygenSupport]),
+        ),
+        CareTier.criticalCare,
+      );
+    });
+
+    test('critical-tier needs win even when bedside-tier needs are also present', () {
+      expect(
+        deriveCareTier(careReceiver(
+          toiletAssistance: const [ToiletAssistance.usesDiapers, ToiletAssistance.usesCatheter],
+          feedingType: FeedingType.oralNeedsAssistance,
+          requiresVitalMonitoring: true,
+        )),
+        CareTier.criticalCare,
+      );
+    });
+  });
 }

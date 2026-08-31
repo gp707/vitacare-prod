@@ -10,8 +10,6 @@ export interface CaregiverProfileRecord {
   gender: Gender;
   age: number;
   verification_status: VerificationStatus;
-  min_salary_per_day: number | null;
-  min_salary_per_month: number | null;
 }
 
 export interface CaregiverProfileFullRecord {
@@ -36,8 +34,6 @@ export interface CaregiverProfileFullRecord {
   rejection_message: string | null;
   has_pending_edits: boolean;
   verified_at: Date | null;
-  min_salary_per_day: number | null;
-  min_salary_per_month: number | null;
   created_at: Date;
 }
 
@@ -63,15 +59,10 @@ export interface AdminUpdateProfileInput {
  *  touches verification_status directly (callers handle the
  *  rejected -> pending_call auto-resubmit transition separately).
  *  full_name, gender, and religion are intentionally absent — locked from
- *  self-edit once set at registration; only admins can change them.
- *  min_salary_per_day/min_salary_per_month are job-search preferences, not
- *  profile facts — same partial-write mechanics as age/highest_qualification
- *  even though they're conceptually different. */
+ *  self-edit once set at registration; only admins can change them. */
 export interface EditProfileInput {
   age?: number;
   highest_qualification?: Qualification;
-  min_salary_per_day?: number | null;
-  min_salary_per_month?: number | null;
 }
 
 const FULL_PROFILE_COLUMNS = `
@@ -80,8 +71,7 @@ const FULL_PROFILE_COLUMNS = `
   cp.aadhaar_document_url, cp.other_document_urls, cp.religion,
   cp.terms_accepted,
   cp.verification_status, cp.rejection_message,
-  cp.has_pending_edits, cp.verified_at,
-  cp.min_salary_per_day, cp.min_salary_per_month, cp.created_at
+  cp.has_pending_edits, cp.verified_at, cp.created_at
 `;
 
 @Injectable()
@@ -96,7 +86,7 @@ export class CaregiverProfilesRepository {
     const result = await runner.query<CaregiverProfileRecord>(
       `INSERT INTO caregiver_profiles (user_id, gender, age, religion, highest_qualification, terms_accepted)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, user_id, caregiver_number, gender, age, verification_status, min_salary_per_day, min_salary_per_month`,
+       RETURNING id, user_id, caregiver_number, gender, age, verification_status`,
       [
         input.user_id,
         input.gender,
@@ -111,7 +101,7 @@ export class CaregiverProfilesRepository {
 
   async findByUserId(userId: string): Promise<CaregiverProfileRecord | null> {
     const result = await this.db.query<CaregiverProfileRecord>(
-      `SELECT id, user_id, caregiver_number, gender, age, verification_status, min_salary_per_day, min_salary_per_month
+      `SELECT id, user_id, caregiver_number, gender, age, verification_status
        FROM caregiver_profiles WHERE user_id = $1`,
       [userId],
     );

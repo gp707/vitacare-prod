@@ -8,7 +8,6 @@ import {
 } from '../database/repositories/caregiver-profiles.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
-import { CaregiverPreferredDutyTypesRepository } from '../database/repositories/caregiver-preferred-duty-types.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
@@ -35,7 +34,6 @@ export class CaregiverService {
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly languagesRepo: CaregiverLanguagesRepository,
     private readonly preferredCitiesRepo: CaregiverPreferredCitiesRepository,
-    private readonly preferredDutyTypesRepo: CaregiverPreferredDutyTypesRepository,
     private readonly uploadService: UploadService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
@@ -43,10 +41,9 @@ export class CaregiverService {
 
   async getProfile(userId: string) {
     const profile = await this.requireFullProfile(userId);
-    const [languages, preferredCities, preferredDutyTypes] = await Promise.all([
+    const [languages, preferredCities] = await Promise.all([
       this.languagesRepo.findByProfileId(profile.id),
       this.preferredCitiesRepo.findByProfileId(profile.id),
-      this.preferredDutyTypesRepo.findByProfileId(profile.id),
     ]);
 
     const [selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] = await Promise.all([
@@ -83,9 +80,6 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       preferred_cities: preferredCities,
-      preferred_duty_types: preferredDutyTypes,
-      min_salary_per_day: profile.min_salary_per_day,
-      min_salary_per_month: profile.min_salary_per_month,
       created_at: profile.created_at,
     };
   }
@@ -93,8 +87,8 @@ export class CaregiverService {
   /** The profile shown to an individual/organisation reviewing a caregiver
    *  who applied to their job/requirement — the full profile, same shape
    *  as getProfile()/admin's own caregiver detail, including email,
-   *  signed Aadhaar/qualification/other-document URLs, and job-search
-   *  preferences. Callers (IndividualService/OrganisationRequirementsService)
+   *  signed Aadhaar/qualification/other-document URLs, and preferred
+   *  cities. Callers (IndividualService/OrganisationRequirementsService)
    *  do their own job/requirement + application ownership check before
    *  calling this — this method itself doesn't know who's asking, but
    *  every caller is already scoped to "this caregiver applied to my own
@@ -102,10 +96,9 @@ export class CaregiverService {
   async getApplicantProfile(profileId: string) {
     const profile = await this.profilesRepo.findFullById(profileId);
     if (!profile) throw new AppException('GEN_002');
-    const [languages, preferredCities, preferredDutyTypes] = await Promise.all([
+    const [languages, preferredCities] = await Promise.all([
       this.languagesRepo.findByProfileId(profile.id),
       this.preferredCitiesRepo.findByProfileId(profile.id),
-      this.preferredDutyTypesRepo.findByProfileId(profile.id),
     ]);
 
     const [selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] = await Promise.all([
@@ -142,18 +135,15 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       preferred_cities: preferredCities,
-      preferred_duty_types: preferredDutyTypes,
-      min_salary_per_day: profile.min_salary_per_day,
-      min_salary_per_month: profile.min_salary_per_month,
       created_at: profile.created_at,
     };
   }
 
   /** Single self-edit endpoint for every caregiver-editable field — age,
-   *  languages, highest_qualification, preferred_cities. full_name, gender,
-   *  and religion are intentionally absent — locked from self-edit once set
-   *  at registration; only admins can change them (see update-phone.dto.ts
-   *  and update-code.dto.ts for the identity-sensitive fields that live on
+   *  languages, highest_qualification. full_name, gender, and religion are
+   *  intentionally absent — locked from self-edit once set at registration;
+   *  only admins can change them (see update-phone.dto.ts and
+   *  update-code.dto.ts for the identity-sensitive fields that live on
    *  their own endpoints, each with different review-trigger semantics).
    *  Any subset of fields — only what's provided gets written/diffed.
    *  While rejected, any actual change here auto-resubmits (sends the
@@ -176,20 +166,6 @@ export class CaregiverService {
       before.highest_qualification = profile.highest_qualification;
       after.highest_qualification = dto.highest_qualification;
     }
-    if (
-      dto.min_salary_per_day !== undefined &&
-      dto.min_salary_per_day !== profile.min_salary_per_day
-    ) {
-      before.min_salary_per_day = profile.min_salary_per_day;
-      after.min_salary_per_day = dto.min_salary_per_day;
-    }
-    if (
-      dto.min_salary_per_month !== undefined &&
-      dto.min_salary_per_month !== profile.min_salary_per_month
-    ) {
-      before.min_salary_per_month = profile.min_salary_per_month;
-      after.min_salary_per_month = dto.min_salary_per_month;
-    }
 
     let languagesChanged = false;
     if (dto.languages !== undefined) {
@@ -203,62 +179,22 @@ export class CaregiverService {
       }
     }
 
-    let citiesChanged = false;
-    if (dto.preferred_cities !== undefined) {
-      const previousCities = await this.preferredCitiesRepo.findByProfileId(profile.id);
-      const prevSorted = [...previousCities].sort();
-      const nextSorted = [...dto.preferred_cities].sort();
-      if (prevSorted.join(',') !== nextSorted.join(',')) {
-        before.preferred_cities = prevSorted;
-        after.preferred_cities = nextSorted;
-        citiesChanged = true;
-      }
-    }
-
-    let dutyTypesChanged = false;
-    if (dto.preferred_duty_types !== undefined) {
-      const previousDutyTypes = await this.preferredDutyTypesRepo.findByProfileId(profile.id);
-      const prevSorted = [...previousDutyTypes].sort();
-      const nextSorted = [...dto.preferred_duty_types].sort();
-      if (prevSorted.join(',') !== nextSorted.join(',')) {
-        before.preferred_duty_types = prevSorted;
-        after.preferred_duty_types = nextSorted;
-        dutyTypesChanged = true;
-      }
-    }
-
-    const scalarFieldsChanged = Object.keys(after).some(
-      (field) =>
-        field !== 'preferred_cities' && field !== 'languages' && field !== 'preferred_duty_types',
-    );
-    const anyChanged = scalarFieldsChanged || languagesChanged || citiesChanged || dutyTypesChanged;
+    const scalarFieldsChanged = Object.keys(after).some((field) => field !== 'languages');
+    const anyChanged = scalarFieldsChanged || languagesChanged;
 
     await this.db.withTransaction(async (client) => {
       if (scalarFieldsChanged) {
         await this.profilesRepo.editFields(profile.id, {
           age: dto.age,
           highest_qualification: dto.highest_qualification,
-          min_salary_per_day: dto.min_salary_per_day,
-          min_salary_per_month: dto.min_salary_per_month,
         });
       } else if (anyChanged) {
-        // languages/preferred_cities/preferred_duty_types-only change —
-        // editFields would be a no-op for an all-undefined input, so flag
-        // explicitly instead.
+        // languages-only change — editFields would be a no-op for an
+        // all-undefined input, so flag explicitly instead.
         await this.profilesRepo.flagPendingEdits(profile.id);
       }
       if (languagesChanged) {
         await this.languagesRepo.replaceForProfile(profile.id, dto.languages!, client);
-      }
-      if (citiesChanged) {
-        await this.preferredCitiesRepo.replaceForProfile(profile.id, dto.preferred_cities!, client);
-      }
-      if (dutyTypesChanged) {
-        await this.preferredDutyTypesRepo.replaceForProfile(
-          profile.id,
-          dto.preferred_duty_types!,
-          client,
-        );
       }
     });
 
@@ -423,46 +359,6 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       verified_at: profile.verified_at,
-    };
-  }
-
-  /** One-click self-service "I'm available" — allowed from unavailable or
-   *  assigned only. From pending_call/rejected, PROFILE_022 (the caregiver
-   *  must instead edit their profile, which auto-resubmits while rejected —
-   *  there's no self-service path out of pending_call at all). Already
-   *  available is a no-op (no write, no audit entry), so the UI can just
-   *  show "you're already available" without a failed request. */
-  async markAvailable(userId: string, ipAddress: string | null) {
-    const profile = await this.requireFullProfile(userId);
-
-    if (profile.verification_status === 'available') {
-      return {
-        message: 'You are already marked as available',
-        verification_status: 'available' as const,
-        already_available: true,
-      };
-    }
-
-    if (profile.verification_status !== 'unavailable' && profile.verification_status !== 'assigned') {
-      throw new AppException('PROFILE_022');
-    }
-
-    await this.profilesRepo.markAvailable(profile.id);
-
-    await this.auditService.log({
-      userId,
-      action: AuditAction.STATUS_CHANGED,
-      entityType: 'caregiver_profiles',
-      entityId: profile.id,
-      beforeValue: { verification_status: profile.verification_status },
-      afterValue: { verification_status: 'available' },
-      ipAddress,
-    });
-
-    return {
-      message: 'Status updated',
-      verification_status: 'available' as const,
-      already_available: false,
     };
   }
 

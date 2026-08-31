@@ -13,9 +13,8 @@ class AuthRepository {
   /// [religion] and [highestQualification] are set once here — religion is
   /// locked from self-edit afterward (admin-only past this point);
   /// highestQualification remains self-editable later via
-  /// ProfileRepository.editProfile. [preferredCities] also remains
-  /// self-editable later. There is no separate "Advanced Details" step
-  /// anymore — everything is collected in this one registration.
+  /// ProfileRepository.editProfile. There is no separate "Advanced Details"
+  /// step anymore — everything is collected in this one registration.
   ///
   /// [code] and [phoneVerificationToken] are mutually exclusive — exactly
   /// one is required depending on whether OTP mode is enabled for this app
@@ -34,7 +33,6 @@ class AuthRepository {
     required bool termsAccepted,
     String? code,
     String? phoneVerificationToken,
-    List<String>? preferredCities,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.register, data: {
@@ -48,7 +46,6 @@ class AuthRepository {
         'terms_accepted': termsAccepted,
         if (code != null) 'code': code,
         if (phoneVerificationToken != null) 'phone_verification_token': phoneVerificationToken,
-        if (preferredCities != null) 'preferred_cities': preferredCities,
       });
       return AuthResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

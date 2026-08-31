@@ -21,18 +21,6 @@ class VerificationStatusResult {
       );
 }
 
-class MarkAvailableResult {
-  final String verificationStatus;
-  final bool alreadyAvailable;
-
-  const MarkAvailableResult({required this.verificationStatus, required this.alreadyAvailable});
-
-  factory MarkAvailableResult.fromJson(Map<String, dynamic> json) => MarkAvailableResult(
-        verificationStatus: json['verification_status'] as String,
-        alreadyAvailable: json['already_available'] as bool,
-      );
-}
-
 class ProfileRepository {
   final Dio _dio;
 
@@ -77,20 +65,12 @@ class ProfileRepository {
     int? age,
     List<String>? languages,
     String? highestQualification,
-    List<String>? preferredCities,
-    List<String>? preferredDutyTypes,
-    int? minSalaryPerDay,
-    int? minSalaryPerMonth,
   }) async {
     try {
       final res = await _dio.patch(ApiRoutes.caregiverProfile, data: {
         if (age != null) 'age': age,
         if (languages != null) 'languages': languages,
         if (highestQualification != null) 'highest_qualification': highestQualification,
-        if (preferredCities != null) 'preferred_cities': preferredCities,
-        if (preferredDutyTypes != null) 'preferred_duty_types': preferredDutyTypes,
-        if (minSalaryPerDay != null) 'min_salary_per_day': minSalaryPerDay,
-        if (minSalaryPerMonth != null) 'min_salary_per_month': minSalaryPerMonth,
       });
       return res.data['data']['verification_status'] as String;
     } on DioException catch (e) {
@@ -119,20 +99,6 @@ class ProfileRepository {
         'file': MultipartFile.fromBytes(bytes, filename: filename),
       });
       await _dio.post(ApiRoutes.caregiverProfileDocuments, data: formData);
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// One-click "Mark Available" — allowed from unavailable or assigned
-  /// only (PROFILE_022 from pending_call/rejected). Already available is a
-  /// no-op server-side (already_available: true, no error thrown) so the
-  /// UI can show "you're already available" without treating it as a
-  /// failure.
-  Future<MarkAvailableResult> markAvailable() async {
-    try {
-      final res = await _dio.post(ApiRoutes.caregiverMarkAvailable);
-      return MarkAvailableResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

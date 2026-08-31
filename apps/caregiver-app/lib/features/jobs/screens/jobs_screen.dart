@@ -9,7 +9,6 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
-import 'job_preferences_screen.dart';
 
 /// Unified list of active postings — admin/individual jobs AND organisation
 /// (hospital/rehab/clinic) requirements shown together, sorted by post
@@ -66,13 +65,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<void> _openJobPreferences() async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const JobPreferencesScreen()),
-    );
-    if (saved == true) await _load();
   }
 
   Future<void> _applyToJob(JobModel job, String status) async {
@@ -210,19 +202,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       appBar: AppBar(
         title: const Text('Jobs'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.tune, size: 20),
-            tooltip: 'Job Search Preferences',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            visualDensity: VisualDensity.compact,
-            onPressed: _openJobPreferences,
-          ),
           const RateCardButton(),
           const WhatsAppHelpButton(),
           TextButton(
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -232,7 +216,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               });
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
           ),
         ],
       ),

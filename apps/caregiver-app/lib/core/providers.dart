@@ -6,6 +6,7 @@ import 'fcm/fcm_service.dart';
 import 'version/app_version_repository.dart';
 import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
+import 'scope_of_work/scope_of_work_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
@@ -50,6 +51,10 @@ final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {
 
 final rateCardRepositoryProvider = Provider<RateCardRepository>((ref) {
   return RateCardRepository(ref.watch(apiClientProvider).dio);
+});
+
+final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
+  return ScopeOfWorkRepository(ref.watch(apiClientProvider).dio);
 });
 
 /// Whether OTP mode is enabled for this app (nursejobs) — set once at

@@ -11,7 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { City, Gender, Language, Qualification, Religion, Validation } from '@vitacare/shared-constants';
+import { Gender, Language, Qualification, Religion, Validation } from '@vitacare/shared-constants';
 
 export class RegisterDto {
   @Matches(Validation.PHONE_REGEX, { message: 'PROFILE_007' })
@@ -36,11 +36,6 @@ export class RegisterDto {
 
   @IsIn(Object.values(Religion), { message: 'PROFILE_010' })
   religion!: Religion;
-
-  @IsOptional()
-  @IsArray({ message: 'GEN_001' })
-  @IsIn(Object.values(City), { each: true, message: 'GEN_001' })
-  preferred_cities?: City[];
 
   @IsIn(Object.values(Qualification), { message: 'PROFILE_018' })
   highest_qualification!: Qualification;

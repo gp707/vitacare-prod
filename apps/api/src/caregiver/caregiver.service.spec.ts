@@ -8,7 +8,6 @@ describe('CaregiverService', () => {
   let profilesRepo: any;
   let languagesRepo: any;
   let preferredCitiesRepo: any;
-  let preferredDutyTypesRepo: any;
   let uploadService: any;
   let emailService: any;
   let auditService: any;
@@ -32,8 +31,6 @@ describe('CaregiverService', () => {
     rejection_message: null,
     has_pending_edits: false,
     verified_at: null,
-    min_salary_per_day: null,
-    min_salary_per_month: null,
     created_at: new Date(),
   };
 
@@ -59,14 +56,9 @@ describe('CaregiverService', () => {
       setAadhaarDocumentUrl: jest.fn(),
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
-      markAvailable: jest.fn(),
     };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
     preferredCitiesRepo = {
-      findByProfileId: jest.fn().mockResolvedValue([]),
-      replaceForProfile: jest.fn(),
-    };
-    preferredDutyTypesRepo = {
       findByProfileId: jest.fn().mockResolvedValue([]),
       replaceForProfile: jest.fn(),
     };
@@ -85,7 +77,6 @@ describe('CaregiverService', () => {
       profilesRepo,
       languagesRepo,
       preferredCitiesRepo,
-      preferredDutyTypesRepo,
       uploadService,
       emailService,
       auditService,
@@ -106,26 +97,12 @@ describe('CaregiverService', () => {
       uploadService.getSignedUrlOrNull.mockResolvedValueOnce('https://signed/selfie');
       languagesRepo.findByProfileId.mockResolvedValue(['hindi', 'english']);
       preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore', 'mumbai']);
-      preferredDutyTypesRepo.findByProfileId.mockResolvedValue(['day_duty']);
 
       const result = await service.getProfile('user-1');
       expect(result.selfie_photo_url).toBe('https://signed/selfie');
       expect(result.languages).toEqual(['hindi', 'english']);
       expect(result.preferred_cities).toEqual(['bangalore', 'mumbai']);
-      expect(result.preferred_duty_types).toEqual(['day_duty']);
       expect(result.verification_status).toBe('pending_call');
-    });
-
-    it('includes min_salary_per_day/min_salary_per_month in the response', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        min_salary_per_day: 1500,
-        min_salary_per_month: null,
-      });
-
-      const result = await service.getProfile('user-1');
-      expect(result.min_salary_per_day).toBe(1500);
-      expect(result.min_salary_per_month).toBeNull();
     });
   });
 
@@ -135,7 +112,7 @@ describe('CaregiverService', () => {
       await expect(service.getApplicantProfile('profile-1')).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
-    it('returns the full profile — email, document URLs, job-search preferences, and rejection_message all included', async () => {
+    it('returns the full profile — email, document URLs, preferred cities, and rejection_message all included', async () => {
       profilesRepo.findFullById.mockResolvedValue({
         ...fullProfile,
         email: 'nita@example.com',
@@ -151,7 +128,6 @@ describe('CaregiverService', () => {
       uploadService.getSignedUrl.mockImplementation(async (_bucket: string, path: string) => `https://signed/${path}`);
       languagesRepo.findByProfileId.mockResolvedValue(['hindi']);
       preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore']);
-      preferredDutyTypesRepo.findByProfileId.mockResolvedValue(['day_duty']);
 
       const result = await service.getApplicantProfile('profile-1');
       expect(result.selfie_photo_url).toBe('https://signed/profile-1/selfie.jpg');
@@ -163,7 +139,6 @@ describe('CaregiverService', () => {
       expect(result.other_document_urls).toEqual(['https://signed/profile-1/other.pdf']);
       expect(result.rejection_message).toBe('stale');
       expect(result.preferred_cities).toEqual(['bangalore']);
-      expect(result.preferred_duty_types).toEqual(['day_duty']);
     });
   });
 
@@ -201,86 +176,6 @@ describe('CaregiverService', () => {
       expect(usersRepo.updateFullName).not.toHaveBeenCalled();
     });
 
-    it('writes min_salary_per_day/min_salary_per_month via editFields, without changing verification_status when not rejected', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        min_salary_per_day: null,
-        min_salary_per_month: null,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-
-      const result = await service.editProfile('user-1', {
-        min_salary_per_day: 1500,
-        min_salary_per_month: 25000,
-      });
-
-      expect(profilesRepo.editFields).toHaveBeenCalledWith('profile-1', {
-        age: undefined,
-        highest_qualification: undefined,
-        min_salary_per_day: 1500,
-        min_salary_per_month: 25000,
-      });
-      expect(profilesRepo.markForReReview).not.toHaveBeenCalled();
-      expect(result.verification_status).toBe('available');
-    });
-
-    it('replaces preferred_duty_types and flags pending edits even when no scalar field changed', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      preferredDutyTypesRepo.findByProfileId.mockResolvedValue(['live_in']);
-
-      const result = await service.editProfile('user-1', {
-        preferred_duty_types: ['day_duty', 'night_duty'] as any,
-      });
-
-      expect(preferredDutyTypesRepo.replaceForProfile).toHaveBeenCalledWith(
-        'profile-1',
-        ['day_duty', 'night_duty'],
-        expect.anything(),
-      );
-      expect(profilesRepo.editFields).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).toHaveBeenCalledWith('profile-1');
-      expect(result).toEqual({
-        message: 'Profile updated',
-        has_pending_edits: true,
-        verification_status: 'available',
-      });
-    });
-
-    it('does not replace preferred_duty_types when the (order-insensitive) set is unchanged', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      preferredDutyTypesRepo.findByProfileId.mockResolvedValue(['day_duty', 'night_duty']);
-
-      await service.editProfile('user-1', {
-        preferred_duty_types: ['night_duty', 'day_duty'] as any,
-      });
-
-      expect(preferredDutyTypesRepo.replaceForProfile).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
-    });
-
-    it('clearing preferred_duty_types to an empty array is a real change when one was previously set', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      preferredDutyTypesRepo.findByProfileId.mockResolvedValue(['live_in']);
-
-      await service.editProfile('user-1', { preferred_duty_types: [] as any });
-
-      expect(preferredDutyTypesRepo.replaceForProfile).toHaveBeenCalledWith(
-        'profile-1',
-        [],
-        expect.anything(),
-      );
-    });
-
     it('replaces languages when provided and different', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
@@ -297,37 +192,6 @@ describe('CaregiverService', () => {
       );
     });
 
-    it('replaces preferred_cities and flags pending edits even when no scalar field changed', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore']);
-
-      const result = await service.editProfile('user-1', {
-        preferred_cities: ['mumbai', 'pune'] as any,
-      });
-
-      expect(preferredCitiesRepo.replaceForProfile).toHaveBeenCalledWith(
-        'profile-1',
-        ['mumbai', 'pune'],
-        expect.anything(),
-      );
-      expect(profilesRepo.editFields).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).toHaveBeenCalledWith('profile-1');
-      expect(result).toEqual({
-        message: 'Profile updated',
-        has_pending_edits: true,
-        verification_status: 'available',
-      });
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          beforeValue: { preferred_cities: ['bangalore'] },
-          afterValue: { preferred_cities: ['mumbai', 'pune'] },
-        }),
-      );
-    });
-
     it('does not write or email/audit-log when nothing actually changed', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue({
         ...fullProfile,
@@ -339,20 +203,6 @@ describe('CaregiverService', () => {
 
       expect(profilesRepo.editFields).not.toHaveBeenCalled();
       expect(emailService.sendToAdmin).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
-    });
-
-    it('does not replace preferred_cities when the (order-insensitive) set is unchanged', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      preferredCitiesRepo.findByProfileId.mockResolvedValue(['bangalore', 'mumbai']);
-
-      await service.editProfile('user-1', { preferred_cities: ['mumbai', 'bangalore'] as any });
-
-      expect(preferredCitiesRepo.replaceForProfile).not.toHaveBeenCalled();
-      expect(profilesRepo.flagPendingEdits).not.toHaveBeenCalled();
       expect(auditService.log).not.toHaveBeenCalled();
     });
 
@@ -611,86 +461,6 @@ describe('CaregiverService', () => {
         rejection_message: 'Aadhaar unclear',
         verified_at: null,
       });
-    });
-  });
-
-  describe('markAvailable', () => {
-    it('throws PROFILE_019 when no profile exists', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue(null);
-      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
-        code: 'PROFILE_019',
-      });
-    });
-
-    it('throws PROFILE_022 from pending_call', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.PENDING_CALL,
-      });
-      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
-        code: 'PROFILE_022',
-      });
-      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
-    });
-
-    it('throws PROFILE_022 from rejected', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.REJECTED,
-      });
-      await expect(service.markAvailable('user-1', null)).rejects.toMatchObject({
-        code: 'PROFILE_022',
-      });
-      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
-    });
-
-    it('is a no-op (no write, no audit log) when already available', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.AVAILABLE,
-      });
-      const result = await service.markAvailable('user-1', null);
-      expect(result).toEqual({
-        message: 'You are already marked as available',
-        verification_status: 'available',
-        already_available: true,
-      });
-      expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
-    });
-
-    it('updates from unavailable to available and audit-logs it', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.UNAVAILABLE,
-      });
-      const result = await service.markAvailable('user-1', '127.0.0.1');
-      expect(profilesRepo.markAvailable).toHaveBeenCalledWith('profile-1');
-      expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'user-1',
-          action: 'status_changed',
-          entityId: 'profile-1',
-          beforeValue: { verification_status: 'unavailable' },
-          afterValue: { verification_status: 'available' },
-          ipAddress: '127.0.0.1',
-        }),
-      );
-      expect(result).toEqual({
-        message: 'Status updated',
-        verification_status: 'available',
-        already_available: false,
-      });
-    });
-
-    it('updates from assigned to available — self-service unassign, only the caregiver status changes', async () => {
-      profilesRepo.findFullByUserId.mockResolvedValue({
-        ...fullProfile,
-        verification_status: VerificationStatus.ASSIGNED,
-      });
-      const result = await service.markAvailable('user-1', null);
-      expect(profilesRepo.markAvailable).toHaveBeenCalledWith('profile-1');
-      expect(result.verification_status).toBe('available');
     });
   });
 

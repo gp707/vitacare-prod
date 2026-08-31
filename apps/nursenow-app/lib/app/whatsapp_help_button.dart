@@ -38,18 +38,28 @@ class WhatsAppHelpButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Filled red pill, not just colored text — plain text on the AppBar
     // was easy for a senior citizen to miss; a solid, high-contrast button
-    // is much easier to spot at a glance.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      child: ElevatedButton.icon(
-        onPressed: () => _open(context),
-        icon: const Icon(Icons.phone_in_talk, size: 18),
-        label: const Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.error,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
+    // is much easier to spot at a glance. Built from ElevatedButton (not
+    // ElevatedButton.icon, which forces an 8px icon-label gap) with a
+    // hand-built Row so the gap can shrink to fit alongside RateCardButton
+    // in this AppBar's tight budget.
+    return ElevatedButton(
+      onPressed: () => _open(context),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.error,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.phone_in_talk, size: 14),
+          SizedBox(width: 1),
+          Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        ],
       ),
     );
   }

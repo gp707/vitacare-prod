@@ -27,6 +27,7 @@ const _restorableRoutes = {
   '/reports',
   '/login-settings',
   '/rate-card',
+  '/scope-of-work',
 };
 
 /// Checks for a stored session and redirects to /login, or back to

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/scope_of_work_button.dart';
 
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -200,6 +201,13 @@ class _JobDetailCardState extends State<JobDetailCard> {
             ],
           ),
         ),
+        if (job.careReceiver != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ScopeOfWorkButton(careReceiver: job.careReceiver!),
+          ),
+        ],
         if (_expanded) ...[
           if (job.careReceiver != null) ...[
             const SizedBox(height: AppSpacing.md),

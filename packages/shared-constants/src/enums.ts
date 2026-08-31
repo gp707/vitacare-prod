@@ -179,6 +179,7 @@ export const AuditAction = {
   ORG_REQUIREMENT_APPLICATION_DECIDED: 'org_requirement_application_decided',
   OTP_SETTING_UPDATED: 'otp_setting_updated',
   RATE_CARD_UPDATED: 'rate_card_updated',
+  SCOPE_OF_WORK_UPDATED: 'scope_of_work_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
