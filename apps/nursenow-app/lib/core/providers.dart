@@ -4,6 +4,7 @@ import 'network/api_client.dart';
 import 'storage/local_storage.dart';
 import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
+import 'scope_of_work/scope_of_work_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/individual/data/individual_repository.dart';
 import '../features/organisation/data/organisation_repository.dart';
@@ -35,6 +36,10 @@ final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {
 
 final rateCardRepositoryProvider = Provider<RateCardRepository>((ref) {
   return RateCardRepository(ref.watch(apiClientProvider).dio);
+});
+
+final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
+  return ScopeOfWorkRepository(ref.watch(apiClientProvider).dio);
 });
 
 /// Whether OTP mode is enabled for this app (nursenow) — set once at splash

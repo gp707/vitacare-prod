@@ -39,7 +39,7 @@ class PendingCallScreen extends ConsumerWidget {
             const WhatsAppHelpButton(),
             TextButton(
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
+                padding: EdgeInsets.zero,
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

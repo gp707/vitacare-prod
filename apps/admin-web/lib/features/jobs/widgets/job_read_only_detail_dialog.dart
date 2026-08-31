@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import 'scope_of_work_button.dart';
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -138,6 +139,19 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                           .map((v) => VitalMonitoringType.displayNames[v] ?? v)
                           .join(', ')
                       : 'Not required',
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                        width: 160,
+                        child: Text('Scope of Work', style: TextStyle(color: AppColors.textSecondary)),
+                      ),
+                      ScopeOfWorkButton(careReceiver: careReceiver),
+                    ],
+                  ),
                 ),
               ],
             ],

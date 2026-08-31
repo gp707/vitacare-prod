@@ -12,6 +12,24 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
+import 'package:admin_web/features/scope_of_work/data/scope_of_work_repository.dart';
+
+final _scopeOfWork = ScopeOfWorkModel(
+  companionCare: ['Emotional companionship', 'Meal assistance'],
+  bedsideCare: ['Diaper changing & hygiene care'],
+  criticalCare: ['Catheter care'],
+);
+
+class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
+  _FakeScopeOfWorkRepository() : super(Dio());
+
+  @override
+  Future<ScopeOfWorkWithUpdater> get() async => ScopeOfWorkWithUpdater(
+        scopeOfWork: _scopeOfWork,
+        updatedByName: null,
+        updatedAt: '2026-08-30T10:00:00Z',
+      );
+}
 
 /// A minimal organisation requirement fixture for the merged Jobs list —
 /// full requirement-specific behavior (approve/reject/schedule/applicants)
@@ -300,6 +318,7 @@ Future<void> _pump(
         adminJobsRepositoryProvider.overrideWithValue(repo),
         adminOrganisationRequirementsRepositoryProvider.overrideWithValue(
             requirementsRepo ?? _FakeAdminOrganisationRequirementsRepository()),
+        scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
       ],
       child: MaterialApp(home: AdminJobsScreen(initialFilter: initialFilter)),
     ),
@@ -1481,6 +1500,33 @@ void main() {
     expect(find.text('Edit ADMIN-JOB-542'), findsNothing);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"),
         findsNothing);
+  });
+
+  testWidgets(
+      'the read-only detail view shows a Scope of Work button that pops up the derived tier',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('ADMIN-JOB-542'));
+    await tester.pumpAndSettle();
+
+    // _jobWithCareReceiver's toilet_assistance is ['others'] — derives to
+    // Bedside Care (stacked with Companion Care), not Critical Care.
+    // find.text('Scope of Work') alone is ambiguous — it also matches the
+    // row's own label and the AppShell sidebar nav item — so target the
+    // button specifically.
+    final button = find.widgetWithText(OutlinedButton, 'Scope of Work');
+    expect(button, findsOneWidget);
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bedside Care'), findsOneWidget);
+    expect(find.text('Emotional companionship'), findsOneWidget);
+    expect(find.text('Diaper changing & hygiene care'), findsOneWidget);
+    expect(find.text('Catheter care'), findsNothing);
   });
 
   testWidgets(

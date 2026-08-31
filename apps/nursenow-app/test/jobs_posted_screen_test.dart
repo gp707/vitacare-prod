@@ -7,12 +7,26 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/core/providers.dart';
+import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
 import 'package:nursenow_app/features/auth/state/session_notifier.dart';
 import 'package:nursenow_app/features/auth/state/session_state.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/jobs_posted_screen.dart';
 import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
+
+final _scopeOfWork = ScopeOfWorkModel(
+  companionCare: ['Emotional companionship', 'Meal assistance'],
+  bedsideCare: ['Diaper changing & hygiene care'],
+  criticalCare: ['Catheter care'],
+);
+
+class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
+  _FakeScopeOfWorkRepository() : super(Dio());
+
+  @override
+  Future<ScopeOfWorkModel> get() async => _scopeOfWork;
+}
 
 JobModel _requirement({
   String id = 'job-1',
@@ -179,6 +193,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
+        scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
             ..state = SessionAuthenticated(
@@ -324,6 +339,37 @@ void main() {
     expect(find.text('Care Preferences'), findsOneWidget);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
     expect(find.text('Hide Full Details'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows a Scope of Work button whenever a care receiver is present, and the popup shows '
+      'the derived tier — same as what a caregiver sees on the same job in NurseJobs', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
+    );
+
+    // Visible up front — not gated behind "Show Full Details".
+    expect(find.text('Scope of Work'), findsOneWidget);
+
+    await tester.tap(find.text('Scope of Work'));
+    await tester.pumpAndSettle();
+
+    // _careReceiverJson has no medical condition/toilet-assistance/feeding
+    // needs, so it derives to the baseline Companion Care tier.
+    expect(find.text('Companion Care'), findsOneWidget);
+    expect(find.text('Emotional companionship'), findsOneWidget);
+    expect(find.text('Diaper changing & hygiene care'), findsNothing);
+  });
+
+  testWidgets('does not show a Scope of Work button when the requirement has no care receiver yet',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement()]),
+    );
+
+    expect(find.text('Scope of Work'), findsNothing);
   });
 
   testWidgets('shows "No Preference" under Language Preference when languages is empty — '

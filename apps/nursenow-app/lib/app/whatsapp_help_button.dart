@@ -41,25 +41,30 @@ class WhatsAppHelpButton extends StatelessWidget {
     // is much easier to spot at a glance. Built from ElevatedButton (not
     // ElevatedButton.icon, which forces an 8px icon-label gap) with a
     // hand-built Row so the gap can shrink to fit alongside RateCardButton
-    // in this AppBar's tight budget.
-    return ElevatedButton(
-      onPressed: () => _open(context),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.error,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.phone_in_talk, size: 14),
-          SizedBox(width: 1),
-          Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        ],
+    // in this AppBar's tight budget. Wrapped in a right-margin Padding so
+    // it never sits flush against the screen edge when it's the last
+    // AppBar action.
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ElevatedButton(
+        onPressed: () => _open(context),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.error,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.phone_in_talk, size: 12),
+            SizedBox(width: 1),
+            Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+          ],
+        ),
       ),
     );
   }

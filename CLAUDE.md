@@ -505,6 +505,10 @@ same reason `WhatsAppHelpButton` skips it too), `splash_screen.dart`, and
   full dialogs with network calls) — same duplication precedent as `WhatsAppHelpButton`. Tapping
   opens an `AlertDialog` rendering the fetched grid read-only; a failed fetch shows a friendly
   inline error rather than crashing or blocking anything, since this is purely informational.
+  Both `RateCardButton` and `WhatsAppHelpButton` (both apps) are wrapped in a `Padding(right: 6)` —
+  without it, whichever of the two rendered last in an AppBar's `actions` list sat flush against
+  the screen's right edge, since both buttons' own internal padding was already trimmed to near
+  zero to fit 3-action AppBars (RateCard + WhatsApp + Logout) without overflowing.
 
 ## Scope of Work
 
@@ -545,11 +549,31 @@ the same "these guidelines are for individual hiring, not institutional bulk hir
   3x3 grid, each tier here is a **free-length bullet list**: every bullet is its own `TextField`
   with a delete button, plus an "Add bullet" button per tier section, since the 3 tiers have no
   fixed bullet count.
-- **Mobile app**: `ScopeOfWorkButton` (`apps/caregiver-app/lib/app/scope_of_work_button.dart`) is
-  NOT an AppBar action like `RateCardButton`/`WhatsAppHelpButton` — it takes a `CareReceiverModel`
-  and lives inline on the job card itself, since which tier it opens depends on that specific
-  job. caregiver-app only; nursenow-app has no equivalent button (the request was scoped to
-  NurseJobs job cards only).
+- **Visible in 3 places — caregiver-app, nursenow-app (Individual only), and admin-web — always
+  the same derived tier for the same job**, since all 3 read the same `care_receiver` fields
+  through the same `deriveCareTier` function and the same admin-editable content. Unlike
+  `RateCardButton`/`WhatsAppHelpButton`, `ScopeOfWorkButton` is NOT an AppBar action in any app —
+  it takes a `CareReceiverModel` constructor param and lives inline wherever a specific job's
+  detail is shown, since which tier it opens depends on that one job:
+  - **caregiver-app** (`apps/caregiver-app/lib/app/scope_of_work_button.dart`): inline on
+    `JobDetailCard`, next to "Show details" — shared by the Jobs list and MyJobs.
+  - **nursenow-app** (`apps/nursenow-app/lib/app/scope_of_work_button.dart`, own
+    `ScopeOfWorkRepository`/`scopeOfWorkRepositoryProvider`, hitting the same public
+    `GET /scope-of-work`): inline on `JobsPostedScreen`'s `_RequirementCard`, shown up front
+    (not gated behind "Show Full Details") whenever the individual's own posted requirement has a
+    `care_receiver` — which it always does once posted, `pending_review` or `active` alike. This
+    is what lets "both sides see the same scope of work": an Individual's own posting reuses the
+    exact same `jobs`/`care_receivers` rows a caregiver later sees, so the derivation input is
+    byte-for-byte identical. Not shown on Organisation's `RequirementsPostedScreen` — organisation
+    requirements have no `care_receiver` at all (see "Organisation" above).
+  - **admin-web** (`apps/admin-web/lib/features/jobs/widgets/scope_of_work_button.dart` — a
+    *separate* file from the mobile apps', since admin-web's own `ScopeOfWorkRepository`
+    (`features/scope_of_work/data/`) hits the authenticated `GET /admin/scope-of-work` and returns
+    a `ScopeOfWorkWithUpdater` wrapper, not a bare `ScopeOfWorkModel` — the button unwraps
+    `.scopeOfWork` before calling `.bulletsFor(tier)`): a labeled row (matching every other
+    `_DetailRow` in the dialog) at the bottom of `JobReadOnlyDetailDialog`'s "About Patient"
+    section, read-only — an admin can see which tier a job derives to, never override it, since
+    the tier is always computed from that job's own care_receiver, exactly like the other two apps.
 
 ## Naming Conventions (STRICT)
 

@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../app/rate_card_button.dart';
+import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -570,6 +571,13 @@ class _RequirementCardState extends State<_RequirementCard> {
               label: Text(_detailsExpanded ? 'Hide Full Details' : 'Show Full Details'),
             ),
           ),
+          if (careReceiver != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ScopeOfWorkButton(careReceiver: careReceiver),
+            ),
+          ],
           if (_detailsExpanded) ...[
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
