@@ -15,7 +15,8 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 /// no longer live (closed/rejected/cancelled) — a past requirement has
 /// nothing left to advise the patient/family about.
 List<String> messagesForRequirement(JobModel requirement) {
-  final isLive = requirement.status == JobStatus.pendingReview || requirement.status == JobStatus.active;
+  final isLive = requirement.status == JobStatus.pendingReview ||
+      requirement.status == JobStatus.active;
   if (!isLive) return const [];
 
   final messages = <String>[
@@ -47,4 +48,25 @@ List<String> messagesForRequirement(JobModel requirement) {
   ]);
 
   return messages;
+}
+
+/// A first-time-user welcome/orientation, shown only for an account that
+/// has never posted a requirement at all — not merely "no *live* one right
+/// now" (see [messagesForRequirement], which covers that case per-
+/// requirement instead). Computed the same way as the rest of this file:
+/// no persistence, no dismiss/mark-as-seen flag. It doesn't need one —
+/// posting a first requirement is itself a real, permanent state change,
+/// so this naturally and permanently stops applying the moment [requirements]
+/// is no longer empty, rather than needing to be tracked as "already seen".
+List<String> welcomeMessages(List<JobModel> requirements) {
+  if (requirements.isNotEmpty) return const [];
+
+  return const [
+    'Welcome to NurseNow! Use Profile to manage your phone number and login PIN, Messages '
+        '(this tab) for tips and updates about your posted job, and Jobs Posted to post a '
+        'requirement and review the caregivers who apply.',
+    'Ready to get started? Head to the Jobs Posted tab and tap "Post a Requirement" to '
+        'describe the care you need — most caregivers typically reach out within 3 to 5 '
+        'days once it goes live.',
+  ];
 }

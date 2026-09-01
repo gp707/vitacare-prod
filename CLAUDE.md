@@ -249,6 +249,17 @@ location) that didn't fit the Individual/admin jobs-table model.
      there should be a message if a job is live" was interpreted as "keeps appearing every day the
      job stays live" given the deliberately-computed-not-persisted architecture (see below), not a
      literal once-per-calendar-day dedup, which would need state to track.
+
+  **Before the account has ever posted a requirement at all** (not merely "no *live* one right
+  now"), `welcomeMessages(List<JobModel>)` (same file) supplies a 2-message first-time
+  welcome/orientation instead — explains what each of the 3 tabs is for, then prompts posting a
+  first requirement via Jobs Posted. Same non-persisted, non-dismissible architecture as
+  `messagesForRequirement`: it needs no "already seen" flag because posting a first requirement is
+  itself a real, permanent state change (`requirements.isNotEmpty`) — the welcome message simply
+  stops applying forever at that point, nothing to track. `MessagesScreen.build()` just prepends
+  `welcomeMessages(_requirements)` to the per-requirement list; each function independently
+  returns empty in the other's domain, so there's no special-casing needed to combine them.
+
   This was a deliberate architecture choice on request: **computed live from data already fetched,
   no backend changes** — the simpler of two options considered, the other being a real
   backend-tracked message table with read/unread state and permanent history; that was explicitly

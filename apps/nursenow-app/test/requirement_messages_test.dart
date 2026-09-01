@@ -121,4 +121,19 @@ void main() {
       expect(messages, hasLength(3));
     });
   });
+
+  group('welcomeMessages', () {
+    test('shows the welcome/orientation messages for an account with no requirements at all', () {
+      final messages = welcomeMessages(const []);
+      expect(messages, hasLength(2));
+      expect(messages, contains(contains('Welcome to NurseNow')));
+      expect(messages, contains(contains('Post a Requirement')));
+    });
+
+    test('is empty once the account has posted at least one requirement, even a closed one', () {
+      expect(welcomeMessages([_requirement(status: 'closed')]), isEmpty);
+      expect(welcomeMessages([_requirement(status: 'active')]), isEmpty);
+      expect(welcomeMessages([_requirement(status: 'pending_review')]), isEmpty);
+    });
+  });
 }

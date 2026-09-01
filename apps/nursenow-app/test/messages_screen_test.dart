@@ -89,10 +89,23 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo) async {
 }
 
 void main() {
-  testWidgets('shows a friendly empty state when there is nothing to say', (tester) async {
+  testWidgets('shows the welcome/orientation messages for an account with no requirements at all', (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: []));
 
+    expect(find.textContaining('Welcome to NurseNow'), findsOneWidget);
+    expect(find.textContaining('Post a Requirement'), findsOneWidget);
+    expect(find.text('No messages right now.'), findsNothing);
+  });
+
+  testWidgets('shows a friendly empty state once the account has posted before but nothing is live now',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(status: 'closed')]),
+    );
+
     expect(find.text('No messages right now.'), findsOneWidget);
+    expect(find.textContaining('Welcome to NurseNow'), findsNothing);
   });
 
   testWidgets('shows the automatic messages for a live requirement', (tester) async {
@@ -104,15 +117,6 @@ void main() {
     expect(find.textContaining('You can edit this job and change salary'), findsOneWidget);
     expect(find.textContaining('You can post one requirement at a time'), findsOneWidget);
     expect(find.textContaining('consider widening your scope'), findsOneWidget);
-  });
-
-  testWidgets('shows nothing for a closed requirement', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(requirements: [_requirement(status: 'closed')]),
-    );
-
-    expect(find.text('No messages right now.'), findsOneWidget);
   });
 
   testWidgets('shows a friendly error instead of crashing when the fetch fails', (tester) async {

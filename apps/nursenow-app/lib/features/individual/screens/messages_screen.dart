@@ -10,12 +10,14 @@ import '../../../core/providers.dart';
 import '../data/requirement_messages.dart';
 
 /// Automatically-generated, status-based tips about the patient/family's
-/// own posted requirement(s) — see requirement_messages.dart for exactly
-/// which messages apply and when. Purely a computed view over data already
-/// fetched via GET /individual/requirements (the same call
-/// JobsPostedScreen makes) — no new backend endpoint, no persistence, no
-/// read/unread state; refreshing this screen always shows whatever
-/// currently applies, nothing more.
+/// own posted requirement(s), plus a first-time welcome/orientation
+/// ([welcomeMessages]) before they've ever posted one — see
+/// requirement_messages.dart for exactly which messages apply and when.
+/// Purely a computed view over data already fetched via
+/// GET /individual/requirements (the same call JobsPostedScreen makes) —
+/// no new backend endpoint, no persistence, no read/unread state;
+/// refreshing this screen always shows whatever currently applies, nothing
+/// more.
 class MessagesScreen extends ConsumerStatefulWidget {
   const MessagesScreen({super.key});
 
@@ -40,7 +42,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _error = null;
     });
     try {
-      final requirements = await ref.read(individualRepositoryProvider).listMyRequirements();
+      final requirements =
+          await ref.read(individualRepositoryProvider).listMyRequirements();
       if (!mounted) return;
       setState(() => _requirements = requirements);
     } on ApiException catch (e) {
@@ -53,7 +56,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = <String>[
-      for (final requirement in _requirements) ...messagesForRequirement(requirement),
+      ...welcomeMessages(_requirements),
+      for (final requirement in _requirements)
+        ...messagesForRequirement(requirement),
     ];
 
     return Scaffold(
@@ -68,7 +73,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
             : _error != null
                 ? Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Text(_error!, style: const TextStyle(color: AppColors.error)),
+                    child: Text(_error!,
+                        style: const TextStyle(color: AppColors.error)),
                   )
                 : RefreshIndicator(
                     onRefresh: _load,
@@ -80,7 +86,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                               Center(
                                 child: Text(
                                   'No messages right now.',
-                                  style: TextStyle(color: AppColors.textSecondary),
+                                  style:
+                                      TextStyle(color: AppColors.textSecondary),
                                 ),
                               ),
                             ],
@@ -88,18 +95,21 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                         : ListView.separated(
                             padding: const EdgeInsets.all(AppSpacing.lg),
                             itemCount: messages.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: AppSpacing.sm),
                             itemBuilder: (context, index) => Container(
                               padding: const EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
                                 border: Border.all(color: AppColors.border),
-                                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.sm),
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                                  const Icon(Icons.info_outline,
+                                      color: AppColors.primary, size: 20),
                                   const SizedBox(width: AppSpacing.sm),
                                   Expanded(child: Text(messages[index])),
                                 ],
