@@ -943,8 +943,8 @@ class _ApplicantTile extends StatelessWidget {
 }
 
 /// The candidate's full action history on this application — every
-/// transition with who did it and exactly when, oldest first (so it reads
-/// top-to-bottom as a story: applied, then decided). `decidedByName`, when
+/// transition with who did it and exactly when, newest first (the current
+/// status is the one worth seeing without scrolling). `decidedByName`, when
 /// present, names exactly who accepted/rejected — the patient/family
 /// themselves, or an admin who intervened on their behalf via admin-web —
 /// rather than a vague "you"/"the employer". A caregiver-initiated close
@@ -989,7 +989,10 @@ class _ApplicantTimeline extends StatelessWidget {
     }
     if (entries.isEmpty) return const SizedBox.shrink();
 
-    entries.sort((a, b) => a.key.compareTo(b.key));
+    // Newest first — the current status is the one worth seeing without
+    // having to scroll for it, same convention as caregiver-app's own
+    // ApplicationTimeline.
+    entries.sort((a, b) => b.key.compareTo(a.key));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

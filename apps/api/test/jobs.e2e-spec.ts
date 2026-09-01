@@ -309,12 +309,18 @@ describe('Jobs (e2e)', () => {
       await db.query('DELETE FROM care_receivers WHERE id = $1', [res.body.data.care_receiver_id]);
     });
 
-    it('creates a job with only the hard-required care-receiver fields (age/gender/weight), defaulting every optional field to a real, visible value', async () => {
+    it('creates a job with only the hard-required care-receiver fields (age/gender/weight/feeding_type/toilet_assistance), defaulting every remaining optional field to a real, visible value', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          care_receiver: { age: 65, gender: 'male', weight_kg: 70 },
+          care_receiver: {
+            age: 65,
+            gender: 'male',
+            weight_kg: 70,
+            feeding_type: 'oral_feeding',
+            toilet_assistance: ['independent'],
+          },
           city: 'bangalore',
           area: 'Indiranagar',
           description: `${jobDescriptionPrefix} minimal care receiver defaults test`,
@@ -342,6 +348,46 @@ describe('Jobs (e2e)', () => {
         toilet_assistance: ['independent'],
         requires_vital_monitoring: false,
       });
+    });
+
+    it('rejects a care_receiver missing feeding_type (GEN_001) — mandatory, no longer defaulted', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { age: 65, gender: 'male', weight_kg: 70, toilet_assistance: ['independent'] },
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} missing feeding_type test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          start_date: '2026-09-01',
+          languages: ['hindi'],
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects a care_receiver missing toilet_assistance (GEN_001) — mandatory, no longer defaulted', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { age: 65, gender: 'male', weight_kg: 70, feeding_type: 'oral_feeding' },
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} missing toilet_assistance test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          start_date: '2026-09-01',
+          languages: ['hindi'],
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
     });
 
     it('rejects an out-of-range age (GEN_001)', async () => {
@@ -382,23 +428,42 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_001');
     });
 
-    it('defaults an empty toilet_assistance array to [independent] instead of rejecting it', async () => {
-      const job = await createJob({ care_receiver: { toilet_assistance: [] } });
-      const row = await db.query('SELECT toilet_assistance FROM care_receivers WHERE id = $1', [
-        job.care_receiver_id,
-      ]);
-      expect(row.rows[0].toilet_assistance).toEqual(['independent']);
+    it('rejects an empty toilet_assistance array (GEN_001) — mandatory, no longer defaulted', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          care_receiver: { ...defaultCareReceiver, toilet_assistance: [] },
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} empty toilet_assistance test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          languages: ['hindi'],
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
     });
 
-    it('accepts multiple toilet assistance options — admin can select more than one', async () => {
-      const job = await createJob({
-        care_receiver: { toilet_assistance: ['diapers_bedside_support', 'uses_catheter'] },
-      });
-      const detail = await request(app.getHttpServer())
-        .get(`/v1/admin/jobs/${job.id}`)
+    it('rejects more than one toilet assistance option (GEN_001) — now a single-select dropdown, not a multi-select', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['diapers_bedside_support', 'uses_catheter']);
+        .send({
+          care_receiver: { ...defaultCareReceiver, toilet_assistance: ['diapers_bedside_support', 'uses_catheter'] },
+          city: 'bangalore',
+          area: 'Indiranagar',
+          description: `${jobDescriptionPrefix} multi-value toilet_assistance test`,
+          duty_type: 'live_in',
+          frequency_of_care: 'daily',
+          languages: ['hindi'],
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
+        })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
     });
 
     it('rejects "other_non_verbal" as a communication value — dropped, only 3 options remain (GEN_001)', async () => {
@@ -629,7 +694,7 @@ describe('Jobs (e2e)', () => {
     it('accepts free-text detail for the "other" option on toilet_assistance and medical_conditions, alongside the other selected values', async () => {
       const job = await createJob({
         care_receiver: {
-          toilet_assistance: ['diapers_bedside_support', 'others'],
+          toilet_assistance: ['others'],
           toilet_assistance_other: 'Needs help transferring to the commode',
           has_medical_condition: true,
           medical_conditions: ['diabetes', 'other'],
@@ -640,7 +705,7 @@ describe('Jobs (e2e)', () => {
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['diapers_bedside_support', 'others']);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['others']);
       expect(detail.body.data.care_receiver.toilet_assistance_other).toBe(
         'Needs help transferring to the commode',
       );

@@ -475,16 +475,20 @@ Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
 
 /// Fills every hard-required field on the unified form (Patient Details'
 /// core fields + Hours Care Needed + Preferred Start Date + Duration Care is
-/// Needed + Salary), leaving Medical Condition/Toilet Assistance/Feeding/
-/// Language Preference at their defaults — used by tests that only care
-/// about getting to a submittable state.
+/// Needed + Toilet Assistance + Feeding/Medicine Assistance + Salary),
+/// leaving Medical Condition/Language Preference at their defaults — used by
+/// tests that only care about getting to a submittable state.
 Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await _fillPatientDetailsCore(tester);
   await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
       '12Hrs Day Shift (8am to 8pm)');
   await _pickPreferredStartDate(tester);
   await _selectDropdown(
-      tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+      tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
+  await _selectDropdown(tester, 'Toilet Assistance (Mandatory)',
+      'Independent/minimal support');
+  await _selectDropdown(tester, 'Feeding/Medicine Assistance (Mandatory)',
+      'Oral feeding');
   await _fillSalary(tester);
 }
 
@@ -640,14 +644,14 @@ void main() {
     // /month and Frequency of Care shows "-".
     expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
 
-    await _fillMandatoryFields(tester); // picks 'Few Weeks' -> derives Daily
+    await _fillMandatoryFields(tester); // picks 'Need for Few Weeks' -> derives Daily
 
     expect(find.text('Salary (₹/day) (Mandatory)'), findsOneWidget);
     expect(find.text('Salary (₹/month) (Mandatory)'), findsNothing);
     expect(find.text('Daily'), findsOneWidget);
 
     await _selectDropdown(
-        tester, 'Duration Care is Needed (Mandatory)', 'Long Term');
+        tester, 'Duration Care is Needed (Mandatory)', 'Need for Long Term');
 
     expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
     expect(find.text('Salary (₹/day) (Mandatory)'), findsNothing);
@@ -1024,7 +1028,7 @@ void main() {
         '12Hrs Day Shift (8am to 8pm)');
     await _pickPreferredStartDate(tester);
     await _selectDropdown(
-        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+        tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
 
@@ -1053,14 +1057,15 @@ void main() {
 
     await _fillPatientDetailsCore(tester);
     await _selectDropdown(
-        tester, 'Feeding/Medicine Assistance (optional)', 'Tube feeding');
-    await _tapChip(tester, 'Others'); // toilet assistance "Others"
+        tester, 'Feeding/Medicine Assistance (Mandatory)', 'Tube feeding');
+    await _selectDropdown(
+        tester, 'Toilet Assistance (Mandatory)', 'Others');
 
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
     await _pickPreferredStartDate(tester);
     await _selectDropdown(
-        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+        tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
 
@@ -1090,7 +1095,7 @@ void main() {
         find.text('Please describe the other toilet assistance'), findsNothing);
 
     await _fillPatientDetailsCore(tester);
-    await _tapChip(tester, 'Others'); // toilet assistance "Others"
+    await _selectDropdown(tester, 'Toilet Assistance (Mandatory)', 'Others');
 
     final otherField = find.widgetWithText(
         TextField, 'Please describe the other toilet assistance');
@@ -1099,11 +1104,13 @@ void main() {
     await tester.enterText(otherField, 'Needs help with a raised commode seat');
     await tester.pumpAndSettle();
 
+    await _selectDropdown(
+        tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
     await _pickPreferredStartDate(tester);
     await _selectDropdown(
-        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+        tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
 
@@ -1120,7 +1127,7 @@ void main() {
   });
 
   testWidgets(
-      'unselecting Others for Toilet Assistance hides the free-text field and it is not submitted',
+      'switching Toilet Assistance away from Others hides the free-text field and it is not submitted',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
@@ -1129,7 +1136,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _fillPatientDetailsCore(tester);
-    await _tapChip(tester, 'Others'); // toilet assistance "Others"
+    await _selectDropdown(tester, 'Toilet Assistance (Mandatory)', 'Others');
     await tester.enterText(
       find.widgetWithText(
           TextField, 'Please describe the other toilet assistance'),
@@ -1137,15 +1144,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _tapChip(tester, 'Others'); // untap it
+    // A single-select dropdown can only be changed to a different value, not
+    // cleared back to "nothing selected" — the mandatory-field equivalent of
+    // "unselecting".
+    await _selectDropdown(tester, 'Toilet Assistance (Mandatory)',
+        'Independent/minimal support');
     expect(
         find.text('Please describe the other toilet assistance'), findsNothing);
 
+    await _selectDropdown(
+        tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
     await _pickPreferredStartDate(tester);
     await _selectDropdown(
-        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+        tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
 
@@ -1245,11 +1258,15 @@ void main() {
       await tester.enterText(otherField, 'Recovering from hip surgery');
       await tester.pumpAndSettle();
 
+      await _selectDropdown(
+          tester, 'Toilet Assistance (Mandatory)', 'Independent/minimal support');
+      await _selectDropdown(
+          tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
       await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
           '12Hrs Day Shift (8am to 8pm)');
       await _pickPreferredStartDate(tester);
       await _selectDropdown(
-          tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+          tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
       await _fillSalary(tester);
       await _tapChip(tester, 'Hindi');
 
@@ -1402,7 +1419,7 @@ void main() {
 
     testWidgets('Salary is pre-filled with the Rate Card suggestion for the derived tier/frequency',
         (tester) async {
-      // _jobWithCareReceiver's toilet_assistance is ['others'] -> bedside tier.
+      // _jobWithCareReceiver's toilet_assistance is ['others'] -> critical tier.
       final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
       await _pump(
         tester,
@@ -1411,14 +1428,14 @@ void main() {
           _rateCardWithUpdater(
               frequencyOfCare: FrequencyOfCare.daily,
               companion: 'DAILY_COMPANION',
-              bedside: 'DAILY_BEDSIDE_RATE'),
+              critical: 'DAILY_CRITICAL_RATE'),
         ],
       );
 
       await tester.tap(find.widgetWithText(TextButton, 'Edit'));
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
       expect(find.text('30000'), findsNothing,
           reason: 'the fixture salary should be overridden by the suggestion');
     });
@@ -1442,15 +1459,15 @@ void main() {
           _rateCardWithUpdater(
               frequencyOfCare: FrequencyOfCare.daily,
               companion: 'DAILY_COMPANION',
-              bedside: 'DAILY_BEDSIDE_RATE'),
+              critical: 'DAILY_CRITICAL_RATE'),
         ],
       );
 
       await tester.tap(find.widgetWithText(TextButton, 'Edit'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
 
-      await tester.enterText(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), '35000 negotiable');
+      await tester.enterText(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), '35000 negotiable');
       final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
       await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
@@ -1505,13 +1522,13 @@ void main() {
           '12Hrs Day Shift (8am to 8pm)');
       await _pickPreferredStartDate(tester);
       await _selectDropdown(
-          tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+          tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
 
       // No toilet assistance selected yet -> Companion tier, Daily.
       expect(find.widgetWithText(TextField, 'DAILY_COMPANION'), findsOneWidget);
 
-      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Catheter support'));
-      await _tapChip(tester, 'Catheter support');
+      await _selectDropdown(
+          tester, 'Toilet Assistance (Mandatory)', 'Catheter support');
 
       expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
     });
@@ -1745,7 +1762,7 @@ void main() {
 
     final dialog = find.byType(AlertDialog);
     expect(find.descendant(of: dialog, matching: find.text('Duration Care is Needed')), findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('Few Weeks')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Need for Few Weeks')), findsOneWidget);
   });
 
   testWidgets(
@@ -1758,7 +1775,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // _jobWithCareReceiver's toilet_assistance is ['others'] — derives to
-    // Bedside Care (stacked with Companion Care), not Critical Care.
+    // Critical Care (stacked with Companion + Bedside), since "Others"
+    // toileting is one of the criticalCare triggers.
     // find.text('Scope of Work') alone is ambiguous — it also matches the
     // row's own label and the AppShell sidebar nav item — so target the
     // button specifically.
@@ -1769,10 +1787,10 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
 
-    expect(find.text('Bedside Care'), findsOneWidget);
+    expect(find.text('Critical Care'), findsOneWidget);
     expect(find.text('Emotional companionship'), findsOneWidget);
     expect(find.text('Diaper changing & hygiene care'), findsOneWidget);
-    expect(find.text('Catheter care'), findsNothing);
+    expect(find.text('Catheter care'), findsOneWidget);
   });
 
   testWidgets(

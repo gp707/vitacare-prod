@@ -150,7 +150,17 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
 
   await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Few Weeks').last);
+  await tester.tap(find.text('Need for Few Weeks').last);
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Independent/minimal support').last);
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Feeding/Medicine Assistance (Mandatory)'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Oral feeding').last);
   await tester.pumpAndSettle();
 
   await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
@@ -207,7 +217,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Few Weeks').last);
+    await tester.tap(find.text('Need for Few Weeks').last);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
     await tester.pumpAndSettle();
@@ -348,7 +358,17 @@ void main() {
 
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Few Weeks').last);
+    await tester.tap(find.text('Need for Few Weeks').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Independent/minimal support').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Feeding/Medicine Assistance (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Oral feeding').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
@@ -454,8 +474,11 @@ void main() {
     expect(find.text('Mobility (optional)'), findsNothing);
     // The free-text "more details" field was removed too.
     expect(find.text('More details you want to share about patient (optional)'), findsNothing);
-    // Feeding Type is relabeled per the new grouping.
-    expect(find.text('Feeding/Medicine Assistance (optional)'), findsOneWidget);
+    // Feeding Type is relabeled per the new grouping, and mandatory.
+    expect(find.text('Feeding/Medicine Assistance (Mandatory)'), findsOneWidget);
+    // Toilet Assistance is now a mandatory single-select dropdown, not an
+    // optional multi-select chip group.
+    expect(find.text('Toilet Assistance (Mandatory)'), findsOneWidget);
 
     // Patient Details' own fields appear before Care Location's fields
     // moved into it (city/area) — Care Preferences' fields (hours care
@@ -490,7 +513,7 @@ void main() {
     testWidgets('Frequency of Care shows Daily for Few Weeks, with no dropdown to pick it', (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo);
-      await _fillMandatoryFields(tester); // picks 'Few Weeks'
+      await _fillMandatoryFields(tester); // picks 'Need for Few Weeks'
 
       expect(find.text('Frequency of Care'), findsOneWidget);
       expect(find.text('Daily'), findsOneWidget);
@@ -504,7 +527,7 @@ void main() {
 
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Long Term').last);
+      await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();
 
       expect(find.text('Monthly'), findsOneWidget);
@@ -530,8 +553,9 @@ void main() {
       await _fillMandatoryFields(tester);
       expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
 
-      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Catheter support'));
-      await tester.tap(find.widgetWithText(FilterChip, 'Catheter support'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Catheter support').last);
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
@@ -544,8 +568,9 @@ void main() {
       expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), '30000 my own figure');
-      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Diapers/bedside support'));
-      await tester.tap(find.widgetWithText(FilterChip, 'Diapers/bedside support'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Diapers/bedside support').last);
       await tester.pumpAndSettle();
 
       expect(find.text('30000 my own figure'), findsOneWidget);

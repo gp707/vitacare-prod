@@ -98,7 +98,13 @@ describe('Admin Reports (e2e)', () => {
   }
 
   const individualRequirementPayload = (overrides: Record<string, unknown> = {}) => ({
-    care_receiver: { age: 74, gender: 'female', weight_kg: 58 },
+    care_receiver: {
+      age: 74,
+      gender: 'female',
+      weight_kg: 58,
+      feeding_type: 'oral_feeding',
+      toilet_assistance: ['independent'],
+    },
     city: 'bangalore',
     area: 'Indiranagar',
     description: `${jobDescriptionPrefix} individual posting`,

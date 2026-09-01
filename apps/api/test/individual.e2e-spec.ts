@@ -97,6 +97,8 @@ describe('Individual (NurseNow) (e2e)', () => {
       age: 74,
       gender: 'female',
       weight_kg: 58,
+      feeding_type: 'oral_feeding',
+      toilet_assistance: ['independent'],
     },
     city: 'bangalore',
     area: 'Indiranagar',

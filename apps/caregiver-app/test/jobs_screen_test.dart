@@ -312,7 +312,7 @@ void main() {
     expect(find.text('Hindi'), findsOneWidget);
     // Not set on this admin-posted job fixture — only a NurseNow
     // individual's own posting sets care_duration.
-    expect(find.text('Few Weeks'), findsNothing);
+    expect(find.text('Need for Few Weeks'), findsNothing);
   });
 
   testWidgets('shows the Duration Care is Needed tag for a NurseNow individual posting that sets it',
@@ -320,7 +320,7 @@ void main() {
     await _pump(tester, _FakeJobsRepository([_job(careDuration: 'few_weeks')]));
     await _expandDetails(tester);
 
-    expect(find.text('Few Weeks'), findsOneWidget);
+    expect(find.text('Need for Few Weeks'), findsOneWidget);
   });
 
   testWidgets('does not show the "other" detail lines when the care receiver has none set', (tester) async {

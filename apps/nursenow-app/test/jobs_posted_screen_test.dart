@@ -854,6 +854,12 @@ void main() {
 
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Accepted by Asha Patel:'), findsOneWidget);
+
+    // Newest first — the most recent action (Accepted) renders above the
+    // older one (Applied), not the other way round.
+    final acceptedTop = tester.getTopLeft(find.textContaining('Accepted by Asha Patel:')).dy;
+    final appliedTop = tester.getTopLeft(find.textContaining('Applied:')).dy;
+    expect(acceptedTop, lessThan(appliedTop));
   });
 
   testWidgets('shows "Rejected by Caregiver" and still shows the phone when the caregiver closed the job themselves '

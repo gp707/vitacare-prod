@@ -1083,6 +1083,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _dutyTypeKey = GlobalKey();
   final _startDateKey = GlobalKey();
   final _careDurationKey = GlobalKey();
+  final _toiletAssistanceKey = GlobalKey();
+  final _feedingTypeKey = GlobalKey();
   final _languagesKey = GlobalKey();
 
   // Only turns true once Post has been pressed with something missing —
@@ -1258,6 +1260,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
   bool get _isCareDurationValid => _careDuration != null;
+  bool get _isToiletAssistanceValid => _toiletAssistance.isNotEmpty;
+  bool get _isFeedingTypeValid => _feedingType != null;
   bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
 
   /// What actually gets sent to the server — the sentinel is purely a
@@ -1277,6 +1281,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _isDutyTypeValid &&
       _isStartDateValid &&
       _isCareDurationValid &&
+      _isToiletAssistanceValid &&
+      _isFeedingTypeValid &&
       _isSalaryValid;
 
   /// In on-form order, so the first invalid one found here is genuinely
@@ -1293,6 +1299,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_careDurationKey, _isCareDurationValid),
+        _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
+        _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
         _MandatoryField(_salaryKey, _isSalaryValid,
             focusNode: _salaryFocusNode),
       ];
@@ -1551,12 +1559,19 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       ];
 
   // Relabeled to match nursenow-app's own forms exactly, now that this
-  // dialog's field set/order is fully unified with them.
+  // dialog's field set/order is fully unified with them. Mandatory, like
+  // Toilet Assistance below.
   List<Widget> _feedingField() => [
         DropdownButtonFormField<String>(
+          key: _feedingTypeKey,
           isExpanded: true,
           initialValue: _feedingType,
-          decoration: const InputDecoration(labelText: 'Feeding/Medicine Assistance (optional)'),
+          decoration: InputDecoration(
+            labelText: 'Feeding/Medicine Assistance (Mandatory)',
+            errorText: _showValidationErrors && !_isFeedingTypeValid
+                ? 'Please select feeding/medicine assistance'
+                : null,
+          ),
           items: FeedingType.all
               .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
               .toList(),
@@ -1594,15 +1609,24 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ],
       ];
 
+  // A single-select dropdown, not a multi-select — behavior of "Others"
+  // revealing the free-text field is unchanged.
   List<Widget> _toiletAssistanceSection() => [
-        const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: AppSpacing.xs),
-        VitaMultiSelectChips(
-          options: ToiletAssistance.all,
-          labels: ToiletAssistance.displayNames,
-          selected: _toiletAssistance,
-          onChanged: (next) => setState(() {
-            _toiletAssistance = next;
+        DropdownButtonFormField<String>(
+          key: _toiletAssistanceKey,
+          isExpanded: true,
+          initialValue: _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
+          decoration: InputDecoration(
+            labelText: 'Toilet Assistance (Mandatory)',
+            errorText: _showValidationErrors && !_isToiletAssistanceValid
+                ? 'Please select toilet assistance'
+                : null,
+          ),
+          items: ToiletAssistance.all
+              .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
+              .toList(),
+          onChanged: (value) => setState(() {
+            _toiletAssistance = [value!];
             _refreshSuggestedSalary();
           }),
         ),

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
@@ -49,10 +50,8 @@ export class CareReceiverDto {
   @IsIn(Object.values(Communication), { message: 'GEN_001' })
   communication?: Communication;
 
-  // Not required — defaults to oral_independent when omitted.
-  @IsOptional()
   @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
-  feeding_type?: FeedingType;
+  feeding_type!: FeedingType;
 
   // Not required — defaults to false ("no health conditions") when omitted.
   @IsOptional()
@@ -72,12 +71,15 @@ export class CareReceiverDto {
   @MaxLength(500, { message: 'GEN_001' })
   medical_condition_other?: string;
 
-  // Not required — an empty/omitted selection defaults to [independent]
-  // when omitted.
-  @IsOptional()
+  // A single choice, submitted as a 1-element array to keep the storage
+  // shape unchanged (toilet_assistance stays a JSONB array column with no
+  // DB-level CHECK) even though the form is now a single-select dropdown —
+  // ArrayMaxSize(1) enforces that only one value is ever accepted.
   @IsArray({ message: 'GEN_001' })
+  @ArrayNotEmpty({ message: 'GEN_001' })
+  @ArrayMaxSize(1, { message: 'GEN_001' })
   @IsIn(Object.values(ToiletAssistance), { each: true, message: 'GEN_001' })
-  toilet_assistance?: ToiletAssistance[];
+  toilet_assistance!: ToiletAssistance[];
 
   // Free-text detail for the 'others' ToiletAssistance option.
   @IsOptional()

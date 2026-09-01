@@ -169,7 +169,8 @@ void main() {
     expect(find.text('Care Location'), findsNothing);
     expect(find.text('Mobility (optional)'), findsNothing);
     expect(find.text('More details you want to share about patient (optional)'), findsNothing);
-    expect(find.text('Feeding/Medicine Assistance (optional)'), findsOneWidget);
+    expect(find.text('Feeding/Medicine Assistance (Mandatory)'), findsOneWidget);
+    expect(find.text('Toilet Assistance (Mandatory)'), findsOneWidget);
 
     // Pre-filled from the requirement.
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
@@ -291,14 +292,18 @@ void main() {
 
       // Bumping toilet assistance to catheter support pushes the derived
       // tier to Critical — the still-auto-suggested field follows along.
-      await tester.tap(find.text('Catheter support'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Catheter support').last);
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
 
       // Once the patient types their own figure, further field changes
       // must not clobber it.
       await tester.enterText(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), '50000 my own number');
-      await tester.tap(find.text('Diapers/bedside support'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Diapers/bedside support').last);
       await tester.pumpAndSettle();
       expect(find.text('50000 my own number'), findsOneWidget);
     });

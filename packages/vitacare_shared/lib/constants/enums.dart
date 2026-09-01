@@ -145,10 +145,10 @@ class CareDuration {
   static const all = [fewDays, fewWeeks, fewMonths, longTerm];
 
   static const displayNames = {
-    fewDays: 'Few Days',
-    fewWeeks: 'Few Weeks',
-    fewMonths: 'Few Months',
-    longTerm: 'Long Term',
+    fewDays: 'Need for few Days',
+    fewWeeks: 'Need for Few Weeks',
+    fewMonths: 'Need for Minimum a Month',
+    longTerm: 'Need for Long Term',
   };
 }
 

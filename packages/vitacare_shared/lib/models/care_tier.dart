@@ -19,44 +19,39 @@ class CareTier {
   };
 }
 
-/// Derives which [CareTier] a job's care needs fall into, purely from the
-/// fields already collected on its [CareReceiverModel] — there is no
-/// separate "type of care" field for an admin or individual to pick.
+/// Derives which [CareTier] a job's care needs fall into, purely from its
+/// [CareReceiverModel.toiletAssistance] and [CareReceiverModel.feedingType]
+/// — there is no separate "type of care" field for an admin or individual
+/// to pick, and (as of this rule set) Medical Condition and Vital
+/// Monitoring no longer factor in at all — those two fields are still
+/// collected and shown, they just don't move the tier/suggested rate.
 ///
 /// Checked highest-tier-first, matching the "Everything in X, plus…"
 /// cumulative framing the 3 tiers are written with in the admin-editable
-/// Scope of Work content:
+/// Scope of Work content. Toilet Assistance options are Independent,
+/// Diapers/bedside support, Catheter support, Others; Feeding Type options
+/// are Oral feeding, Tube feeding, Others (Cannula etc.):
 ///
-/// - [CareTier.criticalCare]: any need for catheter care, tube feeding,
-///   "Others (Cannula etc.)" feeding assistance, vitals monitoring,
-///   insulin/injection support, oxygen support, or cannula care.
-/// - [CareTier.bedsideCare] (else): diapers/bedside toileting support, any
-///   other unspecified toileting need, or any medical condition at all.
-/// - [CareTier.companionCare]: the baseline/independent case — everything
-///   else, including "Oral feeding" (no longer distinguishes independent
-///   vs needs-assistance, so it can no longer push to Bedside on its own).
+/// - [CareTier.criticalCare]: Catheter support OR Others toileting, OR Tube
+///   feeding OR Others feeding — any one of these alone is enough,
+///   regardless of what's selected on the other axis.
+/// - [CareTier.bedsideCare] (else): Diapers/bedside toileting support.
+/// - [CareTier.companionCare]: the baseline case — Independent toileting +
+///   Oral feeding, with nothing on either axis pushing higher.
 ///
 /// This mapping is a product judgment call, not a value the backend
 /// enforces — reviewable/adjustable here in one place if the intended
 /// tiering changes.
 String deriveCareTier(CareReceiverModel careReceiver) {
   final toiletAssistance = careReceiver.toiletAssistance;
-  final medicalConditions = careReceiver.medicalConditions;
 
   final isCritical = toiletAssistance.contains(ToiletAssistance.usesCatheter) ||
+      toiletAssistance.contains(ToiletAssistance.others) ||
       careReceiver.feedingType == FeedingType.tubeFeeding ||
-      careReceiver.feedingType == FeedingType.others ||
-      careReceiver.requiresVitalMonitoring ||
-      medicalConditions.contains(MedicalCondition.insulinAdministrationSupport) ||
-      medicalConditions.contains(MedicalCondition.injectionSupport) ||
-      medicalConditions.contains(MedicalCondition.oxygenSupport) ||
-      medicalConditions.contains(MedicalCondition.cannulaCare) ||
-      medicalConditions.contains(MedicalCondition.catheterCare);
+      careReceiver.feedingType == FeedingType.others;
   if (isCritical) return CareTier.criticalCare;
 
-  final isBedside = toiletAssistance.contains(ToiletAssistance.diapersBedsideSupport) ||
-      toiletAssistance.contains(ToiletAssistance.others) ||
-      careReceiver.hasMedicalCondition;
+  final isBedside = toiletAssistance.contains(ToiletAssistance.diapersBedsideSupport);
   if (isBedside) return CareTier.bedsideCare;
 
   return CareTier.companionCare;

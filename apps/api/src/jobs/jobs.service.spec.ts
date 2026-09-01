@@ -168,10 +168,18 @@ describe('JobsService', () => {
       );
     });
 
-    it('defaults every optional care-receiver field to a real, explicit value when omitted', async () => {
+    it('defaults every remaining optional care-receiver field to a real, explicit value when omitted', async () => {
+      // feeding_type/toilet_assistance are hard-required at the DTO layer now
+      // (a real request can't omit them), so only communication still defaults.
       const minimalDto = {
         ...dto,
-        care_receiver: { age: 72, gender: 'female', weight_kg: 58 } as any,
+        care_receiver: {
+          age: 72,
+          gender: 'female',
+          weight_kg: 58,
+          feeding_type: 'oral_feeding',
+          toilet_assistance: ['independent'],
+        } as any,
       };
       await service.createJob('admin-1', minimalDto, null);
       expect(careReceiversRepo.create).toHaveBeenCalledWith(

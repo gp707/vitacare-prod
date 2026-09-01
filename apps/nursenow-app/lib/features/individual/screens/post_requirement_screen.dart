@@ -123,6 +123,8 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _dutyTypeKey = GlobalKey();
   final _startDateKey = GlobalKey();
   final _careDurationKey = GlobalKey();
+  final _toiletAssistanceKey = GlobalKey();
+  final _feedingTypeKey = GlobalKey();
   final _languagesKey = GlobalKey();
   final _salaryKey = GlobalKey();
 
@@ -249,6 +251,8 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
   bool get _isCareDurationValid => _careDuration != null;
+  bool get _isToiletAssistanceValid => _toiletAssistance.isNotEmpty;
+  bool get _isFeedingTypeValid => _feedingType != null;
   bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
 
   /// Few Days/Few Weeks price off the daily Rate Card, Few Months/Long Term
@@ -283,6 +287,8 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _isDutyTypeValid &&
       _isStartDateValid &&
       _isCareDurationValid &&
+      _isToiletAssistanceValid &&
+      _isFeedingTypeValid &&
       _isSalaryValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
@@ -300,6 +306,8 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_careDurationKey, _isCareDurationValid),
+        _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
+        _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
         _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
       ];
 
@@ -529,7 +537,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                const Text('Medical Condition (Mandatory)', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle),
                 const SizedBox(height: AppSpacing.sm),
                 VitaMultiSelectChips(
                   options: [_noneMedicalCondition, ...MedicalCondition.all],
@@ -576,8 +584,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                     children: [
                       Text(
                         'Preferred Start Date (Mandatory)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
+                        style: SectionBox.fieldGroupLabelStyle.copyWith(
                           color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
                         ),
                       ),
@@ -618,16 +625,23 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   }),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: AppSpacing.sm),
-                VitaMultiSelectChips(
-                  options: ToiletAssistance.all,
-                  labels: ToiletAssistance.displayNames,
-                  selected: _toiletAssistance,
-                  onChanged: (next) => setState(() {
+                DropdownButtonFormField<String>(
+                  key: _toiletAssistanceKey,
+                  isExpanded: true,
+                  initialValue: _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
+                  decoration: InputDecoration(
+                    labelText: 'Toilet Assistance (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText:
+                        _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
+                  ),
+                  items: ToiletAssistance.all
+                      .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
+                      .toList(),
+                  onChanged: (value) => setState(() {
                     _toiletAssistance
                       ..clear()
-                      ..addAll(next);
+                      ..add(value!);
                     _refreshSuggestedSalary();
                   }),
                 ),
@@ -643,11 +657,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                 ],
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
+                  key: _feedingTypeKey,
                   isExpanded: true,
                   initialValue: _feedingType,
-                  decoration: const InputDecoration(
-                    labelText: 'Feeding/Medicine Assistance (optional)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'Feeding/Medicine Assistance (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText: _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
                   ),
                   items: FeedingType.all
                       .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
@@ -699,7 +715,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Language Preference', style: SectionBox.fieldGroupLabelStyle),
                       const SizedBox(height: AppSpacing.xs),
                       VitaMultiSelectChips(
                         options: [_noPreferenceLanguage, ...Language.all],

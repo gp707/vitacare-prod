@@ -4,10 +4,8 @@ import {
   City,
   Communication,
   DutyType,
-  FeedingType,
   JobApplicationStatus,
   JobStatus,
-  ToiletAssistance,
   VerificationStatus,
 } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
@@ -64,14 +62,13 @@ const CITY_LABELS: Record<City, string> = {
   [City.GURGAON]: 'Gurgaon',
 };
 
-// Only age/gender/weight are hard-required on a care receiver — every other
-// field is optional on the form and, if left unselected, is defaulted here
-// so the persisted (and later admin-edited / caregiver-visible) value is
-// always a real, explicit selection rather than null/empty.
+// age/gender/weight/feeding_type/toilet_assistance are hard-required on a
+// care receiver — every other field is optional on the form and, if left
+// unselected, is defaulted here so the persisted (and later admin-edited /
+// caregiver-visible) value is always a real, explicit selection rather than
+// null/empty.
 const CARE_RECEIVER_DEFAULTS = {
   communication: Communication.VERBAL,
-  feeding_type: FeedingType.ORAL_FEEDING,
-  toilet_assistance: [ToiletAssistance.INDEPENDENT],
 } as const;
 
 // Exported for reuse by individual.service.ts — a NurseNow individual's
@@ -83,14 +80,11 @@ export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareRecei
     gender: dto.gender,
     weight_kg: dto.weight_kg,
     communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
-    feeding_type: dto.feeding_type ?? CARE_RECEIVER_DEFAULTS.feeding_type,
+    feeding_type: dto.feeding_type,
     has_medical_condition: dto.has_medical_condition ?? false,
     medical_conditions: dto.medical_conditions ?? [],
     medical_condition_other: dto.medical_condition_other ?? null,
-    toilet_assistance:
-      dto.toilet_assistance && dto.toilet_assistance.length > 0
-        ? dto.toilet_assistance
-        : [...CARE_RECEIVER_DEFAULTS.toilet_assistance],
+    toilet_assistance: dto.toilet_assistance,
     toilet_assistance_other: dto.toilet_assistance_other ?? null,
     requires_vital_monitoring: dto.requires_vital_monitoring ?? false,
     vital_monitoring_types: dto.vital_monitoring_types ?? [],
