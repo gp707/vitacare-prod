@@ -638,7 +638,9 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
   });
 
-  testWidgets('a completed engagement offers View Profile but never an Accept option', (tester) async {
+  testWidgets(
+      'a completed engagement (caregiver closed the job themselves) offers View Profile and an "Accept Anyway" '
+      'option, but not Reject', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -652,8 +654,26 @@ void main() {
 
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
+  });
+
+  testWidgets('tapping "Accept Anyway" on a completed engagement calls decideApplication with accepted', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      applicationsByJobId: {
+        'job-1': [_application(id: 'app-1', status: 'completed')],
+      },
+    );
+    await _pump(tester, repo);
+    await _revealClosedRequirements(tester);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedJobId, 'job-1');
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'accepted');
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right job and application id', (tester) async {

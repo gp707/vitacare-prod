@@ -1896,6 +1896,51 @@ describe('Jobs (e2e)', () => {
       expect(detailAfterSecondAccept.body.data.status).toBe('closed');
     }, 30000);
 
+    it('"Accept Anyway" — re-accepting a completed application re-closes the job and re-assigns the caregiver', async () => {
+      const caregiver = await registerCaregiver('0042');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      await acceptOnto(job, caregiver);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+
+      const detailAfterComplete = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detailAfterComplete.body.data.status).toBe('active');
+      const completedApplication = detailAfterComplete.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      expect(completedApplication.status).toBe('completed');
+
+      const reaccept = await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${completedApplication.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      expect(reaccept.body.data).toEqual({ message: 'Application updated', status: 'accepted' });
+
+      const detailAfterReaccept = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(detailAfterReaccept.body.data.status).toBe('closed');
+      const reacceptedApplication = detailAfterReaccept.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      expect(reacceptedApplication.status).toBe('accepted');
+
+      const profile = await db.query('SELECT verification_status FROM caregiver_profiles WHERE user_id = $1', [
+        caregiver.user_id,
+      ]);
+      expect(profile.rows[0].verification_status).toBe('assigned');
+    }, 30000);
+
     it('rejects completing a job that was never applied to (JOB_008)', async () => {
       const caregiver = await registerCaregiver('0029');
       const job = await createJob();

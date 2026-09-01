@@ -912,7 +912,39 @@ describe('JobsService', () => {
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
 
-    it.each(['applied', 'rejected'])(
+    it('accepts a previously-completed application ("Accept Anyway" after the caregiver closed the job '
+      + 'themselves), closing the job and assigning the caregiver same as a fresh accept', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'completed' });
+      jobApplicationsRepo.findAcceptedForJob.mockResolvedValue(null);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      const result = await service.decideApplication(
+        'admin-1',
+        'job-1',
+        'app-1',
+        { status: 'accepted' as any },
+        null,
+      );
+
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'accepted',
+        'admin-1',
+        expect.anything(),
+        undefined,
+      );
+      expect(jobsRepo.close).toHaveBeenCalledWith('job-1', expect.anything());
+      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith(
+        'profile-1',
+        'assigned',
+        null,
+        'admin-1',
+        expect.anything(),
+      );
+      expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
+    });
+
+    it.each(['applied', 'rejected', 'completed'])(
       'throws JOB_016 when accepting a %s application while a different one is already accepted for the job',
       async (status) => {
         jobApplicationsRepo.findById.mockResolvedValue({ ...application, status });

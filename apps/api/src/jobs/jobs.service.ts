@@ -455,13 +455,18 @@ export class JobsService {
 
   /** Admin (or, via IndividualService, the patient/family) decision on a
    *  specific applicant. `accepted` closes the job and moves the caregiver
-   *  to `assigned` (this IS the offer confirmation) — valid from either
-   *  `applied` (a normal accept) or `rejected` (re-accepting a candidate
-   *  either side had previously declined, e.g. after reconsidering). Only
-   *  ever one applicant can be `accepted` on a job at a time — accepting a
-   *  *different* application while one is already accepted is JOB_016;
-   *  the currently-accepted one must be rejected (undone) first. `rejected`
-   *  on a previously-`accepted` application reopens the job and moves the
+   *  to `assigned` (this IS the offer confirmation) — valid from `applied`
+   *  (a normal accept), `rejected` (re-accepting a candidate either side
+   *  had previously declined, e.g. after reconsidering), or `completed`
+   *  (re-engaging a caregiver who previously closed this same job
+   *  themselves via completeJob — that already reopens the job to
+   *  `active`, so there's nothing extra to undo here; "Accept Anyway" on
+   *  nursenow-app works identically for a closed-by-caregiver candidate as
+   *  it does for a previously-rejected one). Only ever one applicant can
+   *  be `accepted` on a job at a time — accepting a *different*
+   *  application while one is already accepted is JOB_016; the currently-
+   *  accepted one must be rejected (undone) first. `rejected` on a
+   *  previously-`accepted` application reopens the job and moves the
    *  caregiver back to `available`; `rejected` on a still-`applied`
    *  application just declines it, no side effects. Anything else
    *  (double-accept of the same application, rejecting an already-rejected
@@ -480,11 +485,13 @@ export class JobsService {
       dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.APPLIED;
     const isAcceptFromRejected =
       dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.REJECTED;
+    const isAcceptFromCompleted =
+      dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.COMPLETED;
     const isUndoAccept =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.ACCEPTED;
     const isRejectFromApplied =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.APPLIED;
-    const isAccepting = isAcceptFromApplied || isAcceptFromRejected;
+    const isAccepting = isAcceptFromApplied || isAcceptFromRejected || isAcceptFromCompleted;
 
     if (!isAccepting && !isUndoAccept && !isRejectFromApplied) {
       throw new AppException('JOB_007');

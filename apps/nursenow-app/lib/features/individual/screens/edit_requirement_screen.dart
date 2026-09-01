@@ -409,17 +409,29 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       }
       if (firstInvalid != null) {
         final target = firstInvalid;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          // Focus first — on mobile this opens the on-screen keyboard,
+          // which shrinks the viewport. Doing this *before* computing where
+          // to scroll (and waiting for the keyboard's resize to settle)
+          // means ensureVisible scrolls against the final, keyboard-shrunk
+          // viewport size; doing it the other way around (the previous
+          // order here) let the keyboard's later resize cover the field
+          // right after the scroll had already placed it in view, which is
+          // why this worked on desktop/web (no on-screen keyboard) but not
+          // on an actual phone.
+          target.focusNode?.requestFocus();
+          if (target.focusNode != null) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
           final ctx = target.key.currentContext;
-          if (ctx != null) {
-            Scrollable.ensureVisible(
+          if (ctx != null && ctx.mounted) {
+            await Scrollable.ensureVisible(
               ctx,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               alignment: 0.1,
             );
           }
-          target.focusNode?.requestFocus();
         });
       }
       return;

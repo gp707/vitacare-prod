@@ -232,9 +232,19 @@ location) that didn't fit the Individual/admin jobs-table model.
   Rejecting (undoing) the current acceptance reopens the job and frees the slot, at which point any
   other candidate — including one already `rejected` — can be accepted ("Accept Anyway" in
   nursenow-app's UI, `_ApplicantTile` in `jobs_posted_screen.dart`). This same accept-from-rejected
-  path is also how a candidate the caregiver self-withdrew from can be accepted after all. The
-  `JOB_016` guard lives in the shared `decideApplication` method, so it applies equally if admin's
-  own accept-an-applicant flow is ever used the same way. **Rejecting an applicant requires a
+  path is also how a candidate the caregiver self-withdrew from can be accepted after all. **The
+  same "Accept Anyway" action also works on a `completed` application** — a caregiver who closed
+  this job themselves (`POST /caregiver/jobs/:id/complete`, see "Closing an accepted job" above)
+  can be re-engaged by the same patient/family: `completeJob` already reopens the job to `active`
+  server-side, so `decideApplication`'s accept path just needed a 3rd eligibility case
+  (`isAcceptFromCompleted`, alongside the existing `isAcceptFromApplied`/`isAcceptFromRejected`) to
+  allow it — no other side effect differs from a fresh accept (closes the job again, sets the
+  caregiver back to `assigned`). `_ApplicantTile` shows "Accept Anyway" (not plain "Accept") for
+  this case too (`_isRejected || _isCompleted`), and `canAccept` no longer excludes a `completed`
+  application the way it originally did (that exclusion was a deliberate initial design choice,
+  later reversed on explicit request). The `JOB_016` guard lives in the shared `decideApplication`
+  method, so it applies equally if admin's own accept-an-applicant flow is ever used the same way.
+  **Rejecting an applicant requires a
   reason** — `job_applications.decline_reason` (added by
   migration 040), enforced server-side by `IndividualService.decideMyApplication` (`JOB_012` if
   missing/blank) rather than in the shared `DecideApplicationDto`/`JobsService.decideApplication`,
@@ -248,6 +258,15 @@ location) that didn't fit the Individual/admin jobs-table model.
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a
   mandatory field empty flags every missing field red (with an inline message) and scrolls/focuses
   straight to the first invalid one, instead of showing one generic top-of-form error string.
+  **On nursenow-app's Post/Edit Requirement screens, focus is requested *before* the scroll, with a
+  300ms wait in between when the target has a `FocusNode` (a text field, not a dropdown)** — this
+  order matters specifically on an actual mobile device: `requestFocus()` opens the on-screen
+  keyboard, which shrinks the viewport; computing the scroll position beforehand (the original
+  order) meant the keyboard's later resize could cover the field right after the scroll had placed
+  it in view, so the fix worked on desktop/web (no on-screen keyboard) but not on a phone. Fixed by
+  reordering to focus-then-wait-then-`Scrollable.ensureVisible` — re-fetching `target.key.
+  currentContext` fresh after the delay (with a `ctx.mounted` check) rather than reusing a context
+  captured before the async gap.
   **caregiver-app's own `RegistrationScreen` (NurseJobs) uses the same pattern** — every mandatory
   field (full name, phone, 4-digit login code, age, languages, religion, highest qualification,
   selfie, Aadhaar, terms acceptance) gets a red border/label + inline error message simultaneously
