@@ -459,9 +459,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('40000/month'), findsOneWidget);
     expect(find.text('2026-08-25 – 2026-09-05'), findsOneWidget);
-    final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
+    final salaryStyle = tester.widget<Text>(find.text('40000/month')).style!;
     final scheduleStyle = tester.widget<Text>(find.text('2026-08-25 – 2026-09-05')).style!;
     expect(scheduleStyle.color, AppColors.error);
     expect(scheduleStyle.fontSize, salaryStyle.fontSize);

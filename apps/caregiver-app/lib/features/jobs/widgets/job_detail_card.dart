@@ -71,6 +71,88 @@ class Tag extends StatelessWidget {
   }
 }
 
+/// The salary figure — always the most important number on a card, so it
+/// gets its own green banner rather than reading as just another field.
+/// Shared by JobDetailCard (jobs) and _RequirementCard in jobs_screen.dart
+/// (organisation requirements), which carry the same amount/frequency shape.
+class SalaryBadge extends StatelessWidget {
+  final String amount;
+  final String? frequencyOfCare;
+
+  const SalaryBadge({super.key, required this.amount, required this.frequencyOfCare});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        border: Border.all(color: AppColors.success),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+            child: const Icon(Icons.currency_rupee, size: 12, color: Colors.white),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              '$amount/${salaryUnit(frequencyOfCare)}',
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single at-a-glance fact (duty hours, location, ...) paired with a fixed
+/// icon rather than relying on a caregiver reading the English label — the
+/// icon marks the category (a clock always means timing, a pin always means
+/// place), the text still carries the actual value. Used on the collapsed
+/// job card header only, where a caregiver decides whether to even open a
+/// listing; the expanded detail section below still uses plain [Tag] chips.
+class IconField extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const IconField({super.key, required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(icon, size: 13, color: AppColors.primaryDark),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Job header (display id, urgency, salary), the About Patient / About
 /// Nurse-Caregiver Requirement sections, and the free-text description —
 /// everything about a job except caregiver-action
@@ -138,25 +220,7 @@ class _JobDetailCardState extends State<JobDetailCard> {
           Row(
             children: [
               if (job.salaryAmount != null)
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppSpacing.sm),
-                      border: Border.all(color: AppColors.success),
-                    ),
-                    child: Text(
-                      '₹${job.salaryAmount}/${salaryUnit(job.frequencyOfCare)}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ),
-                ),
+                Expanded(child: SalaryBadge(amount: job.salaryAmount!, frequencyOfCare: job.frequencyOfCare)),
               if (job.salaryAmount != null && job.startDate != null) const SizedBox(width: AppSpacing.xs),
               if (job.startDate != null)
                 Expanded(
@@ -168,11 +232,18 @@ class _JobDetailCardState extends State<JobDetailCard> {
           ),
         ],
         const SizedBox(height: AppSpacing.sm),
-        Text(
-          '${DutyType.displayNames[job.dutyType] ?? job.dutyType} in '
-          '${City.displayNames[job.city] ?? job.city}'
-          '${job.careReceiver != null ? ' · ${capitalize(job.careReceiver!.gender)} Patient' : ''}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            IconField(icon: Icons.access_time, text: DutyType.displayNames[job.dutyType] ?? job.dutyType),
+            IconField(
+              icon: Icons.location_on,
+              text: '${City.displayNames[job.city] ?? job.city}'
+                  '${job.careReceiver != null ? ' · ${capitalize(job.careReceiver!.gender)} Patient' : ''}',
+            ),
+          ],
         ),
         const SizedBox(height: 2),
         Text(
@@ -450,14 +521,24 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
           borderRadius: BorderRadius.circular(AppSpacing.sm),
           border: Border.all(color: AppColors.error, width: 1.5),
         ),
-        child: Text(
-          widget.label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.error,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.calendar_today, size: 14, color: AppColors.error),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(
+              child: Text(
+                widget.label,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.error,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

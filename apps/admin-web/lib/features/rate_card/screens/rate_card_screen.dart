@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
 import '../data/rate_card_repository.dart';
 
 /// Lets an admin edit the salary-guidance grids shown behind a persistent
@@ -202,9 +203,15 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            FrequencyOfCare.displayNames[_frequency] ?? _frequency,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 18, color: AppColors.primaryDark),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                FrequencyOfCare.displayNames[_frequency] ?? _frequency,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           if (_errorMessage != null) ...[
@@ -259,12 +266,28 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
               padding: EdgeInsets.all(AppSpacing.sm),
               child: Text('Caregiver Tier \\ Care Type', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
+            // Columns are index-matched to CareTier.all (Companion/Bedside/
+            // Critical Care) by convention — see CLAUDE.md's Rate Card
+            // section — so the same tier icon ScopeOfWorkButton uses is
+            // shown here too, purely as a visual cue; the label itself
+            // stays free text, admin can rename it to anything.
             for (var col = 0; col < 3; col++)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.sm),
-                child: TextField(
-                  controller: _columnControllers[col],
-                  decoration: const InputDecoration(labelText: 'Column label'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      col < CareTier.all.length ? tierIcon(CareTier.all[col]) : Icons.info_outline,
+                      size: 16,
+                      color: AppColors.primaryDark,
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _columnControllers[col],
+                      decoration: const InputDecoration(labelText: 'Column label'),
+                    ),
+                  ],
                 ),
               ),
           ],

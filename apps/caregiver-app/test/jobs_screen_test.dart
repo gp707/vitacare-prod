@@ -187,7 +187,8 @@ void main() {
     // Collapsed: header (job #, salary, duty type + city, posted date) is
     // visible, but the tag-heavy detail sections are not.
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
+    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
     expect(find.text('Show details'), findsOneWidget);
@@ -261,7 +262,8 @@ void main() {
   testWidgets('shows job details: duty type, city, area, description', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
+    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
     // Area/description are inside the collapsible detail section.
     expect(find.text('Indiranagar'), findsNothing);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
@@ -277,7 +279,10 @@ void main() {
     await _pump(tester, _FakeJobsRepository([_job(description: null)]));
     await _expandDetails(tester);
 
-    expect(find.text('24Hrs - Live In in Bangalore · Female Patient'), findsOneWidget);
+    // Duty type now also appears as its own Tag in the expanded "About
+    // Nurse/Caregiver Requirement" section, alongside the collapsed header.
+    expect(find.text('24Hrs - Live In'), findsWidgets);
+    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
 
@@ -307,7 +312,9 @@ void main() {
 
     // About Nurse/Caregiver Requirement
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
-    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    // Duty type also appears as its own icon field on the collapsed header,
+    // so this is two matches, not one.
+    expect(find.text('24Hrs - Live In'), findsNWidgets(2));
     expect(find.text('Daily'), findsOneWidget);
     expect(find.text('Hindi'), findsOneWidget);
     // Not set on this admin-posted job fixture — only a NurseNow
@@ -365,7 +372,7 @@ void main() {
 
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
-    expect(find.text('₹30000/day'), findsOneWidget);
+    expect(find.text('30000/day'), findsOneWidget);
   });
 
   testWidgets('shows a highlighted start date next to the salary when the job has one', (tester) async {
@@ -385,7 +392,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('₹30000/day'), findsOneWidget);
+    expect(find.text('30000/day'), findsOneWidget);
     expect(find.text('Start: 2026-08-20'), findsOneWidget);
   });
 
@@ -404,7 +411,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    final salaryStyle = tester.widget<Text>(find.text('₹30000/day')).style!;
+    final salaryStyle = tester.widget<Text>(find.text('30000/day')).style!;
     final startDateStyle = tester.widget<Text>(find.text('Start: 2026-08-20')).style!;
     expect(startDateStyle.color, AppColors.error);
     expect(startDateStyle.fontSize, salaryStyle.fontSize);
@@ -431,9 +438,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('40000/month'), findsOneWidget);
     expect(find.text('2026-08-25 – 2026-09-05'), findsOneWidget);
-    final salaryStyle = tester.widget<Text>(find.text('₹40000/month')).style!;
+    final salaryStyle = tester.widget<Text>(find.text('40000/month')).style!;
     final scheduleStyle = tester.widget<Text>(find.text('2026-08-25 – 2026-09-05')).style!;
     expect(scheduleStyle.color, AppColors.error);
     expect(scheduleStyle.fontSize, salaryStyle.fontSize);
@@ -494,7 +501,7 @@ void main() {
   testWidgets('shows the salary unit as /month for a job with frequency_of_care monthly', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job(frequencyOfCare: 'monthly')]));
 
-    expect(find.text('₹30000/month'), findsOneWidget);
+    expect(find.text('30000/month'), findsOneWidget);
   });
 
   testWidgets('shows days-left urgency for a freshly-posted job', (tester) async {
@@ -928,7 +935,7 @@ void main() {
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('Hospital · Bangalore · Indiranagar'), findsOneWidget);
-    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('40000/month'), findsOneWidget);
     expect(find.text('Registered Nurse'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);

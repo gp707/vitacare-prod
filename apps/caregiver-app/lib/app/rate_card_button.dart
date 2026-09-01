@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/providers.dart';
 import '../core/rate_card/rate_card_repository.dart';
+import 'scope_of_work_button.dart' show tierIcon;
 
 /// Persistent salary-guidance entry point — shown in every main screen's
 /// AppBar, same placement convention as WhatsAppHelpButton, so a caregiver
@@ -120,7 +121,16 @@ class _RateCardDialogState extends State<_RateCardDialog> {
                             padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                             child: Divider(height: 1),
                           ),
-                          Text(_rateCards![i].title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Row(
+                            children: [
+                              const Icon(Icons.access_time, size: 15, color: AppColors.primaryDark),
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                _rateCards![i].title,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: AppSpacing.xs),
                           _RateCardTable(rateCard: _rateCards![i]),
                         ],
@@ -161,10 +171,28 @@ class _RateCardTable extends StatelessWidget {
         TableRow(
           children: [
             const SizedBox.shrink(),
-            for (final label in rateCard.columnLabels)
+            // Column labels are index-matched to CareTier.all (Companion/
+            // Bedside/Critical Care) — same icon mapping ScopeOfWorkButton
+            // uses for these same 3 tiers, so the pictogram means the same
+            // thing everywhere a caregiver sees it.
+            for (var col = 0; col < rateCard.columnLabels.length; col++)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.xs),
-                child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                child: Column(
+                  children: [
+                    Icon(
+                      col < CareTier.all.length ? tierIcon(CareTier.all[col]) : Icons.info_outline,
+                      size: 14,
+                      color: AppColors.primaryDark,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      rateCard.columnLabels[col],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
           ],
         ),

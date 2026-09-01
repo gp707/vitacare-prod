@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
 
 /// Lets an admin edit the 3 cumulative bullet lists (Companion Care /
 /// Bedside Care / Critical Care) shown to caregivers (NurseJobs) via a
@@ -139,12 +140,14 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
           const SizedBox(height: AppSpacing.sm),
         ],
         _buildTierSection(
+          icon: tierIcon(CareTier.companionCare),
           title: 'Companion Care',
           controllers: _companionControllers,
           onChanged: (updated) => setState(() => _companionControllers = updated),
         ),
         const SizedBox(height: AppSpacing.lg),
         _buildTierSection(
+          icon: tierIcon(CareTier.bedsideCare),
           title: 'Bedside Care',
           subtitle: 'Everything in Companion Care, plus:',
           controllers: _bedsideControllers,
@@ -152,6 +155,7 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
         ),
         const SizedBox(height: AppSpacing.lg),
         _buildTierSection(
+          icon: tierIcon(CareTier.criticalCare),
           title: 'Critical Care',
           subtitle: 'Everything in Bedside Care, plus:',
           controllers: _criticalControllers,
@@ -178,6 +182,7 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
   }
 
   Widget _buildTierSection({
+    required IconData icon,
     required String title,
     String? subtitle,
     required List<TextEditingController> controllers,
@@ -193,7 +198,13 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.primaryDark),
+              const SizedBox(width: AppSpacing.xs),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
             Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),

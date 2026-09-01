@@ -85,7 +85,14 @@ class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(CareTier.displayNames[widget.tier] ?? widget.tier),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(tierIcon(widget.tier), color: AppColors.primary, size: 20),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(child: Text(CareTier.displayNames[widget.tier] ?? widget.tier)),
+        ],
+      ),
       content: SizedBox(
         width: 400,
         child: _loading
@@ -108,7 +115,8 @@ class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('•  '),
+                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                                const SizedBox(width: AppSpacing.xs),
                                 Expanded(child: Text(bullet)),
                               ],
                             ),
@@ -123,5 +131,24 @@ class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
             child: const Text('Close')),
       ],
     );
+  }
+}
+
+/// Which pictogram represents each care tier — shared visual language
+/// between this dialog's title and RateCardButton's column headers (same 3
+/// tiers, same icons), so a patient/family learns the mapping once.
+/// Escalates by severity: a heart for companionship, a medical-services bag
+/// once nursing tasks are involved, an emergency symbol once care is
+/// critical. Duplicated in caregiver-app's own scope_of_work_button.dart —
+/// same duplication precedent as the rest of this button.
+IconData tierIcon(String tier) {
+  switch (tier) {
+    case CareTier.bedsideCare:
+      return Icons.medical_services;
+    case CareTier.criticalCare:
+      return Icons.emergency;
+    case CareTier.companionCare:
+    default:
+      return Icons.favorite;
   }
 }

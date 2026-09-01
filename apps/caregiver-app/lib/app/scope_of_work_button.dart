@@ -77,7 +77,14 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(CareTier.displayNames[widget.tier] ?? widget.tier),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(tierIcon(widget.tier), color: AppColors.primary, size: 20),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(child: Text(CareTier.displayNames[widget.tier] ?? widget.tier)),
+        ],
+      ),
       content: SizedBox(
         width: 400,
         child: _loading
@@ -98,7 +105,8 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('•  '),
+                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                                const SizedBox(width: AppSpacing.xs),
                                 Expanded(child: Text(bullet)),
                               ],
                             ),
@@ -111,5 +119,22 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
       ],
     );
+  }
+}
+
+/// Which pictogram represents each care tier — shared visual language
+/// between this dialog's title and RateCardButton's column headers (same 3
+/// tiers, same icons), so a caregiver learns the mapping once. Escalates by
+/// severity: a heart for companionship, a medical-services bag once nursing
+/// tasks are involved, an emergency symbol once care is critical.
+IconData tierIcon(String tier) {
+  switch (tier) {
+    case CareTier.bedsideCare:
+      return Icons.medical_services;
+    case CareTier.criticalCare:
+      return Icons.emergency;
+    case CareTier.companionCare:
+    default:
+      return Icons.favorite;
   }
 }

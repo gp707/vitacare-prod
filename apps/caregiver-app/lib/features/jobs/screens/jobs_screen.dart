@@ -370,32 +370,71 @@ class _JobCard extends StatelessWidget {
             // jobs, so that's always true here.
             if (job.myApplication!.status == JobApplicationStatus.applied) ...[
               const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Reject Job')),
-              ),
+              SizedBox(width: double.infinity, child: _RejectButton(onPressed: onWithdraw, label: 'Reject Job')),
             ] else if (job.myApplication!.status == JobApplicationStatus.rejected ||
                 job.myApplication!.status == JobApplicationStatus.completed) ...[
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(onPressed: onApply, child: const Text('Apply Again')),
+                child: _ApplyButton(onPressed: onApply, label: 'Apply Again', icon: Icons.refresh),
               ),
             ],
           ] else
             Row(
               children: [
-                Expanded(
-                  child: ElevatedButton(onPressed: onApply, child: const Text('Apply')),
-                ),
+                Expanded(child: _ApplyButton(onPressed: onApply, label: 'Apply')),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton(onPressed: onReject, child: const Text('Reject')),
-                ),
+                Expanded(child: _RejectButton(onPressed: onReject, label: 'Reject')),
               ],
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The caregiver-facing "yes" action — filled solid green with a check, so
+/// it reads as affirmative by shape and color alone, not just the word.
+/// Shared by _JobCard and _RequirementCard; [icon] defaults to a plain
+/// check but "Apply Again" (after a rejected/completed application) uses a
+/// refresh icon instead, since that action isn't a first-time apply.
+class _ApplyButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String label;
+  final IconData icon;
+
+  const _ApplyButton({required this.onPressed, required this.label, this.icon = Icons.check});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
+/// The caregiver-facing "no" action — a red outline with a cross, distinct
+/// from [_ApplyButton] in both shape and color, not just the word. Shared by
+/// every reject/withdraw path across _JobCard and _RequirementCard.
+class _RejectButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String label;
+
+  const _RejectButton({required this.onPressed, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error),
+      ),
+      icon: const Icon(Icons.close, size: 18),
+      label: Text(label),
     );
   }
 }
@@ -458,18 +497,9 @@ class _RequirementCard extends StatelessWidget {
               children: [
                 if (requirement.salaryAmount != null)
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppSpacing.sm),
-                        border: Border.all(color: AppColors.success),
-                      ),
-                      child: Text(
-                        '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
-                      ),
+                    child: SalaryBadge(
+                      amount: requirement.salaryAmount!.toString(),
+                      frequencyOfCare: requirement.frequencyOfCare,
                     ),
                   ),
                 if (requirement.salaryAmount != null && organisationScheduleLabel(requirement) != null)
@@ -502,15 +532,15 @@ class _RequirementCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(onPressed: onWithdraw, child: const Text('Reject Requirement')),
+                child: _RejectButton(onPressed: onWithdraw, label: 'Reject Requirement'),
               ),
             ],
           ] else
             Row(
               children: [
-                Expanded(child: ElevatedButton(onPressed: onApply, child: const Text('Apply'))),
+                Expanded(child: _ApplyButton(onPressed: onApply, label: 'Apply')),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(child: OutlinedButton(onPressed: onReject, child: const Text('Reject'))),
+                Expanded(child: _RejectButton(onPressed: onReject, label: 'Reject')),
               ],
             ),
         ],

@@ -71,7 +71,17 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               });
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
+            // A manual Row instead of TextButton.icon — the latter's built-in
+            // icon/label gap was just wide enough to overflow the AppBar
+            // alongside RateCardButton/WhatsAppHelpButton on a narrow screen.
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.logout, size: 14, color: Colors.white),
+                SizedBox(width: 3),
+                Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
           ),
         ],
       ),
@@ -119,11 +129,15 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           title: 'Basic Info',
           onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
-            _Field('Full Name', profile.fullName),
-            _Field('Phone', profile.phone),
-            _Field('Gender', profile.gender[0].toUpperCase() + profile.gender.substring(1)),
-            _Field('Age', '${profile.age}'),
-            _Field('Languages', profile.languages.map((l) => Language.displayNames[l] ?? l).join(', ')),
+            _Field(Icons.badge, 'Full Name', profile.fullName),
+            _Field(Icons.phone, 'Phone', profile.phone),
+            _Field(Icons.wc, 'Gender', profile.gender[0].toUpperCase() + profile.gender.substring(1)),
+            _Field(Icons.cake, 'Age', '${profile.age}'),
+            _Field(
+              Icons.language,
+              'Languages',
+              profile.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -131,8 +145,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           title: 'Professional & Contact Info',
           onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
-            _Field('Qualification', Qualification.displayNames[profile.highestQualification] ?? '—'),
-            _Field('Religion', Religion.displayNames[profile.religion] ?? '—'),
+            _Field(Icons.school, 'Qualification', Qualification.displayNames[profile.highestQualification] ?? '—'),
+            _Field(Icons.diversity_3, 'Religion', Religion.displayNames[profile.religion] ?? '—'),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -140,13 +154,30 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           title: 'Documents',
           onEdit: () => Navigator.of(context).pushNamed('/profile/edit').then((_) => _load()),
           children: [
-            _Field('Selfie', profile.selfiePhotoUrl != null ? 'Uploaded' : 'Not uploaded'),
-            _Field('Aadhaar Card', profile.aadhaarDocumentUrl != null ? 'Uploaded' : 'Not uploaded'),
             _Field(
+              Icons.camera_alt,
+              'Selfie',
+              profile.selfiePhotoUrl != null ? 'Uploaded' : 'Not uploaded',
+              valueColor: profile.selfiePhotoUrl != null ? AppColors.success : null,
+            ),
+            _Field(
+              Icons.credit_card,
+              'Aadhaar Card',
+              profile.aadhaarDocumentUrl != null ? 'Uploaded' : 'Not uploaded',
+              valueColor: profile.aadhaarDocumentUrl != null ? AppColors.success : null,
+            ),
+            _Field(
+              Icons.description,
               'Qualification Document',
               profile.qualificationDocumentUrl != null ? 'Uploaded' : 'Not uploaded',
+              valueColor: profile.qualificationDocumentUrl != null ? AppColors.success : null,
             ),
-            _Field('Other Documents', '${profile.otherDocumentUrls.length} uploaded'),
+            _Field(
+              Icons.attach_file,
+              'Other Documents',
+              '${profile.otherDocumentUrls.length} uploaded',
+              valueColor: profile.otherDocumentUrls.isNotEmpty ? AppColors.success : null,
+            ),
           ],
         ),
       ],
@@ -182,7 +213,12 @@ class _Section extends StatelessWidget {
               Expanded(
                 child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              if (onEdit != null) TextButton(onPressed: onEdit, child: const Text('Edit')),
+              if (onEdit != null)
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit, size: 15),
+                  label: const Text('Edit'),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -194,10 +230,12 @@ class _Section extends StatelessWidget {
 }
 
 class _Field extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _Field(this.label, this.value);
+  const _Field(this.icon, this.label, this.value, {this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -206,11 +244,23 @@ class _Field extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(right: AppSpacing.xs),
+            decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(7)),
+            child: Icon(icon, size: 13, color: AppColors.primaryDark),
+          ),
           SizedBox(
-            width: 160,
+            width: 130,
             child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
           ),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: Text(
+              value,
+              style: valueColor != null ? TextStyle(color: valueColor, fontWeight: FontWeight.w600) : null,
+            ),
+          ),
         ],
       ),
     );

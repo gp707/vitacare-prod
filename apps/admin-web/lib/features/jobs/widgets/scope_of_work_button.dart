@@ -80,7 +80,14 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(CareTier.displayNames[widget.tier] ?? widget.tier),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(tierIcon(widget.tier), color: AppColors.primary, size: 20),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(child: Text(CareTier.displayNames[widget.tier] ?? widget.tier)),
+        ],
+      ),
       content: SizedBox(
         width: 400,
         child: _loading
@@ -101,7 +108,8 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('•  '),
+                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                                const SizedBox(width: AppSpacing.xs),
                                 Expanded(child: Text(bullet)),
                               ],
                             ),
@@ -114,5 +122,22 @@ class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
       ],
     );
+  }
+}
+
+/// Which pictogram represents each care tier — same mapping as
+/// caregiver-app's and nursenow-app's own scope_of_work_button.dart, so a
+/// tier reads identically across all three apps. Duplicated here rather
+/// than shared — same precedent as the rest of this button (see
+/// CLAUDE.md's Scope of Work section).
+IconData tierIcon(String tier) {
+  switch (tier) {
+    case CareTier.bedsideCare:
+      return Icons.medical_services;
+    case CareTier.criticalCare:
+      return Icons.emergency;
+    case CareTier.companionCare:
+    default:
+      return Icons.favorite;
   }
 }

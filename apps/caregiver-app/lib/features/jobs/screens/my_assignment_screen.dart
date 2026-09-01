@@ -333,16 +333,7 @@ class _AssignedJobCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                onPressed: completing ? null : onMarkComplete,
-                child: completing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Close Job'),
-              ),
+              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Job'),
             ),
           ],
           if (job.myApplication != null) ...[
@@ -403,18 +394,9 @@ class _AssignedRequirementCard extends StatelessWidget {
               children: [
                 if (requirement.salaryAmount != null)
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppSpacing.sm),
-                        border: Border.all(color: AppColors.success),
-                      ),
-                      child: Text(
-                        '₹${requirement.salaryAmount}/${salaryUnit(requirement.frequencyOfCare)}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
-                      ),
+                    child: SalaryBadge(
+                      amount: requirement.salaryAmount!.toString(),
+                      frequencyOfCare: requirement.frequencyOfCare,
                     ),
                   ),
                 if (requirement.salaryAmount != null && organisationScheduleLabel(requirement) != null)
@@ -438,16 +420,7 @@ class _AssignedRequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                onPressed: completing ? null : onMarkComplete,
-                child: completing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Close Requirement'),
-              ),
+              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Requirement'),
             ),
           ],
           if (requirement.myApplication != null) ...[
@@ -456,6 +429,39 @@ class _AssignedRequirementCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The caregiver-facing "done" action on an accepted job/requirement — an
+/// outlined green button with a check-circle icon, distinct from
+/// jobs_screen.dart's filled-green Apply and red-outline Reject (this isn't
+/// either of those: it's a positive but confirm-first action, so it keeps
+/// the outline treatment rather than a solid fill). Shared by
+/// _AssignedJobCard and _AssignedRequirementCard.
+class _CloseButton extends StatelessWidget {
+  final bool completing;
+  final VoidCallback onPressed;
+  final String label;
+
+  const _CloseButton({required this.completing, required this.onPressed, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: completing ? null : onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.success,
+        side: const BorderSide(color: AppColors.success),
+      ),
+      icon: completing
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
+            )
+          : const Icon(Icons.task_alt, size: 18),
+      label: Text(label),
     );
   }
 }
