@@ -191,7 +191,21 @@ void main() {
     expect(find.text('+919876500000'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
+  });
+
+  testWidgets('shows the full action timeline (applied, accepted) on an accepted job in MyJobs', (tester) async {
+    await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
+
+    expect(find.textContaining('Applied by you:'), findsOneWidget);
+    expect(find.textContaining('Accepted by employer:'), findsOneWidget);
+  });
+
+  testWidgets('shows "Closed by you" in the timeline once the job is completed', (tester) async {
+    await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]));
+    await _showCompletedJobs(tester);
+
+    expect(find.textContaining('Closed by you:'), findsOneWidget);
   });
 
   testWidgets("shows an empty state when there are no accepted jobs or requirements", (tester) async {
@@ -213,8 +227,8 @@ void main() {
     expect(find.text('ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ADMIN-JOB-543'), findsOneWidget);
     // Only the accepted job gets the action button; the completed one shows a badge instead.
-    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsOneWidget);
-    expect(find.text('You rejected this job'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
+    expect(find.text('You closed this job — work completed'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
   });
 
@@ -283,46 +297,46 @@ void main() {
     expect(find.textContaining('are completed and hidden'), findsOneWidget);
   });
 
-  testWidgets('tapping Reject Job, confirming, calls completeJob and refreshes the list', (tester) async {
+  testWidgets('tapping Close Job, confirming, calls completeJob and refreshes the list', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()]);
     await _pump(tester, jobsRepo: fakeRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Job'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
     await tester.pumpAndSettle();
 
     // Confirmation dialog appears first — tapping outside/Cancel wouldn't call the API.
-    expect(find.text('Reject this job?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject Job'));
+    expect(find.text('Close this job?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.completedJobId, 'job-1');
     // Now completed — hidden by default; reveal it to check the resulting
     // badge/button state.
     await _showCompletedJobs(tester);
-    expect(find.text('You rejected this job'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsNothing);
+    expect(find.text('You closed this job — work completed'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
   });
 
   testWidgets('cancelling the confirmation dialog does not call completeJob', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()]);
     await _pump(tester, jobsRepo: fakeRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Job'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.completedJobId, isNull);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
   });
 
   testWidgets('shows a snackbar mentioning availability when completing the last accepted job', (tester) async {
     final fakeRepo = _FakeJobsRepository([_assignedJob()], false);
     await _pump(tester, jobsRepo: fakeRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Job'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject Job'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining("now available for new jobs"), findsOneWidget);
@@ -342,8 +356,8 @@ void main() {
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('You were accepted for this requirement'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Job'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Requirement'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsOneWidget);
   });
 
   testWidgets('assigned job and requirement cards each have a bold black border clearly separating them from one another',
@@ -384,27 +398,27 @@ void main() {
     );
     await _showCompletedJobs(tester);
 
-    expect(find.text('You rejected this requirement'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Requirement'), findsNothing);
+    expect(find.text('You closed this requirement — work completed'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
   });
 
   testWidgets(
-      'tapping Reject Requirement on a requirement, confirming, calls complete() and refreshes the list',
+      'tapping Close Requirement on a requirement, confirming, calls complete() and refreshes the list',
       (tester) async {
     final orgRepo = _FakeOrganisationOpeningsRepository([_assignedRequirement()]);
     await _pump(tester, orgRepo: orgRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Requirement'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Requirement'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Reject this requirement?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject Requirement'));
+    expect(find.text('Close this requirement?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Requirement'));
     await tester.pumpAndSettle();
 
     expect(orgRepo.completedRequirementId, 'req-1');
     await _showCompletedJobs(tester);
-    expect(find.text('You rejected this requirement'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject Requirement'), findsNothing);
+    expect(find.text('You closed this requirement — work completed'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsNothing);
   });
 
   testWidgets('shows a snackbar mentioning availability when completing the last accepted requirement',
@@ -415,9 +429,9 @@ void main() {
     );
     await _pump(tester, orgRepo: orgRepo);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject Requirement'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Requirement'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject Requirement'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Requirement'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining("now available for new jobs"), findsOneWidget);

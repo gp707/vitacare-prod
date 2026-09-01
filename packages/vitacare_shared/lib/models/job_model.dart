@@ -248,6 +248,9 @@ class JobApplicationModel {
   final String? appliedAt;
   final String? acceptedAt;
   final String? rejectedAt;
+  /// Set only once status reaches 'completed' — a caregiver-initiated close
+  /// of an accepted job/requirement, mirroring MyApplicationModel.completedAt.
+  final String? completedAt;
   /// Set the moment a fresh apply lands on top of a 'rejected' or
   /// 'completed' row — see MyApplicationModel.reappliedAt.
   final String? reappliedAt;
@@ -266,6 +269,7 @@ class JobApplicationModel {
     this.appliedAt,
     this.acceptedAt,
     this.rejectedAt,
+    this.completedAt,
     this.reappliedAt,
     this.declineReason,
     required this.updatedAt,
@@ -283,6 +287,7 @@ class JobApplicationModel {
         appliedAt: json['applied_at'] as String?,
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
+        completedAt: json['completed_at'] as String?,
         reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         updatedAt: json['updated_at'] as String,

@@ -917,36 +917,8 @@ class _ApplicantTile extends StatelessWidget {
           // are never hidden, so the patient/family can always look them
           // up again and reconsider.
           Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
-          // Full detail on a caregiver-initiated outcome — exactly when it
-          // happened, alongside the name already shown above — so this
-          // reads as e.g. "Rejected by <name>" / "Closed by <name>" with a
-          // real timestamp, not just a bare status word. `updatedAt` is
-          // always set and reflects the most recent transition on this row
-          // (rejected_at/completed_at, whichever applies).
-          if (_isCompleted || _isRejectedByCaregiver) ...[
-            const SizedBox(height: 2),
-            Text(
-              '${_isCompleted ? 'Closed' : 'Rejected'}: '
-              '${_formatDateTime(DateTime.parse(application.updatedAt).toLocal())}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-          ],
-          // A candidate can re-apply, then be decided on again — this
-          // shows the full history rather than just the latest outcome.
-          if (application.reappliedAt != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Re-applied: ${_formatDateTime(DateTime.parse(application.reappliedAt!).toLocal())}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-          ],
-          if (_isRejected && application.declineReason != null && application.declineReason!.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Your reason: ${application.declineReason!}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
-            ),
-          ],
+          const SizedBox(height: 2),
+          _ApplicantTimeline(application),
           const SizedBox(height: AppSpacing.xs),
           if (isDeciding)
             const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
@@ -966,6 +938,71 @@ class _ApplicantTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The candidate's full action history on this application — every
+/// transition with who did it and exactly when, oldest first (so it reads
+/// top-to-bottom as a story: applied, then decided). `decidedByName`, when
+/// present, names exactly who accepted/rejected — the patient/family
+/// themselves, or an admin who intervened on their behalf via admin-web —
+/// rather than a vague "you"/"the employer". A caregiver-initiated close
+/// or self-withdrawal (`decidedBy == null`) is always the caregiver's own
+/// doing, so those lines never need a name.
+class _ApplicantTimeline extends StatelessWidget {
+  final JobApplicationModel application;
+
+  const _ApplicantTimeline(this.application);
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <MapEntry<DateTime, String>>[];
+    if (application.appliedAt != null) {
+      final at = DateTime.parse(application.appliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Applied: ${_formatDateTime(at)}'));
+    }
+    if (application.acceptedAt != null) {
+      final at = DateTime.parse(application.acceptedAt!).toLocal();
+      final by = application.decidedByName != null ? ' by ${application.decidedByName}' : '';
+      entries.add(MapEntry(at, 'Accepted$by: ${_formatDateTime(at)}'));
+    }
+    if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
+      final at = DateTime.parse(application.completedAt!).toLocal();
+      entries.add(MapEntry(at, 'Closed by Caregiver: ${_formatDateTime(at)}'));
+    }
+    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+      final at = DateTime.parse(application.rejectedAt!).toLocal();
+      final label =
+          application.decidedByName != null ? 'Rejected by ${application.decidedByName}' : 'Rejected by Caregiver';
+      var text = '$label: ${_formatDateTime(at)}';
+      if (application.declineReason != null && application.declineReason!.isNotEmpty) {
+        text = '$text\nReason: ${application.declineReason!}';
+      }
+      entries.add(MapEntry(at, text));
+    }
+    // A candidate can re-apply, then be decided on again — shown last since
+    // it always comes after whatever prior outcome it followed.
+    if (application.reappliedAt != null) {
+      final at = DateTime.parse(application.reappliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Re-applied: ${_formatDateTime(at)}'));
+    }
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    entries.sort((a, b) => a.key.compareTo(b.key));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in entries)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              entry.value,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ),
+      ],
     );
   }
 }

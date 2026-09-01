@@ -361,7 +361,7 @@ class _JobCard extends StatelessWidget {
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
           else if (job.myApplication != null) ...[
-            _ApplicationTimeline(job.myApplication!),
+            ApplicationTimeline(job.myApplication!),
             // A caregiver can withdraw anytime while the patient/employer
             // still hasn't decided — once accepted, closing happens from
             // MyJobs instead (see my_assignment_screen.dart). A rejected or
@@ -497,7 +497,7 @@ class _RequirementCard extends StatelessWidget {
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
           else if (requirement.myApplication != null) ...[
-            _ApplicationTimeline(requirement.myApplication!),
+            ApplicationTimeline(requirement.myApplication!),
             if (requirement.myApplication!.status == JobApplicationStatus.applied) ...[
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
@@ -544,109 +544,4 @@ class _Tag extends StatelessWidget {
 /// both read the same to the caregiver: the employer said no). Shared by
 /// both _JobCard and _RequirementCard — MyApplicationModel is the same
 /// shape either way.
-class _ApplicationTimeline extends StatefulWidget {
-  final MyApplicationModel application;
-
-  const _ApplicationTimeline(this.application);
-
-  @override
-  State<_ApplicationTimeline> createState() => _ApplicationTimelineState();
-}
-
-class _ApplicationTimelineState extends State<_ApplicationTimeline> {
-  // Fixed per-row heights, rather than relying on inherited text-theme
-  // metrics — the ambient DefaultTextStyle isn't stable enough to guess at
-  // "roughly 3 lines" of pixels; picking a known font size and row height
-  // instead makes the maxHeight below (and whether 3 rows actually
-  // overflow it) exact instead of a fragile trial-and-error guess.
-  static const _fontSize = 13.0;
-  static const _rowHeight = 20.0;
-  static const _reasonRowHeight = 36.0; // a "Declined + Reason" row wraps to two lines
-  // Strictly less than 4 plain rows (80) and strictly more than 3 (60), so
-  // a 4th entry always genuinely overflows and the scrollbar is never shown
-  // without something real to scroll to.
-  static const _maxHeight = 66.0;
-
-  final _controller = ScrollController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final application = widget.application;
-    // Every line names who did it — "you" for the caregiver's own actions
-    // (apply/re-apply are never anyone else's), "employer" for whoever
-    // posted the job/requirement deciding on it (admin, or the NurseNow
-    // patient/organisation themselves — see decidedByAdmin below, which
-    // despite the name covers both).
-    final entries = <MapEntry<DateTime, String>>[];
-    if (application.appliedAt != null) {
-      final at = DateTime.parse(application.appliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Applied by you: ${formatDateTime(at)}'));
-    }
-    // Full detail on a re-apply — reappliedAt survives even after this same
-    // apply clears rejectedAt/completedAt, so it's the only place left that
-    // shows a prior rejection/close ever happened at all (see
-    // JobApplicationsRepository.upsert).
-    if (application.reappliedAt != null) {
-      final at = DateTime.parse(application.reappliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Re-applied by you: ${formatDateTime(at)}'));
-    }
-    if (application.acceptedAt != null) {
-      final at = DateTime.parse(application.acceptedAt!).toLocal();
-      entries.add(MapEntry(at, 'Accepted by employer: ${formatDateTime(at)}'));
-    }
-    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
-      final at = DateTime.parse(application.rejectedAt!).toLocal();
-      final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined by you';
-      var text = '$label: ${formatDateTime(at)}';
-      if (application.declineReason != null && application.declineReason!.isNotEmpty) {
-        text = '$text\nReason: ${application.declineReason!}';
-      }
-      entries.add(MapEntry(at, text));
-    }
-    if (entries.isEmpty) return const SizedBox.shrink();
-
-    // Newest first — the current status is the one worth seeing without
-    // having to scroll for it.
-    entries.sort((a, b) => b.key.compareTo(a.key));
-
-    final totalHeight = entries.fold<double>(
-      0,
-      (sum, entry) => sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
-    );
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: _maxHeight),
-      child: Scrollbar(
-        controller: _controller,
-        // Only forced visible when there's genuinely something to scroll to
-        // — otherwise a full-track, undraggable thumb looks broken.
-        thumbVisibility: totalHeight > _maxHeight,
-        child: ListView(
-          controller: _controller,
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            for (final entry in entries)
-              SizedBox(
-                height: entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
-                child: Text(
-                  entry.value,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontStyle: FontStyle.italic,
-                    fontSize: _fontSize,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ApplicationTimeline moved to job_detail_card.dart — shared with MyJobs.

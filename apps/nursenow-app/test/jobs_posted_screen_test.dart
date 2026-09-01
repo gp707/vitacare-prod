@@ -80,6 +80,10 @@ JobApplicationModel _application({
   String status = 'applied',
   String fullName = 'Test Caregiver',
   String appliedAt = '2026-08-01T10:00:00Z',
+  String? acceptedAt,
+  String? rejectedAt,
+  String? completedAt,
+  String? decidedByName,
   String? declineReason,
   String? decidedBy,
   String updatedAt = '2026-08-01T10:00:00Z',
@@ -93,6 +97,10 @@ JobApplicationModel _application({
     'full_name': fullName,
     'phone': '+919876543210',
     'applied_at': appliedAt,
+    'accepted_at': acceptedAt,
+    'rejected_at': rejectedAt,
+    'completed_at': completedAt,
+    'decided_by_name': decidedByName,
     'decline_reason': declineReason,
     'decided_by': decidedBy,
     'updated_at': updatedAt,
@@ -781,12 +789,18 @@ void main() {
       _FakeIndividualRepository(
         requirements: [_requirement()],
         applicationsByJobId: {
-          'job-1': [_application(status: 'rejected', declineReason: 'Not available on weekends')],
+          'job-1': [
+            _application(
+              status: 'rejected',
+              declineReason: 'Not available on weekends',
+              rejectedAt: '2026-08-05T14:32:00Z',
+            ),
+          ],
         },
       ),
     );
 
-    expect(find.text('Your reason: Not available on weekends'), findsOneWidget);
+    expect(find.textContaining('Reason: Not available on weekends'), findsOneWidget);
   });
 
   testWidgets('still shows a rejected candidate\'s phone number — they can always be reconsidered', (tester) async {
@@ -795,7 +809,9 @@ void main() {
       _FakeIndividualRepository(
         requirements: [_requirement()],
         applicationsByJobId: {
-          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
+          'job-1': [
+            _application(status: 'rejected', declineReason: 'Not a fit', rejectedAt: '2026-08-05T14:32:00Z'),
+          ],
         },
       ),
     );
@@ -817,6 +833,29 @@ void main() {
     expect(find.text('+919876543210'), findsOneWidget);
   });
 
+  testWidgets('shows the full timeline — applied then accepted, naming who accepted — for an accepted candidate',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [
+            _application(
+              status: 'accepted',
+              appliedAt: '2026-08-04T09:00:00Z',
+              acceptedAt: '2026-08-05T09:00:00Z',
+              decidedByName: 'Asha Patel',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Applied:'), findsOneWidget);
+    expect(find.textContaining('Accepted by Asha Patel:'), findsOneWidget);
+  });
+
   testWidgets('shows "Rejected by Caregiver" and still shows the phone when the caregiver closed the job themselves '
       'before being accepted', (tester) async {
     await _pump(
@@ -825,7 +864,7 @@ void main() {
         requirements: [_requirement()],
         applicationsByJobId: {
           // decidedBy omitted — self-withdrawal.
-          'job-1': [_application(status: 'rejected', updatedAt: '2026-08-05T14:32:00Z')],
+          'job-1': [_application(status: 'rejected', rejectedAt: '2026-08-05T14:32:00Z')],
         },
       ),
     );
@@ -836,7 +875,7 @@ void main() {
     final expected = DateTime.parse('2026-08-05T14:32:00Z').toLocal();
     expect(
       find.text(
-        'Rejected: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
+        'Rejected by Caregiver: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
         '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
         '${expected.second.toString().padLeft(2, '0')}',
       ),
@@ -851,13 +890,23 @@ void main() {
       _FakeIndividualRepository(
         requirements: [_requirement()],
         applicationsByJobId: {
-          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit', decidedBy: 'individual-1')],
+          'job-1': [
+            _application(
+              status: 'rejected',
+              declineReason: 'Not a fit',
+              decidedBy: 'individual-1',
+              decidedByName: 'Asha Patel',
+              rejectedAt: '2026-08-05T14:32:00Z',
+            ),
+          ],
         },
       ),
     );
 
     expect(find.text('Rejected'), findsOneWidget);
     expect(find.text('Rejected by Caregiver'), findsNothing);
+    // The timeline names exactly who decided, not just "by Caregiver".
+    expect(find.textContaining('Rejected by Asha Patel:'), findsOneWidget);
   });
 
   testWidgets('shows "Closed by Caregiver" and still keeps the phone number for a completed engagement',
@@ -868,7 +917,7 @@ void main() {
         requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
         applicationsByJobId: {
           'job-1': [
-            _application(status: 'completed', fullName: 'Ramesh Kumar', updatedAt: '2026-08-06T09:05:00Z'),
+            _application(status: 'completed', fullName: 'Ramesh Kumar', completedAt: '2026-08-06T09:05:00Z'),
           ],
         },
       ),
@@ -882,7 +931,7 @@ void main() {
     final expected = DateTime.parse('2026-08-06T09:05:00Z').toLocal();
     expect(
       find.text(
-        'Closed: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
+        'Closed by Caregiver: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
         '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
         '${expected.second.toString().padLeft(2, '0')}',
       ),
