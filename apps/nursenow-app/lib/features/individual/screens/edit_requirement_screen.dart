@@ -35,17 +35,17 @@ class _MandatoryField {
 }
 
 /// Same fields as PostRequirementScreen (pre-filled from [requirement]),
-/// plus Frequency of Care + Salary once the requirement has been through
-/// at least one admin approval ([requirement].frequencyOfCare non-null) —
-/// before that, admin hasn't set them yet, so there's nothing to edit
-/// there (JOB_013 server-side if attempted). Allowed regardless of the
-/// requirement's current status (pending_review/active/closed); the
-/// screen that opens this is responsible for not offering Edit at all
-/// while there's an active application (JOB_014 is the server-side
-/// backstop — see JobsPostedScreen's _RequirementCard).
+/// including Frequency of Care + Salary — always present now, not gated
+/// on a prior admin approval (Frequency of Care is derived from Duration
+/// Care is Needed, Salary is pre-filled from the Rate Card's suggestion,
+/// same as PostRequirementScreen). Allowed regardless of the requirement's
+/// current status (pending_review/active/closed); the screen that opens
+/// this is responsible for not offering Edit at all while there's an
+/// active application (JOB_014 is the server-side backstop — see
+/// JobsPostedScreen's _RequirementCard).
 ///
 /// Editing never requires admin re-review and never changes status — any
-/// number of edits are allowed, before or after admin's first approval.
+/// number of edits are allowed, before or after admin's own review.
 class EditRequirementScreen extends ConsumerStatefulWidget {
   final JobModel requirement;
 
@@ -72,16 +72,22 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   final _areaController = TextEditingController();
   String? _dutyType;
   DateTime? _startDate;
+  String? _careDuration;
   // Defaults to "No Preference" — a real, deliberate choice, not an unset
   // field (see _noPreferenceLanguage above).
   final List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender;
   String? _preferredReligion;
 
-  // Only present at all once the requirement has been reviewed once —
-  // see _canEditSalaryFrequency.
-  String? _frequencyOfCare;
+  // Frequency of Care is no longer a manual choice here — it's derived
+  // from _careDuration (see _derivedFrequencyOfCare) — so there's no state
+  // field for it, only for the salary text the derivation pre-fills.
   final _salaryController = TextEditingController();
+  // Tracks the last suggestion we auto-filled into _salaryController, so a
+  // relevant field change can safely refresh it — but only while the
+  // patient hasn't typed anything of their own over it since.
+  String? _lastAutoSuggestedSalary;
+  List<RateCardModel> _rateCards = const [];
 
   bool _saving = false;
   String? _error;
@@ -98,13 +104,94 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   final _areaKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
   final _startDateKey = GlobalKey();
+  final _careDurationKey = GlobalKey();
   final _languagesKey = GlobalKey();
-  final _frequencyKey = GlobalKey();
   final _salaryKey = GlobalKey();
 
   bool _showValidationErrors = false;
 
-  bool get _canEditSalaryFrequency => widget.requirement.frequencyOfCare != null;
+  /// Few Days/Few Weeks price off the daily Rate Card, Few Months/Long Term
+  /// off the monthly one — see [frequencyForCareDuration]. Always derived
+  /// from the patient's own Duration Care is Needed choice, never a
+  /// separate manual pick.
+  String? get _derivedFrequencyOfCare =>
+      _careDuration == null ? null : frequencyForCareDuration(_careDuration!);
+
+  /// Rebuilds a [CareReceiverModel] from whatever's currently live-edited
+  /// on this screen (toilet assistance, feeding type, medical condition),
+  /// mixed with the fields this screen never edits (vitals monitoring,
+  /// communication) preserved from the original — so the suggested-rate
+  /// tier always reflects the patient's latest selections here, not a
+  /// stale snapshot from when the requirement was first posted.
+  CareReceiverModel? get _careReceiverForTierDerivation {
+    final cr = widget.requirement.careReceiver;
+    if (cr == null) return null;
+    return CareReceiverModel(
+      id: cr.id,
+      age: cr.age,
+      gender: cr.gender,
+      weightKg: cr.weightKg,
+      communication: cr.communication,
+      feedingType: _feedingType ?? FeedingType.oralFeeding,
+      hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+      medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? [] : _medicalConditions,
+      toiletAssistance: _toiletAssistance,
+      requiresVitalMonitoring: cr.requiresVitalMonitoring,
+      vitalMonitoringTypes: cr.vitalMonitoringTypes,
+    );
+  }
+
+  /// Fire-and-forget, called once from initState — fetches the Rate Card,
+  /// then always applies the first suggestion it resolves to (replacing
+  /// the requirement's existing salary_amount, same as when this screen
+  /// only worked with a fresh admin-approval figure). Fails open: a
+  /// network error just means no suggestion is offered, leaving the
+  /// existing salary_amount untouched — the field stays freely editable
+  /// either way. After this first application, further field changes go
+  /// through [_refreshSuggestedSalary] instead, which never overwrites
+  /// something the patient has since typed themselves.
+  Future<void> _loadRateCards() async {
+    try {
+      final rateCards = await ref.read(rateCardRepositoryProvider).get();
+      if (!mounted) return;
+      setState(() => _rateCards = rateCards);
+      final careReceiver = _careReceiverForTierDerivation;
+      final careDuration = _careDuration;
+      if (careReceiver == null || careDuration == null) return;
+      final tier = deriveCareTier(careReceiver);
+      final frequency = frequencyForCareDuration(careDuration);
+      final suggestion = suggestedRate(_rateCards, tier, frequency);
+      if (suggestion != null) {
+        setState(() {
+          _salaryController.text = suggestion;
+          _lastAutoSuggestedSalary = suggestion;
+        });
+      }
+    } catch (_) {
+      // Fail open — see doc comment above.
+    }
+  }
+
+  /// Recomputes the suggested Salary from the current Duration Care is
+  /// Needed + care-tier selections and, if it changed, refills the field —
+  /// but only when the field is still empty or still holds our own
+  /// previous suggestion, never overwriting something the patient typed
+  /// themselves. Call after any change to _careDuration/_toiletAssistance/
+  /// _feedingType/_medicalConditions, once the initial suggestion (see
+  /// [_loadRateCards]) has already had a chance to apply.
+  void _refreshSuggestedSalary() {
+    final careReceiver = _careReceiverForTierDerivation;
+    final careDuration = _careDuration;
+    if (careReceiver == null || careDuration == null) return;
+    final tier = deriveCareTier(careReceiver);
+    final frequency = frequencyForCareDuration(careDuration);
+    final suggestion = suggestedRate(_rateCards, tier, frequency);
+    if (suggestion == null) return;
+    if (_salaryController.text.isEmpty || _salaryController.text == _lastAutoSuggestedSalary) {
+      _salaryController.text = suggestion;
+      _lastAutoSuggestedSalary = suggestion;
+    }
+  }
 
   @override
   void initState() {
@@ -131,6 +218,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
     _areaController.text = job.area ?? '';
     _dutyType = job.dutyType;
     _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+    _careDuration = job.careDuration;
     // Empty job.languages means the job was itself "No Preference" —
     // _languages already defaults to that, so leave it untouched.
     if (job.languages.isNotEmpty) {
@@ -140,8 +228,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
     }
     _preferredGender = job.preferredGender;
     _preferredReligion = job.preferredReligion;
-    _frequencyOfCare = job.frequencyOfCare;
-    _salaryController.text = job.salaryAmount?.toString() ?? '';
+    _salaryController.text = job.salaryAmount ?? '';
+    _loadRateCards();
   }
 
   @override
@@ -161,7 +249,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
 
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
-  int? get _salaryAmount => int.tryParse(_salaryController.text.trim());
 
   bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
   bool get _isGenderValid => _gender != null;
@@ -170,6 +257,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
+  bool get _isCareDurationValid => _careDuration != null;
 
   /// Purely advisory, never blocks submission — a male patient requesting
   /// a female caregiver is a much harder match to fill than any other
@@ -187,9 +275,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   /// religion preference eliminates a large pool of candidates who could
   /// otherwise help the patient.
   bool get _showReligionPreferenceWarning => _preferredReligion != null;
-  bool get _isFrequencyValid => !_canEditSalaryFrequency || _frequencyOfCare != null;
-  bool get _isSalaryValid =>
-      !_canEditSalaryFrequency || (_salaryAmount != null && _salaryAmount! >= 1 && _salaryAmount! <= 1000000);
+  bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
 
   bool get _canSubmit =>
       !_saving &&
@@ -200,11 +286,11 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       _isAreaValid &&
       _isDutyTypeValid &&
       _isStartDateValid &&
-      _isFrequencyValid &&
+      _isCareDurationValid &&
       _isSalaryValid;
 
   /// In on-form order, matching the section order on screen (Patient
-  /// Details, then Care Preferences, then Frequency & Salary). Language
+  /// Details, then Care Preferences, then Nurse Fee Guidance). Language
   /// Preference isn't here — it always defaults to "No Preference" and can
   /// never be empty, so it's never invalid.
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
@@ -215,8 +301,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
-        if (_canEditSalaryFrequency) _MandatoryField(_frequencyKey, _isFrequencyValid),
-        if (_canEditSalaryFrequency) _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+        _MandatoryField(_careDurationKey, _isCareDurationValid),
+        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
       ];
 
   Future<void> _pickStartDate() async {
@@ -336,11 +422,12 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
             area: _areaController.text.trim(),
             dutyType: _dutyType!,
             startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+            careDuration: _careDuration!,
             languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
-            frequencyOfCare: _canEditSalaryFrequency ? _frequencyOfCare : null,
-            salaryAmount: _canEditSalaryFrequency ? _salaryAmount : null,
+            frequencyOfCare: _derivedFrequencyOfCare!,
+            salaryAmount: _salaryController.text.trim(),
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -437,7 +524,10 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                   options: [_noneMedicalCondition, ...MedicalCondition.all],
                   labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
                   selected: _medicalConditions,
-                  onChanged: (next) => setState(() => _applyMedicalConditionSelection(next)),
+                  onChanged: (next) => setState(() {
+                    _applyMedicalConditionSelection(next);
+                    _refreshSuggestedSalary();
+                  }),
                 ),
                 if (_medicalConditions.contains(MedicalCondition.other)) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -498,6 +588,25 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  key: _careDurationKey,
+                  isExpanded: true,
+                  initialValue: _careDuration,
+                  decoration: InputDecoration(
+                    labelText: 'Duration Care is Needed (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText:
+                        _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
+                  ),
+                  items: CareDuration.all
+                      .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _careDuration = value;
+                    _refreshSuggestedSalary();
+                  }),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: AppSpacing.sm),
                 VitaMultiSelectChips(
@@ -508,6 +617,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                     _toiletAssistance
                       ..clear()
                       ..addAll(next);
+                    _refreshSuggestedSalary();
                   }),
                 ),
                 if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
@@ -531,7 +641,10 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                   items: FeedingType.all
                       .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
                       .toList(),
-                  onChanged: (value) => setState(() => _feedingType = value),
+                  onChanged: (value) => setState(() {
+                    _feedingType = value;
+                    _refreshSuggestedSalary();
+                  }),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
@@ -647,44 +760,46 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                 ],
               ],
             ),
-            // Only shown once admin has approved this requirement at least
-            // once — before that there's nothing to edit here yet (admin
-            // sets these for the first time, same as at initial approval).
-            if (_canEditSalaryFrequency) ...[
-              const SizedBox(height: AppSpacing.lg),
-              SectionBox(
-                title: 'Frequency & Salary',
-                children: [
-                  DropdownButtonFormField<String>(
-                    key: _frequencyKey,
-                    isExpanded: true,
-                    initialValue: _frequencyOfCare,
-                    decoration: InputDecoration(
-                      labelText: 'Frequency of Care (Mandatory)',
-                      border: const OutlineInputBorder(),
-                      errorText: _showValidationErrors && !_isFrequencyValid ? 'Please select a frequency' : null,
-                    ),
-                    items: FrequencyOfCare.all
-                        .map((f) => DropdownMenuItem(value: f, child: Text(FrequencyOfCare.displayNames[f] ?? f)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _frequencyOfCare = value),
+            const SizedBox(height: AppSpacing.lg),
+            SectionBox(
+              title: 'Nurse Fee Guidance',
+              children: [
+                const Text(
+                  'You can always negotiate with nurse staff.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Derived from Duration Care is Needed (few days/weeks ->
+                // daily, few months/long term -> monthly) — no longer a
+                // manual choice, see _derivedFrequencyOfCare.
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Frequency of Care',
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    key: _salaryKey,
-                    controller: _salaryController,
-                    focusNode: _salaryFocusNode,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Salary (₹/${_frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Mandatory)',
-                      border: const OutlineInputBorder(),
-                      errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required (1-1,000,000)' : null,
-                    ),
-                    onChanged: (_) => setState(() {}),
+                  child: Text(FrequencyOfCare.displayNames[_derivedFrequencyOfCare] ?? '-'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Pre-filled with the Rate Card's suggested figure for the
+                // patient's derived care tier + frequency, refreshed as
+                // related fields above change (see _refreshSuggestedSalary)
+                // — free text, not a number, so it can carry a range or a
+                // note exactly as admin wrote it, and stays fully
+                // editable/negotiable either way.
+                TextField(
+                  key: _salaryKey,
+                  controller: _salaryController,
+                  focusNode: _salaryFocusNode,
+                  maxLines: null,
+                  decoration: InputDecoration(
+                    labelText: 'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
                   ),
-                ],
-              ),
-            ],
+                  onChanged: (_) => setState(() {}),
+                ),
+              ],
+            ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(_error!, style: const TextStyle(color: AppColors.error)),

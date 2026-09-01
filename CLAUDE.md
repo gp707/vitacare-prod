@@ -22,13 +22,13 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 
 - **Auth:** Custom JWT for everyone. No Supabase Auth. bcrypt + jsonwebtoken. Access token TTL differs by app: caregiver-app tokens never expire (no `exp` claim — the mobile app has no re-login flow), admin-web tokens expire after `JWT_ACCESS_TOKEN_TTL` (default 6 months). Neither app currently uses the refresh-token flow (`POST /auth/refresh` exists server-side but no Dio interceptor calls it) — the access token alone governs session length.
 - **Phone number is unique per app bucket, not globally** (migration 045, `users_phone_app_bucket_key` — a Postgres expression unique index, not a plain column constraint): NurseJobs (`role = caregiver`), NurseNow (`role IN (individual, organisation)`), and admin (`role IN (admin, super_admin)`) are three independent buckets. The same phone number can hold one account in each bucket at once — e.g. a person can register as a NurseJobs caregiver AND, separately, as a NurseNow individual with the same phone number. These are fully independent, unlinked accounts (separate `users` rows, separate profile rows, separate login PINs) that merely happen to share a phone number — no data is shared or merged between them. Registering a second account within the SAME bucket (e.g. a second caregiver account, or an organisation account when that phone already has an individual account — individual and organisation share the NurseNow bucket) still 409s with `AUTH_001`, unchanged. `UsersRepository.findByPhoneAndRoles(phone, roles)` is the role-scoped lookup used everywhere a phone is checked (registration dedup, self-service phone-change dedup, admin phone-change dedup) — the old global `findByPhone` was removed. `POST /auth/login/code` (`LoginCodeDto`) gained a required `app` field (`'nursejobs'` | `'nursenow'`, the `LoginApp` enum) so the backend knows which bucket to search — caregiver-app always sends `nursejobs`, nursenow-app always sends `nursenow` (it doesn't know ahead of login whether the phone registered as individual or organisation — that's still decoded from the JWT afterward, same as before). Login can never accidentally authenticate into the wrong bucket's account even if both accounts happen to share the same 4-digit PIN, since the role-scoped lookup runs before the PIN is even compared.
-- **Human-friendly sequential display IDs** for organisations (`ORG-<n>`), NurseNow individuals/patients (`PAT-<n>`), and caregivers (`NUR-<n>`) — migration 046, one dedicated Postgres sequence per table (`organisation_profiles.org_number`, `individual_profiles.patient_number`, `caregiver_profiles.caregiver_number`), each starting at 500 (not 1). Same convention as `jobs.job_number`/`organisation_requirements.requirement_number`: the raw integer is what's stored and returned over the API (`org_number`/`patient_number`/`caregiver_number`, all nullable in API schemas only because older/edge-case responses may omit them, never actually null once a profile row exists); the `ORG-`/`PAT-`/`NUR-` prefix is applied purely at display time via `organisationDisplayId()`/`patientDisplayId()`/`caregiverDisplayId()` in `packages/vitacare_shared/lib/models/display_id.dart`, so all three Flutter apps render identical text. Shown in admin-web's Caregivers/Patients-Family/Rehab-Hospitals list tables (a leading "ID" column) and detail views, on a caregiver's own Profile screen (caregiver-app) and an individual/organisation's own Profile screen (nursenow-app), and on the applicant-profile view an individual/organisation sees when reviewing a caregiver's application (nursenow-app's `CaregiverProfileViewScreen`).
+- **Human-friendly sequential display IDs** for organisations (`ORG-<n>`), NurseNow individuals/patients (`PAT-<n>`), and caregivers (`NUR-<n>`) — migration 046, one dedicated Postgres sequence per table (`organisation_profiles.org_number`, `individual_profiles.patient_number`, `caregiver_profiles.caregiver_number`), each starting at 500 (not 1). Same convention as `jobs.admin_job_number`/`jobs.patient_job_number`/`organisation_requirements.requirement_number`: the raw integer is what's stored and returned over the API (`org_number`/`patient_number`/`caregiver_number`, all nullable in API schemas only because older/edge-case responses may omit them, never actually null once a profile row exists); the `ORG-`/`PAT-`/`NUR-` prefix is applied purely at display time via `organisationDisplayId()`/`patientDisplayId()`/`caregiverDisplayId()` in `packages/vitacare_shared/lib/models/display_id.dart`, so all three Flutter apps render identical text. Shown in admin-web's Caregivers/Patients-Family/Rehab-Hospitals list tables (a leading "ID" column) and detail views, on a caregiver's own Profile screen (caregiver-app) and an individual/organisation's own Profile screen (nursenow-app), and on the applicant-profile view an individual/organisation sees when reviewing a caregiver's application (nursenow-app's `CaregiverProfileViewScreen`).
 - **admin-web list-screen filters:** every admin-web list screen (Caregivers, Jobs — which also
   surfaces organisation requirements, merged into the same list, see "NurseNow" below —
   Patients/Family, Rehab/Hospitals) has a filter panel with a free-text `search` box
   that matches (via `ILIKE`) the entity's name/phone and its display id — e.g. searching "NUR-500"
   or just "500" on Caregivers matches via `('NUR-' || cp.caregiver_number::text) ILIKE '%...%'`,
-  same pattern for jobs (`ADMIN-JOB-<n>`/`PAT-JOB-<n>`/raw `job_number`), organisation requirements
+  same pattern for jobs (`ADMIN-JOB-<n>`/`PAT-JOB-<n>`), organisation requirements
   (`ORG-JOB-<n>`), individuals (`PAT-<n>`), and organisations (`ORG-<n>`). Caregivers adds Gender
   (`cp.gender`) and Preferred City (`EXISTS` against `caregiver_preferred_cities`) dropdowns; Jobs
   already had Job Poster/City/Patient's Gender/Duty Time/Status/Language, `search` was the one gap.
@@ -65,7 +65,7 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
   same mismatch — always resolve via `target_user_id → users.role`, never via `entity_type`. For
   the **entity itself**, `organisation_requirements`/`organisation_requirement_applications`
   entries resolve to `requirement_number`/`requirement_id` the same two-hop way jobs resolve to
-  `job_number`/`job_id` (direct for `organisation_requirements`, one hop via
+  `admin_job_number`/`patient_job_number`/`job_id` (direct for `organisation_requirements`, one hop via
   `.requirement_id` for `organisation_requirement_applications`) — note the FK column there is
   `requirement_id`, not `job_id` like `job_applications` uses. admin-web's Audit Logs screen
   renders the target's display id (`NUR-`/`PAT-`/`ORG-<n>`) above their name in the Target column,
@@ -81,9 +81,10 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **There is no separate "Advanced Details" step.** Everything is collected in one registration (`POST /auth/register`): basic info, religion, highest qualification, and terms acceptance, plus documents uploaded via their own endpoints immediately after (selfie and Aadhaar are mandatory; qualification document and up to 3 "other" documents are optional). Religion is required at registration and locked from self-edit afterward; highest_qualification, preferred_cities (optional at registration), preferred_duty_types, min_salary_per_day, min_salary_per_month, and documents all remain editable afterward via the single self-edit endpoint (`PATCH /caregiver/profile`) or document re-upload endpoints.
 - **father_name, father_phone, current_address, and notes have been removed from the product entirely** — no longer collected, stored, or displayed anywhere (caregiver-app, admin-web, or the database).
 - **Admin-assigned work types, service modes, and salary have been removed from the product entirely**, along with the two admin-notes rate fields (Rate — 24Hrs Live-In, Rate — 12Hrs PG) — no longer collected, stored, or displayed anywhere. `admin_notes` still has `internal_notes` and `availability_remarks`. `WorkType`/`ServiceMode`/`SalaryRanges` are gone too — a job posting is no longer built around a single "work type" category (see "Job/Application Flow" below).
-- **Job/Application Flow:** Admin posts a job describing the care receiver's needs, grouped in the admin-web posting/edit form into two clearly labeled sections (the underlying `care_receivers` table/model keeps its original name — only these are UI display labels). **Only `age`/`gender`/`weight_kg` are hard-required on the care receiver** (plus `city`/`area`/`start_date` on the job itself — `area` was previously optional free text, now required; `start_date`, labeled "Preferred Start Date", was previously optional, now required — while the free-text `description` field moved the other way, from required to optional, see below); every other care-receiver field — `communication`, `feeding_type`, `has_medical_condition`, `toilet_assistance`, `requires_vital_monitoring` — is optional on the form and, left unselected (or submitted empty), is defaulted server-side (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`) to a real, explicit value: `communication` → `verbal`, `feeding_type` → `oral_independent`, `has_medical_condition` → `false`, `toilet_assistance` → `[independent]`, `requires_vital_monitoring` → `false`. These defaults are persisted (not left null), so they show up identically to an explicit selection everywhere — caregiver-app's job card and admin-web's edit-prefill both just render whatever is stored, with no special "defaulted" handling needed. **"About Patient"** (age, gender, weight, communication, feeding, has-medical-condition + conditions, toilet assistance — multi-select, admin can pick more than one: `uses_diapers`/`uses_bed_pan`/`uses_catheter`/`complete_toileting_assistance`/`others`/`independent` — and vital monitoring: Yes/No, if Yes multi-select which vitals: blood pressure/blood sugar/oxygen-SpO₂/temperature/pulse/other — this was previously split into a separate "About Patient Condition" section; that section no longer exists, everything lives under "About Patient" now — `mobility` has since been removed from the product entirely, see the Mobility enum entry below), and **"About Nurse/Caregiver Requirement"** (salary, "Hours Care Needed" — one of exactly 3 fixed shifts, see "Duty Type" below, no separately admin-entered start/end time — Frequency of Care (`daily`/`monthly`, required), "Preferred Start Date" (required), and soft caregiver preferences: language preference is **multi-select** (`languages`, a non-empty array — not a single value), gender and religion are single-select; preferred religion offers `hindu`/`muslim`/`christian` only — **`others` is excluded**, it remains valid for a caregiver's own religion at registration, just not offered as a job preference; preferred religion (and language) stay purely informational tags never used as a filter, but **preferred gender is enforced server-side** — `GET /caregiver/jobs` only returns jobs whose `preferred_gender` is unset (no preference) or matches the requesting caregiver's own `caregiver_profiles.gender`, so a caregiver never sees a job posted for the other gender; this filtering happens in `JobsRepository.listActiveForCaregiver`, not in the caregiver-app UI). Job Location (city, area — both required) is its own section above these two; the free-text `description` field (label shortened to "More details you want to share about patient" — previously required, now optional) sits below them. A `care_receivers` row is created 1:1 with each job (not an independently reusable/searchable entity yet — a future "Patient" app will eventually supply real care-receiver identity data; this only captures the care-needs description). **Every one of these details is visible to caregivers too** — `GET /caregiver/jobs` joins in the full `care_receiver` (not just `GET /admin/jobs/:id`), and caregiver-app's job card renders it under the same two section labels, so a caregiver sees the full patient/condition/requirement picture directly on the jobs list, no separate detail screen needed. Caregivers **apply** or **reject** (`POST /caregiver/jobs/:id/apply`) — there's no "ask for more details" option. Admin reviews applicants, contacts them outside the app, then **accepts** one via `PATCH /admin/jobs/:jobId/applications/:applicationId` — this is the offer confirmation, not a separate in-app caregiver acceptance step. Accepting closes the job (`status = 'closed'`, no more applications) and sets that caregiver's `verification_status` to `assigned`. Admin can later reject that same accepted application to reopen the job and set the caregiver back to `available`. Other still-`applied` applications on a job are left untouched when one gets accepted — not auto-rejected. Admin can view a job's full details and edit any field (via `PATCH /admin/jobs/:id`, same shape/validation as create) — same job id, existing applications untouched regardless of status (including one with an accepted/assigned applicant). If the job was `closed` when edited, saving the edit also **reposts** it: status flips back to `active` and the "New Job" push re-broadcasts to all caregivers; editing an already-`active` job does not resend that push. **Once accepted, the caregiver can see and contact whoever posted the job** — `GET /caregiver/jobs/assigned` includes `job_poster: { full_name, phone }`, the posting admin's contact info, per job. This is deliberately scoped to that one endpoint only — never on the browse list (`GET /caregiver/jobs`) — since admin contact info is only shared once there's an actual accepted engagement, not to every caregiver browsing jobs. Shown in two places in caregiver-app: always on the MyJobs tab (the durable historical record — one contact card per job), and also on the Profile tab but only while `verification_status` is currently `assigned` (Profile fetches `GET /caregiver/jobs/assigned` itself, gated on that status, so it doesn't keep showing a past job's poster(s) once the caregiver is available again). **A caregiver can be accepted onto more than one job at once** — nothing in the eligibility check (`available`/`assigned` are both apply-eligible) or in `decideApplication` prevents a second acceptance while already `assigned`. `GET /caregiver/jobs/assigned` therefore returns an **array**, not a single job/null — every job the caregiver currently holds an `accepted` or `completed` `job_applications` row for, oldest-decision-first by `updated_at`; this is the durable history the MyJobs tab renders (one card per job), so a completed job stays listed rather than disappearing. Each accepted job in MyJobs gets its own **"Mark Complete"** button, calling `POST /caregiver/jobs/:id/complete` (caregiver-only, no body) — this flips just that one `job_applications` row to a fourth status, `completed` (with a `completed_at` timestamp, mirroring `applied_at`/`accepted_at`/`rejected_at`), and only drops `caregiver_profiles.verification_status` back to `available` once **no other `accepted` applications remain**; if the caregiver still holds another active job, `verification_status` stays `assigned`. `JOB_008` covers every case where completion doesn't apply — never applied to that job, still `applied`, already `rejected`, or already `completed`. The job itself is never reopened by completion (stays `closed`). **The caregiver's own application (`GET /caregiver/jobs`'s `my_application`) carries the real per-transition timeline** (`applied_at`/`accepted_at`/`rejected_at`, each null until that transition happens), not just the bare current `status` — a caregiver's own self-decline and an admin un-accepting them both land on `status = 'rejected'` in the DB, and `decided_by_admin` (derived from `decided_by IS NOT NULL`) is what tells them apart; caregiver-app shows "Declined: <date>" for the former and "Declined by employer: <date>" for the latter, alongside "Applied: <date>" and "Accepted: <date>" (if it happened) — never a bare unqualified "You declined". **Admin-web gets the same timeline, plus who decided it**: each row in `GET /admin/jobs/:id`'s `applications` array carries `applied_at`/`accepted_at`/`rejected_at` and `decided_by_name` (the deciding admin's `full_name`, resolved via a `LEFT JOIN users` on `decided_by` — `null` while `status = 'applied'` or on a caregiver self-decline). The Job Applicants dialog renders this under each applicant as "Applied: <date>", "Accepted: <date> by <admin>", and/or "Declined by <admin>: <date>".
-- **admin-web's Jobs list opens read-only by default, not straight into an editable form.** Tapping a job row (anywhere except its action buttons) opens `JobReadOnlyDetailDialog` — every field as plain text, grouped the same as the Post/Edit form (Job Location/Hours-Care-Needed/Frequency/Salary/etc., then About Patient) — with its own **Edit** button that hands off to the existing `_JobFormDialog` edit flow. The row's own explicit **Edit** `TextButton` still jumps straight into the editable form as a shortcut, unchanged; the read-only view is an additional entry point, not a replacement for it.
-- **Job display id, salary, and apply-by urgency:** Every job has a display id shown at the top of the job card/row on admin-web, caregiver-app, and nursenow-app — `ADMIN-JOB-<n>` for an admin-posted job or `PAT-JOB-<n>` for a NurseNow individual/patient-posted job (migration 047), each a dedicated sequence starting at 500, backed by the nullable `jobs.admin_job_number`/`jobs.patient_job_number` columns (exactly one is set per row, mutually exclusive by who posted it — set at INSERT time via `JobsRepository.create`'s `posted_by_role` parameter). The original single shared `jobs.job_number` (SERIAL from 1, used for both posters alike) still exists and is still populated on every insert, but is **no longer displayed anywhere** — it's kept only as an internal fallback and for audit-log job resolution (`AuditLogsRepository` resolves and returns `admin_job_number`/`patient_job_number` alongside it, so the Audit Logs screen's job link stays consistent with whatever the job shows elsewhere). The shared `jobDisplayId(JobModel)` helper (`packages/vitacare_shared/lib/models/job_model.dart`) picks the right prefix so all three Flutter apps render identical text; an analogous `organisationJobDisplayId(OrganisationRequirementModel)` formats an organisation-posted requirement as `ORG-JOB-<n>` (reusing `organisation_requirements.requirement_number`, whose sequence was rebased to start at 500 in the same migration — no new column needed there since that table has only one possible poster type). Admin sets a single required `salary_amount` when posting or editing a job; its unit follows the job's `frequency_of_care` (₹/day for `daily`, ₹/month for `monthly`), and this dynamic unit is shown everywhere the figure appears — admin-web's form label and job list row, and caregiver-app's job card, which shows it highlighted prominently at the top. Every job also carries `posted_at` (starts equal to `created_at`, but is bumped to "now" only when a `closed` job is edited-and-reposted — a plain edit of an already-`active` job leaves it untouched) driving a caregiver-facing **3-day apply-by urgency window**: `posted_at + 3 days`, shown as "Posted: <date>" plus a days-left message ("X days left to apply" / "Last day..." / "Application window closed"). This is purely informational — it does not block applying, and the job itself is not auto-closed when the window passes; admin must still close (or let it be) manually.
+- **Job/Application Flow:** Admin posts a job describing the care receiver's needs, grouped in the admin-web posting/edit form into two clearly labeled sections (the underlying `care_receivers` table/model keeps its original name — only these are UI display labels). **Only `age`/`gender`/`weight_kg` are hard-required on the care receiver** (plus `city`/`area`/`start_date` on the job itself — `area` was previously optional free text, now required; `start_date`, labeled "Preferred Start Date", was previously optional, now required — while the free-text `description` field moved the other way, from required to optional, see below); every other care-receiver field — `communication`, `feeding_type`, `has_medical_condition`, `toilet_assistance`, `requires_vital_monitoring` — is optional on the form and, left unselected (or submitted empty), is defaulted server-side (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`) to a real, explicit value: `communication` → `verbal`, `feeding_type` → `oral_independent`, `has_medical_condition` → `false`, `toilet_assistance` → `[independent]`, `requires_vital_monitoring` → `false`. These defaults are persisted (not left null), so they show up identically to an explicit selection everywhere — caregiver-app's job card and admin-web's edit-prefill both just render whatever is stored, with no special "defaulted" handling needed. **"About Patient"** (age, gender, weight, communication, feeding, has-medical-condition + conditions, toilet assistance — multi-select, admin can pick more than one: `uses_diapers`/`uses_bed_pan`/`uses_catheter`/`complete_toileting_assistance`/`others`/`independent` — and vital monitoring: Yes/No, if Yes multi-select which vitals: blood pressure/blood sugar/oxygen-SpO₂/temperature/pulse/other — this was previously split into a separate "About Patient Condition" section; that section no longer exists, everything lives under "About Patient" now — `mobility` has since been removed from the product entirely, see the Mobility enum entry below), and **"About Nurse/Caregiver Requirement"** (salary, "Hours Care Needed" — one of exactly 3 fixed shifts, see "Duty Type" below, no separately admin-entered start/end time — Frequency of Care (`daily`/`monthly`, required), "Preferred Start Date" (required), and soft caregiver preferences: language preference is **multi-select** (`languages`, a non-empty array — not a single value), gender and religion are single-select; preferred religion offers `hindu`/`muslim`/`christian` only — **`others` is excluded**, it remains valid for a caregiver's own religion at registration, just not offered as a job preference; preferred religion (and language) stay purely informational tags never used as a filter, but **preferred gender is enforced server-side** — `GET /caregiver/jobs` only returns jobs whose `preferred_gender` is unset (no preference) or matches the requesting caregiver's own `caregiver_profiles.gender`, so a caregiver never sees a job posted for the other gender; this filtering happens in `JobsRepository.listActiveForCaregiver`, not in the caregiver-app UI). Job Location (city, area — both required) is its own section above these two; the free-text `description` field (label shortened to "More details you want to share about patient" — previously required, now optional) sits below them. **This "Job Location"/"About Patient"/"About Nurse/Caregiver Requirement" three-section layout, with Communication/Vital Monitoring/description all present, describes admin-web's create/edit form as originally built and still describes caregiver-app's own job card labels/fields (caregiver-app was not touched by the later change below). admin-web's own create/edit UI (`_JobFormDialog`) has since been unified with nursenow-app's field set/order instead — see the "universally applicable" `_JobFormDialog` bullet under "NurseNow" below — dropping Communication/Vital Monitoring/description from admin-web's form entirely and renaming its sections to Patient Details/Care Preferences/Nurse Fee Guidance; `communication`/`requires_vital_monitoring`/`vital_monitoring_types`/`description` still exist as fields (still shown on caregiver-app's job card, and CARE_RECEIVER_DEFAULTS below still applies), admin just no longer has a UI to set them.** A `care_receivers` row is created 1:1 with each job (not an independently reusable/searchable entity yet — a future "Patient" app will eventually supply real care-receiver identity data; this only captures the care-needs description). **Every one of these details is visible to caregivers too** — `GET /caregiver/jobs` joins in the full `care_receiver` (not just `GET /admin/jobs/:id`), and caregiver-app's job card renders it under the same two section labels, so a caregiver sees the full patient/condition/requirement picture directly on the jobs list, no separate detail screen needed. Caregivers **apply** or **reject** (`POST /caregiver/jobs/:id/apply`) — there's no "ask for more details" option. Admin reviews applicants, contacts them outside the app, then **accepts** one via `PATCH /admin/jobs/:jobId/applications/:applicationId` — this is the offer confirmation, not a separate in-app caregiver acceptance step. Accepting closes the job (`status = 'closed'`, no more applications) and sets that caregiver's `verification_status` to `assigned`. Admin can later reject that same accepted application to reopen the job and set the caregiver back to `available`. Other still-`applied` applications on a job are left untouched when one gets accepted — not auto-rejected. Admin can view a job's full details and edit any field (via `PATCH /admin/jobs/:id`, same shape/validation as create) — same job id, existing applications untouched regardless of status (including one with an accepted/assigned applicant). If the job was `closed` when edited, saving the edit also **reposts** it: status flips back to `active` and the "New Job" push re-broadcasts to all caregivers; editing an already-`active` job does not resend that push. **Once accepted, the caregiver can see and contact whoever posted the job** — `GET /caregiver/jobs/assigned` includes `job_poster: { full_name, phone }`, the posting admin's contact info, per job. This is deliberately scoped to that one endpoint only — never on the browse list (`GET /caregiver/jobs`) — since admin contact info is only shared once there's an actual accepted engagement, not to every caregiver browsing jobs. Shown in two places in caregiver-app: always on the MyJobs tab (the durable historical record — one contact card per job), and also on the Profile tab but only while `verification_status` is currently `assigned` (Profile fetches `GET /caregiver/jobs/assigned` itself, gated on that status, so it doesn't keep showing a past job's poster(s) once the caregiver is available again). **A caregiver can be accepted onto more than one job at once** — nothing in the eligibility check (`available`/`assigned` are both apply-eligible) or in `decideApplication` prevents a second acceptance while already `assigned`. `GET /caregiver/jobs/assigned` therefore returns an **array**, not a single job/null — every job the caregiver currently holds an `accepted` or `completed` `job_applications` row for, oldest-decision-first by `updated_at`; this is the durable history the MyJobs tab renders (one card per job), so a completed job stays listed rather than disappearing. Each accepted job in MyJobs gets its own **"Mark Complete"** button, calling `POST /caregiver/jobs/:id/complete` (caregiver-only, no body) — this flips just that one `job_applications` row to a fourth status, `completed` (with a `completed_at` timestamp, mirroring `applied_at`/`accepted_at`/`rejected_at`), and only drops `caregiver_profiles.verification_status` back to `available` once **no other `accepted` applications remain**; if the caregiver still holds another active job, `verification_status` stays `assigned`. `JOB_008` covers every case where completion doesn't apply — never applied to that job, still `applied`, already `rejected`, or already `completed`. The job itself is never reopened by completion (stays `closed`). **The caregiver's own application (`GET /caregiver/jobs`'s `my_application`) carries the real per-transition timeline** (`applied_at`/`accepted_at`/`rejected_at`, each null until that transition happens), not just the bare current `status` — a caregiver's own self-decline and an admin un-accepting them both land on `status = 'rejected'` in the DB, and `decided_by_admin` (derived from `decided_by IS NOT NULL`) is what tells them apart; caregiver-app shows "Declined: <date>" for the former and "Declined by employer: <date>" for the latter, alongside "Applied: <date>" and "Accepted: <date>" (if it happened) — never a bare unqualified "You declined". **Admin-web gets the same timeline, plus who decided it**: each row in `GET /admin/jobs/:id`'s `applications` array carries `applied_at`/`accepted_at`/`rejected_at` and `decided_by_name` (the deciding admin's `full_name`, resolved via a `LEFT JOIN users` on `decided_by` — `null` while `status = 'applied'` or on a caregiver self-decline). The Job Applicants dialog renders this under each applicant as "Applied: <date>", "Accepted: <date> by <admin>", and/or "Declined by <admin>: <date>".
+- **admin-web's Jobs list opens read-only by default, not straight into an editable form.** Tapping a job row (anywhere except its action buttons) opens `JobReadOnlyDetailDialog` — every field as plain text, grouped Patient Details / Care Preferences / Nurse Fee Guidance, in the exact same field set and order as `_JobFormDialog` (see the "universally applicable" bullet under "NurseNow" below — this is what admin actually reviews before approving via Edit or rejecting, so it deliberately shows nothing beyond what the create/edit form itself collects: no Communication, Vital Monitoring, or free-text description row, even for an older job that has non-default values stored for them) — with its own **Edit** button that hands off to the existing `_JobFormDialog` edit flow. The row's own explicit **Edit** `TextButton` still jumps straight into the editable form as a shortcut, unchanged; the read-only view is an additional entry point, not a replacement for it.
+- **Job display id, salary, and apply-by urgency:** Every job has a display id shown at the top of the job card/row on admin-web, caregiver-app, and nursenow-app — `ADMIN-JOB-<n>` for an admin-posted job or `PAT-JOB-<n>` for a NurseNow individual/patient-posted job (migration 047), each a dedicated sequence starting at 500, backed by the nullable `jobs.admin_job_number`/`jobs.patient_job_number` columns (exactly one is set per row, mutually exclusive by who posted it — set at INSERT time via `JobsRepository.create`'s `posted_by_role` parameter). **The original single shared `jobs.job_number` column (SERIAL from 1, used for both posters alike before `admin_job_number`/`patient_job_number` existed) has been dropped entirely** — it had already stopped being displayed anywhere once the two newer sequences took over, and was kept for a while afterward only as an internal fallback/audit-log-resolution aid; once every table's data was wiped for a fresh start, that fallback had no remaining legacy rows to be compatible with, so the column (and its owned sequence, `jobs_job_number_seq`, dropped automatically along with it) was removed along with every reference to it — `JobsRepository`/`AuditLogsRepository`/`AdminReportsRepository`/`admin.service.ts` on the backend, `JobModel`/`AuditLogEntry` and admin-web's audit-logs/reports screens on the frontend. `jobDisplayId(JobModel)` (`packages/vitacare_shared/lib/models/job_model.dart`) now throws if neither `adminJobNumber` nor `patientJobNumber` is set, rather than falling back to the removed field — a job matching neither is a data-integrity bug, not a case to silently paper over, since exactly one is always set at INSERT time. The shared helper picks the right prefix so all three Flutter apps render identical text; an analogous `organisationJobDisplayId(OrganisationRequirementModel)` formats an organisation-posted requirement as `ORG-JOB-<n>` (reusing `organisation_requirements.requirement_number`, whose sequence was rebased to start at 500 in the same migration — no new column needed there since that table has only one possible poster type). Admin sets a single required `salary_amount` when posting or editing a job; its unit follows the job's `frequency_of_care` (₹/day for `daily`, ₹/month for `monthly`), and this dynamic unit is shown everywhere the figure appears — admin-web's form label and job list row, and caregiver-app's job card, which shows it highlighted prominently at the top. Every job also carries `posted_at` (starts equal to `created_at`, but is bumped to "now" only when a `closed` job is edited-and-reposted — a plain edit of an already-`active` job leaves it untouched) driving a caregiver-facing **3-day apply-by urgency window**: `posted_at + 3 days`, shown as "Posted: <date>" plus a days-left message ("X days left to apply" / "Last day..." / "Application window closed"). This is purely informational — it does not block applying, and the job itself is not auto-closed when the window passes; admin must still close (or let it be) manually.
+- **`jobs.area`/`start_date`/`frequency_of_care`/`salary_amount`/`care_duration` and `caregiver_profiles.religion` are all DB-level `NOT NULL`** — each used to be nullable purely to accommodate rows that predated the field becoming application-required (documented at the time as e.g. "nullable... because admin-posted jobs and every row that predates this column leave it null"); once every table's data was wiped for a fresh start, those legacy-compatibility reasons no longer applied, so each column was tightened with `ALTER TABLE ... SET NOT NULL` and the corresponding backend TypeScript types (`JobRecord`/`CreateJobInput`/`UpdateJobInput` in `jobs.repository.ts`, `CaregiverProfileFullRecord.religion` in `caregiver-profiles.repository.ts`) were narrowed to drop the `| null`. This is safe precisely because every current code path already always supplies these fields (`CreateJobDto`/`UpdateJobInput`/`CreateIndividualRequirementDto` require `area`/`start_date`/`frequency_of_care`/`salary_amount`/`care_duration` unconditionally now — see the Frequency of Care/Salary derivation and Duration Care is Needed sections above — and `RegisterDto.religion` has always been required at registration). The Dart-side `JobModel` fields for these same columns are deliberately left nullable (`String?`) as a defensive superset rather than tightened to match — safe either way, just a looser type — to avoid a much larger, riskier sweep through every UI consumer's null-handling across three apps.
 - **Caregiver job search preferences — removed from the product entirely (NurseJobs only).** A caregiver
   could previously set `preferred_cities`, `preferred_duty_types` (backed by a `caregiver_preferred_duty_types`
   junction table), `min_salary_per_day`, and `min_salary_per_month` (both columns on `caregiver_profiles`),
@@ -138,19 +139,43 @@ location) that didn't fit the Individual/admin jobs-table model.
   can post a requirement immediately after registering.
 - **Posting flow:** `POST /individual/requirements` takes the same shape as admin's job-posting
   form (About Patient + city/area/duty_type/start_date/languages/preferred_gender/
-  preferred_religion) **except `frequency_of_care` and `salary_amount`**, which admin sets during
-  approval — the requirement is created with `status: 'pending_review'` and both fields `null`
-  (`jobs.frequency_of_care` is nullable for exactly this reason). An admin approves by editing
-  the job with the full shape (same `PATCH /admin/jobs/:id` edit dialog admin already uses,
-  supplying `frequency_of_care`/`salary_amount`) — this transitions `pending_review → active` and
-  stamps `posted_at`, reusing the exact same repost/push-broadcast code path that already
-  reactivates a `closed` job on edit. Admin can instead **reject** a `pending_review` job via
-  `PATCH /admin/jobs/:id/reject` (`{ reason }`, admin/super_admin only) — sets `status: 'closed'`
-  and `jobs.rejection_reason`, visible to the individual on their own requirement view; only
-  valid from `pending_review` (`JOB_011` otherwise). The individual only sees
-  `frequency_of_care`/`salary_amount` once approved. **An Individual account may have at most one
-  "live" requirement at a time**, where "live" includes a not-yet-approved `pending_review` one —
-  enforced server-side (`JOB_009`) via `JobsRepository.findLiveByPostedBy`.
+  preferred_religion), created with `status: 'pending_review'` (admin still reviews for
+  legitimacy before it goes live). It also collects `care_duration` ("Duration Care is Needed" —
+  `few_days`/`few_weeks`/`few_months`/`long_term`, see "Care Duration" below), shown right below
+  "Preferred Start Date" in nursenow-app's Post/Edit Requirement forms and in
+  `JobsPostedScreen`'s read-only detail — required, like every other hard-required field on this
+  form. **`frequency_of_care` and `salary_amount` are no longer admin-set on approval — they're
+  client-derived and included in the POST body from the moment of creation**, and freely
+  overwritable on every subsequent edit; there is no `pending_review`-gated waiting period for
+  pricing at all any more (the old `JOB_013` error code, which used to block setting them before
+  admin's first approval, was removed as unused once the gate was removed). `frequency_of_care`
+  is derived from `care_duration` via `frequencyForCareDuration()` (few days/weeks → `daily`, few
+  months/long term → `monthly`, `packages/vitacare_shared/lib/models/rate_suggestion.dart`) and
+  rendered as a read-only `InputDecorator`, never a manual dropdown, anywhere a job/requirement is
+  created or edited. `salary_amount` is pre-filled from the public Rate Card's suggested figure
+  for the tier derived by `deriveCareTier()` (see "Scope of Work" above) and that same frequency,
+  via `suggestedRate()` in the same file — but stays a normal free-text field the patient (or
+  admin) can always type over. Both nursenow-app's `PostRequirementScreen`/`EditRequirementScreen`
+  reactively recompute the suggestion as Toilet Assistance/Feeding Type/Medical Condition/Duration
+  Care is Needed change (`_refreshSuggestedSalary()`, guarded so it never overwrites something the
+  patient already typed — only refills while the field is still empty or still holds the system's
+  own last suggestion), fetching the Rate Card once via `_loadRateCards()` in `initState`.
+  `EditRequirementScreen` additionally has to handle the case where Salary is pre-filled from the
+  requirement's *existing* `salary_amount` before the Rate Card fetch resolves: `_loadRateCards()`
+  unconditionally overwrites with the first resolved suggestion regardless of what's already in
+  the field (mirroring what happens when the requirement is first created), while
+  `_refreshSuggestedSalary()` is the guarded version used for every later reactive recomputation —
+  getting this backwards (a single guarded refresh from `initState`) incorrectly treats the
+  pre-existing salary as patient-protected and never applies the fresh suggestion. **An Individual
+  account may have at most one "live" requirement at a time**, where "live" includes a
+  not-yet-approved `pending_review` one — enforced server-side (`JOB_009`) via
+  `JobsRepository.findLiveByPostedBy`. Admin's own approval is now just a legitimacy review — the
+  same `PATCH /admin/jobs/:id` edit dialog transitions `pending_review → active` and stamps
+  `posted_at` (reusing the repost/push-broadcast path that already reactivates a `closed` job on
+  edit) without touching pricing, since the individual already set it. Admin can instead **reject**
+  a `pending_review` job via `PATCH /admin/jobs/:id/reject` (`{ reason }`, admin/super_admin only)
+  — sets `status: 'closed'` and `jobs.rejection_reason`, visible to the individual on their own
+  requirement view; only valid from `pending_review` (`JOB_011` otherwise).
 - **Individual-side endpoints** (`@Roles(UserRole.INDIVIDUAL)`, `src/individual/`):
   `GET /individual/me`, `POST /individual/requirements`, `GET /individual/requirements`,
   `GET /individual/requirements/:id/applications`,
@@ -238,9 +263,35 @@ location) that didn't fit the Individual/admin jobs-table model.
   Feeding/Medicine Assistance (the Feeding Type field, relabeled for this form only — admin-web's
   own form still labels it "Feeding"), Preferred Caregiver Gender, Language Preference, Preferred
   Caregiver Religion — this exact field order, matching the mandatory-field scroll-to-first-invalid
-  order too. `EditRequirementScreen` additionally keeps its existing conditional **"Frequency &
-  Salary"** section (only shown once the requirement has been approved at least once) as its own
-  third `SectionBox`, unchanged in behavior. The free-text "More details you want to share about
+  order too. `EditRequirementScreen` additionally keeps its existing conditional **"Nurse Fee
+  Guidance"** section (renamed from "Frequency & Salary"; only shown once the requirement has been
+  approved at least once) as its own third `SectionBox`, opening with a fixed helper line — "You
+  can always negotiate with nurse staff." — above the Frequency of Care/Salary fields. **Frequency
+  of Care is no longer a manual dropdown here** — it's derived from the patient's own Duration Care
+  is Needed selection (`frequencyForCareDuration()`, `packages/vitacare_shared/lib/models/
+  rate_suggestion.dart`): `few_days`/`few_weeks` → `daily`, `few_months`/`long_term` → `monthly`.
+  Rendered as a plain read-only `InputDecorator` (no dropdown arrow, nothing to pick) rather than a
+  `DropdownButtonFormField`. **Salary is pre-filled with a suggested rate looked up from the Rate
+  Card** — `suggestedRate()` (same file) takes the tier derived by the existing `deriveCareTier()`
+  (reusing the toilet-assistance/feeding-type/medical-condition fields already live-edited on this
+  same screen, not a stale snapshot from when the requirement was first posted) and the frequency
+  above, and returns the matching Rate Card cell text for that tier's column (Companion/Bedside/
+  Critical, index-matched to `CareTier.all`) from whichever frequency's single "Care" row. Fetched
+  once via `rateCardRepositoryProvider` in `initState` (`_loadSuggestedRate`) and fails open — a
+  network error, or the Rate Card simply not resolving to a suggestion, just leaves whatever was
+  already in the field (the requirement's existing `salary_amount`) untouched. The field stays a
+  normal editable `TextField` either way — admin/the patient can always type over the suggestion,
+  matching the helper text above it. Because a suggested rate can be a whole sentence (a range with
+  a note, e.g. "26000 pm/867 per day\nTo\n30000 pm/1000 per day depending on experience"), **
+  `jobs.salary_amount` is now `TEXT`, not `INTEGER`** (migration 060; `jobs_salary_amount_check`
+  numeric constraint dropped) — this is a schema change shared with admin's own job-posting/editing
+  form (`CreateJobDto.salary_amount`, `apps/admin-web`'s `_JobFormDialog`), which is otherwise
+  unaffected: admin still types a plain number in a numeric-keyboard `TextField` with the same
+  1–1,000,000 client-side range check, just converted to a string (`.toString()`) at submission
+  time rather than sent as a number. **`organisation_requirements.salary_amount` is a separate
+  column on a separate table and was NOT changed** — Rate Card guidance has never applied to
+  Organisation postings, so there's no derivation to feed it; it stays a plain admin-entered
+  `INTEGER`. The free-text "More details you want to share about
   patient" field is removed from both forms entirely (NurseNow-specific — admin-web's own job
   posting form still has its own equivalent `description` field, untouched). **`JobsPostedScreen`'s
   own read-only "Show Full Details" expander mirrors this same grouping** — a `_DetailRow`
@@ -248,7 +299,47 @@ location) that didn't fit the Individual/admin jobs-table model.
   same "Patient Details"/"Care Preferences" headings in the same field order, replacing the old
   "About Patient"/"Patient Care Requirement" headings and their undifferentiated `Wrap` of bare
   `_Tag` chips (which made e.g. a lone "Male" chip ambiguous — patient's own gender, or a
-  caregiver preference?). `_Tag` was removed as dead code once nothing referenced it anymore.
+  caregiver preference?). `_Tag` was removed as dead code once nothing referenced it anymore. It
+  also has a third **"Nurse Fee Guidance"** section (Frequency of Care, Salary), matching the
+  Post/Edit form's own final section — added once Frequency/Salary stopped being admin-approval-
+  gated (see the individual-requirement Frequency/Salary bullet above): the requirement card's own
+  collapsed salary line (`₹<amount>/day` or `/month`, shown above the primary action button) used
+  to only render `if (requirement.status == JobStatus.active ...)`, since `salary_amount` used to
+  be null until admin approved; now that it's always set from creation, that condition just checks
+  `salary_amount != null`, so a `pending_review` requirement's own figure is visible to the patient
+  immediately, not just once it goes live.
+- **admin-web's job form (`_JobFormDialog` in
+  `apps/admin-web/lib/features/jobs/screens/admin_jobs_screen.dart`, used for both admin's own
+  from-scratch job posting AND creating/editing any job via `POST`/`PATCH /admin/jobs`) has one
+  unified field set and order for every case — no more branching between "admin's own posting" and
+  "editing an individual's requirement".** It matches nursenow-app's own Post/Edit Requirement
+  screens exactly: **Patient Details** (age/gender/weight/city/area, then Medical Condition) →
+  **Care Preferences** (Hours Care Needed, Preferred Start Date, Duration Care is Needed, Toilet
+  Assistance, Feeding/Medicine Assistance, Preferred Caregiver Gender, Language Preference,
+  Preferred Caregiver Religion) → **Nurse Fee Guidance** (Frequency of Care, Salary). Communication,
+  Vital Monitoring (the toggle + monitoring-types multi-select), and the free-text "more details"
+  description field are **not offered in admin-web's form at all any more** — removed entirely,
+  not just hidden; the backend still accepts and defaults them server-side
+  (`CARE_RECEIVER_DEFAULTS`/`description` staying optional in `CreateJobDto`), so a job created or
+  re-edited via admin-web simply freezes those fields at their defaults rather than admin ever
+  setting them. **Duration Care is Needed is now collected on admin's own from-scratch postings
+  too** (`CreateJobDto.care_duration` is unconditionally required — this was a real functional gap
+  before this field existed in admin-web's UI, since the backend already required it and
+  admin-web's create/update calls had no way to supply it). **Medical Condition switched from a
+  toggle-then-reveal `SwitchListTile` to nursenow-app's always-visible mandatory multi-select with
+  a "None" sentinel** (`_noneMedicalCondition`/`_applyMedicalConditionSelection`, mirroring
+  `_noPreferenceLanguage`'s own mutual-exclusivity pattern) — defaults to "None", picking any real
+  condition clears it, and it can never be truly empty so it needs no separate red-highlight
+  validation. **Frequency of Care is always derived from Duration Care is Needed
+  (`_derivedFrequencyOfCare`, same `frequencyForCareDuration()` helper) and rendered as a
+  read-only `InputDecorator`, never a manual dropdown — for every job admin creates or edits, not
+  only a NurseNow individual's.** Salary is always a free-text field pre-filled from the Rate
+  Card's suggestion for the derived tier/frequency (`_loadRateCards()`/`_refreshSuggestedSalary()`,
+  the exact same two-phase always-overwrite-once-then-guarded-reactive pattern as nursenow-app's
+  `EditRequirementScreen`, described above) and reactively recomputed as Toilet Assistance/Feeding
+  Type/Medical Condition/Duration Care is Needed change — never a numeric-validated manual entry;
+  the old 1–1,000,000 numeric range check is gone along with the numeric keyboard. `AdminJobsRepository.create()`/`.update()` both gained a required `careDuration` parameter to
+  match.
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
   **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account
@@ -464,8 +555,10 @@ reusing any of its tables.
 
 ## Rate Card (Salary Guidance)
 
-A single, admin-editable salary-guidance grid (`rate_card` table, migration 052 — a singleton
-row, `id` fixed to 1 by a DB `CHECK`) shown behind a persistent green "Rate Card" pill button
+Two admin-editable salary-guidance grids, one per frequency of care (`rate_card` table, migration
+058 — "one row per key" like `app_min_versions`/`otp_auth_settings`, `frequency_of_care VARCHAR(10)
+PRIMARY KEY CHECK (frequency_of_care IN ('daily', 'monthly'))`, reusing the existing
+`FrequencyOfCare` enum values as the key), shown behind a persistent green "Rate Card" pill button
 (icon + visible text label — a bare `currency_rupee` icon alone read as unclear/ambiguous) in the
 AppBar of every caregiver-app (NurseJobs) screen and every nursenow-app **Individual**
 (patient/family) screen — **deliberately never shown to Organisation (hospital/rehab/clinic)
@@ -478,37 +571,60 @@ reviewing an applicant) and from `login_screen.dart`/`registration_screen.dart`/
 (role not yet known/no chrome). In caregiver-app it appears on every screen that has an AppBar
 except `login_screen.dart` (which has no AppBar at all — a deliberately chrome-less auth screen,
 same reason `WhatsAppHelpButton` skips it too), `splash_screen.dart`, and
-`update_required_screen.dart` (a non-dismissible blocking screen).
+`update_required_screen.dart` (a non-dismissible blocking screen). This replaced an earlier
+single-grid design (migration 052, a strict `id=1` singleton) whose cells manually mixed both
+figures per box (e.g. "26000 pm/867 per day") — admin now maintains the two frequencies as fully
+independent grids, each with its own title/labels/cells, and both caregiver-app and nursenow-app
+show both to the caregiver/individual at once (stacked in the same dialog, not a toggle/tab),
+since a caregiver may be weighing either a daily or a monthly engagement.
 
-- **Shape is fixed (3 columns x 3 rows), only the text is admin-editable.** `column_labels`/
-  `row_labels` are always exactly 3 entries each; `cells[row][col]` a matching 3x3 grid — every
-  label, cell, and the title are free-text strings, not structured amount+unit fields, since the
-  source data mixes plain rates ("26000 pm/867 per day"), a range with a note ("35000-42000 pm
-  (depending on years of experience)"), and a plain refusal ("Caregivers are not suggested") —
-  forcing a rigid numeric shape would lose that. There's no add/remove-row/column UI — not
-  requested, and the 3x3 shape matches the seeded "Companion care / Bedside Care / Critical Care"
-  x "Caregivers / Nursing students-backlogs / Nurses" grid from the original ask.
-- **Backend** (`apps/api/src/rate-card/`): `GET /rate-card` is public (no auth) — both apps fetch
-  fresh on every icon tap, no caching/global state. `GET /admin/rate-card` (adds
-  `updated_by_name`) and `PATCH /admin/rate-card` are `ADMIN`/`SUPER_ADMIN`-only, audit-logged via
-  `AuditAction.RATE_CARD_UPDATED` (entityType `'rate_card'`, no `entityId` — `rate_card.id` is an
-  `INT`, not a `UUID`, so it can't be put in `audit_logs.entity_id`; same pattern as
-  `otp_auth_settings`, which also has a non-UUID PK). `RATE_001` covers a malformed `cells` shape
-  (not exactly 3 rows of exactly 3 strings each) — checked in `RateCardService`, not via
-  class-validator decorators, since there's no clean built-in decorator for a nested `string[][]`.
-- **admin-web**: `/rate-card` screen (`features/rate_card/`), a single inline editable form (title
-  field + a 3x3 `Table` of label/cell `TextField`s), not a list-of-dialogs like App Versions —
-  there's only ever one row to edit. Reuses the shared `RateCardModel` (`packages/vitacare_shared`)
-  for both the request body and (wrapped in `RateCardWithUpdater`) the admin GET response.
+- **Shape is fixed per grid (3 columns x 1 row), only the text is admin-editable.**
+  `column_labels` is always exactly 3 entries, `row_labels` always exactly 1 (the single "Care"
+  row); `cells[row][col]` a matching 1x3 grid — every label, cell, and the title are free-text
+  strings, not structured amount+unit fields, since the source data mixes plain rates, a range
+  with a note ("35000-42000 pm (depending on years of experience)"), and a plain refusal
+  ("Caregivers are not suggested") — forcing a rigid numeric shape would lose that. There's no
+  add/remove-row/column UI, and no way to add a third frequency — not requested. Originally a 3x3
+  grid (3 caregiver tiers: Care / Nursing students-backlogs / Nurses) — migration 059 dropped the
+  "Nursing students/Nursing with backlogs" and "Nurses (Nursing completed/Registered/Unregistered)"
+  rows from both the daily and monthly grids, keeping only "Care", since the tiering wasn't needed.
+  `column_labels` (Companion/Bedside/Critical Care) is untouched.
+- **Backend** (`apps/api/src/rate-card/`): `GET /rate-card` is public (no auth), always returns
+  both rows as an array — both apps fetch fresh on every icon tap, no caching/global state.
+  `GET /admin/rate-card` (both rows, each with `updated_by_name`) and
+  `PATCH /admin/rate-card/:frequency` (frequency in the URL path, not the body — the body is just
+  `{title, column_labels, row_labels, cells}`) are `ADMIN`/`SUPER_ADMIN`-only; an unrecognized
+  `:frequency` 404s with `GEN_002` (mirroring `AppConfigService.adminUpdate`'s handling of an
+  invalid platform param), checked before `RATE_001`'s shape validation so a bad frequency never
+  masks itself as a shape error. Each update is audit-logged via `AuditAction.RATE_CARD_UPDATED`
+  (entityType `'rate_card'`, no `entityId` — `frequency_of_care` is a `VARCHAR`, not a `UUID`, so
+  it can't be put in `audit_logs.entity_id`; same pattern as `otp_auth_settings`, which also has a
+  non-UUID PK). `RATE_001` covers a malformed `cells` shape (not exactly 1 row of exactly 3
+  strings) — checked in `RateCardService`, not via class-validator decorators, since there's
+  no clean built-in decorator for a nested `string[][]`; `UpdateRateCardDto.row_labels` also has a
+  matching `@ArrayMinSize(1)/@ArrayMaxSize(1)`. Updating one frequency never touches the
+  other row.
+- **admin-web**: `/rate-card` screen (`features/rate_card/`) renders two independently-editable,
+  independently-saveable sections stacked on one page — one per frequency, each its own bordered
+  box with its own title field, 3x1 `Table` of label/cell `TextField`s, "last updated by" line, and
+  **own Save button** (a separate `PATCH .../:frequency` call per section, not one combined save) —
+  not the list-of-dialogs pattern App Versions uses, since a grid doesn't fit well in a cramped
+  dialog. `RateCardRepository.get()` returns `List<RateCardWithUpdater>` (always 2, one per
+  frequency); `.update(frequency, model)` takes the frequency explicitly since it's no longer part
+  of the request body. Reuses the shared `RateCardModel` (`packages/vitacare_shared`, now carrying
+  a `frequencyOfCare` field alongside title/labels/cells — excluded from `toJson()` since it's a
+  URL path param, not a body field).
 - **Mobile apps**: `RateCardButton` (`apps/*/lib/app/rate_card_button.dart`) is duplicated per app
   (not shared via `vitacare_ui`, which is restricted to colors/spacing/micro-widgets only, not
-  full dialogs with network calls) — same duplication precedent as `WhatsAppHelpButton`. Tapping
-  opens an `AlertDialog` rendering the fetched grid read-only; a failed fetch shows a friendly
-  inline error rather than crashing or blocking anything, since this is purely informational.
-  Both `RateCardButton` and `WhatsAppHelpButton` (both apps) are wrapped in a `Padding(right: 6)` —
-  without it, whichever of the two rendered last in an AppBar's `actions` list sat flush against
-  the screen's right edge, since both buttons' own internal padding was already trimmed to near
-  zero to fit 3-action AppBars (RateCard + WhatsApp + Logout) without overflowing.
+  full dialogs with network calls) — same duplication precedent as `WhatsAppHelpButton`.
+  `RateCardRepository.get()` returns `List<RateCardModel>` (always both frequencies); tapping opens
+  an `AlertDialog` rendering both grids read-only, stacked with each one's own title as a heading
+  and a divider between them; a failed fetch shows a friendly inline error rather than crashing or
+  blocking anything, since this is purely informational. Both `RateCardButton` and
+  `WhatsAppHelpButton` (both apps) are wrapped in a `Padding(right: 6)` — without it, whichever of
+  the two rendered last in an AppBar's `actions` list sat flush against the screen's right edge,
+  since both buttons' own internal padding was already trimmed to near zero to fit 3-action AppBars
+  (RateCard + WhatsApp + Logout) without overflowing.
 
 ## Scope of Work
 
@@ -526,17 +642,21 @@ the same "these guidelines are for individual hiring, not institutional bulk hir
   (`packages/vitacare_shared/lib/models/care_tier.dart`) reads a job's already-collected
   care-receiver fields and picks exactly one of `CareTier.companionCare`/`bedsideCare`/
   `criticalCare`, checked highest-tier-first: **Critical Care** if `toilet_assistance` includes
-  `uses_catheter`, `feeding_type` is `tube_feeding`/`oral_and_tube`, `requires_vital_monitoring` is
-  true, or `medical_conditions` includes `insulin_administration_support`/`injection_support`/
-  `oxygen_support`/`cannula_care`/`catheter_care`; else **Bedside Care** if `toilet_assistance`
-  includes `uses_diapers`/`uses_bed_pan`/`complete_toileting_assistance`/`others`, `feeding_type`
-  is `oral_needs_assistance`, or `has_medical_condition` is true (any condition, including ones not
-  in the critical list above); else **Companion Care** (the independent/baseline case). This
-  mapping is a product judgment call documented in code comments right at the function, not
-  something the backend enforces — reviewable in one place if the intended tiering changes.
-  Neither `communication` nor `mobility` (removed entirely, see care_receivers history) factor
-  into the rule. The popup shows only the derived tier's bullets, stacked cumulatively with every
-  tier below it via `ScopeOfWorkModel.bulletsFor(tier)` — never the full 3-tier table.
+  `uses_catheter`, `feeding_type` is `tube_feeding`/`others` ("Others (Cannula etc.)"),
+  `requires_vital_monitoring` is true, or `medical_conditions` includes
+  `insulin_administration_support`/`injection_support`/`oxygen_support`/`cannula_care`/
+  `catheter_care`; else **Bedside Care** if `toilet_assistance` includes
+  `diapers_bedside_support`/`others`, or `has_medical_condition` is true (any condition, including
+  ones not in the critical list above); else **Companion Care** (the independent/baseline case —
+  includes `feeding_type: oral_feeding`, which since the Toilet Assistance/Feeding Type
+  simplification (see those enum entries above) no longer distinguishes independent from
+  needs-assistance, so it can no longer push to Bedside on its own the way the old
+  `oral_needs_assistance` value did). This mapping is a product judgment call documented in code
+  comments right at the function, not something the backend enforces — reviewable in one place if
+  the intended tiering changes. Neither `communication` nor `mobility` (removed entirely, see
+  care_receivers history) factor into the rule. The popup shows only the derived tier's bullets,
+  stacked cumulatively with every tier below it via `ScopeOfWorkModel.bulletsFor(tier)` — never
+  the full 3-tier table.
 - **Backend** (`apps/api/src/scope-of-work/`): mirrors `rate-card`'s exact shape — `GET
   /scope-of-work` is public (no auth, fetched fresh on every button tap); `GET
   /admin/scope-of-work` (adds `updated_by_name`) and `PATCH /admin/scope-of-work` are
@@ -721,6 +841,9 @@ Field labeled "Hours Care Needed" in the admin-web UI (underlying field/column n
 ### Frequency of Care
 Required single-select on a job, alongside Duty Type/Hours Care Needed: `daily` ("Daily"), `monthly` ("Monthly"). Visible to caregivers on the job card same as every other requirement field.
 
+### Care Duration
+`few_days` ("Few Days"), `few_weeks` ("Few Weeks"), `few_months` ("Few Months"), `long_term` ("Long Term") — `jobs.care_duration` (migration 056). Required single-select, "Duration Care is Needed", shown directly below "Preferred Start Date" in nursenow-app's Individual Post/Edit Requirement forms — only the posting individual ever sets it, never admin (see "NurseNow" above). Nullable at the DB level (admin-posted jobs and every row that predates this column leave it `null`); visible read-only wherever a job's other requirement fields are shown once set (caregiver-app's `JobDetailCard`, admin-web's `JobReadOnlyDetailDialog`, nursenow-app's own `JobsPostedScreen`).
+
 ### Mobility — removed from the product entirely
 The old `walks_independently`/`walks_with_assistance`/`uses_walker`/`uses_wheelchair`/`bedridden`
 enum and its backing `care_receivers.mobility` column (migration 053) no longer exist — not
@@ -737,7 +860,17 @@ Exactly 3 options (`other_non_verbal` dropped):
 - `sign_language` — "Communicate via Sign Languages"
 
 ### Feeding Type
-oral_independent, oral_needs_assistance, tube_feeding, oral_and_tube
+`oral_feeding` ("Oral feeding"), `tube_feeding` ("Tube feeding"), `others` ("Others (Cannula etc.)")
+— migration 057. Previously 4 values (`oral_independent`/`oral_needs_assistance`/`tube_feeding`/
+`oral_and_tube`); `oral_independent` and `oral_needs_assistance` were merged into the single
+`oral_feeding` (the independent-vs-needs-assistance distinction is no longer tracked), and
+`oral_and_tube` was replaced by `others` — a different meaning (any non-oral/non-tube feeding
+need, e.g. cannula), not a rename. `feeding_type` is a single required VARCHAR CHECK column on
+`care_receivers` (unlike `toilet_assistance`, which has no DB-level CHECK), so the migration both
+updates the constraint and backfills every existing row (`oral_independent`/`oral_needs_assistance`
+→ `oral_feeding`, `oral_and_tube` → `others`) in the same statement — verified no production data
+existed on any of the removed values at migration time. Defaults to `oral_feeding` when left
+unselected (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`).
 
 ### Medical Assistance — removed from the product entirely
 The old "Medicine" multi-select (medication_reminders/medication_administration/insulin_administration/other_injections/other) and its backing `care_receivers.medical_assistance` column (migration 050) no longer exist — not collected, stored, or displayed anywhere (admin-web's job posting form, caregiver-app's job card, nursenow-app's requirement form, or the API). Superseded by the expanded Medical Condition list below, which now covers most of the same ground (BP, Oxygen support, Insulin administration support, Injection support, Cannula care, Catheter care, Nebulisation support).
@@ -746,7 +879,24 @@ The old "Medicine" multi-select (medication_reminders/medication_administration/
 cancer, stroke, brain_injury, dementia_alzheimers, parkinsons, heart_condition, kidney_disease_dialysis, diabetes, colostomy, paralysis, tb, bp, oxygen_support, insulin_administration_support, injection_support, cannula_care, catheter_care, nebulisation_support, other. When `other` is selected, admin-web reveals an optional free-text field ("Please describe the other condition") stored as `care_receivers.medical_condition_other`; sent alongside — not instead of — the selected values. Unconditionally optional server-side (no cross-field validation tying it to `other` being selected). Visible to caregivers on the job card as "Other condition: <text>". **nursenow-app's individual posting/edit forms make this field mandatory**, via a UI-only `none` sentinel (never sent to the backend — mutually exclusive with every real condition, same pattern as the Language Preference "No Preference" sentinel): it's the first chip, checked by default, and picking it clears `has_medical_condition`/`medical_conditions` entirely rather than sending an actual `none` value. Admin-web's own job posting form is unchanged — still an optional toggle, not mandatory.
 
 ### Toilet Assistance (multi-select)
-uses_diapers, uses_bed_pan, uses_catheter, complete_toileting_assistance, others, independent. When `others` is selected, admin-web reveals an optional free-text field ("Please describe the other toilet assistance") stored as `care_receivers.toilet_assistance_other`; same pattern as `medical_condition_other` above (sent alongside the selected values, unconditionally optional, visible to caregivers as "Other toilet assistance: <text>").
+`independent` ("Independent/minimal support"), `diapers_bedside_support` ("Diapers/bedside
+support"), `uses_catheter` ("Catheter support"), `others` ("Others") — migration 057. Previously 6
+values (`uses_diapers`/`uses_bed_pan`/`uses_catheter`/`complete_toileting_assistance`/`others`/
+`independent`); `uses_diapers` and `uses_bed_pan` were merged into the single
+`diapers_bedside_support`, and `complete_toileting_assistance` was dropped entirely with no
+replacement. `independent`/`uses_catheter`/`others` keep their original keys (only `uses_catheter`
+and `independent` picked up new display labels — "Catheter support" and "Independent/minimal
+support" respectively). No DB-level CHECK constraint (JSONB array, validated at the DTO layer
+only — see migration 028), so no data backfill was needed; defaults to `[independent]` when left
+unselected (`CARE_RECEIVER_DEFAULTS` in `jobs.service.ts`). When `others` is selected, admin-web
+reveals an optional free-text field ("Please describe the other toilet assistance") stored as
+`care_receivers.toilet_assistance_other`; same pattern as `medical_condition_other` above (sent
+alongside the selected values, unconditionally optional, visible to caregivers as "Other toilet
+assistance: <text>"). Both this and Feeding Type are shared enums — admin-web's own job
+posting/edit form and caregiver-app's job card pick up every change automatically (they iterate
+`ToiletAssistance.all`/`FeedingType.all` and `.displayNames`, no per-app hardcoded option list) —
+the simplification described here and above applies identically everywhere a job is posted or
+displayed, not just nursenow-app's Post/Edit Requirement forms.
 
 ### Vital Monitoring Type (multi-select)
 blood_pressure, blood_sugar, oxygen_spo2, temperature, pulse, other

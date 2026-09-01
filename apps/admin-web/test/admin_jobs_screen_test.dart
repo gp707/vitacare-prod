@@ -12,7 +12,41 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
+import 'package:admin_web/features/rate_card/data/rate_card_repository.dart';
 import 'package:admin_web/features/scope_of_work/data/scope_of_work_repository.dart';
+
+class _FakeRateCardRepository extends RateCardRepository {
+  final List<RateCardWithUpdater>? result;
+  final Object? error;
+
+  _FakeRateCardRepository({this.result, this.error}) : super(Dio());
+
+  @override
+  Future<List<RateCardWithUpdater>> get() async {
+    if (error != null) throw error!;
+    return result!;
+  }
+}
+
+RateCardWithUpdater _rateCardWithUpdater({
+  required String frequencyOfCare,
+  required String companion,
+  String bedside = 'BEDSIDE_RATE',
+  String critical = 'CRITICAL_RATE',
+}) =>
+    RateCardWithUpdater(
+      rateCard: RateCardModel(
+        frequencyOfCare: frequencyOfCare,
+        title: 'Salary Guidelines',
+        columnLabels: const ['Companion care', 'Bedside Care', 'Critical Care'],
+        rowLabels: const ['Care'],
+        cells: [
+          [companion, bedside, critical],
+        ],
+      ),
+      updatedByName: null,
+      updatedAt: '2026-08-30T10:00:00Z',
+    );
 
 final _scopeOfWork = ScopeOfWorkModel(
   companionCare: ['Emotional companionship', 'Meal assistance'],
@@ -78,7 +112,7 @@ class _FakeAdminOrganisationRequirementsRepository
 
 JobModel _job({
   String status = 'active',
-  int? salaryAmount = 30000,
+  String? salaryAmount = '30000',
   String? frequencyOfCare = 'daily',
   String? postedByRole,
   String? postedByName,
@@ -87,7 +121,6 @@ JobModel _job({
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
-    'job_number': 42,
     'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
@@ -109,10 +142,16 @@ JobModel _job({
 
 /// Full job detail — as returned by `GET /admin/jobs/:id` — with a nested
 /// care_receiver, used for the Edit dialog's pre-fill / "view full details".
-JobModel _jobWithCareReceiver({String status = 'active', List<String> languages = const ['hindi']}) {
+/// [careDuration] defaults to 'few_weeks' (derives to Daily) so most Edit
+/// tests get a coherent Frequency of Care without each one having to pass it
+/// explicitly — pass null to exercise a legacy job that predates the field.
+JobModel _jobWithCareReceiver({
+  String status = 'active',
+  List<String> languages = const ['hindi'],
+  String? careDuration = 'few_weeks',
+}) {
   return JobModel.fromJson({
     'id': 'job-1',
-    'job_number': 42,
     'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
@@ -120,8 +159,9 @@ JobModel _jobWithCareReceiver({String status = 'active', List<String> languages 
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
     'start_date': '2026-08-10',
+    'care_duration': careDuration,
     'languages': languages,
-    'salary_amount': 30000,
+    'salary_amount': '30000',
     'preferred_gender': 'female',
     'status': status,
     'posted_by': 'admin-1',
@@ -133,7 +173,7 @@ JobModel _jobWithCareReceiver({String status = 'active', List<String> languages 
       'gender': 'female',
       'weight_kg': 58,
       'communication': 'verbal',
-      'feeding_type': 'oral_independent',
+      'feeding_type': 'oral_feeding',
       'has_medical_condition': false,
       'medical_conditions': [],
       'toilet_assistance': ['others'],
@@ -191,7 +231,9 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? decidedApplicationId;
   String? decidedStatus;
   String? updatedJobId;
-  String? updatedDescription;
+  String? submittedFrequencyOfCare;
+  String? submittedSalaryAmount;
+  String? submittedCareDuration;
   CareReceiverInput? submittedCareReceiver;
   List<String>? submittedLanguages;
   JobListFilters? lastListFilters;
@@ -199,11 +241,13 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? rejectedJobId;
   String? rejectedReason;
   List<String> detailLanguages;
+  String? detailCareDuration;
 
   _FakeAdminJobsRepository(this.jobs,
       {this.applications = const [],
       this.posters = const [],
-      this.detailLanguages = const ['hindi']})
+      this.detailLanguages = const ['hindi'],
+      this.detailCareDuration = 'few_weeks'})
       : super(Dio());
 
   @override
@@ -220,7 +264,11 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   @override
   Future<(JobModel, List<JobApplicationModel>)> getDetail(String jobId) async {
     return (
-      _jobWithCareReceiver(status: jobs.first.status, languages: detailLanguages),
+      _jobWithCareReceiver(
+        status: jobs.first.status,
+        languages: detailLanguages,
+        careDuration: detailCareDuration,
+      ),
       applications
     );
   }
@@ -235,13 +283,17 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryAmount,
+    required String salaryAmount,
     String? preferredGender,
     String? preferredReligion,
+    required String careDuration,
   }) async {
     createCalled = true;
     submittedCareReceiver = careReceiver;
     submittedLanguages = languages;
+    submittedFrequencyOfCare = frequencyOfCare;
+    submittedSalaryAmount = salaryAmount;
+    submittedCareDuration = careDuration;
     jobs = [...jobs, _job()];
   }
 
@@ -256,13 +308,17 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryAmount,
+    required String salaryAmount,
     String? preferredGender,
     String? preferredReligion,
+    required String careDuration,
   }) async {
     updatedJobId = jobId;
-    updatedDescription = description;
     submittedLanguages = languages;
+    submittedFrequencyOfCare = frequencyOfCare;
+    submittedSalaryAmount = salaryAmount;
+    submittedCareReceiver = careReceiver;
+    submittedCareDuration = careDuration;
   }
 
   @override
@@ -300,6 +356,8 @@ Future<void> _pump(
   _FakeAdminJobsRepository repo, {
   _FakeAdminOrganisationRequirementsRepository? requirementsRepo,
   JobsScreenInitialFilter? initialFilter,
+  List<RateCardWithUpdater>? rateCards,
+  Object? rateCardError,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -319,6 +377,9 @@ Future<void> _pump(
         adminOrganisationRequirementsRepositoryProvider.overrideWithValue(
             requirementsRepo ?? _FakeAdminOrganisationRequirementsRepository()),
         scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
+        rateCardRepositoryProvider.overrideWithValue(
+          _FakeRateCardRepository(result: rateCards ?? const [], error: rateCardError),
+        ),
       ],
       child: MaterialApp(home: AdminJobsScreen(initialFilter: initialFilter)),
     ),
@@ -361,6 +422,8 @@ Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
   await tester.pumpAndSettle();
 }
 
+// Asserted absent in a few places — the field was removed from admin-web's
+// form entirely (see CLAUDE.md's NurseNow section).
 const _descriptionLabel = 'More details you want to share about patient';
 
 /// Picks today's date (the picker's default) for the mandatory Preferred
@@ -374,10 +437,10 @@ Future<void> _pickPreferredStartDate(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Fills every required field up through (and including) Toilet Assistance —
-/// i.e. everything needed before Duty/Language/Description — so individual
-/// tests can pick up from there.
-Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
+/// Fills Age/Gender/Weight/City/Area — the core Patient Details fields that
+/// nearly every test needs, leaving Medical Condition at its "None" default
+/// and Toilet Assistance/Feeding untouched (both optional).
+Future<void> _fillPatientDetailsCore(WidgetTester tester) async {
   await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
 
   final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
@@ -397,17 +460,32 @@ Future<void> _fillAboutPatientRequiredFields(WidgetTester tester) async {
   await tester.ensureVisible(weight);
   await tester.enterText(weight, '58');
   await tester.pumpAndSettle();
-
-  await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
-  await _selectDropdown(tester, 'Feeding', 'Oral feeding – independent');
-  await _tapChip(tester, 'Others');
 }
 
+/// Finds the Salary field regardless of its current unit label (₹/day vs
+/// ₹/month, which follows the derived Frequency of Care).
 Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
-  final salary = find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)');
+  final salary = find.byWidgetPredicate(
+    (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
+  );
   await tester.ensureVisible(salary);
   await tester.enterText(salary, amount);
   await tester.pumpAndSettle();
+}
+
+/// Fills every hard-required field on the unified form (Patient Details'
+/// core fields + Hours Care Needed + Preferred Start Date + Duration Care is
+/// Needed + Salary), leaving Medical Condition/Toilet Assistance/Feeding/
+/// Language Preference at their defaults — used by tests that only care
+/// about getting to a submittable state.
+Future<void> _fillMandatoryFields(WidgetTester tester) async {
+  await _fillPatientDetailsCore(tester);
+  await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+      '12Hrs Day Shift (8am to 8pm)');
+  await _pickPreferredStartDate(tester);
+  await _selectDropdown(
+      tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+  await _fillSalary(tester);
 }
 
 void main() {
@@ -550,38 +628,32 @@ void main() {
   });
 
   testWidgets(
-      "the Salary field's unit label follows Frequency of Care as it's picked, and the posted job's row "
-      'matches whichever was selected', (tester) async {
+      "the Salary field's unit label follows the derived Frequency of Care as Duration Care is Needed is "
+      "picked, and the posted job's row matches whichever was derived", (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    // Before any Frequency of Care is picked, the label defaults to /month.
+    // Before any Duration Care is Needed is picked, the label defaults to
+    // /month and Frequency of Care shows "-".
     expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
 
-    await _fillAboutPatientRequiredFields(tester);
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _fillMandatoryFields(tester); // picks 'Few Weeks' -> derives Daily
 
     expect(find.text('Salary (₹/day) (Mandatory)'), findsOneWidget);
     expect(find.text('Salary (₹/month) (Mandatory)'), findsNothing);
+    expect(find.text('Daily'), findsOneWidget);
 
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Monthly');
+    await _selectDropdown(
+        tester, 'Duration Care is Needed (Mandatory)', 'Long Term');
 
     expect(find.text('Salary (₹/month) (Mandatory)'), findsOneWidget);
     expect(find.text('Salary (₹/day) (Mandatory)'), findsNothing);
+    expect(find.text('Monthly'), findsOneWidget);
 
-    await _pickPreferredStartDate(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -589,6 +661,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.createCalled, isTrue);
+    expect(repo.submittedFrequencyOfCare, 'monthly');
+    expect(repo.submittedCareDuration, 'long_term');
   });
 
   testWidgets(
@@ -706,12 +780,7 @@ void main() {
 
     // "No Preference" starts selected; deliberately never tap a real
     // language chip.
-    await _fillAboutPatientRequiredFields(tester);
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
+    await _fillMandatoryFields(tester);
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -731,12 +800,7 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _fillAboutPatientRequiredFields(tester);
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
+    await _fillMandatoryFields(tester);
     await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
@@ -790,8 +854,8 @@ void main() {
   });
 
   testWidgets(
-      'Post New Job opens a dialog; filling required fields and submitting calls create()',
-      (tester) async {
+      'Post New Job opens a dialog matching nursenow-app\'s own field set/order exactly; filling required '
+      'fields and submitting calls create()', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
@@ -800,23 +864,19 @@ void main() {
 
     expect(
         find.text('Post New Job'), findsWidgets); // button label + dialog title
-    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('Patient Details'), findsOneWidget);
+    expect(find.text('Care Preferences'), findsOneWidget);
+    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    // Removed entirely, universally.
+    expect(find.text('Communication'), findsNothing);
+    expect(find.text('Is regular vital monitoring required?'), findsNothing);
+    expect(find.text(_descriptionLabel), findsNothing);
+    // Already-removed prior feature, unrelated to this change.
     expect(find.text('About Patient Condition'), findsNothing);
     expect(find.text('Medicine'), findsNothing);
-    expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
 
-    await _fillAboutPatientRequiredFields(tester);
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
+    await _fillMandatoryFields(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -880,53 +940,26 @@ void main() {
   });
 
   testWidgets(
-      'only age/weight/gender/city/area/start-date are hard-required — communication, feeding, '
-      'toilet assistance, and description can all be left unselected/empty',
-      (tester) async {
+      'only age/weight/gender/city/area/duty-hours/start-date/duration/salary are hard-required — '
+      'feeding and toilet assistance can be left unselected', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
-
-    final area =
-        find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
-    await tester.ensureVisible(area);
-    await tester.enterText(area, 'Indiranagar');
-    await tester.pumpAndSettle();
-
-    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
-    await tester.ensureVisible(age);
-    await tester.enterText(age, '72');
-    await tester.pumpAndSettle();
-
-    await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
-
-    final weight =
-        find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
-    await tester.ensureVisible(weight);
-    await tester.enterText(weight, '58');
-    await tester.pumpAndSettle();
-
-    // Deliberately skip Communication, Feeding, and Toilet Assistance —
-    // none of them should block submission.
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
+    // Deliberately skip Feeding and Toilet Assistance — neither should
+    // block submission.
+    await _fillMandatoryFields(tester);
     await _tapChip(tester, 'Hindi');
 
-    // Deliberately leave the description empty too — it's optional now.
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
     await tester.tap(postButton);
     await tester.pumpAndSettle();
 
     expect(repo.createCalled, isTrue,
-        reason: 'communication/feeding/toilet assistance/description are optional now');
+        reason: 'feeding/toilet assistance are optional');
   });
 
   testWidgets(
@@ -952,12 +985,14 @@ void main() {
     expect(find.text('Age is required (1-120)'), findsOneWidget);
     expect(find.text('Please select a gender'), findsOneWidget);
     expect(find.text('Weight is required (1-300 kg)'), findsOneWidget);
-    expect(find.text('Salary is required'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
-    expect(find.text('Please select a frequency'), findsOneWidget);
     expect(find.text('Please select a start date'), findsOneWidget);
+    expect(find.text('Please select how long care is needed'), findsOneWidget);
+    expect(find.text('Salary is required'), findsOneWidget);
+    // Frequency of Care can never be invalid — it's derived, not picked.
     // Language Preference can never be invalid — it defaults to "No
     // Preference" and stays that way until the admin picks a real one.
+    // Medical Condition can never be invalid — it defaults to "None".
   });
 
   testWidgets(
@@ -985,16 +1020,13 @@ void main() {
     await tester.enterText(weight, '58');
     await tester.pumpAndSettle();
 
-    await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
+    await _pickPreferredStartDate(tester);
+    await _selectDropdown(
+        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+    await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1011,49 +1043,6 @@ void main() {
   });
 
   testWidgets(
-      'vital monitoring toggle reveals a required multi-select that blocks submit until answered',
-      (tester) async {
-    final repo = _FakeAdminJobsRepository([]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
-    await tester.pumpAndSettle();
-
-    await _fillAboutPatientRequiredFields(tester);
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
-    await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
-
-    final vitalsSwitch = find.text('Is regular vital monitoring required?');
-    await tester.ensureVisible(vitalsSwitch);
-    await tester.tap(vitalsSwitch);
-    await tester.pumpAndSettle();
-
-    final postButton = find.widgetWithText(ElevatedButton, 'Post');
-    await tester.ensureVisible(postButton);
-    await tester.tap(postButton);
-    await tester.pumpAndSettle();
-
-    expect(repo.createCalled, isFalse,
-        reason: 'vitals on but no monitoring type selected yet');
-    expect(find.text('Select at least one vital to monitor'), findsOneWidget);
-
-    await _tapChip(tester, 'Blood pressure');
-    await tester.tap(postButton);
-    await tester.pumpAndSettle();
-
-    expect(repo.createCalled, isTrue);
-  });
-
-  testWidgets(
       'selecting Tube feeding does not reveal any extra question — the dropdown alone is enough',
       (tester) async {
     final repo = _FakeAdminJobsRepository([]);
@@ -1062,41 +1051,18 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
+    await _fillPatientDetailsCore(tester);
+    await _selectDropdown(
+        tester, 'Feeding/Medicine Assistance (optional)', 'Tube feeding');
+    await _tapChip(tester, 'Others'); // toilet assistance "Others"
 
-    final area =
-        find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
-    await tester.ensureVisible(area);
-    await tester.enterText(area, 'Indiranagar');
-    await tester.pumpAndSettle();
-
-    final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
-    await tester.ensureVisible(age);
-    await tester.enterText(age, '72');
-    await tester.pumpAndSettle();
-
-    await _selectDropdown(tester, "Patient's Gender (Mandatory)", 'Female');
-
-    final weight =
-        find.widgetWithText(TextField, "Patient's Weight (kg) (Mandatory)");
-    await tester.ensureVisible(weight);
-    await tester.enterText(weight, '58');
-    await tester.pumpAndSettle();
-
-    await _selectDropdown(tester, 'Communication', 'Can Speak/Communicate');
-    await _selectDropdown(tester, 'Feeding', 'Tube feeding');
-    await _tapChip(tester, 'Others');
-    await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _pickPreferredStartDate(tester);
+    await _selectDropdown(
+        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+    await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     expect(find.text('Needs caregiver assistance with tube feeding'),
         findsNothing);
@@ -1123,8 +1089,8 @@ void main() {
     expect(
         find.text('Please describe the other toilet assistance'), findsNothing);
 
-    await _fillAboutPatientRequiredFields(
-        tester); // taps the "Others" toilet assistance chip
+    await _fillPatientDetailsCore(tester);
+    await _tapChip(tester, 'Others'); // toilet assistance "Others"
 
     final otherField = find.widgetWithText(
         TextField, 'Please describe the other toilet assistance');
@@ -1133,17 +1099,13 @@ void main() {
     await tester.enterText(otherField, 'Needs help with a raised commode seat');
     await tester.pumpAndSettle();
 
-    await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _pickPreferredStartDate(tester);
+    await _selectDropdown(
+        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+    await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1166,8 +1128,8 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    await _fillAboutPatientRequiredFields(
-        tester); // taps the "Others" toilet assistance chip
+    await _fillPatientDetailsCore(tester);
+    await _tapChip(tester, 'Others'); // toilet assistance "Others"
     await tester.enterText(
       find.widgetWithText(
           TextField, 'Please describe the other toilet assistance'),
@@ -1179,17 +1141,13 @@ void main() {
     expect(
         find.text('Please describe the other toilet assistance'), findsNothing);
 
-    await _fillSalary(tester);
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
     await _pickPreferredStartDate(tester);
+    await _selectDropdown(
+        tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+    await _fillSalary(tester);
     await _tapChip(tester, 'Hindi');
-
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1202,56 +1160,110 @@ void main() {
     expect(repo.submittedCareReceiver!.toiletAssistanceOther, isNull);
   });
 
-  testWidgets(
-      'selecting Other for medical Condition(s) reveals a free-text field whose value is submitted '
-      'alongside the selected conditions', (tester) async {
-    final repo = _FakeAdminJobsRepository([]);
-    await _pump(tester, repo);
+  group(
+      'Medical Condition — always-visible mandatory multi-select with a "None" sentinel, mirroring '
+      'nursenow-app\'s Post/Edit Requirement screens exactly', () {
+    testWidgets(
+        'defaults to None and can never block submission — an untouched selection submits has_medical_condition: false',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
 
-    await _fillAboutPatientRequiredFields(tester);
+      final noneChip =
+          tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'None'));
+      expect(noneChip.selected, isTrue);
 
-    final medicalConditionSwitch =
-        find.text('Has a medical condition the caregiver should know about?');
-    await tester.ensureVisible(medicalConditionSwitch);
-    await tester.tap(medicalConditionSwitch);
-    await tester.pumpAndSettle();
+      await _fillMandatoryFields(tester);
+      await _tapChip(tester, 'Hindi');
 
-    expect(find.text('Please describe the other condition'), findsNothing);
+      final postButton = find.widgetWithText(ElevatedButton, 'Post');
+      await tester.ensureVisible(postButton);
+      await tester.tap(postButton);
+      await tester.pumpAndSettle();
 
-    await _tapChip(tester, 'Other');
+      expect(repo.createCalled, isTrue);
+      expect(repo.submittedCareReceiver!.hasMedicalCondition, isFalse);
+      expect(repo.submittedCareReceiver!.medicalConditions, isNull);
+    });
 
-    final otherField =
-        find.widgetWithText(TextField, 'Please describe the other condition');
-    expect(otherField, findsOneWidget);
-    await tester.ensureVisible(otherField);
-    await tester.enterText(otherField, 'Recovering from hip surgery');
-    await tester.pumpAndSettle();
+    testWidgets('tapping a real condition after None replaces it — mutual exclusivity',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo);
 
-    await _fillSalary(tester);
-    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
-        '12Hrs Day Shift (8am to 8pm)');
-    await _selectDropdown(tester, 'Frequency of Care (Mandatory)', 'Daily');
-    await _pickPreferredStartDate(tester);
-    await _tapChip(tester, 'Hindi');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
 
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Need a caregiver urgently');
-    await tester.pumpAndSettle();
+      await _tapChip(tester, 'Diabetes');
 
-    final postButton = find.widgetWithText(ElevatedButton, 'Post');
-    await tester.ensureVisible(postButton);
-    await tester.tap(postButton);
-    await tester.pumpAndSettle();
+      expect(
+          tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'None')).selected,
+          isFalse);
+      expect(
+          tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Diabetes')).selected,
+          isTrue);
+    });
 
-    expect(repo.createCalled, isTrue);
-    expect(repo.submittedCareReceiver!.medicalConditions,
-        contains(MedicalCondition.other));
-    expect(repo.submittedCareReceiver!.medicalConditionOther,
-        'Recovering from hip surgery');
+    testWidgets('deselecting the only selected condition falls back to None',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
+
+      await _tapChip(tester, 'Diabetes');
+      await _tapChip(tester, 'Diabetes'); // deselect
+
+      expect(
+          tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'None')).selected,
+          isTrue);
+    });
+
+    testWidgets(
+        'selecting Other reveals a free-text field whose value is submitted alongside the selected conditions',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
+
+      await _fillPatientDetailsCore(tester);
+
+      expect(find.text('Please describe the other condition'), findsNothing);
+
+      await _tapChip(tester, 'Other');
+
+      final otherField =
+          find.widgetWithText(TextField, 'Please describe the other condition');
+      expect(otherField, findsOneWidget);
+      await tester.ensureVisible(otherField);
+      await tester.enterText(otherField, 'Recovering from hip surgery');
+      await tester.pumpAndSettle();
+
+      await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+          '12Hrs Day Shift (8am to 8pm)');
+      await _pickPreferredStartDate(tester);
+      await _selectDropdown(
+          tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+      await _fillSalary(tester);
+      await _tapChip(tester, 'Hindi');
+
+      final postButton = find.widgetWithText(ElevatedButton, 'Post');
+      await tester.ensureVisible(postButton);
+      await tester.tap(postButton);
+      await tester.pumpAndSettle();
+
+      expect(repo.createCalled, isTrue);
+      expect(repo.submittedCareReceiver!.medicalConditions,
+          contains(MedicalCondition.other));
+      expect(repo.submittedCareReceiver!.medicalConditionOther,
+          'Recovering from hip surgery');
+    });
   });
 
   testWidgets('Edit opens the form pre-filled with the job\'s full details',
@@ -1263,7 +1275,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Edit ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('Patient Details'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"),
         findsOneWidget);
@@ -1271,7 +1283,7 @@ void main() {
         reason: 'age should be pre-filled from the care receiver');
     expect(find.text('58'), findsOneWidget,
         reason: 'weight should be pre-filled from the care receiver');
-    // Edit fixture's frequency_of_care is 'daily' — the label's unit follows it.
+    // Fixture's care_duration is 'few_weeks' -> derives Daily -> ₹/day.
     expect(
       find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'),
       findsOneWidget,
@@ -1280,15 +1292,6 @@ void main() {
         find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'));
     expect(salaryField.controller!.text, '30000',
         reason: 'salary should be pre-filled from the job');
-    expect(
-      find.widgetWithText(TextField, _descriptionLabel),
-      findsOneWidget,
-      reason:
-          'description field should be pre-filled with the existing job description',
-    );
-    final description = tester
-        .widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
-    expect(description.controller!.text, 'Need a caregiver');
   });
 
   testWidgets(
@@ -1318,9 +1321,9 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Updated details for the caregiver');
+    final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
+    await tester.ensureVisible(area);
+    await tester.enterText(area, 'Koramangala');
     await tester.pumpAndSettle();
 
     final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
@@ -1329,8 +1332,219 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.updatedJobId, 'job-1');
-    expect(repo.updatedDescription, 'Updated details for the caregiver');
     expect(repo.createCalled, isFalse);
+  });
+
+  group(
+      'Frequency of Care and Salary — always derived from Duration Care is Needed and Rate-Card-suggested, '
+      'never admin-set manually, for every job admin creates or edits', () {
+    testWidgets(
+        'Frequency of Care is shown derived and read-only when editing any existing job, not a dropdown',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+      await _pump(tester, repo, rateCards: const []);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Frequency of Care'), findsOneWidget);
+      expect(find.text('Daily'), findsOneWidget);
+      // No mandatory-dropdown label for it anymore — it's derived, not picked.
+      expect(find.text('Frequency of Care (Mandatory)'), findsNothing);
+      expect(find.widgetWithText(DropdownButtonFormField<String>, 'Frequency of Care (Mandatory)'),
+          findsNothing);
+    });
+
+    testWidgets(
+        "Duration Care is Needed is also offered — and required — on admin's own from-scratch job posting, "
+        'not just when editing a NurseNow individual\'s requirement', (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo, rateCards: const []);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.widgetWithText(
+              DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'),
+          findsOneWidget);
+      expect(
+          find.widgetWithText(
+              DropdownButtonFormField<String>, 'Frequency of Care (Mandatory)'),
+          findsNothing);
+
+      await _fillPatientDetailsCore(tester);
+      await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+          '12Hrs Day Shift (8am to 8pm)');
+      await _pickPreferredStartDate(tester);
+      await _fillSalary(tester);
+      await _tapChip(tester, 'Hindi');
+      // Duration Care is Needed deliberately left untouched.
+
+      final postButton = find.widgetWithText(ElevatedButton, 'Post');
+      await tester.ensureVisible(postButton);
+      await tester.tap(postButton);
+      await tester.pumpAndSettle();
+
+      expect(repo.createCalled, isFalse);
+      expect(find.text('Please select how long care is needed'), findsOneWidget);
+    });
+
+    testWidgets('long_term derives to Monthly', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'long_term');
+      await _pump(tester, repo, rateCards: const []);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Monthly'), findsOneWidget);
+    });
+
+    testWidgets('Salary is pre-filled with the Rate Card suggestion for the derived tier/frequency',
+        (tester) async {
+      // _jobWithCareReceiver's toilet_assistance is ['others'] -> bedside tier.
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+      await _pump(
+        tester,
+        repo,
+        rateCards: [
+          _rateCardWithUpdater(
+              frequencyOfCare: FrequencyOfCare.daily,
+              companion: 'DAILY_COMPANION',
+              bedside: 'DAILY_BEDSIDE_RATE'),
+        ],
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), findsOneWidget);
+      expect(find.text('30000'), findsNothing,
+          reason: 'the fixture salary should be overridden by the suggestion');
+    });
+
+    testWidgets('falls back to the existing salary_amount when the Rate Card fetch fails', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+      await _pump(tester, repo, rateCardError: Exception('network down'));
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, '30000'), findsOneWidget);
+    });
+
+    testWidgets('the pre-filled suggestion stays freely editable and is what gets submitted', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+      await _pump(
+        tester,
+        repo,
+        rateCards: [
+          _rateCardWithUpdater(
+              frequencyOfCare: FrequencyOfCare.daily,
+              companion: 'DAILY_COMPANION',
+              bedside: 'DAILY_BEDSIDE_RATE'),
+        ],
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'DAILY_BEDSIDE_RATE'), '35000 negotiable');
+      final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repo.updatedJobId, 'job-1');
+      expect(repo.submittedFrequencyOfCare, 'daily');
+      expect(repo.submittedSalaryAmount, '35000 negotiable');
+    });
+
+    testWidgets('a blank salary blocks submission with a validation error, not the numeric-range message',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+      await _pump(tester, repo, rateCards: const []);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.widgetWithText(TextField, '30000'), '');
+      final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Salary is required'), findsOneWidget);
+      expect(repo.updatedJobId, isNull);
+    });
+
+    testWidgets(
+        'reactively re-suggests Salary as Toilet Assistance is changed to a higher tier, on a from-scratch '
+        'posting just like nursenow-app\'s own reactive suggestion', (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(
+        tester,
+        repo,
+        rateCards: [
+          _rateCardWithUpdater(
+              frequencyOfCare: FrequencyOfCare.daily,
+              companion: 'DAILY_COMPANION',
+              critical: 'DAILY_CRITICAL_RATE'),
+        ],
+      );
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
+
+      // Deliberately doesn't call _fillMandatoryFields (which would type
+      // over the Salary field) — only picks Duration Care is Needed, so the
+      // auto-suggestion can be observed untouched.
+      await _fillPatientDetailsCore(tester);
+      await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
+          '12Hrs Day Shift (8am to 8pm)');
+      await _pickPreferredStartDate(tester);
+      await _selectDropdown(
+          tester, 'Duration Care is Needed (Mandatory)', 'Few Weeks');
+
+      // No toilet assistance selected yet -> Companion tier, Daily.
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION'), findsOneWidget);
+
+      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Catheter support'));
+      await _tapChip(tester, 'Catheter support');
+
+      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
+    });
+  });
+
+  group(
+      'Communication and Vital Monitoring are removed from admin-web\'s form entirely — the backend still '
+      'defaults them server-side', () {
+    testWidgets('not offered on a from-scratch Post New Job', (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      await _pump(tester, repo);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Communication'), findsNothing);
+      expect(find.text('Is regular vital monitoring required?'), findsNothing);
+      expect(find.text(_descriptionLabel), findsNothing);
+    });
+
+    testWidgets(
+        'not offered when editing an existing job, even one that already has non-default values set',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      await _pump(tester, repo);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Communication'), findsNothing);
+      expect(find.text('Is regular vital monitoring required?'), findsNothing);
+      expect(find.text(_descriptionLabel), findsNothing);
+    });
   });
 
   testWidgets(
@@ -1342,19 +1556,18 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    final description = find.widgetWithText(TextField, _descriptionLabel);
-    await tester.ensureVisible(description);
-    await tester.enterText(description, 'Updated details for the caregiver');
+    final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
+    await tester.ensureVisible(area);
+    await tester.enterText(area, 'Koramangala');
     await tester.pumpAndSettle();
 
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit ADMIN-JOB-542'), findsOneWidget);
-    final descriptionField = tester
-        .widget<TextField>(find.widgetWithText(TextField, _descriptionLabel));
-    expect(
-        descriptionField.controller!.text, 'Updated details for the caregiver');
+    final areaField = tester
+        .widget<TextField>(find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)'));
+    expect(areaField.controller!.text, 'Koramangala');
     expect(repo.updatedJobId, isNull);
   });
 
@@ -1475,7 +1688,7 @@ void main() {
   testWidgets(
       'tapping the job row opens a read-only detail view, not the editable form',
       (tester) async {
-    final repo = _FakeAdminJobsRepository([_job()]);
+    final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: null);
     await _pump(tester, repo);
 
     await tester.tap(find.text('ADMIN-JOB-542'));
@@ -1483,7 +1696,11 @@ void main() {
 
     final dialog = find.byType(AlertDialog);
     expect(dialog, findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('About Patient')),
+    expect(find.descendant(of: dialog, matching: find.text('Patient Details')),
+        findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Care Preferences')),
+        findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Nurse Fee Guidance')),
         findsOneWidget);
     expect(
         find.descendant(of: dialog, matching: find.text('Hours Care Needed')),
@@ -1494,12 +1711,41 @@ void main() {
         findsOneWidget);
     expect(find.descendant(of: dialog, matching: find.text('Close')),
         findsOneWidget);
+    // Same field-set trim as the editable form — Communication, Vital
+    // Monitoring, and the free-text description aren't shown here either,
+    // even though this fixture's care_receiver has non-default values for
+    // them (see _jobWithCareReceiver — communication: 'verbal' isn't
+    // "None"/absent, it's just never rendered as a labeled row any more).
+    expect(find.descendant(of: dialog, matching: find.text('Communication')),
+        findsNothing);
+    expect(
+        find.descendant(of: dialog, matching: find.text('Vital Monitoring')),
+        findsNothing);
+    expect(find.descendant(of: dialog, matching: find.text('More Details')),
+        findsNothing);
     // Read-only: no editable form fields, no Save Changes button, no
     // "Edit ADMIN-JOB-542" dialog title (that's the editable form's title).
     expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
     expect(find.text('Edit ADMIN-JOB-542'), findsNothing);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"),
         findsNothing);
+    // Not set on this fixture (detailCareDuration: null) — a legacy job
+    // that predates the field.
+    expect(find.text('Duration Care is Needed'), findsNothing);
+  });
+
+  testWidgets(
+      'the read-only detail view shows Duration Care is Needed for a NurseNow individual posting that sets it',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('ADMIN-JOB-542'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(find.descendant(of: dialog, matching: find.text('Duration Care is Needed')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Few Weeks')), findsOneWidget);
   });
 
   testWidgets(

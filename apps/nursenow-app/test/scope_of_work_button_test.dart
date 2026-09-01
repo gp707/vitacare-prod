@@ -28,7 +28,7 @@ class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
 }
 
 CareReceiverModel _careReceiver({
-  String feedingType = FeedingType.oralIndependent,
+  String feedingType = FeedingType.oralFeeding,
   bool hasMedicalCondition = false,
   List<String> toiletAssistance = const [ToiletAssistance.independent],
   bool requiresVitalMonitoring = false,
@@ -97,7 +97,7 @@ void main() {
       (tester) async {
     await _pump(
       tester,
-      _careReceiver(toiletAssistance: const [ToiletAssistance.usesDiapers]),
+      _careReceiver(toiletAssistance: const [ToiletAssistance.diapersBedsideSupport]),
       _FakeScopeOfWorkRepository(result: _scopeOfWork),
     );
 

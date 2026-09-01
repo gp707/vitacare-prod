@@ -13,49 +13,53 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/rate_card/data/rate_card_repository.dart';
 import 'package:admin_web/features/rate_card/screens/rate_card_screen.dart';
 
-RateCardModel _rateCard({String title = 'Salary Guidelines'}) {
+RateCardModel _rateCard({required String frequency, required String title}) {
   return RateCardModel(
+    frequencyOfCare: frequency,
     title: title,
     columnLabels: ['Companion care', 'Bedside Care', 'Critical Care'],
-    rowLabels: ['Caregivers', 'Nursing students', 'Nurses'],
+    rowLabels: ['Care'],
     cells: [
       ['26000 pm', '28000 pm', 'Not suggested'],
-      ['28000 pm', '30000 pm', '32000 pm'],
-      ['30000 pm', '32000 pm', '35000-42000 pm'],
     ],
   );
 }
 
 class _FakeRateCardRepository extends RateCardRepository {
-  RateCardModel current;
-  String? updatedByName;
-  RateCardModel? savedRateCard;
+  Map<String, RateCardModel> current;
+  Map<String, String?> updatedByName;
+  Map<String, RateCardModel> savedRateCards = {};
   bool throwOnUpdate;
 
-  _FakeRateCardRepository(this.current, {this.updatedByName, this.throwOnUpdate = false}) : super(Dio());
+  _FakeRateCardRepository(this.current, {Map<String, String?>? updatedByName, this.throwOnUpdate = false})
+      : updatedByName = updatedByName ?? {},
+        super(Dio());
 
   @override
-  Future<RateCardWithUpdater> get() async => RateCardWithUpdater(
-        rateCard: current,
-        updatedByName: updatedByName,
-        updatedAt: '2026-08-30T10:00:00Z',
-      );
+  Future<List<RateCardWithUpdater>> get() async => [
+        for (final frequency in FrequencyOfCare.all)
+          RateCardWithUpdater(
+            rateCard: current[frequency]!,
+            updatedByName: updatedByName[frequency],
+            updatedAt: '2026-08-30T10:00:00Z',
+          ),
+      ];
 
   @override
-  Future<void> update(RateCardModel rateCard) async {
-    savedRateCard = rateCard;
+  Future<void> update(String frequency, RateCardModel rateCard) async {
+    savedRateCards[frequency] = rateCard;
     if (throwOnUpdate) {
       throw ApiException(message: 'Something went wrong', code: 'GEN_003');
     }
-    current = rateCard;
-    updatedByName = 'Test Admin';
+    current[frequency] = rateCard;
+    updatedByName[frequency] = 'Test Admin';
   }
 }
 
 Future<void> _pump(WidgetTester tester, _FakeRateCardRepository repo) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
-  await tester.binding.setSurfaceSize(const Size(1400, 1000));
+  await tester.binding.setSurfaceSize(const Size(1400, 1400));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   await tester.pumpWidget(
@@ -75,38 +79,52 @@ Future<void> _pump(WidgetTester tester, _FakeRateCardRepository repo) async {
 }
 
 void main() {
-  testWidgets('loads and displays the current title, labels, and cells', (tester) async {
-    final repo = _FakeRateCardRepository(_rateCard());
+  testWidgets('loads and displays both the daily and monthly sections independently', (tester) async {
+    final repo = _FakeRateCardRepository({
+      FrequencyOfCare.daily: _rateCard(frequency: FrequencyOfCare.daily, title: 'Daily Guidelines'),
+      FrequencyOfCare.monthly: _rateCard(frequency: FrequencyOfCare.monthly, title: 'Monthly Guidelines'),
+    });
     await _pump(tester, repo);
 
-    expect(find.widgetWithText(TextField, 'Salary Guidelines'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Companion care'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Caregivers'), findsOneWidget);
-    expect(find.widgetWithText(TextField, '26000 pm'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Not suggested'), findsOneWidget);
+    expect(find.text('Daily'), findsOneWidget);
+    expect(find.text('Monthly'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Daily Guidelines'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Monthly Guidelines'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Companion care'), findsNWidgets(2));
+    expect(find.widgetWithText(TextField, 'Care'), findsNWidgets(2));
+    expect(find.widgetWithText(TextField, '26000 pm'), findsNWidgets(2));
+    expect(find.widgetWithText(TextField, 'Not suggested'), findsNWidgets(2));
   });
 
-  testWidgets('editing a cell and saving sends the full updated grid', (tester) async {
-    final repo = _FakeRateCardRepository(_rateCard());
+  testWidgets('editing and saving the daily section only sends the daily grid, leaving monthly untouched', (tester) async {
+    final repo = _FakeRateCardRepository({
+      FrequencyOfCare.daily: _rateCard(frequency: FrequencyOfCare.daily, title: 'Daily Guidelines'),
+      FrequencyOfCare.monthly: _rateCard(frequency: FrequencyOfCare.monthly, title: 'Monthly Guidelines'),
+    });
     await _pump(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Not suggested'), 'Now allowed: 40000 pm');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.enterText(find.widgetWithText(TextField, 'Daily Guidelines'), 'Updated Daily');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
     await tester.pumpAndSettle();
 
-    expect(repo.savedRateCard, isNotNull);
-    expect(repo.savedRateCard!.cells[0][2], 'Now allowed: 40000 pm');
-    expect(repo.savedRateCard!.title, 'Salary Guidelines');
-    expect(find.text('Rate card saved'), findsOneWidget);
+    expect(repo.savedRateCards[FrequencyOfCare.daily], isNotNull);
+    expect(repo.savedRateCards[FrequencyOfCare.daily]!.title, 'Updated Daily');
+    expect(repo.savedRateCards.containsKey(FrequencyOfCare.monthly), isFalse);
+    expect(find.text('Daily rate card saved'), findsOneWidget);
     expect(find.textContaining('Last updated by Test Admin'), findsOneWidget);
+    // Monthly section stays untouched.
+    expect(find.widgetWithText(TextField, 'Monthly Guidelines'), findsOneWidget);
   });
 
   testWidgets('shows an error and keeps the edit when saving fails', (tester) async {
-    final repo = _FakeRateCardRepository(_rateCard(), throwOnUpdate: true);
+    final repo = _FakeRateCardRepository({
+      FrequencyOfCare.daily: _rateCard(frequency: FrequencyOfCare.daily, title: 'Daily Guidelines'),
+      FrequencyOfCare.monthly: _rateCard(frequency: FrequencyOfCare.monthly, title: 'Monthly Guidelines'),
+    }, throwOnUpdate: true);
     await _pump(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Salary Guidelines'), 'Broken Save');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.enterText(find.widgetWithText(TextField, 'Daily Guidelines'), 'Broken Save');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Something went wrong'), findsOneWidget);

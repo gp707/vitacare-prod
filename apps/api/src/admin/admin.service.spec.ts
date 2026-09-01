@@ -289,7 +289,6 @@ describe('AdminService', () => {
         action: 'status_changed',
         entity_type: 'caregiver_profiles',
         entity_id: 'profile-1',
-        job_number: null,
         admin_job_number: null,
         patient_job_number: null,
         job_id: null,
@@ -354,7 +353,7 @@ describe('AdminService', () => {
       expect(result.data[0]).toMatchObject({ requirement_number: 507, requirement_id: 'req-1' });
     });
 
-    it('passes through the repository-resolved job_number/admin_job_number/patient_job_number/job_id for job-related entries', async () => {
+    it('passes through the repository-resolved admin_job_number/patient_job_number/job_id for job-related entries', async () => {
       const row = {
         id: 'log-2',
         user_id: 'admin-1',
@@ -364,7 +363,6 @@ describe('AdminService', () => {
         action: 'job_posted',
         entity_type: 'jobs',
         entity_id: 'job-1',
-        job_number: 42,
         admin_job_number: 512,
         patient_job_number: null,
         job_id: 'job-1',
@@ -383,7 +381,6 @@ describe('AdminService', () => {
       } as any);
 
       expect(result.data[0]).toMatchObject({
-        job_number: 42,
         admin_job_number: 512,
         patient_job_number: null,
         job_id: 'job-1',

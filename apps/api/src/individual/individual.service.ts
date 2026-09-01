@@ -50,9 +50,13 @@ export class IndividualService {
   }
 
   /** Creates a job in pending_review — frequency_of_care/salary_amount are
-   *  null until an admin approves it (see JobsService.updateJob). Enforces
-   *  the one-live-requirement-at-a-time rule (JOB_009, pending_review
-   *  counts as live) and the job-posting-blocked admin lever (JOB_010). */
+   *  now set immediately (client-derived from care_duration/care_receiver,
+   *  same as the individual's own edit — see UpdateIndividualRequirementDto),
+   *  not left null for admin to fill in on approval. admin's own approval
+   *  of a pending_review requirement now only reviews content/legitimacy;
+   *  it no longer needs to supply pricing. Enforces the
+   *  one-live-requirement-at-a-time rule (JOB_009, pending_review counts as
+   *  live) and the job-posting-blocked admin lever (JOB_010). */
   async createRequirement(
     userId: string,
     dto: CreateIndividualRequirementDto,
@@ -78,14 +82,15 @@ export class IndividualService {
           area: dto.area,
           description: dto.description,
           duty_type: dto.duty_type,
-          frequency_of_care: null,
+          frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
           start_date: dto.start_date,
           languages: dto.languages,
-          salary_amount: null,
+          salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
+          care_duration: dto.care_duration,
           posted_by: userId,
           status: JobStatus.PENDING_REVIEW,
           posted_by_role: 'individual',
@@ -114,10 +119,9 @@ export class IndividualService {
    *  edit behavior is exactly what must NOT happen here. Allowed
    *  regardless of the requirement's current status (pending_review,
    *  active, or closed) — the only gate is whether a caregiver has
-   *  already responded. frequency_of_care/salary_amount can only be set
-   *  once the requirement has been through at least one admin approval
-   *  (existing.frequency_of_care non-null) — before that, admin hasn't
-   *  chosen them yet, so there's nothing for the individual to edit. */
+   *  already responded. frequency_of_care/salary_amount are always
+   *  editable now — both are required on the DTO and re-derived
+   *  client-side on every save, same as at creation. */
   async editRequirement(
     userId: string,
     jobId: string,
@@ -129,11 +133,6 @@ export class IndividualService {
 
     const hasActiveApplication = await this.jobApplicationsRepo.hasActiveApplicationForJob(jobId);
     if (hasActiveApplication) throw new AppException('JOB_014');
-
-    const reviewedBefore = existing.frequency_of_care != null;
-    if (!reviewedBefore && (dto.frequency_of_care !== undefined || dto.salary_amount !== undefined)) {
-      throw new AppException('JOB_013');
-    }
 
     const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
 
@@ -150,14 +149,15 @@ export class IndividualService {
           area: dto.area,
           description: dto.description,
           duty_type: dto.duty_type,
-          frequency_of_care: reviewedBefore ? (dto.frequency_of_care ?? existing.frequency_of_care) : null,
+          frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
           start_date: dto.start_date,
           languages: dto.languages,
-          salary_amount: reviewedBefore ? (dto.salary_amount ?? existing.salary_amount) : null,
+          salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
+          care_duration: dto.care_duration,
           // status intentionally omitted — see doc comment above.
         },
         client,

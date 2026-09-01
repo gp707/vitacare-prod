@@ -23,9 +23,7 @@ export interface AuditLogListItem {
   // caregiver_profiles, app_min_versions) leaves all three null.
   // admin_job_number/patient_job_number back the "ADMIN-JOB-<n>"/
   // "PAT-JOB-<n>" display id (migration 047) — exactly one is non-null,
-  // matching whichever role posted the job. job_number itself is no
-  // longer displayed, kept only as an internal fallback.
-  job_number: number | null;
+  // matching whichever role posted the job.
   admin_job_number: number | null;
   patient_job_number: number | null;
   job_id: string | null;
@@ -41,7 +39,7 @@ export interface AuditLogListItem {
   target_caregiver_number: number | null;
   target_patient_number: number | null;
   target_org_number: number | null;
-  // Resolved the same way as job_number/job_id above, but for
+  // Resolved the same way as job_id above, but for
   // organisation_requirements — 'organisation_requirements' entries
   // resolve directly (entity_id is the requirement),
   // 'organisation_requirement_applications' entries resolve one hop
@@ -118,7 +116,6 @@ export class AuditLogsRepository {
                 al.target_user_id, target.full_name AS target_user_name,
                 al.action, al.entity_type, al.entity_id,
                 al.before_value, al.after_value, al.ip_address, al.created_at,
-                COALESCE(job_direct.job_number, job_via_app.job_number) AS job_number,
                 COALESCE(job_direct.admin_job_number, job_via_app.admin_job_number) AS admin_job_number,
                 COALESCE(job_direct.patient_job_number, job_via_app.patient_job_number) AS patient_job_number,
                 COALESCE(job_direct.id, job_via_app.id) AS job_id,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  CareDuration,
   City,
   DutyType,
   FrequencyOfCare,
@@ -14,10 +15,6 @@ import { CareReceiverRecord } from './care-receivers.repository';
 
 export interface JobRecord {
   id: string;
-  /** Internal only — no longer the user-facing display id (see
-   *  admin_job_number/patient_job_number below); still used for
-   *  audit-log job resolution. */
-  job_number: number;
   /** Set only when this job was posted by an admin — the raw integer
    *  backing the "ADMIN-JOB-<n>" display id (migration 047, starts at
    *  500). Exactly one of admin_job_number/patient_job_number is set. */
@@ -28,20 +25,18 @@ export interface JobRecord {
   patient_job_number: number | null;
   care_receiver_id: string;
   city: City;
-  area: string | null;
+  area: string;
   description: string | null;
   duty_type: DutyType;
-  /** Null only for a NurseNow individual-posted job still awaiting admin
-   *  approval (status = pending_review) — admin sets it during approval,
-   *  same as salary_amount. */
-  frequency_of_care: FrequencyOfCare | null;
+  frequency_of_care: FrequencyOfCare;
   start_time: string | null;
   end_time: string | null;
-  start_date: string | null;
+  start_date: string;
   languages: Language[];
-  salary_amount: number | null;
+  salary_amount: string;
   preferred_gender: string | null;
   preferred_religion: string | null;
+  care_duration: CareDuration;
   status: JobStatus;
   posted_by: string;
   /** Only set when an admin rejects a pending_review job — null otherwise,
@@ -112,20 +107,19 @@ export interface JobAssignedRecord extends JobWithMyApplication {
 
 export interface CreateJobInput {
   care_receiver_id: string;
+  area: string;
   city: City;
-  area?: string | null;
   description?: string | null;
   duty_type: DutyType;
-  /** Null for a NurseNow individual posting — admin sets it on approval. */
-  frequency_of_care: FrequencyOfCare | null;
+  frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
   end_time?: string | null;
-  start_date?: string | null;
+  start_date: string;
   languages: Language[];
-  /** Null for a NurseNow individual posting — admin sets it on approval. */
-  salary_amount: number | null;
+  salary_amount: string;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
+  care_duration: CareDuration;
   posted_by: string;
   /** Omitted defaults to 'active' (admin's own postings, unchanged
    *  behavior). A NurseNow individual posting passes 'pending_review'. */
@@ -137,22 +131,18 @@ export interface CreateJobInput {
 
 export interface UpdateJobInput {
   city: City;
-  area?: string | null;
+  area: string;
   description?: string | null;
   duty_type: DutyType;
-  /** Nullable so an individual's own edit of a still-pending_review
-   *  requirement (see IndividualService.editRequirement) can leave this
-   *  unset, same as at creation — admin's own edit path always supplies a
-   *  real value (CreateJobDto requires it). */
-  frequency_of_care: FrequencyOfCare | null;
+  frequency_of_care: FrequencyOfCare;
   start_time?: string | null;
   end_time?: string | null;
-  start_date?: string | null;
+  start_date: string;
   languages: Language[];
-  /** Nullable for the same reason as frequency_of_care above. */
-  salary_amount: number | null;
+  salary_amount: string;
   preferred_gender?: string | null;
   preferred_religion?: string | null;
+  care_duration: CareDuration;
   /** Only set when the edit should also repost a closed job — omitted
    *  leaves status untouched. When set, `posted_at` is also bumped to
    *  NOW(), restarting the 3-day apply-by urgency window. */
@@ -172,12 +162,12 @@ export interface ListJobsFilters {
    *  NurseNow patient/family postings vs admin's own. Requires the users
    *  join added in listForAdmin below. */
   posted_by_role?: string;
-  /** Matches against the job's own display id (ADMIN-JOB-<n>/PAT-JOB-<n>),
-   *  the raw job_number, OR the posting individual's own display id
-   *  (PAT-<n>, via a LEFT JOIN to individual_profiles) — lets admin find
-   *  every job a specific patient/family account has posted, not just a
-   *  single job by its own id. Null for admin-posted jobs (no individual
-   *  row to join), so has no effect on those either way. */
+  /** Matches against the job's own display id (ADMIN-JOB-<n>/PAT-JOB-<n>)
+   *  OR the posting individual's own display id (PAT-<n>, via a LEFT JOIN
+   *  to individual_profiles) — lets admin find every job a specific
+   *  patient/family account has posted, not just a single job by its own
+   *  id. Null for admin-posted jobs (no individual row to join), so has no
+   *  effect on those either way. */
   search?: string;
 }
 
@@ -222,7 +212,6 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
     conditions.push(
       `(('ADMIN-JOB-' || j.admin_job_number::text) ILIKE $${params.length}
         OR ('PAT-JOB-' || j.patient_job_number::text) ILIKE $${params.length}
-        OR j.job_number::text ILIKE $${params.length}
         OR ('PAT-' || ip.patient_number::text) ILIKE $${params.length})`,
     );
   }
@@ -238,26 +227,27 @@ export class JobsRepository {
     const result = await runner.query<JobRecord>(
       `INSERT INTO jobs
          (care_receiver_id, city, area, description, duty_type, frequency_of_care, start_time, end_time,
-          start_date, languages, salary_amount, preferred_gender, preferred_religion, posted_by, status,
-          admin_job_number, patient_job_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, 'active'),
-          CASE WHEN $16 = 'admin' THEN nextval('jobs_admin_job_number_seq') ELSE NULL END,
-          CASE WHEN $16 = 'individual' THEN nextval('jobs_patient_job_number_seq') ELSE NULL END)
+          start_date, languages, salary_amount, preferred_gender, preferred_religion, care_duration,
+          posted_by, status, admin_job_number, patient_job_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, 'active'),
+          CASE WHEN $17 = 'admin' THEN nextval('jobs_admin_job_number_seq') ELSE NULL END,
+          CASE WHEN $17 = 'individual' THEN nextval('jobs_patient_job_number_seq') ELSE NULL END)
        RETURNING *`,
       [
         input.care_receiver_id,
         input.city,
-        input.area ?? null,
+        input.area,
         input.description ?? null,
         input.duty_type,
         input.frequency_of_care,
         input.start_time ?? null,
         input.end_time ?? null,
-        input.start_date ?? null,
+        input.start_date,
         JSON.stringify(input.languages),
         input.salary_amount,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
+        input.care_duration,
         input.posted_by,
         input.status ?? null,
         input.posted_by_role,
@@ -421,24 +411,26 @@ export class JobsRepository {
       `UPDATE jobs SET
          city = $1, area = $2, description = $3, duty_type = $4, frequency_of_care = $5,
          start_time = $6, end_time = $7, start_date = $8, languages = $9, salary_amount = $10,
-         preferred_gender = $11, preferred_religion = $12, status = COALESCE($13, status),
-         posted_at = CASE WHEN $13::text IS NOT NULL THEN NOW() ELSE posted_at END,
+         preferred_gender = $11, preferred_religion = $12, care_duration = $13,
+         status = COALESCE($14, status),
+         posted_at = CASE WHEN $14::text IS NOT NULL THEN NOW() ELSE posted_at END,
          updated_at = NOW()
-       WHERE id = $14
+       WHERE id = $15
        RETURNING *`,
       [
         input.city,
-        input.area ?? null,
+        input.area,
         input.description ?? null,
         input.duty_type,
         input.frequency_of_care,
         input.start_time ?? null,
         input.end_time ?? null,
-        input.start_date ?? null,
+        input.start_date,
         JSON.stringify(input.languages),
         input.salary_amount,
         input.preferred_gender ?? null,
         input.preferred_religion ?? null,
+        input.care_duration,
         input.status ?? null,
         id,
       ],

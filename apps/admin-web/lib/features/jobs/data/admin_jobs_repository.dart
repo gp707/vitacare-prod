@@ -166,9 +166,10 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryAmount,
+    required String salaryAmount,
     String? preferredGender,
     String? preferredReligion,
+    required String careDuration,
   }) =>
       {
         'care_receiver': careReceiver.toJson(),
@@ -183,6 +184,7 @@ class AdminJobsRepository {
         'salary_amount': salaryAmount,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
+        'care_duration': careDuration,
       };
 
   Future<void> create({
@@ -194,9 +196,10 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryAmount,
+    required String salaryAmount,
     String? preferredGender,
     String? preferredReligion,
+    required String careDuration,
   }) async {
     try {
       await _dio.post(
@@ -213,6 +216,7 @@ class AdminJobsRepository {
           salaryAmount: salaryAmount,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
+          careDuration: careDuration,
         ),
       );
     } on DioException catch (e) {
@@ -233,9 +237,10 @@ class AdminJobsRepository {
     required String frequencyOfCare,
     String? startDate,
     required List<String> languages,
-    required int salaryAmount,
+    required String salaryAmount,
     String? preferredGender,
     String? preferredReligion,
+    required String careDuration,
   }) async {
     try {
       await _dio.patch(
@@ -252,6 +257,7 @@ class AdminJobsRepository {
           salaryAmount: salaryAmount,
           preferredGender: preferredGender,
           preferredReligion: preferredReligion,
+          careDuration: careDuration,
         ),
       );
     } on DioException catch (e) {

@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  CareDuration,
   City,
   Communication,
   DutyType,
@@ -126,12 +127,15 @@ export class CreateJobDto {
   @IsDateString({}, { message: 'GEN_001' })
   start_date!: string;
 
-  // Unit (₹/day vs ₹/month) follows frequency_of_care — same numeric range
-  // either way, no separate validation per frequency.
-  @IsInt({ message: 'GEN_001' })
-  @Min(1, { message: 'GEN_001' })
-  @Max(1000000, { message: 'GEN_001' })
-  salary_amount!: number;
+  // Unit (₹/day vs ₹/month) follows frequency_of_care. Free text, not a
+  // plain number — NurseNow's individual edit flow pre-fills this from the
+  // admin-editable Rate Card, whose cells are free text (e.g. a range with
+  // a note), not a clean integer. Admin's own job posting still just types
+  // a number here, it's simply stored/sent as text now.
+  @IsNotEmpty({ message: 'GEN_001' })
+  @IsString({ message: 'GEN_001' })
+  @MaxLength(500, { message: 'GEN_001' })
+  salary_amount!: string;
 
   /** Empty array means "No Preference" — a deliberate, non-mandatory
    *  choice, same as individual/NurseNow postings (see
@@ -155,4 +159,14 @@ export class CreateJobDto {
   @IsOptional()
   @IsIn([Religion.HINDU, Religion.MUSLIM, Religion.CHRISTIAN], { message: 'GEN_001' })
   preferred_religion?: Religion;
+
+  // Required — same as CreateIndividualRequirementDto. admin-web's job form
+  // now always collects Duration Care is Needed too (Frequency of Care and
+  // Salary are derived from it, same as nursenow-app), for both admin's own
+  // postings and approving/editing a NurseNow individual's posting
+  // (PATCH /admin/jobs/:id) — there's no longer a case where this is
+  // omitted. jobs.care_duration itself stays nullable at the DB level only
+  // because rows from before this requirement existed have it null.
+  @IsIn(Object.values(CareDuration), { message: 'GEN_001' })
+  care_duration!: CareDuration;
 }

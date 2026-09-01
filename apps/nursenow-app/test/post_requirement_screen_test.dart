@@ -6,8 +6,48 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
+import 'package:nursenow_app/core/rate_card/rate_card_repository.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/post_requirement_screen.dart';
+
+/// Always exactly one row ("Care") per frequency, matching the live shape.
+RateCardModel _rateCard({
+  required String frequencyOfCare,
+  required String companion,
+  String bedside = 'BEDSIDE_RATE',
+  String critical = 'CRITICAL_RATE',
+}) =>
+    RateCardModel(
+      frequencyOfCare: frequencyOfCare,
+      title: 'Salary Guidelines',
+      columnLabels: const ['Companion care', 'Bedside Care', 'Critical Care'],
+      rowLabels: const ['Care'],
+      cells: [
+        [companion, bedside, critical],
+      ],
+    );
+
+/// Covers both frequencies with a Companion-tier default so
+/// _fillMandatoryFields' default (independent/oral-feeding, Few Weeks ->
+/// daily) auto-suggests a real, non-empty Salary without every test having
+/// to type one in manually.
+final _defaultRateCards = [
+  _rateCard(frequencyOfCare: FrequencyOfCare.daily, companion: 'DAILY_COMPANION_RATE'),
+  _rateCard(frequencyOfCare: FrequencyOfCare.monthly, companion: 'MONTHLY_COMPANION_RATE'),
+];
+
+class _FakeRateCardRepository extends RateCardRepository {
+  final List<RateCardModel>? result;
+  final Object? error;
+
+  _FakeRateCardRepository({this.result, this.error}) : super(Dio());
+
+  @override
+  Future<List<RateCardModel>> get() async {
+    if (error != null) throw error!;
+    return result!;
+  }
+}
 
 class _FakeIndividualRepository extends IndividualRepository {
   final ApiException? createError;
@@ -16,7 +56,10 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? capturedCity;
   String? capturedArea;
   String? capturedDutyType;
+  String? capturedCareDuration;
   List<String>? capturedLanguages;
+  String? capturedFrequencyOfCare;
+  String? capturedSalaryAmount;
 
   _FakeIndividualRepository({this.createError}) : super(Dio());
 
@@ -28,25 +71,30 @@ class _FakeIndividualRepository extends IndividualRepository {
     String? description,
     required String dutyType,
     required String startDate,
+    required String careDuration,
     required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
+    required String frequencyOfCare,
+    required String salaryAmount,
   }) async {
     createCalled = true;
     capturedCareReceiver = careReceiver;
     capturedCity = city;
     capturedArea = area;
     capturedDutyType = dutyType;
+    capturedCareDuration = careDuration;
     capturedLanguages = languages;
+    capturedFrequencyOfCare = frequencyOfCare;
+    capturedSalaryAmount = salaryAmount;
     if (createError != null) throw createError!;
     return JobModel.fromJson({
       'id': 'job-1',
-      'job_number': 1,
       'city': city,
       'duty_type': dutyType,
-      'frequency_of_care': null,
+      'frequency_of_care': frequencyOfCare,
       'languages': languages,
-      'salary_amount': null,
+      'salary_amount': salaryAmount,
       'status': 'pending_review',
       'posted_by': 'individual-1',
       'posted_at': '2026-08-01T10:00:00Z',
@@ -55,12 +103,21 @@ class _FakeIndividualRepository extends IndividualRepository {
   }
 }
 
-Future<void> _pumpTall(WidgetTester tester, _FakeIndividualRepository repo) async {
+Future<void> _pumpTall(
+  WidgetTester tester,
+  _FakeIndividualRepository repo, {
+  List<RateCardModel>? rateCards,
+}) async {
   await tester.binding.setSurfaceSize(const Size(400, 4200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [individualRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        individualRepositoryProvider.overrideWithValue(repo),
+        rateCardRepositoryProvider.overrideWithValue(
+          _FakeRateCardRepository(result: rateCards ?? _defaultRateCards),
+        ),
+      ],
       child: const MaterialApp(home: PostRequirementScreen()),
     ),
   );
@@ -91,6 +148,11 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
 
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Few Weeks').last);
+  await tester.pumpAndSettle();
+
   await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
   await tester.pumpAndSettle();
 }
@@ -112,6 +174,8 @@ void main() {
     expect(find.text('Area is required'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
     expect(find.text('Select a preferred start date'), findsOneWidget);
+    expect(find.text('Please select how long care is needed'), findsOneWidget);
+    expect(find.text('Salary is required'), findsOneWidget);
     // Language Preference is never invalid — it defaults to "No
     // Preference" rather than requiring an active choice.
     expect(find.text('No Preference'), findsOneWidget);
@@ -140,6 +204,10 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Few Weeks').last);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
     await tester.pumpAndSettle();
@@ -171,7 +239,13 @@ void main() {
     expect(repo.capturedCity, 'bangalore');
     expect(repo.capturedArea, 'Indiranagar');
     expect(repo.capturedDutyType, 'live_in');
+    expect(repo.capturedCareDuration, 'few_weeks');
     expect(repo.capturedLanguages, ['hindi']);
+    // Derived from care_duration ('few_weeks' -> daily) and the Rate
+    // Card's Companion-tier daily suggestion (independent/oral-feeding
+    // defaults, no medical condition).
+    expect(repo.capturedFrequencyOfCare, 'daily');
+    expect(repo.capturedSalaryAmount, 'DAILY_COMPANION_RATE');
   });
 
   testWidgets('defaults Language Preference to No Preference, submitting an empty array when untouched',
@@ -272,6 +346,11 @@ void main() {
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Few Weeks').last);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
     await tester.pumpAndSettle();
 
@@ -357,16 +436,18 @@ void main() {
   });
 
   testWidgets(
-      'groups fields under two headed sections — Patient Details and Care Preferences — '
-      'and no longer offers Mobility or the free-text "more details" field',
+      'groups fields under three headed sections — Patient Details, Care Preferences, and Nurse Fee '
+      'Guidance — and no longer offers Mobility or the free-text "more details" field',
       (tester) async {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
     expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
+    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    expect(find.text('You can always negotiate with nurse staff.'), findsOneWidget);
     // The old section headings are gone — everything now lives under the
-    // two new ones.
+    // new ones.
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('Care Location'), findsNothing);
     // Mobility was removed from the product entirely.
@@ -377,16 +458,19 @@ void main() {
     expect(find.text('Feeding/Medicine Assistance (optional)'), findsOneWidget);
 
     // Patient Details' own fields appear before Care Location's fields
-    // moved into it (city/area) — and Care Preferences' fields (hours
-    // care needed, start date) come after, matching the new order.
+    // moved into it (city/area) — Care Preferences' fields (hours care
+    // needed, start date) come after — and Nurse Fee Guidance comes last,
+    // matching the new order.
     final patientDetailsTop = tester.getTopLeft(find.text('Patient Details')).dy;
     final carePreferencesTop = tester.getTopLeft(find.text('Care Preferences')).dy;
+    final nurseFeeGuidanceTop = tester.getTopLeft(find.text('Nurse Fee Guidance')).dy;
     final cityFieldTop = tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)')).dy;
     final dutyTypeFieldTop =
         tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)')).dy;
     expect(patientDetailsTop, lessThan(cityFieldTop));
     expect(cityFieldTop, lessThan(carePreferencesTop));
     expect(carePreferencesTop, lessThan(dutyTypeFieldTop));
+    expect(dutyTypeFieldTop, lessThan(nurseFeeGuidanceTop));
   });
 
   testWidgets('submitting no longer sends mobility or description', (tester) async {
@@ -400,5 +484,82 @@ void main() {
     expect(repo.createCalled, isTrue);
     final sentBody = repo.capturedCareReceiver!.toJson();
     expect(sentBody.containsKey('mobility'), isFalse);
+  });
+
+  group('Frequency of Care and Salary — derived, not admin-set', () {
+    testWidgets('Frequency of Care shows Daily for Few Weeks, with no dropdown to pick it', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester); // picks 'Few Weeks'
+
+      expect(find.text('Frequency of Care'), findsOneWidget);
+      expect(find.text('Daily'), findsOneWidget);
+      expect(find.text('Frequency of Care (Mandatory)'), findsNothing);
+    });
+
+    testWidgets('Frequency of Care switches to Monthly when Duration is changed to Long Term', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester);
+
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Long Term').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Monthly'), findsOneWidget);
+    });
+
+    testWidgets('Salary is pre-filled with the Companion daily suggestion once Duration is picked', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester);
+
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+    });
+
+    testWidgets('Salary refreshes to the Critical suggestion when toilet assistance is bumped up', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(
+        tester,
+        repo,
+        rateCards: [
+          _rateCard(frequencyOfCare: FrequencyOfCare.daily, companion: 'DAILY_COMPANION_RATE', critical: 'DAILY_CRITICAL_RATE'),
+        ],
+      );
+      await _fillMandatoryFields(tester);
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Catheter support'));
+      await tester.tap(find.widgetWithText(FilterChip, 'Catheter support'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
+    });
+
+    testWidgets('a manually-typed Salary is not clobbered by a later field change', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester);
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), '30000 my own figure');
+      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Diapers/bedside support'));
+      await tester.tap(find.widgetWithText(FilterChip, 'Diapers/bedside support'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('30000 my own figure'), findsOneWidget);
+    });
+
+    testWidgets('leaves Salary empty (not a crash) when the Rate Card has no matching suggestion', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo, rateCards: const []);
+      await _fillMandatoryFields(tester);
+
+      final salaryField = tester.widget<TextField>(find.byWidgetPredicate(
+        (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
+      ));
+      expect(salaryField.controller?.text, '');
+    });
   });
 }

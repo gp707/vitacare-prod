@@ -59,9 +59,12 @@ class IndividualRepository {
   }
 
   /// Creates a pending_review requirement — frequency_of_care/salary_amount
-  /// are not collected here; an admin sets them on approval. One live
-  /// requirement (pending_review or active) at a time — a second attempt
-  /// while one is already in flight is rejected server-side (JOB_009).
+  /// are now supplied immediately, derived client-side from
+  /// [careDuration]/[careReceiver] (see frequencyForCareDuration/
+  /// suggestedRate in vitacare_shared), not left for admin to fill in on
+  /// approval. One live requirement (pending_review or active) at a time —
+  /// a second attempt while one is already in flight is rejected
+  /// server-side (JOB_009).
   Future<JobModel> createRequirement({
     required CareReceiverInput careReceiver,
     required String city,
@@ -69,9 +72,12 @@ class IndividualRepository {
     String? description,
     required String dutyType,
     required String startDate,
+    required String careDuration,
     required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
+    required String frequencyOfCare,
+    required String salaryAmount,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.individualRequirements, data: {
@@ -81,9 +87,12 @@ class IndividualRepository {
         if (description != null && description.isNotEmpty) 'description': description,
         'duty_type': dutyType,
         'start_date': startDate,
+        'care_duration': careDuration,
         'languages': languages,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
+        'frequency_of_care': frequencyOfCare,
+        'salary_amount': salaryAmount,
       });
       return JobModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -95,10 +104,9 @@ class IndividualRepository {
   /// regardless of its current status (pending_review/active/closed), as
   /// long as it has no active (applied/accepted) application (JOB_014
   /// otherwise). No admin re-review is triggered, so this can be called
-  /// any number of times. [frequencyOfCare]/[salaryAmount] are only
-  /// accepted once admin has approved the requirement at least once
-  /// (JOB_013 if sent before that) — omit them entirely while the
-  /// requirement is still pending_review, same as at creation.
+  /// any number of times. [frequencyOfCare]/[salaryAmount] are always
+  /// required now — re-derived client-side on every save, same as at
+  /// creation, no longer gated on a prior admin approval.
   Future<JobModel> editRequirement(
     String jobId, {
     required CareReceiverInput careReceiver,
@@ -107,11 +115,12 @@ class IndividualRepository {
     String? description,
     required String dutyType,
     required String startDate,
+    required String careDuration,
     required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
-    String? frequencyOfCare,
-    int? salaryAmount,
+    required String frequencyOfCare,
+    required String salaryAmount,
   }) async {
     try {
       final res = await _dio.patch(ApiRoutes.individualRequirement(jobId), data: {
@@ -121,11 +130,12 @@ class IndividualRepository {
         if (description != null && description.isNotEmpty) 'description': description,
         'duty_type': dutyType,
         'start_date': startDate,
+        'care_duration': careDuration,
         'languages': languages,
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (preferredReligion != null) 'preferred_religion': preferredReligion,
-        if (frequencyOfCare != null) 'frequency_of_care': frequencyOfCare,
-        if (salaryAmount != null) 'salary_amount': salaryAmount,
+        'frequency_of_care': frequencyOfCare,
+        'salary_amount': salaryAmount,
       });
       return JobModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

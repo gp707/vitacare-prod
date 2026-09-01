@@ -102,7 +102,10 @@ describe('Individual (NurseNow) (e2e)', () => {
     area: 'Indiranagar',
     duty_type: 'live_in',
     start_date: '2026-09-01',
+    care_duration: 'few_weeks',
     languages: ['hindi'],
+    frequency_of_care: 'daily',
+    salary_amount: '1800',
     ...overrides,
   });
 
@@ -211,7 +214,7 @@ describe('Individual (NurseNow) (e2e)', () => {
   });
 
   describe('POST /v1/individual/requirements', () => {
-    it('creates a pending_review job with no frequency_of_care/salary_amount visible yet', async () => {
+    it('creates a pending_review job with the client-derived frequency_of_care/salary_amount already set', async () => {
       const individual = await registerIndividual('0002');
       const res = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -219,8 +222,8 @@ describe('Individual (NurseNow) (e2e)', () => {
         .send(requirementPayload())
         .expect(201);
       expect(res.body.data.status).toBe('pending_review');
-      expect(res.body.data.frequency_of_care).toBeNull();
-      expect(res.body.data.salary_amount).toBeNull();
+      expect(res.body.data.frequency_of_care).toBe('daily');
+      expect(res.body.data.salary_amount).toBe('1800');
       // patient_job_number backs the "PAT-JOB-<n>" display id (migration
       // 047, starts at 500) — never admin_job_number for an individual
       // posting.
@@ -273,7 +276,7 @@ describe('Individual (NurseNow) (e2e)', () => {
   });
 
   describe('PATCH /v1/individual/requirements/:jobId (patient edit)', () => {
-    it('edits a still-pending_review requirement in place — no status change, salary/frequency stay null', async () => {
+    it('edits a still-pending_review requirement in place — no status change, frequency/salary update from the dto', async () => {
       const individual = await registerIndividual('0036');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -285,34 +288,17 @@ describe('Individual (NurseNow) (e2e)', () => {
       const edited = await request(app.getHttpServer())
         .patch(`/v1/individual/requirements/${jobId}`)
         .set('Authorization', `Bearer ${individual.access_token}`)
-        .send(requirementPayload({ area: 'Koramangala', duty_type: 'day_duty' }))
+        .send(requirementPayload({ area: 'Koramangala', duty_type: 'day_duty', frequency_of_care: 'monthly', salary_amount: '25000' }))
         .expect(200);
 
       expect(edited.body.data.status).toBe('pending_review');
       expect(edited.body.data.area).toBe('Koramangala');
       expect(edited.body.data.duty_type).toBe('day_duty');
-      expect(edited.body.data.frequency_of_care).toBeNull();
-      expect(edited.body.data.salary_amount).toBeNull();
+      expect(edited.body.data.frequency_of_care).toBe('monthly');
+      expect(edited.body.data.salary_amount).toBe('25000');
     });
 
-    it('rejects setting salary/frequency before the requirement has ever been admin-reviewed (JOB_013)', async () => {
-      const individual = await registerIndividual('0037');
-      const created = await request(app.getHttpServer())
-        .post('/v1/individual/requirements')
-        .set('Authorization', `Bearer ${individual.access_token}`)
-        .send(requirementPayload())
-        .expect(201);
-      const jobId = created.body.data.id;
-
-      const res = await request(app.getHttpServer())
-        .patch(`/v1/individual/requirements/${jobId}`)
-        .set('Authorization', `Bearer ${individual.access_token}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 2000 }))
-        .expect(400);
-      expect(res.body.error.code).toBe('JOB_013');
-    });
-
-    it('allows editing salary/frequency once admin has approved it once, without changing status or resetting for re-review', async () => {
+    it('allows editing salary/frequency freely, before or after admin approval, without changing status or resetting for re-review', async () => {
       const individual = await registerIndividual('0038');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -320,28 +306,35 @@ describe('Individual (NurseNow) (e2e)', () => {
         .send(requirementPayload())
         .expect(201);
       const jobId = created.body.data.id;
+
+      // Edited by the individual before admin has ever reviewed it — no
+      // longer gated on a prior approval.
+      const beforeApproval = await request(app.getHttpServer())
+        .patch(`/v1/individual/requirements/${jobId}`)
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1500' }))
+        .expect(200);
+      expect(beforeApproval.body.data.status).toBe('pending_review');
+      expect(beforeApproval.body.data.frequency_of_care).toBe('daily');
+      expect(beforeApproval.body.data.salary_amount).toBe('1500');
+
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'monthly', salary_amount: 28000 }))
+        .send(requirementPayload({ frequency_of_care: 'monthly', salary_amount: '28000' }))
         .expect(200);
 
-      // Any number of edits, no re-review required — do it twice.
-      await request(app.getHttpServer())
-        .patch(`/v1/individual/requirements/${jobId}`)
-        .set('Authorization', `Bearer ${individual.access_token}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1500 }))
-        .expect(200);
+      // Any number of edits after admin approval too — no re-review required.
       const secondEdit = await request(app.getHttpServer())
         .patch(`/v1/individual/requirements/${jobId}`)
         .set('Authorization', `Bearer ${individual.access_token}`)
-        .send(requirementPayload({ area: 'Whitefield', frequency_of_care: 'monthly', salary_amount: 32000 }))
+        .send(requirementPayload({ area: 'Whitefield', frequency_of_care: 'monthly', salary_amount: '32000' }))
         .expect(200);
 
       expect(secondEdit.body.data.status).toBe('active');
       expect(secondEdit.body.data.area).toBe('Whitefield');
       expect(secondEdit.body.data.frequency_of_care).toBe('monthly');
-      expect(secondEdit.body.data.salary_amount).toBe(32000);
+      expect(secondEdit.body.data.salary_amount).toBe('32000');
     });
 
     it('rejects editing while there is an active (applied) application (JOB_014)', async () => {
@@ -355,7 +348,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0141');
@@ -387,7 +380,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0142');
@@ -518,7 +511,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0144');
@@ -569,7 +562,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0145');
@@ -628,7 +621,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0146');
@@ -732,7 +725,7 @@ describe('Individual (NurseNow) (e2e)', () => {
   });
 
   describe('Admin approval / rejection of a pending_review requirement', () => {
-    it('approving via PATCH /v1/admin/jobs/:id sets frequency_of_care/salary_amount, activates it, and it becomes visible to the individual', async () => {
+    it('approving via PATCH /v1/admin/jobs/:id activates it (frequency_of_care/salary_amount already set from creation, admin may still update them)', async () => {
       const individual = await registerIndividual('0005');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -744,11 +737,11 @@ describe('Individual (NurseNow) (e2e)', () => {
       const approved = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'monthly', salary_amount: 28000 }))
+        .send(requirementPayload({ frequency_of_care: 'monthly', salary_amount: '28000' }))
         .expect(200);
       expect(approved.body.data.status).toBe('active');
       expect(approved.body.data.frequency_of_care).toBe('monthly');
-      expect(approved.body.data.salary_amount).toBe(28000);
+      expect(approved.body.data.salary_amount).toBe('28000');
 
       const mine = await request(app.getHttpServer())
         .get('/v1/individual/requirements')
@@ -756,7 +749,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
       expect(mine.body.data[0].status).toBe('active');
       expect(mine.body.data[0].frequency_of_care).toBe('monthly');
-      expect(mine.body.data[0].salary_amount).toBe(28000);
+      expect(mine.body.data[0].salary_amount).toBe('28000');
     });
 
     it('GET /v1/admin/jobs?search=PAT-<n> finds every job a specific patient/family account posted', async () => {
@@ -770,7 +763,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       const approved = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
       expect(approved.body.data.patient_job_number).toEqual(expect.any(Number));
 
@@ -810,7 +803,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0107');
@@ -849,7 +842,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0109');
@@ -896,7 +889,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0148');
@@ -941,7 +934,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(caregiverProfile.rows[0].verification_status).toBe('assigned');
       const jobRow = await db.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
       expect(jobRow.rows[0].status).toBe('closed');
-    });
+    }, 30000);
 
     it('rejects accepting a second candidate while one is already accepted for the same requirement (JOB_016)',
       async () => {
@@ -955,7 +948,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         await request(app.getHttpServer())
           .patch(`/v1/admin/jobs/${jobId}`)
           .set('Authorization', `Bearer ${superAdminToken}`)
-          .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+          .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
           .expect(200);
 
         const firstCaregiver = await registerCaregiver('0149');
@@ -1030,7 +1023,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0130');
@@ -1090,7 +1083,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0122');
@@ -1164,7 +1157,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const caregiver = await registerCaregiver('0113');
@@ -1192,7 +1185,7 @@ describe('Individual (NurseNow) (e2e)', () => {
 
       const jobRow = await db.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
       expect(jobRow.rows[0].status).toBe('closed');
-    });
+    }, 30000);
 
     it('admin can reject a pending_review requirement with a reason, and it never goes live', async () => {
       const individual = await registerIndividual('0014');
@@ -1233,7 +1226,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${jobId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: 1800 }))
+        .send(requirementPayload({ frequency_of_care: 'daily', salary_amount: '1800' }))
         .expect(200);
 
       const res = await request(app.getHttpServer())

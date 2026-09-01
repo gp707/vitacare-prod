@@ -19,7 +19,7 @@ describe('JobsService', () => {
     gender: 'female',
     weight_kg: 58,
     communication: 'verbal',
-    feeding_type: 'oral_independent',
+    feeding_type: 'oral_feeding',
     has_medical_condition: false,
     medical_conditions: [],
     toilet_assistance: ['others'],
@@ -29,7 +29,6 @@ describe('JobsService', () => {
 
   const job = {
     id: 'job-1',
-    job_number: 42,
     care_receiver_id: 'cr-1',
     city: 'bangalore',
     area: 'Indiranagar',
@@ -40,7 +39,7 @@ describe('JobsService', () => {
     end_time: null,
     start_date: null,
     languages: ['hindi'],
-    salary_amount: 30000,
+    salary_amount: '30000',
     preferred_gender: 'female',
     preferred_religion: null,
     status: 'active',
@@ -104,7 +103,7 @@ describe('JobsService', () => {
         gender: 'female' as any,
         weight_kg: 58 as any,
         communication: 'verbal' as any,
-        feeding_type: 'oral_independent' as any,
+        feeding_type: 'oral_feeding' as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,
         requires_vital_monitoring: false,
@@ -116,8 +115,9 @@ describe('JobsService', () => {
       frequency_of_care: 'daily' as any,
       start_date: '2026-09-01',
       languages: ['hindi'] as any,
-      salary_amount: 30000,
+      salary_amount: '30000',
       preferred_gender: 'female' as any,
+      care_duration: 'few_weeks' as any,
     };
 
     it('creates the care receiver + job in one transaction, broadcasts a push, and audit-logs it', async () => {
@@ -180,7 +180,7 @@ describe('JobsService', () => {
           gender: 'female',
           weight_kg: 58,
           communication: 'verbal',
-          feeding_type: 'oral_independent',
+          feeding_type: 'oral_feeding',
           has_medical_condition: false,
           medical_conditions: [],
           medical_condition_other: null,
@@ -226,7 +226,7 @@ describe('JobsService', () => {
         gender: 'female' as any,
         weight_kg: 60 as any,
         communication: 'verbal' as any,
-        feeding_type: 'oral_independent' as any,
+        feeding_type: 'oral_feeding' as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,
         requires_vital_monitoring: false,
@@ -238,8 +238,9 @@ describe('JobsService', () => {
       frequency_of_care: 'daily' as any,
       start_date: '2026-09-01',
       languages: ['hindi', 'english'] as any,
-      salary_amount: 35000,
+      salary_amount: '35000',
       preferred_gender: 'female' as any,
+      care_duration: 'few_weeks' as any,
     };
 
     it('throws GEN_002 when the job does not exist', async () => {
@@ -308,7 +309,7 @@ describe('JobsService', () => {
 
       expect(jobsRepo.update).toHaveBeenCalledWith(
         'job-1',
-        expect.objectContaining({ status: 'active', frequency_of_care: 'daily', salary_amount: 35000 }),
+        expect.objectContaining({ status: 'active', frequency_of_care: 'daily', salary_amount: '35000' }),
         expect.anything(),
       );
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(

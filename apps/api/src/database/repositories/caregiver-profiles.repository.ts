@@ -28,7 +28,7 @@ export interface CaregiverProfileFullRecord {
   qualification_document_url: string | null;
   aadhaar_document_url: string | null;
   other_document_urls: string[];
-  religion: Religion | null;
+  religion: Religion;
   terms_accepted: boolean;
   verification_status: VerificationStatus;
   rejection_message: string | null;

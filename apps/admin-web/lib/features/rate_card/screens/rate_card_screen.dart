@@ -7,10 +7,14 @@ import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../data/rate_card_repository.dart';
 
-/// Lets an admin edit the salary-guidance grid shown behind a persistent
+/// Lets an admin edit the salary-guidance grids shown behind a persistent
 /// app-bar icon on caregiver-app (NurseJobs) and nursenow-app's Individual
-/// screens — never shown to Organisation accounts. The grid shape (3
-/// columns x 3 rows) is fixed; every label and cell is free-text editable.
+/// screens — never shown to Organisation accounts. There are always exactly
+/// 2 grids, one per frequency of care ('daily'/'monthly') — each is its own
+/// independently-editable, independently-saveable section rather than one
+/// combined form, since admin edits and saves them on separate occasions.
+/// The grid shape (3 columns x 1 row) is fixed; every label and cell is
+/// free-text editable.
 class RateCardScreen extends ConsumerStatefulWidget {
   const RateCardScreen({super.key});
 
@@ -20,24 +24,117 @@ class RateCardScreen extends ConsumerStatefulWidget {
 
 class _RateCardScreenState extends ConsumerState<RateCardScreen> {
   bool _loading = true;
+  String? _errorMessage;
+  List<RateCardWithUpdater>? _rateCards;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+    try {
+      final rateCards = await ref.read(rateCardRepositoryProvider).get();
+      if (mounted) setState(() => _rateCards = rateCards);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShell(
+      current: AppShellSection.rateCard,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Rate Card',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Salary guidance shown to caregivers (NurseJobs) and patients/families '
+                '(NurseNow) behind an icon on every screen. Not shown to hospitals/rehabs/clinics. '
+                'Daily and monthly rates are maintained separately and saved independently.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              if (_loading)
+                const Expanded(child: Center(child: VitaLoadingIndicator()))
+              else if (_errorMessage != null)
+                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final rateCard in _rateCards!)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                            child: _RateCardSection(
+                              key: ValueKey(rateCard.rateCard.frequencyOfCare),
+                              initial: rateCard,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RateCardSection extends ConsumerStatefulWidget {
+  final RateCardWithUpdater initial;
+
+  const _RateCardSection({super.key, required this.initial});
+
+  @override
+  ConsumerState<_RateCardSection> createState() => _RateCardSectionState();
+}
+
+class _RateCardSectionState extends ConsumerState<_RateCardSection> {
   bool _saving = false;
   String? _errorMessage;
-  String? _updatedByName;
-  String? _updatedAt;
+  late String? _updatedByName;
+  late String? _updatedAt;
 
   late TextEditingController _titleController;
   late List<TextEditingController> _columnControllers;
   late List<TextEditingController> _rowControllers;
   late List<List<TextEditingController>> _cellControllers;
 
+  String get _frequency => widget.initial.rateCard.frequencyOfCare;
+
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController();
-    _columnControllers = List.generate(3, (_) => TextEditingController());
-    _rowControllers = List.generate(3, (_) => TextEditingController());
-    _cellControllers = List.generate(3, (_) => List.generate(3, (_) => TextEditingController()));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    final rateCard = widget.initial.rateCard;
+    _updatedByName = widget.initial.updatedByName;
+    _updatedAt = widget.initial.updatedAt;
+    _titleController = TextEditingController(text: rateCard.title);
+    _columnControllers =
+        List.generate(3, (i) => TextEditingController(text: rateCard.columnLabels[i]));
+    _rowControllers =
+        List.generate(1, (i) => TextEditingController(text: rateCard.rowLabels[i]));
+    _cellControllers = List.generate(
+      1,
+      (i) => List.generate(3, (j) => TextEditingController(text: rateCard.cells[i][j])),
+    );
   }
 
   @override
@@ -57,38 +154,6 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-    });
-    try {
-      final withUpdater = await ref.read(rateCardRepositoryProvider).get();
-      if (!mounted) return;
-      _applyToControllers(withUpdater);
-      setState(() {
-        _updatedByName = withUpdater.updatedByName;
-        _updatedAt = withUpdater.updatedAt;
-      });
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _errorMessage = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _applyToControllers(RateCardWithUpdater withUpdater) {
-    final rateCard = withUpdater.rateCard;
-    _titleController.text = rateCard.title;
-    for (var i = 0; i < 3; i++) {
-      _columnControllers[i].text = rateCard.columnLabels[i];
-      _rowControllers[i].text = rateCard.rowLabels[i];
-      for (var j = 0; j < 3; j++) {
-        _cellControllers[i][j].text = rateCard.cells[i][j];
-      }
-    }
-  }
-
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -96,6 +161,7 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
     });
     try {
       final rateCard = RateCardModel(
+        frequencyOfCare: _frequency,
         title: _titleController.text.trim(),
         columnLabels: _columnControllers.map((c) => c.text.trim()).toList(),
         rowLabels: _rowControllers.map((c) => c.text.trim()).toList(),
@@ -103,11 +169,19 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
             .map((row) => row.map((c) => c.text.trim()).toList())
             .toList(),
       );
-      await ref.read(rateCardRepositoryProvider).update(rateCard);
-      await _load();
+      final repository = ref.read(rateCardRepositoryProvider);
+      await repository.update(_frequency, rateCard);
+      // Re-fetch to pick up the server-set updated_by/updated_at — the
+      // update endpoint itself only returns void.
+      final refreshed = await repository.get();
+      final own = refreshed.firstWhere((r) => r.rateCard.frequencyOfCare == _frequency);
       if (mounted) {
+        setState(() {
+          _updatedByName = own.updatedByName;
+          _updatedAt = own.updatedAt;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rate card saved')),
+          SnackBar(content: Text('${FrequencyOfCare.displayNames[_frequency]} rate card saved')),
         );
       }
     } on ApiException catch (e) {
@@ -119,72 +193,51 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.rateCard,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Rate Card',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Salary guidance shown to caregivers (NurseJobs) and patients/families '
-                '(NurseNow) behind an icon on every screen. Not shown to hospitals/rehabs/clinics.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _buildForm(),
-                  ),
-                ),
-            ],
-          ),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
       ),
-    );
-  }
-
-  Widget _buildForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_errorMessage != null) ...[
-          Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        TextField(
-          controller: _titleController,
-          decoration: const InputDecoration(labelText: 'Title'),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: _buildGrid(),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        if (_updatedByName != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(
-              'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            FrequencyOfCare.displayNames[_frequency] ?? _frequency,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-        ElevatedButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.sm),
+          if (_errorMessage != null) ...[
+            Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          TextField(
+            controller: _titleController,
+            decoration: const InputDecoration(labelText: 'Title'),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: _buildGrid(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_updatedByName != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+            ),
+          ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -216,7 +269,7 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
               ),
           ],
         ),
-        for (var row = 0; row < 3; row++)
+        for (var row = 0; row < 1; row++)
           TableRow(
             children: [
               Padding(

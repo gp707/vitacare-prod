@@ -30,9 +30,9 @@ class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
 
 JobModel _requirement({
   String id = 'job-1',
-  int jobNumber = 42,
+  int requirementNumber = 42,
   String status = 'active',
-  int? salaryAmount = 1800,
+  String? salaryAmount = '1800',
   String? frequencyOfCare = 'daily',
   String? rejectionReason,
   String? cancelledAt,
@@ -41,8 +41,7 @@ JobModel _requirement({
 }) {
   return JobModel.fromJson({
     'id': id,
-    'job_number': jobNumber,
-    'patient_job_number': jobNumber + 500,
+    'patient_job_number': requirementNumber + 500,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Needs help with daily routine.',
@@ -67,7 +66,7 @@ final _careReceiverJson = {
   'gender': 'female',
   'weight_kg': 58,
   'communication': 'verbal',
-  'feeding_type': 'oral_independent',
+  'feeding_type': 'oral_feeding',
   'has_medical_condition': false,
   'medical_conditions': [],
   'toilet_assistance': ['independent'],
@@ -127,11 +126,12 @@ class _FakeIndividualRepository extends IndividualRepository {
     String? description,
     required String dutyType,
     required String startDate,
+    required String careDuration,
     required List<String> languages,
     String? preferredGender,
     String? preferredReligion,
     String? frequencyOfCare,
-    int? salaryAmount,
+    String? salaryAmount,
   }) async {
     editedJobId = jobId;
     return requirements.firstWhere((r) => r.id == jobId);
@@ -268,8 +268,8 @@ void main() {
       tester,
       _FakeIndividualRepository(
         requirements: [
-          _requirement(id: 'job-2', jobNumber: 43, status: 'active'),
-          _requirement(id: 'job-1', jobNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-2', requirementNumber: 43, status: 'active'),
+          _requirement(id: 'job-1', requirementNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
         ],
       ),
     );
@@ -332,13 +332,33 @@ void main() {
     await tester.tap(find.text('Show Full Details'));
     await tester.pumpAndSettle();
 
-    // Same two headings, in the same field order, as the Post/Edit
+    // Same three headings, in the same field order, as the Post/Edit
     // Requirement form — labeled rows, not an undifferentiated chip cloud.
     expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('74 yrs'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
+    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    expect(find.text('Daily'), findsOneWidget);
+    expect(find.text('₹1800/day'), findsWidgets);
     expect(find.text('Needs help with daily routine.'), findsOneWidget);
     expect(find.text('Hide Full Details'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows Frequency of Care/Salary on the card and in Show Full Details for a pending_review requirement too — '
+      'no longer gated behind admin approval', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(status: 'pending_review')]),
+    );
+
+    expect(find.text('₹1800/day'), findsOneWidget);
+
+    await tester.tap(find.text('Show Full Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    expect(find.text('Daily'), findsOneWidget);
   });
 
   testWidgets(
@@ -688,8 +708,8 @@ void main() {
       tester,
       _FakeIndividualRepository(
         requirements: [
-          _requirement(id: 'job-1', jobNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
-          _requirement(id: 'job-2', jobNumber: 43, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-1', requirementNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-2', requirementNumber: 43, status: 'closed', salaryAmount: null, frequencyOfCare: null),
         ],
         applicationsByJobId: {
           'job-2': [_application(status: 'accepted')],
@@ -1023,8 +1043,8 @@ void main() {
       tester,
       _FakeIndividualRepository(
         requirements: [
-          _requirement(id: 'job-1', jobNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
-          _requirement(id: 'job-2', jobNumber: 43, status: 'active'),
+          _requirement(id: 'job-1', requirementNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'job-2', requirementNumber: 43, status: 'active'),
         ],
       ),
     );

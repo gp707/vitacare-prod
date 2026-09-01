@@ -7,8 +7,11 @@ class RateCardRepository {
   RateCardRepository(this._dio);
 
   /// Public — no auth required, matches GET /rate-card server-side.
-  Future<RateCardModel> get() async {
+  /// Always exactly 2 entries, one per frequency ('daily'/'monthly').
+  Future<List<RateCardModel>> get() async {
     final res = await _dio.get(ApiRoutes.rateCard);
-    return RateCardModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    return (res.data['data'] as List)
+        .map((e) => RateCardModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

@@ -13,28 +13,33 @@ export class RateCardService {
   ) {}
 
   /** Public — every caregiver-app and nursenow-app (Individual only,
-   *  never Organisation) screen fetches this once and shows it behind a
-   *  persistent app-bar icon. */
+   *  never Organisation) screen fetches this once and shows both the
+   *  daily and monthly cards behind a persistent app-bar icon. */
   get() {
-    return this.rateCardRepo.find();
+    return this.rateCardRepo.findAll();
   }
 
   adminGet() {
-    return this.rateCardRepo.findWithUpdater();
+    return this.rateCardRepo.findAllWithUpdater();
   }
 
-  async adminUpdate(adminId: string, dto: UpdateRateCardDto, ipAddress: string | null) {
+  /** frequency comes from an unvalidated @Param — an invalid value simply
+   *  won't match a row (findByFrequency returns null), which we turn into
+   *  GEN_002, same as AppConfigService.adminUpdate. */
+  async adminUpdate(adminId: string, frequency: string, dto: UpdateRateCardDto, ipAddress: string | null) {
+    const existing = await this.rateCardRepo.findByFrequency(frequency);
+    if (!existing) throw new AppException('GEN_002');
+
     this.validateCellsShape(dto.cells);
 
-    const existing = await this.rateCardRepo.find();
-    const updated = await this.rateCardRepo.update(dto, adminId);
+    const updated = await this.rateCardRepo.update(frequency, dto, adminId);
 
     await this.auditService.log({
       userId: adminId,
       action: AuditAction.RATE_CARD_UPDATED,
       entityType: 'rate_card',
-      beforeValue: { title: existing.title, cells: existing.cells },
-      afterValue: { title: dto.title, cells: dto.cells },
+      beforeValue: { frequency_of_care: frequency, title: existing.title, cells: existing.cells },
+      afterValue: { frequency_of_care: frequency, title: dto.title, cells: dto.cells },
       ipAddress,
     });
 
@@ -42,12 +47,12 @@ export class RateCardService {
   }
 
   /** class-validator has no clean decorator for a nested string[][] shape
-   *  (see UpdateRateCardDto), so the actual 3x3-of-strings check happens
+   *  (see UpdateRateCardDto), so the actual 1x3-of-strings check happens
    *  here instead, with its own dedicated error code. */
   private validateCellsShape(cells: string[][]) {
     const isValid =
       Array.isArray(cells) &&
-      cells.length === 3 &&
+      cells.length === 1 &&
       cells.every((row) => Array.isArray(row) && row.length === 3 && row.every((cell) => typeof cell === 'string'));
     if (!isValid) throw new AppException('RATE_001');
   }

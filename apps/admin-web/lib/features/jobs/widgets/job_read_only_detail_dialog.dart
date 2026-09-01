@@ -12,9 +12,16 @@ String _salaryUnit(String? frequencyOfCare) =>
     frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
 
 /// Read-only detail view opened by tapping a job row — every field as
-/// plain text (About Patient / About Nurse-Caregiver Requirement, same
-/// grouping as the Post/Edit form and caregiver-app's job card), with an
-/// Edit button handing off to the existing _JobFormDialog edit flow.
+/// plain text, grouped Patient Details / Care Preferences / Nurse Fee
+/// Guidance in the exact same field set and order as `_JobFormDialog`
+/// (see admin_jobs_screen.dart) — this is what admin actually reviews
+/// before approving (via Edit) or rejecting a job, so it must show exactly
+/// what the patient/admin submitted, nothing more. Communication, Vital
+/// Monitoring, and the free-text description are not shown here at all —
+/// admin's create/edit form doesn't collect them, so surfacing them here
+/// (even as leftover data on an older job) would suggest they're still
+/// part of the reviewable shape. Has its own Edit button handing off to
+/// the existing _JobFormDialog edit flow.
 class JobReadOnlyDetailDialog extends StatelessWidget {
   final JobModel job;
   final VoidCallback onEdit;
@@ -45,14 +52,87 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                   'Posted by',
                   'Patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
                 ),
-              _DetailRow(
-                  'Job Location',
-                  [
-                    City.displayNames[job.city] ?? job.city,
-                    if (job.area != null && job.area!.isNotEmpty) job.area!,
-                  ].join(', ')),
+              if (job.rejectionReason != null)
+                _DetailRow('Rejection Reason', job.rejectionReason!),
+              _DetailRow('Posted', _formatDate(DateTime.parse(job.postedAt))),
+              const Divider(height: AppSpacing.lg),
+              const Text('Patient Details',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.xs),
+              if (careReceiver != null) ...[
+                _DetailRow('Age', '${careReceiver.age} yrs'),
+                _DetailRow(
+                    'Gender',
+                    Gender.displayNames[careReceiver.gender] ??
+                        careReceiver.gender),
+                _DetailRow('Weight', '${careReceiver.weightKg} kg'),
+              ],
+              _DetailRow('City', City.displayNames[job.city] ?? job.city),
+              if (job.area != null && job.area!.isNotEmpty)
+                _DetailRow('Area', job.area!),
+              if (careReceiver != null) ...[
+                _DetailRow(
+                  'Medical Condition',
+                  careReceiver.hasMedicalCondition
+                      ? careReceiver.medicalConditions
+                          .map((c) => MedicalCondition.displayNames[c] ?? c)
+                          .join(', ')
+                      : 'None',
+                ),
+                if (careReceiver.medicalConditionOther != null &&
+                    careReceiver.medicalConditionOther!.isNotEmpty)
+                  _DetailRow(
+                      'Other Condition', careReceiver.medicalConditionOther!),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              const Text('Care Preferences',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.xs),
               _DetailRow('Hours Care Needed',
                   DutyType.displayNames[job.dutyType] ?? job.dutyType),
+              if (job.startDate != null)
+                _DetailRow('Preferred Start Date', job.startDate!),
+              // Only ever set on a NurseNow individual's own posting — null
+              // for an admin-posted job.
+              if (job.careDuration != null)
+                _DetailRow('Duration Care is Needed', CareDuration.displayNames[job.careDuration] ?? job.careDuration!),
+              if (careReceiver != null) ...[
+                _DetailRow(
+                  'Toilet Assistance',
+                  careReceiver.toiletAssistance
+                      .map((t) => ToiletAssistance.displayNames[t] ?? t)
+                      .join(', '),
+                ),
+                if (careReceiver.toiletAssistanceOther != null &&
+                    careReceiver.toiletAssistanceOther!.isNotEmpty)
+                  _DetailRow('Other Toilet Assistance',
+                      careReceiver.toiletAssistanceOther!),
+                _DetailRow(
+                    'Feeding/Medicine Assistance',
+                    FeedingType.displayNames[careReceiver.feedingType] ??
+                        careReceiver.feedingType),
+              ],
+              if (job.preferredGender != null)
+                _DetailRow(
+                    'Preferred Caregiver Gender',
+                    Gender.displayNames[job.preferredGender] ??
+                        job.preferredGender!),
+              _DetailRow(
+                  'Language Preference',
+                  job.languages.isEmpty
+                      ? 'No Preference'
+                      : job.languages
+                          .map((l) => Language.displayNames[l] ?? l)
+                          .join(', ')),
+              if (job.preferredReligion != null)
+                _DetailRow(
+                    'Preferred Caregiver Religion',
+                    Religion.displayNames[job.preferredReligion] ??
+                        job.preferredReligion!),
+              const SizedBox(height: AppSpacing.md),
+              const Text('Nurse Fee Guidance',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSpacing.xs),
               _DetailRow(
                 'Frequency of Care',
                 job.frequencyOfCare != null
@@ -66,80 +146,8 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                     ? '₹${job.salaryAmount}/${_salaryUnit(job.frequencyOfCare)}'
                     : 'Not set',
               ),
-              if (job.startDate != null)
-                _DetailRow('Preferred Start Date', job.startDate!),
-              _DetailRow(
-                  'Languages',
-                  job.languages.isEmpty
-                      ? 'No Preference'
-                      : job.languages
-                          .map((l) => Language.displayNames[l] ?? l)
-                          .join(', ')),
-              if (job.preferredGender != null)
-                _DetailRow(
-                    'Preferred Gender',
-                    Gender.displayNames[job.preferredGender] ??
-                        job.preferredGender!),
-              if (job.preferredReligion != null)
-                _DetailRow(
-                    'Preferred Religion',
-                    Religion.displayNames[job.preferredReligion] ??
-                        job.preferredReligion!),
-              if (job.description != null && job.description!.isNotEmpty)
-                _DetailRow('More Details', job.description!),
-              if (job.rejectionReason != null)
-                _DetailRow('Rejection Reason', job.rejectionReason!),
-              _DetailRow('Posted', _formatDate(DateTime.parse(job.postedAt))),
               if (careReceiver != null) ...[
-                const Divider(height: AppSpacing.lg),
-                const Text('About Patient',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: AppSpacing.xs),
-                _DetailRow('Age', '${careReceiver.age} yrs'),
-                _DetailRow(
-                    'Gender',
-                    Gender.displayNames[careReceiver.gender] ??
-                        careReceiver.gender),
-                _DetailRow('Weight', '${careReceiver.weightKg} kg'),
-                _DetailRow(
-                  'Communication',
-                  Communication.displayNames[careReceiver.communication] ??
-                      careReceiver.communication,
-                ),
-                _DetailRow(
-                    'Feeding',
-                    FeedingType.displayNames[careReceiver.feedingType] ??
-                        careReceiver.feedingType),
-                _DetailRow(
-                  'Medical Condition',
-                  careReceiver.hasMedicalCondition
-                      ? careReceiver.medicalConditions
-                          .map((c) => MedicalCondition.displayNames[c] ?? c)
-                          .join(', ')
-                      : 'None',
-                ),
-                if (careReceiver.medicalConditionOther != null &&
-                    careReceiver.medicalConditionOther!.isNotEmpty)
-                  _DetailRow(
-                      'Other Condition', careReceiver.medicalConditionOther!),
-                _DetailRow(
-                  'Toilet Assistance',
-                  careReceiver.toiletAssistance
-                      .map((t) => ToiletAssistance.displayNames[t] ?? t)
-                      .join(', '),
-                ),
-                if (careReceiver.toiletAssistanceOther != null &&
-                    careReceiver.toiletAssistanceOther!.isNotEmpty)
-                  _DetailRow('Other Toilet Assistance',
-                      careReceiver.toiletAssistanceOther!),
-                _DetailRow(
-                  'Vital Monitoring',
-                  careReceiver.requiresVitalMonitoring
-                      ? careReceiver.vitalMonitoringTypes
-                          .map((v) => VitalMonitoringType.displayNames[v] ?? v)
-                          .join(', ')
-                      : 'Not required',
-                ),
+                const SizedBox(height: AppSpacing.sm),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                   child: Row(

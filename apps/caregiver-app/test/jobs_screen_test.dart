@@ -21,10 +21,10 @@ JobModel _job({
   Object? description = 'Need a caregiver for an elderly patient',
   String frequencyOfCare = 'daily',
   String? startDate,
+  String? careDuration,
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
-    'job_number': 42,
     'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
@@ -32,8 +32,9 @@ JobModel _job({
     'duty_type': 'live_in',
     'frequency_of_care': frequencyOfCare,
     'start_date': startDate,
+    'care_duration': careDuration,
     'languages': ['hindi'],
-    'salary_amount': 30000,
+    'salary_amount': '30000',
     'preferred_gender': 'female',
     'status': 'active',
     'posted_by': 'admin-1',
@@ -46,11 +47,11 @@ JobModel _job({
       'gender': 'female',
       'weight_kg': 60,
       'communication': 'verbal',
-      'feeding_type': 'oral_needs_assistance',
+      'feeding_type': 'oral_feeding',
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
       'medical_condition_other': 'Recovering from hip surgery',
-      'toilet_assistance': ['uses_diapers', 'uses_catheter'],
+      'toilet_assistance': ['diapers_bedside_support', 'uses_catheter'],
       'toilet_assistance_other': 'Needs a raised commode seat',
       'requires_vital_monitoring': true,
       'vital_monitoring_types': ['blood_pressure', 'blood_sugar'],
@@ -219,7 +220,6 @@ void main() {
       _FakeJobsRepository([
         JobModel.fromJson({
           'id': 'job-2',
-          'job_number': 43,
           'patient_job_number': 701,
           'city': 'bangalore',
           'duty_type': 'live_in',
@@ -235,7 +235,7 @@ void main() {
             'gender': 'male',
             'weight_kg': 65,
             'communication': 'verbal',
-            'feeding_type': 'oral_independent',
+            'feeding_type': 'oral_feeding',
             'has_medical_condition': false,
             'medical_conditions': [],
             'toilet_assistance': ['independent'],
@@ -295,10 +295,10 @@ void main() {
     expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
     expect(find.text('60 kg'), findsOneWidget);
     expect(find.text('Can Speak/Communicate'), findsOneWidget);
-    expect(find.text('Oral feeding – needs assistance'), findsOneWidget);
+    expect(find.text('Oral feeding'), findsOneWidget);
     expect(find.text('Medicine Reminders'), findsNothing);
-    expect(find.text('Toilet: Uses diapers'), findsOneWidget);
-    expect(find.text('Toilet: Uses catheter'), findsOneWidget);
+    expect(find.text('Toilet: Diapers/bedside support'), findsOneWidget);
+    expect(find.text('Toilet: Catheter support'), findsOneWidget);
     expect(find.text('Diabetes'), findsOneWidget);
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);
@@ -310,12 +310,22 @@ void main() {
     expect(find.text('24Hrs - Live In'), findsOneWidget);
     expect(find.text('Daily'), findsOneWidget);
     expect(find.text('Hindi'), findsOneWidget);
+    // Not set on this admin-posted job fixture — only a NurseNow
+    // individual's own posting sets care_duration.
+    expect(find.text('Few Weeks'), findsNothing);
+  });
+
+  testWidgets('shows the Duration Care is Needed tag for a NurseNow individual posting that sets it',
+      (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job(careDuration: 'few_weeks')]));
+    await _expandDetails(tester);
+
+    expect(find.text('Few Weeks'), findsOneWidget);
   });
 
   testWidgets('does not show the "other" detail lines when the care receiver has none set', (tester) async {
     final job = JobModel.fromJson({
       'id': 'job-1',
-      'job_number': 42,
       'admin_job_number': 542,
       'city': 'bangalore',
       'area': 'Indiranagar',
@@ -323,7 +333,7 @@ void main() {
       'duty_type': 'live_in',
       'frequency_of_care': 'daily',
       'languages': ['hindi'],
-      'salary_amount': 30000,
+      'salary_amount': '30000',
       'preferred_gender': 'female',
       'status': 'active',
       'posted_by': 'admin-1',
@@ -335,10 +345,10 @@ void main() {
         'gender': 'female',
         'weight_kg': 60,
         'communication': 'verbal',
-        'feeding_type': 'oral_needs_assistance',
+        'feeding_type': 'oral_feeding',
         'has_medical_condition': false,
         'medical_conditions': [],
-        'toilet_assistance': ['uses_diapers'],
+        'toilet_assistance': ['diapers_bedside_support'],
         'requires_vital_monitoring': false,
         'vital_monitoring_types': [],
       },

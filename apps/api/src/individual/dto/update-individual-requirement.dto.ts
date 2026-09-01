@@ -2,24 +2,20 @@ import {
   IsArray,
   IsDateString,
   IsIn,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Max,
   MaxLength,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { City, DutyType, FrequencyOfCare, Gender, Language, Religion } from '@vitacare/shared-constants';
+import { CareDuration, City, DutyType, FrequencyOfCare, Gender, Language, Religion } from '@vitacare/shared-constants';
 import { CareReceiverDto } from '../../jobs/dto/create-job.dto';
 
-/** Same shape as CreateIndividualRequirementDto, plus optional
- *  frequency_of_care/salary_amount — unlike at creation, an edit MAY set
- *  these two, but only once the requirement has been approved by admin at
- *  least once (see IndividualService.editRequirement, JOB_013 otherwise).
- *  Every other field is always editable regardless of review state. */
+/** Same shape as CreateIndividualRequirementDto — every field, including
+ *  frequency_of_care/salary_amount, is always required and always
+ *  editable now (both are derived/re-derived client-side on every save,
+ *  same as at creation; there's no more "only after admin approval" gate). */
 export class UpdateIndividualRequirementDto {
   @ValidateNested()
   @Type(() => CareReceiverDto)
@@ -44,6 +40,11 @@ export class UpdateIndividualRequirementDto {
   @IsDateString({}, { message: 'GEN_001' })
   start_date!: string;
 
+  /** Always editable, unlike frequency_of_care/salary_amount below — see
+   *  CreateIndividualRequirementDto. */
+  @IsIn(Object.values(CareDuration), { message: 'GEN_001' })
+  care_duration!: CareDuration;
+
   /** Empty array means "No Preference" — see CreateIndividualRequirementDto. */
   @IsArray({ message: 'GEN_001' })
   @IsIn(Object.values(Language), { each: true, message: 'GEN_001' })
@@ -57,16 +58,11 @@ export class UpdateIndividualRequirementDto {
   @IsIn([Religion.HINDU, Religion.MUSLIM, Religion.CHRISTIAN], { message: 'GEN_001' })
   preferred_religion?: Religion;
 
-  // Only settable once the requirement has been approved at least once
-  // (JOB_013 otherwise) — omit entirely while still pending_review, same
-  // as CreateIndividualRequirementDto never collects them.
-  @IsOptional()
   @IsIn(Object.values(FrequencyOfCare), { message: 'GEN_001' })
-  frequency_of_care?: FrequencyOfCare;
+  frequency_of_care!: FrequencyOfCare;
 
-  @IsOptional()
-  @IsInt({ message: 'GEN_001' })
-  @Min(1, { message: 'GEN_001' })
-  @Max(1000000, { message: 'GEN_001' })
-  salary_amount?: number;
+  @IsString({ message: 'GEN_001' })
+  @IsNotEmpty({ message: 'GEN_001' })
+  @MaxLength(500, { message: 'GEN_001' })
+  salary_amount!: string;
 }

@@ -12,21 +12,20 @@ import 'package:caregiver_app/features/organisation_openings/data/organisation_o
 
 JobModel _assignedJob({
   String id = 'job-1',
-  int jobNumber = 42,
+  int adminJobNumber = 542,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-02T10:00:00Z',
 }) {
   return JobModel.fromJson({
     'id': id,
-    'job_number': jobNumber,
-    'admin_job_number': jobNumber + 500,
+    'admin_job_number': adminJobNumber,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver for an elderly patient',
     'duty_type': 'live_in',
     'frequency_of_care': 'daily',
     'languages': ['hindi'],
-    'salary_amount': 30000,
+    'salary_amount': '30000',
     'preferred_gender': 'female',
     'status': 'closed',
     'posted_by': 'admin-1',
@@ -46,7 +45,7 @@ JobModel _assignedJob({
       'gender': 'female',
       'weight_kg': 60,
       'communication': 'verbal',
-      'feeding_type': 'oral_needs_assistance',
+      'feeding_type': 'oral_feeding',
       'has_medical_condition': false,
       'medical_conditions': [],
       'toilet_assistance': ['independent'],
@@ -116,7 +115,9 @@ class _FakeJobsRepository extends JobsRepository {
   Future<bool> completeJob(String jobId) async {
     completedJobId = jobId;
     jobs = jobs
-        .map((j) => j.id == jobId ? _assignedJob(id: j.id, jobNumber: j.jobNumber, applicationStatus: 'completed') : j)
+        .map((j) => j.id == jobId
+            ? _assignedJob(id: j.id, adminJobNumber: j.adminJobNumber!, applicationStatus: 'completed')
+            : j)
         .toList();
     return completeStillAssigned;
   }
@@ -203,8 +204,8 @@ void main() {
     await _pump(
       tester,
       jobsRepo: _FakeJobsRepository([
-        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
-        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+        _assignedJob(id: 'job-1', adminJobNumber: 542, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', adminJobNumber: 543, applicationStatus: 'completed'),
       ]),
     );
     await _showCompletedJobs(tester);
@@ -223,8 +224,8 @@ void main() {
     await _pump(
       tester,
       jobsRepo: _FakeJobsRepository([
-        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
-        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+        _assignedJob(id: 'job-1', adminJobNumber: 542, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', adminJobNumber: 543, applicationStatus: 'completed'),
       ]),
     );
     await _showCompletedJobs(tester);
@@ -249,8 +250,8 @@ void main() {
     await _pump(
       tester,
       jobsRepo: _FakeJobsRepository([
-        _assignedJob(id: 'job-1', jobNumber: 42, applicationStatus: 'accepted'),
-        _assignedJob(id: 'job-2', jobNumber: 43, applicationStatus: 'completed'),
+        _assignedJob(id: 'job-1', adminJobNumber: 542, applicationStatus: 'accepted'),
+        _assignedJob(id: 'job-2', adminJobNumber: 543, applicationStatus: 'completed'),
       ]),
     );
 

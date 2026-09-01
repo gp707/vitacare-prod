@@ -75,8 +75,6 @@ class MyApplicationModel {
 /// only present on GET /caregiver/jobs/assigned.
 class JobModel {
   final String id;
-  /// Internal only — no longer displayed; use [jobDisplayId] instead.
-  final int jobNumber;
   /// Set only when this job was posted by an admin — backs the
   /// "ADMIN-JOB-<n>" display id (migration 047, starts at 500). Exactly
   /// one of [adminJobNumber]/[patientJobNumber] is non-null; use
@@ -86,20 +84,28 @@ class JobModel {
   /// the "PAT-JOB-<n>" display id (migration 047, starts at 500).
   final int? patientJobNumber;
   final String city;
+  /// Always set (backend NOT NULL) — nullable here only because some
+  /// list-endpoint responses don't select every column.
   final String? area;
   final String? description;
   final String dutyType;
-  /// Null only for a NurseNow individual-posted job still in
-  /// pending_review — an admin sets it (along with [salaryAmount]) on
-  /// approval. Always non-null for an admin-posted or already-approved job.
+  /// Always set (backend NOT NULL) — derived/suggested from the moment a
+  /// job or requirement is created, never admin-approval-gated.
   final String? frequencyOfCare;
   final String? startTime;
   final String? endTime;
+  /// Always set (backend NOT NULL).
   final String? startDate;
   final List<String> languages;
-  final int? salaryAmount;
+  /// Always set (backend NOT NULL) — free text, not a plain number,
+  /// suggested from the admin-editable Rate Card, whose cells are
+  /// themselves free text, not a clean integer.
+  final String? salaryAmount;
   final String? preferredGender;
   final String? preferredReligion;
+  /// Always set (backend NOT NULL) — required on every job/requirement,
+  /// admin-posted or individual-posted alike.
+  final String? careDuration;
   final String status;
   final String postedBy;
   final String postedAt;
@@ -123,7 +129,6 @@ class JobModel {
 
   const JobModel({
     required this.id,
-    required this.jobNumber,
     this.adminJobNumber,
     this.patientJobNumber,
     required this.city,
@@ -138,6 +143,7 @@ class JobModel {
     this.salaryAmount,
     this.preferredGender,
     this.preferredReligion,
+    this.careDuration,
     required this.status,
     required this.postedBy,
     required this.postedAt,
@@ -153,7 +159,6 @@ class JobModel {
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
         id: json['id'] as String,
-        jobNumber: json['job_number'] as int,
         adminJobNumber: json['admin_job_number'] as int?,
         patientJobNumber: json['patient_job_number'] as int?,
         city: json['city'] as String,
@@ -165,9 +170,10 @@ class JobModel {
         endTime: json['end_time'] as String?,
         startDate: json['start_date'] as String?,
         languages: (json['languages'] as List).cast<String>(),
-        salaryAmount: json['salary_amount'] as int?,
+        salaryAmount: json['salary_amount'] as String?,
         preferredGender: json['preferred_gender'] as String?,
         preferredReligion: json['preferred_religion'] as String?,
+        careDuration: json['care_duration'] as String?,
         status: json['status'] as String,
         postedBy: json['posted_by'] as String,
         postedAt: json['posted_at'] as String,
@@ -205,13 +211,16 @@ class JobModel {
 
 /// Human-friendly display id for a job — "ADMIN-JOB-<n>" or "PAT-JOB-<n>"
 /// depending on which of [JobModel.adminJobNumber]/[JobModel.patientJobNumber]
-/// is set, replacing the old generic "Job #<n>" label everywhere (kept
-/// here, not duplicated per app, so admin-web/caregiver-app/nursenow-app
-/// all render identical text — same convention as [organisationScheduleLabel]).
+/// is set (kept here, not duplicated per app, so admin-web/caregiver-app/
+/// nursenow-app all render identical text — same convention as
+/// [organisationScheduleLabel]). Exactly one of the two is always set —
+/// enforced server-side at INSERT time (JobsRepository.create's
+/// posted_by_role parameter) — so a job matching neither indicates a data
+/// integrity bug, not a case to silently paper over.
 String jobDisplayId(JobModel job) {
   if (job.adminJobNumber != null) return 'ADMIN-JOB-${job.adminJobNumber}';
   if (job.patientJobNumber != null) return 'PAT-JOB-${job.patientJobNumber}';
-  return 'JOB-${job.jobNumber}';
+  throw StateError('Job ${job.id} has neither adminJobNumber nor patientJobNumber set');
 }
 
 /// Caregiver-facing "who is this for" label — a NurseNow individual's own

@@ -70,7 +70,7 @@ const CITY_LABELS: Record<City, string> = {
 // always a real, explicit selection rather than null/empty.
 const CARE_RECEIVER_DEFAULTS = {
   communication: Communication.VERBAL,
-  feeding_type: FeedingType.ORAL_INDEPENDENT,
+  feeding_type: FeedingType.ORAL_FEEDING,
   toilet_assistance: [ToiletAssistance.INDEPENDENT],
 } as const;
 
@@ -133,6 +133,7 @@ export class JobsService {
           salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
+          care_duration: dto.care_duration,
           posted_by: adminId,
           posted_by_role: 'admin',
         },
@@ -240,6 +241,7 @@ export class JobsService {
           salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
           preferred_religion: dto.preferred_religion,
+          care_duration: dto.care_duration,
           status: shouldActivate ? JobStatus.ACTIVE : undefined,
         },
         client,

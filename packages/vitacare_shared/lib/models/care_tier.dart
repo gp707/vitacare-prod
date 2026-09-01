@@ -28,12 +28,13 @@ class CareTier {
 /// Scope of Work content:
 ///
 /// - [CareTier.criticalCare]: any need for catheter care, tube feeding,
-///   vitals monitoring, insulin/injection support, oxygen support, or
-///   cannula care.
-/// - [CareTier.bedsideCare] (else): any need for diaper/bedpan/commode
-///   assistance, feeding assistance, or any other medical condition.
+///   "Others (Cannula etc.)" feeding assistance, vitals monitoring,
+///   insulin/injection support, oxygen support, or cannula care.
+/// - [CareTier.bedsideCare] (else): diapers/bedside toileting support, any
+///   other unspecified toileting need, or any medical condition at all.
 /// - [CareTier.companionCare]: the baseline/independent case — everything
-///   else.
+///   else, including "Oral feeding" (no longer distinguishes independent
+///   vs needs-assistance, so it can no longer push to Bedside on its own).
 ///
 /// This mapping is a product judgment call, not a value the backend
 /// enforces — reviewable/adjustable here in one place if the intended
@@ -44,7 +45,7 @@ String deriveCareTier(CareReceiverModel careReceiver) {
 
   final isCritical = toiletAssistance.contains(ToiletAssistance.usesCatheter) ||
       careReceiver.feedingType == FeedingType.tubeFeeding ||
-      careReceiver.feedingType == FeedingType.oralAndTube ||
+      careReceiver.feedingType == FeedingType.others ||
       careReceiver.requiresVitalMonitoring ||
       medicalConditions.contains(MedicalCondition.insulinAdministrationSupport) ||
       medicalConditions.contains(MedicalCondition.injectionSupport) ||
@@ -53,11 +54,8 @@ String deriveCareTier(CareReceiverModel careReceiver) {
       medicalConditions.contains(MedicalCondition.catheterCare);
   if (isCritical) return CareTier.criticalCare;
 
-  final isBedside = toiletAssistance.contains(ToiletAssistance.usesDiapers) ||
-      toiletAssistance.contains(ToiletAssistance.usesBedPan) ||
-      toiletAssistance.contains(ToiletAssistance.completeAssistance) ||
+  final isBedside = toiletAssistance.contains(ToiletAssistance.diapersBedsideSupport) ||
       toiletAssistance.contains(ToiletAssistance.others) ||
-      careReceiver.feedingType == FeedingType.oralNeedsAssistance ||
       careReceiver.hasMedicalCondition;
   if (isBedside) return CareTier.bedsideCare;
 

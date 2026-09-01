@@ -72,7 +72,7 @@ describe('Jobs (e2e)', () => {
     gender: 'female',
     weight_kg: 58,
     communication: 'verbal',
-    feeding_type: 'oral_independent',
+    feeding_type: 'oral_feeding',
     has_medical_condition: false,
     toilet_assistance: ['others'],
     requires_vital_monitoring: false,
@@ -92,19 +92,19 @@ describe('Jobs (e2e)', () => {
         frequency_of_care: 'daily',
         start_date: '2026-09-01',
         languages: ['hindi'],
-        salary_amount: 30000,
+        salary_amount: '30000',
         preferred_gender: 'female',
+        care_duration: 'few_weeks',
         ...jobOverrides,
       })
       .expect(201);
     return res.body.data as {
       id: string;
-      job_number: number;
       admin_job_number: number | null;
       patient_job_number: number | null;
       status: string;
       care_receiver_id: string;
-      salary_amount: number;
+      salary_amount: string;
       posted_at: string;
     };
   }
@@ -178,18 +178,17 @@ describe('Jobs (e2e)', () => {
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_posted');
 
-      // GET /admin/audit-logs resolves job_number/admin_job_number/
-      // patient_job_number/job_id for entity_type 'jobs' rows too, not
-      // just the raw entity_id UUID — this is what lets admin-web link
-      // back to the job (as "ADMIN-JOB-<n>"/"PAT-JOB-<n>") from the audit
-      // log, consistent with wherever else the job is shown.
+      // GET /admin/audit-logs resolves admin_job_number/patient_job_number/
+      // job_id for entity_type 'jobs' rows too, not just the raw entity_id
+      // UUID — this is what lets admin-web link back to the job (as
+      // "ADMIN-JOB-<n>"/"PAT-JOB-<n>") from the audit log, consistent with
+      // wherever else the job is shown.
       const auditList = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
         .query({ action: 'job_posted', limit: 50 })
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       const auditEntry = auditList.body.data.find((e: { entity_id: string }) => e.entity_id === job.id);
-      expect(auditEntry.job_number).toBe(job.job_number);
       expect(auditEntry.admin_job_number).toBe(job.admin_job_number);
       expect(auditEntry.patient_job_number).toBeNull();
       expect(auditEntry.job_id).toBe(job.id);
@@ -205,27 +204,24 @@ describe('Jobs (e2e)', () => {
       expect(careReceiver.rows[0].vital_monitoring_types).toEqual([]);
     });
 
-    it('assigns a sequential job_number, stores salary_amount, and sets posted_at = created_at at creation', async () => {
-      const jobA = await createJob({ salary_amount: 28000 });
-      const jobB = await createJob({ salary_amount: 31000 });
-      expect(typeof jobA.job_number).toBe('number');
-      expect(jobB.job_number).toBeGreaterThan(jobA.job_number);
-      expect(jobA.salary_amount).toBe(28000);
+    it('stores salary_amount and sets posted_at = created_at at creation', async () => {
+      const jobA = await createJob({ salary_amount: '28000' });
+      expect(jobA.salary_amount).toBe('28000');
 
       const row = await db.query('SELECT created_at, posted_at FROM jobs WHERE id = $1', [jobA.id]);
       expect(row.rows[0].posted_at.getTime()).toBe(row.rows[0].created_at.getTime());
     });
 
     it('assigns admin_job_number (starting at 500), not patient_job_number, for an admin-posted job', async () => {
-      const jobA = await createJob({ salary_amount: 28000 });
-      const jobB = await createJob({ salary_amount: 31000 });
+      const jobA = await createJob({ salary_amount: '28000' });
+      const jobB = await createJob({ salary_amount: '31000' });
       expect(jobA.admin_job_number).toBeGreaterThanOrEqual(500);
       expect(jobB.admin_job_number).toBeGreaterThan(jobA.admin_job_number!);
       expect(jobA.patient_job_number).toBeNull();
       expect(jobB.patient_job_number).toBeNull();
     });
 
-    it('rejects a missing/invalid salary_amount (GEN_001)', async () => {
+    it('rejects a missing/empty salary_amount (GEN_001)', async () => {
       const res = await request(app.getHttpServer())
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -236,8 +232,9 @@ describe('Jobs (e2e)', () => {
           description: `${jobDescriptionPrefix} salary validation test`,
           duty_type: 'live_in',
           frequency_of_care: 'daily',
+          start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_amount: 0,
+          salary_amount: '',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -255,7 +252,8 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -273,7 +271,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -291,7 +290,8 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(201);
       expect(res.body.data.description).toBeNull();
@@ -322,7 +322,8 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(201);
       const job = res.body.data;
@@ -336,7 +337,7 @@ describe('Jobs (e2e)', () => {
         gender: 'male',
         weight_kg: 70,
         communication: 'verbal',
-        feeding_type: 'oral_independent',
+        feeding_type: 'oral_feeding',
         has_medical_condition: false,
         toilet_assistance: ['independent'],
         requires_vital_monitoring: false,
@@ -355,7 +356,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -373,7 +375,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -389,13 +392,13 @@ describe('Jobs (e2e)', () => {
 
     it('accepts multiple toilet assistance options — admin can select more than one', async () => {
       const job = await createJob({
-        care_receiver: { toilet_assistance: ['uses_diapers', 'uses_catheter'] },
+        care_receiver: { toilet_assistance: ['diapers_bedside_support', 'uses_catheter'] },
       });
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers', 'uses_catheter']);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['diapers_bedside_support', 'uses_catheter']);
     });
 
     it('rejects "other_non_verbal" as a communication value — dropped, only 3 options remain (GEN_001)', async () => {
@@ -410,7 +413,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -428,7 +432,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -485,7 +490,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'other',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -503,7 +509,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'weekly',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -546,7 +553,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(403);
       expect(res.body.error.code).toBe('AUTH_007');
@@ -577,7 +585,8 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
+          care_duration: 'few_weeks',
         })
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
@@ -595,7 +604,7 @@ describe('Jobs (e2e)', () => {
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
-          salary_amount: 30000,
+          salary_amount: '30000',
           preferred_religion: 'others',
         })
         .expect(400);
@@ -620,7 +629,7 @@ describe('Jobs (e2e)', () => {
     it('accepts free-text detail for the "other" option on toilet_assistance and medical_conditions, alongside the other selected values', async () => {
       const job = await createJob({
         care_receiver: {
-          toilet_assistance: ['uses_diapers', 'others'],
+          toilet_assistance: ['diapers_bedside_support', 'others'],
           toilet_assistance_other: 'Needs help transferring to the commode',
           has_medical_condition: true,
           medical_conditions: ['diabetes', 'other'],
@@ -631,7 +640,7 @@ describe('Jobs (e2e)', () => {
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
-      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers', 'others']);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['diapers_bedside_support', 'others']);
       expect(detail.body.data.care_receiver.toilet_assistance_other).toBe(
         'Needs help transferring to the commode',
       );
@@ -765,21 +774,15 @@ describe('Jobs (e2e)', () => {
       expect(ownJobIds(otherRes, [job.id])).toEqual([]);
     });
 
-    it('filters by search — matches the job display id (ADMIN-JOB-<n>) or the raw job_number', async () => {
+    it('filters by search — matches the job display id (ADMIN-JOB-<n>)', async () => {
       const job = await createJob();
-      const displayId = job.admin_job_number != null ? `ADMIN-JOB-${job.admin_job_number}` : `JOB-${job.job_number}`;
+      const displayId = `ADMIN-JOB-${job.admin_job_number}`;
 
       const byDisplayId = await request(app.getHttpServer())
         .get(`/v1/admin/jobs?limit=100&search=${encodeURIComponent(displayId)}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
       expect(ownJobIds(byDisplayId, [job.id])).toEqual([job.id]);
-
-      const byNumberOnly = await request(app.getHttpServer())
-        .get(`/v1/admin/jobs?limit=100&search=${job.job_number}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      expect(ownJobIds(byNumberOnly, [job.id])).toEqual([job.id]);
 
       const noMatch = await request(app.getHttpServer())
         .get('/v1/admin/jobs?limit=100&search=NO-SUCH-JOB-999999')
@@ -833,8 +836,9 @@ describe('Jobs (e2e)', () => {
         frequency_of_care: 'daily',
         start_date: '2026-09-01',
         languages: ['hindi', 'english'],
-        salary_amount: 32000,
+        salary_amount: '32000',
         preferred_gender: 'female',
+        care_duration: 'few_weeks',
         ...jobOverrides,
       };
     }
@@ -846,7 +850,7 @@ describe('Jobs (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: ['uses_diapers'] } }))
+        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: ['diapers_bedside_support'] } }))
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
       expect(res.body.data.area).toBe('Koramangala');
@@ -861,7 +865,7 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(detail.body.data.care_receiver_id).toBe(job.care_receiver_id);
       expect(detail.body.data.care_receiver.age).toBe(80);
-      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['uses_diapers']);
+      expect(detail.body.data.care_receiver.toilet_assistance).toEqual(['diapers_bedside_support']);
       expect(detail.body.data.languages).toEqual(['hindi', 'english']);
 
       const audit = await db.query(
@@ -906,13 +910,13 @@ describe('Jobs (e2e)', () => {
     });
 
     it('updates salary_amount on edit', async () => {
-      const job = await createJob({ salary_amount: 25000 });
+      const job = await createJob({ salary_amount: '25000' });
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(editPayload({ salary_amount: 40000 }))
+        .send(editPayload({ salary_amount: '40000' }))
         .expect(200);
-      expect(res.body.data.salary_amount).toBe(40000);
+      expect(res.body.data.salary_amount).toBe('40000');
     });
 
     it('leaves existing applications untouched when the job is edited', async () => {
@@ -1092,7 +1096,8 @@ describe('Jobs (e2e)', () => {
           frequency_of_care: 'daily',
           start_date: '2026-09-01',
           languages: ['hindi'],
-          salary_amount: 32000,
+          salary_amount: '32000',
+          care_duration: 'few_weeks',
         })
         .expect(200);
 
@@ -1426,8 +1431,8 @@ describe('Jobs (e2e)', () => {
       );
       expect(audit.rows.map((r) => r.action)).toContain('job_application_decided');
 
-      // job_number/job_id resolve here too — entity_id is the application,
-      // one hop away from the job via job_applications.job_id.
+      // admin_job_number/job_id resolve here too — entity_id is the
+      // application, one hop away from the job via job_applications.job_id.
       const auditListForApplication = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
         .query({ action: 'job_application_decided', limit: 50 })
@@ -1436,7 +1441,7 @@ describe('Jobs (e2e)', () => {
       const applicationAuditEntry = auditListForApplication.body.data.find(
         (e: { entity_id: string }) => e.entity_id === applicationA.id,
       );
-      expect(applicationAuditEntry.job_number).toBe(job.job_number);
+      expect(applicationAuditEntry.admin_job_number).toBe(job.admin_job_number);
       expect(applicationAuditEntry.job_id).toBe(job.id);
 
       // Admin reverses the acceptance.

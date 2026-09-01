@@ -26,6 +26,9 @@ describe('IndividualService', () => {
     duty_type: 'live_in',
     start_date: '2026-09-01',
     languages: ['hindi'],
+    care_duration: 'few_weeks',
+    frequency_of_care: 'daily',
+    salary_amount: '1800',
   } as any;
 
   beforeEach(() => {
@@ -112,7 +115,7 @@ describe('IndividualService', () => {
       await expect(service.createRequirement('user-1', dto, null)).rejects.toMatchObject({ code: 'JOB_009' });
     });
 
-    it('creates a pending_review job with null frequency_of_care/salary_amount, posted_by the caller', async () => {
+    it('creates a pending_review job with the client-derived frequency_of_care/salary_amount, posted_by the caller', async () => {
       individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
       jobsRepo.findLiveByPostedBy.mockResolvedValue(null);
       const client = {};
@@ -130,8 +133,8 @@ describe('IndividualService', () => {
           care_receiver_id: 'cr-1',
           posted_by: 'user-1',
           status: 'pending_review',
-          frequency_of_care: null,
-          salary_amount: null,
+          frequency_of_care: 'daily',
+          salary_amount: '1800',
           posted_by_role: 'individual',
         }),
         client,
@@ -151,6 +154,9 @@ describe('IndividualService', () => {
       duty_type: 'day_duty',
       start_date: '2026-09-15',
       languages: ['hindi', 'english'],
+      care_duration: 'few_weeks',
+      frequency_of_care: 'daily',
+      salary_amount: '1500',
     } as any;
 
     it('throws GEN_002 when the job does not exist', async () => {
@@ -175,24 +181,7 @@ describe('IndividualService', () => {
       });
     });
 
-    it('throws JOB_013 when trying to set salary/frequency before the requirement has ever been reviewed', async () => {
-      jobsRepo.findById.mockResolvedValue({
-        id: 'job-1',
-        posted_by: 'user-1',
-        status: 'pending_review',
-        frequency_of_care: null,
-      });
-      await expect(
-        service.editRequirement(
-          'user-1',
-          'job-1',
-          { ...editDto, frequency_of_care: 'daily', salary_amount: 30000 },
-          null,
-        ),
-      ).rejects.toMatchObject({ code: 'JOB_013' });
-    });
-
-    it('edits a still-pending_review requirement, leaving frequency_of_care/salary_amount null and status untouched', async () => {
+    it('edits a still-pending_review requirement, setting frequency_of_care/salary_amount from the dto and leaving status untouched', async () => {
       jobsRepo.findById.mockResolvedValue({
         id: 'job-1',
         posted_by: 'user-1',
@@ -200,7 +189,8 @@ describe('IndividualService', () => {
         duty_type: 'live_in',
         city: 'bangalore',
         care_receiver_id: 'cr-1',
-        frequency_of_care: null,
+        frequency_of_care: 'monthly',
+        salary_amount: '2000',
       });
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
@@ -219,8 +209,8 @@ describe('IndividualService', () => {
           city: 'bangalore',
           area: 'Koramangala',
           duty_type: 'day_duty',
-          frequency_of_care: null,
-          salary_amount: null,
+          frequency_of_care: 'daily',
+          salary_amount: '1500',
         }),
       );
       expect(updateInput).not.toHaveProperty('status');
@@ -229,7 +219,7 @@ describe('IndividualService', () => {
       );
     });
 
-    it('allows editing salary/frequency once the requirement has already been reviewed once, without changing status', async () => {
+    it('edits an already-active/closed requirement the same way, without changing status', async () => {
       jobsRepo.findById.mockResolvedValue({
         id: 'job-1',
         posted_by: 'user-1',
@@ -238,47 +228,19 @@ describe('IndividualService', () => {
         city: 'bangalore',
         care_receiver_id: 'cr-1',
         frequency_of_care: 'monthly',
-        salary_amount: 25000,
+        salary_amount: '2500',
       });
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
       jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'closed' });
 
-      await service.editRequirement(
-        'user-1',
-        'job-1',
-        { ...editDto, frequency_of_care: 'daily', salary_amount: 1500 },
-        null,
-      );
-
-      const [, updateInput] = jobsRepo.update.mock.calls[0];
-      expect(updateInput).toEqual(
-        expect.objectContaining({ frequency_of_care: 'daily', salary_amount: 1500 }),
-      );
-      expect(updateInput).not.toHaveProperty('status');
-    });
-
-    it('keeps the existing salary/frequency when already reviewed but the edit omits them', async () => {
-      jobsRepo.findById.mockResolvedValue({
-        id: 'job-1',
-        posted_by: 'user-1',
-        status: 'active',
-        duty_type: 'live_in',
-        city: 'bangalore',
-        care_receiver_id: 'cr-1',
-        frequency_of_care: 'monthly',
-        salary_amount: 25000,
-      });
-      const client = {};
-      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
-      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'active' });
-
       await service.editRequirement('user-1', 'job-1', editDto, null);
 
       const [, updateInput] = jobsRepo.update.mock.calls[0];
       expect(updateInput).toEqual(
-        expect.objectContaining({ frequency_of_care: 'monthly', salary_amount: 25000 }),
+        expect.objectContaining({ frequency_of_care: 'daily', salary_amount: '1500' }),
       );
+      expect(updateInput).not.toHaveProperty('status');
     });
   });
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -20,12 +20,13 @@ export class AdminRateCardController {
     return this.rateCardService.adminGet();
   }
 
-  @Patch()
+  @Patch(':frequency')
   update(
     @CurrentUser() user: JwtPayload,
+    @Param('frequency') frequency: string,
     @Body() dto: UpdateRateCardDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.rateCardService.adminUpdate(user.sub, dto, ip);
+    return this.rateCardService.adminUpdate(user.sub, frequency, dto, ip);
   }
 }

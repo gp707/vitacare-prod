@@ -9,7 +9,10 @@ import '../core/rate_card/rate_card_repository.dart';
 /// AppBar, same placement convention as WhatsAppHelpButton, so a caregiver
 /// can always check the admin-set rate card no matter where they are in
 /// the app. Fetched fresh on every tap (not cached) since it's cheap and
-/// rarely changes mid-session, avoiding any global-state complexity.
+/// rarely changes mid-session, avoiding any global-state complexity. Shows
+/// both the daily and monthly cards stacked in one dialog — admin
+/// maintains them as 2 separate rows (see rate_card.dart in the backend),
+/// never just one merged grid.
 class RateCardButton extends ConsumerWidget {
   const RateCardButton({super.key});
 
@@ -63,7 +66,7 @@ class _RateCardDialog extends StatefulWidget {
 }
 
 class _RateCardDialogState extends State<_RateCardDialog> {
-  RateCardModel? _rateCard;
+  List<RateCardModel>? _rateCards;
   String? _error;
   bool _loading = true;
 
@@ -75,8 +78,8 @@ class _RateCardDialogState extends State<_RateCardDialog> {
 
   Future<void> _load() async {
     try {
-      final rateCard = await widget.repository.get();
-      if (mounted) setState(() => _rateCard = rateCard);
+      final rateCards = await widget.repository.get();
+      if (mounted) setState(() => _rateCards = rateCards);
     } catch (_) {
       if (mounted) setState(() => _error = 'Could not load salary guidance. Please try again later.');
     } finally {
@@ -87,7 +90,7 @@ class _RateCardDialogState extends State<_RateCardDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_rateCard?.title ?? 'Salary Guidance'),
+      title: const Text('Salary Guidance'),
       content: SizedBox(
         width: 400,
         child: _loading
@@ -98,8 +101,24 @@ class _RateCardDialogState extends State<_RateCardDialog> {
             : _error != null
                 ? Text(_error!, style: const TextStyle(color: AppColors.error))
                 : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: _RateCardTable(rateCard: _rateCard!),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < _rateCards!.length; i++) ...[
+                          if (i > 0) const Padding(
+                            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                            child: Divider(height: 1),
+                          ),
+                          Text(_rateCards![i].title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          const SizedBox(height: AppSpacing.sm),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: _RateCardTable(rateCard: _rateCards![i]),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
       ),
       actions: [

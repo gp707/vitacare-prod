@@ -533,7 +533,10 @@ class _RequirementCardState extends State<_RequirementCard> {
             const SizedBox(height: AppSpacing.xs),
             Text('Reason: ${requirement.rejectionReason}', style: const TextStyle(color: AppColors.error)),
           ],
-          if (requirement.status == JobStatus.active && requirement.salaryAmount != null) ...[
+          // Frequency of Care/Salary are derived/suggested from the moment
+          // the requirement is created — no longer admin-set on approval —
+          // so this shows regardless of status, not just once active.
+          if (requirement.salaryAmount != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
               '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
@@ -611,6 +614,11 @@ class _RequirementCardState extends State<_RequirementCard> {
             const SizedBox(height: AppSpacing.xs),
             _DetailRow('Hours Care Needed', DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
             if (requirement.startDate != null) _DetailRow('Preferred Start Date', requirement.startDate!),
+            if (requirement.careDuration != null)
+              _DetailRow(
+                'Duration Care is Needed',
+                CareDuration.displayNames[requirement.careDuration] ?? requirement.careDuration!,
+              ),
             if (careReceiver != null) ...[
               _DetailRow(
                 'Toilet Assistance',
@@ -640,6 +648,21 @@ class _RequirementCardState extends State<_RequirementCard> {
               requirement.preferredReligion != null
                   ? (Religion.displayNames[requirement.preferredReligion] ?? requirement.preferredReligion!)
                   : 'No preference',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const _SectionLabel('Nurse Fee Guidance'),
+            const SizedBox(height: AppSpacing.xs),
+            _DetailRow(
+              'Frequency of Care',
+              requirement.frequencyOfCare != null
+                  ? FrequencyOfCare.displayNames[requirement.frequencyOfCare] ?? requirement.frequencyOfCare!
+                  : 'Not set',
+            ),
+            _DetailRow(
+              'Salary',
+              requirement.salaryAmount != null
+                  ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
+                  : 'Not set',
             ),
             if (requirement.description != null && requirement.description!.isNotEmpty)
               _DetailRow('More Details', requirement.description!),

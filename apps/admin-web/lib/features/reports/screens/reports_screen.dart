@@ -413,19 +413,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (row['engagement_type'] == 'requirement') {
       return 'ORG-JOB-${row['requirement_number']}';
     }
-    final patientJobNumber = row['patient_job_number'] as int?;
-    final adminJobNumber = row['admin_job_number'] as int?;
-    if (patientJobNumber != null) return 'PAT-JOB-$patientJobNumber';
-    if (adminJobNumber != null) return 'ADMIN-JOB-$adminJobNumber';
-    return 'Job #${row['job_number']}';
+    return _jobLabel(row);
   }
 
+  /// Exactly one of patient_job_number/admin_job_number is always set for a
+  /// job row (enforced server-side at INSERT time) — a row matching neither
+  /// indicates a data integrity bug, not a case to silently paper over.
   String _jobLabel(Map<String, dynamic> row) {
     final patientJobNumber = row['patient_job_number'] as int?;
     final adminJobNumber = row['admin_job_number'] as int?;
     if (patientJobNumber != null) return 'PAT-JOB-$patientJobNumber';
     if (adminJobNumber != null) return 'ADMIN-JOB-$adminJobNumber';
-    return 'Job #${row['job_number']}';
+    throw StateError('Job row has neither patient_job_number nor admin_job_number set: $row');
   }
 }
 

@@ -104,14 +104,17 @@ describe('Admin Reports (e2e)', () => {
     description: `${jobDescriptionPrefix} individual posting`,
     duty_type: 'live_in',
     start_date: '2026-09-01',
+    care_duration: 'few_weeks',
     languages: ['hindi'],
+    frequency_of_care: 'daily',
+    salary_amount: '1800',
     ...overrides,
   });
 
-  /** Posts a pending_review requirement as the individual, then
-   *  admin-approves it (frequency_of_care/salary_amount supplied only at
-   *  approval, per CLAUDE.md's Individual posting flow) — leaves it
-   *  `active`. Returns the job id. */
+  /** Posts a pending_review requirement (frequency_of_care/salary_amount
+   *  already set, client-derived), then admin-approves it (moving it to
+   *  `active` — admin may still adjust the figures on approval, same as
+   *  any other edit). Returns the job id. */
   async function createAndApproveIndividualJob(individual: { access_token: string }) {
     const created = await request(app.getHttpServer())
       .post('/v1/individual/requirements')
@@ -122,7 +125,7 @@ describe('Admin Reports (e2e)', () => {
     await request(app.getHttpServer())
       .patch(`/v1/admin/jobs/${jobId}`)
       .set('Authorization', `Bearer ${superAdminToken}`)
-      .send(individualRequirementPayload({ frequency_of_care: 'monthly', salary_amount: 28000 }))
+      .send(individualRequirementPayload({ frequency_of_care: 'monthly', salary_amount: '28000' }))
       .expect(200);
     return jobId;
   }
@@ -142,7 +145,7 @@ describe('Admin Reports (e2e)', () => {
     gender: 'female',
     weight_kg: 58,
     communication: 'verbal',
-    feeding_type: 'oral_independent',
+    feeding_type: 'oral_feeding',
     has_medical_condition: false,
     toilet_assistance: ['others'],
     requires_vital_monitoring: false,
@@ -162,8 +165,9 @@ describe('Admin Reports (e2e)', () => {
         frequency_of_care: 'daily',
         start_date: '2026-09-01',
         languages: ['hindi'],
-        salary_amount: 30000,
+        salary_amount: '30000',
         preferred_gender: 'female',
+        care_duration: 'few_weeks',
         ...jobOverrides,
       })
       .expect(201);

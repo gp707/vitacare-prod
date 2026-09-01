@@ -34,15 +34,21 @@ class _MandatoryField {
   const _MandatoryField(this.key, this.isValid, {this.focusNode});
 }
 
-/// Two clearly-separated, boxed sections: "Patient Details" (age, gender,
-/// weight, city, area, medical condition) and "Care Preferences" (hours
-/// care needed, preferred start date, toilet assistance, feeding/medicine
-/// assistance, preferred caregiver gender, language preference, preferred
-/// caregiver religion) — same fields admin's own job-posting form collects
-/// minus Frequency of Care and Salary, which an admin sets later on
-/// approval. Creates a pending_review requirement. Mobility and the
-/// free-text "more details" field are deliberately not offered here at
-/// all (see CLAUDE.md's Mobility removal note).
+/// Three clearly-separated, boxed sections: "Patient Details" (age, gender,
+/// weight, city, area, medical condition), "Care Preferences" (hours care
+/// needed, preferred start date, duration care is needed, toilet
+/// assistance, feeding/medicine assistance, preferred caregiver gender,
+/// language preference, preferred caregiver religion), and "Nurse Fee
+/// Guidance" (Frequency of Care, derived from Duration Care is Needed —
+/// see [frequencyForCareDuration] — and Salary, pre-filled from the Rate
+/// Card's suggested figure for the derived care tier/frequency — see
+/// [deriveCareTier]/[suggestedRate] — but freely editable). Frequency of
+/// Care and Salary are no longer admin-set on approval — the patient sees
+/// and can adjust them immediately, same as nursenow-app's edit screen.
+/// Creates a pending_review requirement (admin still reviews for
+/// legitimacy before it goes live, just no longer sets pricing). Mobility
+/// and the free-text "more details" field are deliberately not offered
+/// here at all (see CLAUDE.md's Mobility removal note).
 ///
 /// Submit is always tappable (mirrors admin-web's AdminJobsScreen form): if
 /// a mandatory field is missing, tapping it flags every missing mandatory
@@ -53,9 +59,10 @@ class _MandatoryField {
 /// requirement (e.g. one the patient just cancelled and wants to repost)
 /// — everything except [JobModel.startDate], which is deliberately left
 /// blank since the source requirement's date has very likely already
-/// passed, and never salary/frequency, which this form never collects at
-/// all (admin sets them on approval, same as any other new posting). This
-/// still always creates a brand-new job with its own id and its own
+/// passed. Salary/Frequency are deliberately NOT cloned from the source's
+/// old values either — they're freshly re-derived from whatever this new
+/// posting's own fields end up being (which may differ from the source).
+/// This still always creates a brand-new job with its own id and its own
 /// pending_review admin review — it's purely a form-prefill convenience.
 class PostRequirementScreen extends ConsumerStatefulWidget {
   final JobModel? cloneFrom;
@@ -83,11 +90,18 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _areaController = TextEditingController();
   String? _dutyType;
   DateTime? _startDate;
+  String? _careDuration;
   // Defaults to "No Preference" — a real, deliberate choice, not an unset
   // field (see _noPreferenceLanguage above).
   final List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender;
   String? _preferredReligion;
+  final _salaryController = TextEditingController();
+  // Tracks the last suggestion we auto-filled into _salaryController, so a
+  // relevant field change can safely refresh it — but only while the
+  // patient hasn't typed anything of their own over it yet.
+  String? _lastAutoSuggestedSalary;
+  List<RateCardModel> _rateCards = const [];
 
   bool _saving = false;
   String? _error;
@@ -97,6 +111,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
+  final _salaryFocusNode = FocusNode();
 
   // One key per mandatory field, in the order they appear on the form, so
   // Submit can scroll to whichever one is first still-invalid.
@@ -107,7 +122,9 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _areaKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
   final _startDateKey = GlobalKey();
+  final _careDurationKey = GlobalKey();
   final _languagesKey = GlobalKey();
+  final _salaryKey = GlobalKey();
 
   // Only turns true once Submit has been pressed with something missing —
   // before that, fields don't show red just because they're empty.
@@ -117,39 +134,93 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   void initState() {
     super.initState();
     final source = widget.cloneFrom;
-    if (source == null) return;
-    final cr = source.careReceiver;
-    if (cr != null) {
-      _ageController.text = cr.age.toString();
-      _gender = cr.gender;
-      _weightController.text = cr.weightKg.toString();
-      _feedingType = cr.feedingType;
-      // Empty/false source means the source was itself "None" —
-      // _medicalConditions already defaults to that, so leave it untouched.
-      if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
-        _medicalConditions
-          ..clear()
-          ..addAll(cr.medicalConditions);
+    if (source != null) {
+      final cr = source.careReceiver;
+      if (cr != null) {
+        _ageController.text = cr.age.toString();
+        _gender = cr.gender;
+        _weightController.text = cr.weightKg.toString();
+        _feedingType = cr.feedingType;
+        // Empty/false source means the source was itself "None" —
+        // _medicalConditions already defaults to that, so leave it untouched.
+        if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
+          _medicalConditions
+            ..clear()
+            ..addAll(cr.medicalConditions);
+        }
+        _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
+        _toiletAssistance.addAll(cr.toiletAssistance);
+        _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
       }
-      _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
-      _toiletAssistance.addAll(cr.toiletAssistance);
-      _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
+      _city = source.city;
+      _areaController.text = source.area ?? '';
+      _dutyType = source.dutyType;
+      _careDuration = source.careDuration;
+      // start_date intentionally NOT carried over — the source requirement's
+      // date has very likely already passed; the patient must pick a fresh
+      // one (also avoids the date picker's initialDate < firstDate assert).
+      // Empty source.languages means the source was itself "No Preference"
+      // — _languages already defaults to that, so leave it untouched.
+      if (source.languages.isNotEmpty) {
+        _languages
+          ..clear()
+          ..addAll(source.languages);
+      }
+      _preferredGender = source.preferredGender;
+      _preferredReligion = source.preferredReligion;
     }
-    _city = source.city;
-    _areaController.text = source.area ?? '';
-    _dutyType = source.dutyType;
-    // start_date intentionally NOT carried over — the source requirement's
-    // date has very likely already passed; the patient must pick a fresh
-    // one (also avoids the date picker's initialDate < firstDate assert).
-    // Empty source.languages means the source was itself "No Preference"
-    // — _languages already defaults to that, so leave it untouched.
-    if (source.languages.isNotEmpty) {
-      _languages
-        ..clear()
-        ..addAll(source.languages);
+    _loadRateCards();
+  }
+
+  /// Fire-and-forget — fetches the Rate Card once so Salary can be
+  /// suggested as the patient fills in their care needs. Fails open: a
+  /// network error just means no suggestion is offered, the field stays
+  /// blank and freely editable either way.
+  Future<void> _loadRateCards() async {
+    try {
+      final rateCards = await ref.read(rateCardRepositoryProvider).get();
+      if (!mounted) return;
+      setState(() => _rateCards = rateCards);
+      _refreshSuggestedSalary();
+    } catch (_) {
+      // Fail open — see doc comment above.
     }
-    _preferredGender = source.preferredGender;
-    _preferredReligion = source.preferredReligion;
+  }
+
+  /// Rebuilds a [CareReceiverModel] from whatever's currently selected on
+  /// this form, for [deriveCareTier] — communication/vitals aren't
+  /// collected on this form at all, so they're just fixed at their
+  /// server-side defaults (matches CARE_RECEIVER_DEFAULTS).
+  CareReceiverModel get _careReceiverForTierDerivation => CareReceiverModel(
+        id: '',
+        age: _age ?? 0,
+        gender: _gender ?? '',
+        weightKg: _weightKg ?? 0,
+        communication: Communication.verbal,
+        feedingType: _feedingType ?? FeedingType.oralFeeding,
+        hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+        medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? const [] : _medicalConditions,
+        toiletAssistance: _toiletAssistance,
+        requiresVitalMonitoring: false,
+        vitalMonitoringTypes: const [],
+      );
+
+  /// Recomputes the suggested Salary from the current Duration Care is
+  /// Needed + care-tier selections and, if it changed, refills the field —
+  /// but only when the field is still empty or still holds our own
+  /// previous suggestion, never overwriting something the patient typed
+  /// themselves. Call after any change to _careDuration/_toiletAssistance/
+  /// _feedingType/_medicalConditions.
+  void _refreshSuggestedSalary() {
+    if (_careDuration == null) return;
+    final tier = deriveCareTier(_careReceiverForTierDerivation);
+    final frequency = frequencyForCareDuration(_careDuration!);
+    final suggestion = suggestedRate(_rateCards, tier, frequency);
+    if (suggestion == null) return;
+    if (_salaryController.text.isEmpty || _salaryController.text == _lastAutoSuggestedSalary) {
+      _salaryController.text = suggestion;
+      _lastAutoSuggestedSalary = suggestion;
+    }
   }
 
   @override
@@ -159,9 +230,11 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     _medicalConditionOtherController.dispose();
     _toiletAssistanceOtherController.dispose();
     _areaController.dispose();
+    _salaryController.dispose();
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
+    _salaryFocusNode.dispose();
     super.dispose();
   }
 
@@ -175,6 +248,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
   bool get _isStartDateValid => _startDate != null;
+  bool get _isCareDurationValid => _careDuration != null;
+  bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
+
+  /// Few Days/Few Weeks price off the daily Rate Card, Few Months/Long Term
+  /// off the monthly one — see [frequencyForCareDuration].
+  String? get _derivedFrequencyOfCare =>
+      _careDuration == null ? null : frequencyForCareDuration(_careDuration!);
 
   /// Purely advisory, never blocks submission — a male patient requesting
   /// a female caregiver is a much harder match to fill than any other
@@ -201,14 +281,16 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       _isCityValid &&
       _isAreaValid &&
       _isDutyTypeValid &&
-      _isStartDateValid;
+      _isStartDateValid &&
+      _isCareDurationValid &&
+      _isSalaryValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one the patient/family sees when Submit scrolls them to it —
-  /// Patient Details' fields before Care Preferences', matching the
-  /// section order on screen. Language Preference isn't here — it always
-  /// defaults to "No Preference" and can never be empty, so it's never
-  /// invalid.
+  /// Patient Details' fields before Care Preferences' before Nurse Fee
+  /// Guidance's, matching the section order on screen. Language Preference
+  /// isn't here — it always defaults to "No Preference" and can never be
+  /// empty, so it's never invalid.
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
@@ -217,6 +299,8 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
         _MandatoryField(_startDateKey, _isStartDateValid),
+        _MandatoryField(_careDurationKey, _isCareDurationValid),
+        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
       ];
 
   Future<void> _pickStartDate() async {
@@ -338,9 +422,12 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             area: _areaController.text.trim(),
             dutyType: _dutyType!,
             startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+            careDuration: _careDuration!,
             languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
+            frequencyOfCare: _derivedFrequencyOfCare!,
+            salaryAmount: _salaryController.text.trim(),
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -369,7 +456,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
               ),
               child: const Text(
-                "An admin reviews every new requirement and sets the frequency of care and salary before it goes live and caregivers can see it.",
+                "An admin reviews every new requirement before it goes live and caregivers can see it.",
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -448,7 +535,10 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   options: [_noneMedicalCondition, ...MedicalCondition.all],
                   labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
                   selected: _medicalConditions,
-                  onChanged: (next) => setState(() => _applyMedicalConditionSelection(next)),
+                  onChanged: (next) => setState(() {
+                    _applyMedicalConditionSelection(next);
+                    _refreshSuggestedSalary();
+                  }),
                 ),
                 if (_medicalConditions.contains(MedicalCondition.other)) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -509,6 +599,25 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  key: _careDurationKey,
+                  isExpanded: true,
+                  initialValue: _careDuration,
+                  decoration: InputDecoration(
+                    labelText: 'Duration Care is Needed (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText:
+                        _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
+                  ),
+                  items: CareDuration.all
+                      .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _careDuration = value;
+                    _refreshSuggestedSalary();
+                  }),
+                ),
+                const SizedBox(height: AppSpacing.md),
                 const Text('Toilet Assistance (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: AppSpacing.sm),
                 VitaMultiSelectChips(
@@ -519,6 +628,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                     _toiletAssistance
                       ..clear()
                       ..addAll(next);
+                    _refreshSuggestedSalary();
                   }),
                 ),
                 if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
@@ -542,7 +652,10 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   items: FeedingType.all
                       .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
                       .toList(),
-                  onChanged: (value) => setState(() => _feedingType = value),
+                  onChanged: (value) => setState(() {
+                    _feedingType = value;
+                    _refreshSuggestedSalary();
+                  }),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
@@ -656,6 +769,47 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                     ),
                   ),
                 ],
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SectionBox(
+              title: 'Nurse Fee Guidance',
+              children: [
+                const Text(
+                  'You can always negotiate with nurse staff.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Derived from Duration Care is Needed (few days/weeks ->
+                // daily, few months/long term -> monthly) — not a manual
+                // choice, see _derivedFrequencyOfCare.
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Frequency of Care',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: Text(FrequencyOfCare.displayNames[_derivedFrequencyOfCare] ?? '-'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Pre-filled with the Rate Card's suggested figure for the
+                // derived care tier + frequency once it's available (see
+                // _refreshSuggestedSalary), refreshed as related fields
+                // above change — but never overwriting something the
+                // patient already typed themselves. Free text, not a
+                // number, so it can carry a range or a note exactly as
+                // admin wrote it in the Rate Card.
+                TextField(
+                  key: _salaryKey,
+                  controller: _salaryController,
+                  focusNode: _salaryFocusNode,
+                  maxLines: null,
+                  decoration: InputDecoration(
+                    labelText: 'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
               ],
             ),
             if (_error != null) ...[

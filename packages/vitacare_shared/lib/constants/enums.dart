@@ -133,6 +133,25 @@ class FrequencyOfCare {
   };
 }
 
+/// How long the engagement is expected to last — collected on NurseNow
+/// individual postings only; nullable on a job since admin-posted jobs and
+/// pre-existing rows never set it.
+class CareDuration {
+  static const fewDays = 'few_days';
+  static const fewWeeks = 'few_weeks';
+  static const fewMonths = 'few_months';
+  static const longTerm = 'long_term';
+
+  static const all = [fewDays, fewWeeks, fewMonths, longTerm];
+
+  static const displayNames = {
+    fewDays: 'Few Days',
+    fewWeeks: 'Few Weeks',
+    fewMonths: 'Few Months',
+    longTerm: 'Long Term',
+  };
+}
+
 class Communication {
   static const verbal = 'verbal';
   static const difficultyCommunicating = 'difficulty_communicating';
@@ -148,18 +167,16 @@ class Communication {
 }
 
 class FeedingType {
-  static const oralIndependent = 'oral_independent';
-  static const oralNeedsAssistance = 'oral_needs_assistance';
+  static const oralFeeding = 'oral_feeding';
   static const tubeFeeding = 'tube_feeding';
-  static const oralAndTube = 'oral_and_tube';
+  static const others = 'others';
 
-  static const all = [oralIndependent, oralNeedsAssistance, tubeFeeding, oralAndTube];
+  static const all = [oralFeeding, tubeFeeding, others];
 
   static const displayNames = {
-    oralIndependent: 'Oral feeding – independent',
-    oralNeedsAssistance: 'Oral feeding – needs assistance',
+    oralFeeding: 'Oral feeding',
     tubeFeeding: 'Tube feeding',
-    oralAndTube: 'Both oral and tube feeding',
+    others: 'Others (Cannula etc.)',
   };
 }
 
@@ -230,29 +247,18 @@ class MedicalCondition {
 }
 
 class ToiletAssistance {
-  static const usesDiapers = 'uses_diapers';
-  static const usesBedPan = 'uses_bed_pan';
-  static const usesCatheter = 'uses_catheter';
-  static const completeAssistance = 'complete_toileting_assistance';
-  static const others = 'others';
   static const independent = 'independent';
+  static const diapersBedsideSupport = 'diapers_bedside_support';
+  static const usesCatheter = 'uses_catheter';
+  static const others = 'others';
 
-  static const all = [
-    usesDiapers,
-    usesBedPan,
-    usesCatheter,
-    completeAssistance,
-    others,
-    independent,
-  ];
+  static const all = [independent, diapersBedsideSupport, usesCatheter, others];
 
   static const displayNames = {
-    usesDiapers: 'Uses diapers',
-    usesBedPan: 'Uses bed pan',
-    usesCatheter: 'Uses catheter',
-    completeAssistance: 'Complete toileting assistance',
+    independent: 'Independent/minimal support',
+    diapersBedsideSupport: 'Diapers/bedside support',
+    usesCatheter: 'Catheter support',
     others: 'Others',
-    independent: 'Independent',
   };
 }
 

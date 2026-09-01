@@ -159,7 +159,7 @@ void main() {
 
   group('deriveCareTier', () {
     CareReceiverModel careReceiver({
-      String feedingType = FeedingType.oralIndependent,
+      String feedingType = FeedingType.oralFeeding,
       bool hasMedicalCondition = false,
       List<String> medicalConditions = const [],
       List<String> toiletAssistance = const [ToiletAssistance.independent],
@@ -183,23 +183,16 @@ void main() {
       expect(deriveCareTier(careReceiver()), CareTier.companionCare);
     });
 
-    test('diaper assistance derives to bedsideCare', () {
+    test('diapers/bedside support derives to bedsideCare', () {
       expect(
-        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.usesDiapers])),
+        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.diapersBedsideSupport])),
         CareTier.bedsideCare,
       );
     });
 
-    test('bed pan assistance derives to bedsideCare', () {
+    test('an unspecified other toileting need derives to bedsideCare', () {
       expect(
-        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.usesBedPan])),
-        CareTier.bedsideCare,
-      );
-    });
-
-    test('feeding assistance derives to bedsideCare', () {
-      expect(
-        deriveCareTier(careReceiver(feedingType: FeedingType.oralNeedsAssistance)),
+        deriveCareTier(careReceiver(toiletAssistance: const [ToiletAssistance.others])),
         CareTier.bedsideCare,
       );
     });
@@ -222,8 +215,8 @@ void main() {
       expect(deriveCareTier(careReceiver(feedingType: FeedingType.tubeFeeding)), CareTier.criticalCare);
     });
 
-    test('oral and tube feeding derives to criticalCare', () {
-      expect(deriveCareTier(careReceiver(feedingType: FeedingType.oralAndTube)), CareTier.criticalCare);
+    test('"Others (Cannula etc.)" feeding derives to criticalCare', () {
+      expect(deriveCareTier(careReceiver(feedingType: FeedingType.others)), CareTier.criticalCare);
     });
 
     test('requiring vital monitoring derives to criticalCare', () {
@@ -252,12 +245,75 @@ void main() {
     test('critical-tier needs win even when bedside-tier needs are also present', () {
       expect(
         deriveCareTier(careReceiver(
-          toiletAssistance: const [ToiletAssistance.usesDiapers, ToiletAssistance.usesCatheter],
-          feedingType: FeedingType.oralNeedsAssistance,
+          toiletAssistance: const [ToiletAssistance.diapersBedsideSupport, ToiletAssistance.usesCatheter],
           requiresVitalMonitoring: true,
         )),
         CareTier.criticalCare,
       );
+    });
+  });
+
+  group('frequencyForCareDuration', () {
+    test('few days and few weeks map to daily', () {
+      expect(frequencyForCareDuration(CareDuration.fewDays), FrequencyOfCare.daily);
+      expect(frequencyForCareDuration(CareDuration.fewWeeks), FrequencyOfCare.daily);
+    });
+
+    test('few months and long term map to monthly', () {
+      expect(frequencyForCareDuration(CareDuration.fewMonths), FrequencyOfCare.monthly);
+      expect(frequencyForCareDuration(CareDuration.longTerm), FrequencyOfCare.monthly);
+    });
+  });
+
+  group('suggestedRate', () {
+    final rateCards = [
+      RateCardModel(
+        frequencyOfCare: FrequencyOfCare.daily,
+        title: 'Daily',
+        columnLabels: const ['Companion care', 'Bedside Care', 'Critical Care'],
+        rowLabels: const ['Care'],
+        cells: const [
+          ['867 per day', '933 per day', '1067 per day'],
+        ],
+      ),
+      RateCardModel(
+        frequencyOfCare: FrequencyOfCare.monthly,
+        title: 'Monthly',
+        columnLabels: const ['Companion care', 'Bedside Care', 'Critical Care'],
+        rowLabels: const ['Care'],
+        cells: const [
+          ['26000 pm', '28000 pm', '32000 pm'],
+        ],
+      ),
+    ];
+
+    test('picks the Companion column from the matching frequency', () {
+      expect(suggestedRate(rateCards, CareTier.companionCare, FrequencyOfCare.daily), '867 per day');
+      expect(suggestedRate(rateCards, CareTier.companionCare, FrequencyOfCare.monthly), '26000 pm');
+    });
+
+    test('picks the Bedside and Critical columns correctly', () {
+      expect(suggestedRate(rateCards, CareTier.bedsideCare, FrequencyOfCare.daily), '933 per day');
+      expect(suggestedRate(rateCards, CareTier.criticalCare, FrequencyOfCare.monthly), '32000 pm');
+    });
+
+    test('returns null when no rate card matches the requested frequency', () {
+      expect(suggestedRate([rateCards[0]], CareTier.companionCare, FrequencyOfCare.monthly), isNull);
+    });
+
+    test('returns null for an unrecognized tier', () {
+      expect(suggestedRate(rateCards, 'unknown_tier', FrequencyOfCare.daily), isNull);
+    });
+
+    test('returns null when the matching rate card has no rows', () {
+      final empty = RateCardModel(
+        frequencyOfCare: FrequencyOfCare.daily,
+        title: 'Daily',
+        columnLabels: const ['Companion care', 'Bedside Care', 'Critical Care'],
+        rowLabels: const [],
+        cells: const [],
+      );
+      expect(suggestedRate([empty], CareTier.companionCare, FrequencyOfCare.daily), isNull);
     });
   });
 }

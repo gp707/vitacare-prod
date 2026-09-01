@@ -12,12 +12,12 @@ export class UpdateRateCardDto {
   column_labels!: string[];
 
   @IsArray({ message: 'GEN_001' })
-  @ArrayMinSize(3, { message: 'GEN_001' })
-  @ArrayMaxSize(3, { message: 'GEN_001' })
+  @ArrayMinSize(1, { message: 'GEN_001' })
+  @ArrayMaxSize(1, { message: 'GEN_001' })
   @IsString({ each: true, message: 'GEN_001' })
   row_labels!: string[];
 
-  // Validated as a 3x3 grid of strings in RateCardService — class-validator
+  // Validated as a 1x3 grid of strings in RateCardService — class-validator
   // has no clean built-in decorator for a nested string[][] shape, and this
   // needs its own RATE_001 error code rather than the generic GEN_001 the
   // decorators above fall back to.

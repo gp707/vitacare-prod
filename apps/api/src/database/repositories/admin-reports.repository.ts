@@ -17,7 +17,6 @@ export interface StalledDutyRow {
   full_name: string;
   phone: string;
   engagement_type: 'job' | 'requirement';
-  job_number: number | null;
   admin_job_number: number | null;
   patient_job_number: number | null;
   requirement_number: number | null;
@@ -48,7 +47,6 @@ export interface PatientJobRow {
   full_name: string;
   phone: string;
   job_id: string;
-  job_number: number;
   admin_job_number: number | null;
   patient_job_number: number | null;
   job_status: string;
@@ -138,7 +136,7 @@ export class AdminReportsRepository {
       `SELECT
          cp.id AS profile_id, cp.caregiver_number, u.full_name, u.phone,
          'job' AS engagement_type,
-         j.job_number, j.admin_job_number, j.patient_job_number, NULL::int AS requirement_number,
+         j.admin_job_number, j.patient_job_number, NULL::int AS requirement_number,
          ja.accepted_at,
          EXTRACT(DAY FROM NOW() - ja.accepted_at)::int AS days_since_accepted
        FROM job_applications ja
@@ -150,7 +148,7 @@ export class AdminReportsRepository {
        SELECT
          cp.id AS profile_id, cp.caregiver_number, u.full_name, u.phone,
          'requirement' AS engagement_type,
-         NULL::int, NULL::int, NULL::int, r.requirement_number,
+         NULL::int, NULL::int, r.requirement_number,
          ora.accepted_at,
          EXTRACT(DAY FROM NOW() - ora.accepted_at)::int AS days_since_accepted
        FROM organisation_requirement_applications ora
@@ -220,7 +218,7 @@ export class AdminReportsRepository {
     const result = await this.db.query<PatientNoApplicantsRow>(
       `SELECT
          ip.id AS profile_id, ip.user_id, ip.patient_number, u.full_name, u.phone,
-         j.id AS job_id, j.job_number, j.admin_job_number, j.patient_job_number, j.status AS job_status,
+         j.id AS job_id, j.admin_job_number, j.patient_job_number, j.status AS job_status,
          j.posted_at
        FROM individual_profiles ip
        JOIN users u ON u.id = ip.user_id
@@ -243,7 +241,7 @@ export class AdminReportsRepository {
     const result = await this.db.query<PatientNoPendingCandidateRow>(
       `SELECT
          ip.id AS profile_id, ip.user_id, ip.patient_number, u.full_name, u.phone,
-         j.id AS job_id, j.job_number, j.admin_job_number, j.patient_job_number, j.status AS job_status
+         j.id AS job_id, j.admin_job_number, j.patient_job_number, j.status AS job_status
        FROM individual_profiles ip
        JOIN users u ON u.id = ip.user_id
        JOIN jobs j ON j.posted_by = ip.user_id AND j.status IN ('active', 'pending_review')
@@ -261,13 +259,13 @@ export class AdminReportsRepository {
     const result = await this.db.query<PatientUnconvertedApplicantsRow>(
       `SELECT
          ip.id AS profile_id, ip.user_id, ip.patient_number, u.full_name, u.phone,
-         j.id AS job_id, j.job_number, j.admin_job_number, j.patient_job_number, j.status AS job_status,
+         j.id AS job_id, j.admin_job_number, j.patient_job_number, j.status AS job_status,
          COUNT(ja.id)::int AS applicant_count
        FROM individual_profiles ip
        JOIN users u ON u.id = ip.user_id
        JOIN jobs j ON j.posted_by = ip.user_id AND j.status IN ('active', 'pending_review')
        JOIN job_applications ja ON ja.job_id = j.id
-       GROUP BY ip.id, ip.user_id, ip.patient_number, u.full_name, u.phone, j.id, j.job_number, j.admin_job_number,
+       GROUP BY ip.id, ip.user_id, ip.patient_number, u.full_name, u.phone, j.id, j.admin_job_number,
          j.patient_job_number, j.status, j.posted_at
        HAVING COUNT(ja.id) FILTER (WHERE ja.status = 'accepted') = 0
        ORDER BY j.posted_at DESC`,

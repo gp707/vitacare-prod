@@ -67,6 +67,17 @@ export const FrequencyOfCare = {
 } as const;
 export type FrequencyOfCare = (typeof FrequencyOfCare)[keyof typeof FrequencyOfCare];
 
+/** How long the engagement is expected to last — collected on NurseNow
+ *  individual postings only (see CLAUDE.md); nullable on `jobs` since
+ *  admin-posted jobs and pre-existing rows never set it. */
+export const CareDuration = {
+  FEW_DAYS: 'few_days',
+  FEW_WEEKS: 'few_weeks',
+  FEW_MONTHS: 'few_months',
+  LONG_TERM: 'long_term',
+} as const;
+export type CareDuration = (typeof CareDuration)[keyof typeof CareDuration];
+
 export const Communication = {
   VERBAL: 'verbal',
   DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
@@ -75,10 +86,9 @@ export const Communication = {
 export type Communication = (typeof Communication)[keyof typeof Communication];
 
 export const FeedingType = {
-  ORAL_INDEPENDENT: 'oral_independent',
-  ORAL_NEEDS_ASSISTANCE: 'oral_needs_assistance',
+  ORAL_FEEDING: 'oral_feeding',
   TUBE_FEEDING: 'tube_feeding',
-  ORAL_AND_TUBE: 'oral_and_tube',
+  OTHERS: 'others',
 } as const;
 export type FeedingType = (typeof FeedingType)[keyof typeof FeedingType];
 
@@ -106,12 +116,10 @@ export const MedicalCondition = {
 export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];
 
 export const ToiletAssistance = {
-  USES_DIAPERS: 'uses_diapers',
-  USES_BED_PAN: 'uses_bed_pan',
-  USES_CATHETER: 'uses_catheter',
-  COMPLETE_ASSISTANCE: 'complete_toileting_assistance',
-  OTHERS: 'others',
   INDEPENDENT: 'independent',
+  DIAPERS_BEDSIDE_SUPPORT: 'diapers_bedside_support',
+  USES_CATHETER: 'uses_catheter',
+  OTHERS: 'others',
 } as const;
 export type ToiletAssistance = (typeof ToiletAssistance)[keyof typeof ToiletAssistance];
 

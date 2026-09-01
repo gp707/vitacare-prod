@@ -25,18 +25,21 @@ class RateCardRepository {
 
   RateCardRepository(this._dio);
 
-  Future<RateCardWithUpdater> get() async {
+  /// Always exactly 2 entries, one per frequency ('daily'/'monthly').
+  Future<List<RateCardWithUpdater>> get() async {
     try {
       final res = await _dio.get('/admin/rate-card');
-      return RateCardWithUpdater.fromJson(res.data['data'] as Map<String, dynamic>);
+      return (res.data['data'] as List)
+          .map((e) => RateCardWithUpdater.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  Future<void> update(RateCardModel rateCard) async {
+  Future<void> update(String frequency, RateCardModel rateCard) async {
     try {
-      await _dio.patch('/admin/rate-card', data: rateCard.toJson());
+      await _dio.patch('/admin/rate-card/$frequency', data: rateCard.toJson());
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

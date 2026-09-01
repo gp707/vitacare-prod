@@ -26,10 +26,7 @@ String _auditJobDisplayId(AuditLogEntry entry) {
   if (entry.adminJobNumber != null) {
     return 'ADMIN-JOB-${entry.adminJobNumber}';
   }
-  if (entry.patientJobNumber != null) {
-    return 'PAT-JOB-${entry.patientJobNumber}';
-  }
-  return 'JOB-${entry.jobNumber}';
+  return 'PAT-JOB-${entry.patientJobNumber}';
 }
 
 /// Same convention as organisationJobDisplayId() from the shared package —
@@ -289,7 +286,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
             entry.createdAt.replaceFirst('T', ' ').split('.').first),
         VitaListCard.kv('Actor', entry.userName ?? '-'),
         VitaListCard.kv('Entity', entry.entityType),
-        if (entry.jobNumber != null || entry.requirementNumber != null) ...[
+        if (entry.jobId != null || entry.requirementNumber != null) ...[
           const Padding(
               padding: EdgeInsets.only(top: 2),
               child: Text('Job / Requirement:', style: _mobileFieldLabelStyle)),
@@ -315,7 +312,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
   /// screen, unlike jobs' JobDetailDialog which is already a standalone
   /// public widget.
   Widget _buildJobOrRequirementCell(AuditLogEntry entry) {
-    if (entry.jobNumber != null && entry.jobId != null) {
+    if (entry.jobId != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

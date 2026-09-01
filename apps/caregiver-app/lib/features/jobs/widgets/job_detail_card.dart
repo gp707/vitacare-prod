@@ -263,6 +263,10 @@ class _JobDetailCardState extends State<JobDetailCard> {
               // never see — GET /caregiver/jobs only returns active jobs).
               if (job.frequencyOfCare != null)
                 Tag(FrequencyOfCare.displayNames[job.frequencyOfCare!] ?? job.frequencyOfCare!),
+              // Only ever set on a NurseNow individual's own posting — null
+              // for an admin-posted job.
+              if (job.careDuration != null)
+                Tag(CareDuration.displayNames[job.careDuration!] ?? job.careDuration!),
               if (job.area != null && job.area!.isNotEmpty) Tag(job.area!),
               for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
               if (job.preferredGender != null) Tag(capitalize(job.preferredGender!)),
