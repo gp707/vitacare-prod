@@ -209,15 +209,53 @@ location) that didn't fit the Individual/admin jobs-table model.
   `GET /individual/requirements` returns the account's full requirement history (not just the
   current one), each with its `care_receiver` joined in, so a past requirement's full detail and
   its applicants (including who was accepted) stay visible after it closes — not just while live.
-  **nursenow-app has a 2-tab bottom nav** (`NurseNowBottomNav`, mirroring NurseJobs'
-  `CaregiverBottomNav`): **Profile** (`/profile` — identity, phone/PIN self-edit, Logout) and
-  **Jobs Posted** (`/home` — `JobsPostedScreen`, the full requirement history described above,
+  **nursenow-app has a 2-tab bottom nav for Organisation and a 3-tab one for Individual**
+  (`NurseNowBottomNav`, mirroring NurseJobs' `CaregiverBottomNav`): **Profile** (`/profile` —
+  identity, phone/PIN self-edit, Logout, shared route for both account types) and, Individual only,
+  **Messages** (`/messages` — `MessagesScreen`, see below) in between, then **Jobs Posted**
+  (`/home` — `JobsPostedScreen`, the full requirement history described above,
   each card showing the full About Patient / About Nurse-Caregiver Requirement detail inline, an
   always-visible applicants list once a requirement leaves `pending_review` [so an accepted
   caregiver's name/phone stay visible after the job closes], and a "Post a Requirement" CTA that's
   shown whenever the account has **no live requirement** — i.e. none `pending_review` or
   `active` — not merely whenever the history list is non-empty, so posting again is always
   possible once the current one closes or is rejected).
+- **Messages** (`/messages` — `MessagesScreen`, Individual-only) is a purely **client-computed**
+  tab — no new backend endpoint, no persistence, no read/unread state. It re-fetches the account's
+  own requirements via the same `GET /individual/requirements` call `JobsPostedScreen` makes, then
+  runs each one through `messagesForRequirement(JobModel)`
+  (`features/individual/data/requirement_messages.dart`), which returns a `List<String>` of every
+  tip that currently applies — always reflecting whatever the requirement's current status/care
+  needs are right now, recomputed fresh on every load, nothing dismissible or marked-seen. Returns
+  nothing at all once the requirement is no longer live (`pending_review`/`active` — the same
+  `isLive` concept `JobsPostedScreen`/`JOB_009` use elsewhere). While live, up to 4 messages apply,
+  always in this fixed order (not a real timeline — none of these are one-off events with their
+  own timestamp):
+  1. "You can edit this job and change salary. Typically it takes 3 to 5 days for caregivers to
+     reach out. If urgent, do not hesitate to click on the red button at the top of the app for
+     help." (the "red button" is the existing `WhatsAppHelpButton`, styled `AppColors.error`) —
+     always shown while live.
+  2. "Based on the patient's condition we see you need `<tier>`..." — only once the requirement
+     has a `care_receiver` (always true once actually posted; a defensive `null`-check purely for
+     robustness). The tier names `deriveCareTier(careReceiver)` derives (`CareTier.displayNames`),
+     the same derivation `ScopeOfWorkButton`/the Post/Edit form's own clickable tier line use —
+     points the patient at the Rate Card and Scope of Work features for that tier.
+  3. "You can post one requirement at a time…" — a static explainer of the one-live-requirement
+     rule (`JOB_009`) and that cancelling is always available, shown while live regardless of any
+     other field.
+  4. "If you are not getting applicants, consider widening your scope…" (monthly/long-term,
+     religion, and caregiver-gender preference) — shown unconditionally while live, **not**
+     gated on the requirement's actual current preferences or how long it's been posted; "everyday
+     there should be a message if a job is live" was interpreted as "keeps appearing every day the
+     job stays live" given the deliberately-computed-not-persisted architecture (see below), not a
+     literal once-per-calendar-day dedup, which would need state to track.
+  This was a deliberate architecture choice on request: **computed live from data already fetched,
+  no backend changes** — the simpler of two options considered, the other being a real
+  backend-tracked message table with read/unread state and permanent history; that was explicitly
+  turned down in favor of this one. `NurseNowBottomNav`'s tab-index mapping is **different per
+  account type** — Individual is `[Profile, Messages, Jobs Posted]` (0/1/2), Organisation stays
+  `[Profile, Requirements]` (0/1) — every screen's own `bottomNavigationBar` passes its own fixed
+  `currentIndex` matching its position in whichever list applies to its account type.
 - **Applicant review is a free list — every candidate's profile and phone number stay visible,
   regardless of who rejected whom, and a previously-rejected candidate can always be reconsidered.**
   The patient/family sees the total count up front ("N candidates applied in total") plus every

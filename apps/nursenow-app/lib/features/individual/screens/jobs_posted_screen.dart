@@ -283,7 +283,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
         actions: const [RateCardButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,
-      bottomNavigationBar: const NurseNowBottomNav(currentIndex: 1),
+      bottomNavigationBar: const NurseNowBottomNav(currentIndex: 2),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
