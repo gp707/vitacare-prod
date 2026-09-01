@@ -23,6 +23,7 @@ import { OtpAuthSettingsRepository } from './repositories/otp-auth-settings.repo
 import { OtpVerificationsRepository } from './repositories/otp-verifications.repository';
 import { RateCardRepository } from './repositories/rate-card.repository';
 import { ScopeOfWorkRepository } from './repositories/scope-of-work.repository';
+import { DutyRequirementsRepository } from './repositories/duty-requirements.repository';
 
 const repositories = [
   UsersRepository,
@@ -48,6 +49,7 @@ const repositories = [
   OtpVerificationsRepository,
   RateCardRepository,
   ScopeOfWorkRepository,
+  DutyRequirementsRepository,
 ];
 
 @Global()

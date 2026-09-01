@@ -326,7 +326,28 @@ location) that didn't fit the Individual/admin jobs-table model.
   negotiate with nurse staff." helper line moved into the same bar, directly under the Salary
   field. **`PostRequirementScreen` also no longer shows the "An admin reviews every new requirement
   before it goes live and caregivers can see it." info banner** that used to sit above "Patient
-  Details" — removed outright, not relocated.
+  Details" — removed outright, not relocated. **The Salary input itself only appears once Duration
+  Care is Needed, Toilet Assistance, and Feeding/Medicine Assistance are all filled in** — exactly
+  the 3 fields the derived tier/frequency (and therefore the Rate Card suggestion) depend on;
+  until then the bar shows a placeholder hint ("Salary will appear here once...") in the same spot
+  instead of an input with nothing meaningful to suggest yet. This is a pure UI gate — `_salaryKey`
+  is still positioned after `_toiletAssistanceKey`/`_feedingTypeKey` in `_mandatoryFieldsInOrder`,
+  so Submit's highlight-and-scroll never targets a Salary field that isn't in the tree yet (those 3
+  fields are already guaranteed valid by the time the mandatory-field loop would reach Salary).
+  When editing an existing requirement (`EditRequirementScreen`), these 3 fields are normally
+  already pre-filled from it in `initState`, so the Salary input appears immediately in practice.
+  **The bar itself is styled as a bold yellow ribbon** — `Colors.amber` solid fill, rounded bottom
+  corners, a drop shadow lifting it off the page — rather than a plain white bordered box, so the
+  single most important figure on the form reads as a banner rather than just another field; the
+  Salary `TextField` itself keeps a white `filled` background so it still reads as editable against
+  the colored ribbon. No icon or "SALARY" heading sits above the input (the field's own label
+  already says "Salary") — text placed directly on the ribbon (the placeholder hint before the
+  field is ready, and the "You can always negotiate with nurse staff." caption below it) uses
+  `AppColors.textPrimary` (dark), not white, for readable contrast against yellow. **The field's
+  label reads "Salary (₹/day) (Negotiable)" / "Salary (₹/month) (Negotiable)"** — "(Mandatory)" was
+  renamed to "(Negotiable)" purely as a wording choice matching the negotiate caption below it; the
+  field is still validation-mandatory for submission (`_isSalaryValid` still gates Submit and the
+  mandatory-field highlight-and-scroll), only the displayed label text changed.
 - **admin-web's job form (`_JobFormDialog` in
   `apps/admin-web/lib/features/jobs/screens/admin_jobs_screen.dart`, used for both admin's own
   from-scratch job posting AND creating/editing any job via `POST`/`PATCH /admin/jobs`) has one
@@ -725,6 +746,60 @@ the same "these guidelines are for individual hiring, not institutional bulk hir
     `_DetailRow` in the dialog) at the bottom of `JobReadOnlyDetailDialog`'s "About Patient"
     section, read-only — an admin can see which tier a job derives to, never override it, since
     the tier is always computed from that job's own care_receiver, exactly like the other two apps.
+- **nursenow-app's Post/Edit Requirement screens surface the derived tier directly under the
+  Salary ribbon, as a clickable line** — "Based on the requirements you entered, this appears to
+  be a `<tier>`." with the tier name itself tappable, opening the exact same Scope of Work dialog
+  the standalone `ScopeOfWorkButton` uses. To make this reusable, `apps/nursenow-app/lib/app/
+  scope_of_work_button.dart`'s dialog widget was renamed from private `_ScopeOfWorkDialog` to
+  public `ScopeOfWorkDialog` (and its `State` class to `ScopeOfWorkDialogState`) — both
+  `ScopeOfWorkButton` and `PostRequirementScreen`/`EditRequirementScreen`'s own
+  `_buildDerivedTierLine()` construct it directly (`showDialog(builder: (_) => ScopeOfWorkDialog(
+  tier: ..., repository: ref.read(scopeOfWorkRepositoryProvider)))`), rather than duplicating the
+  fetch/loading/error logic. This replaced the old "You can always negotiate with nurse staff."
+  static caption that used to sit in the same spot on the Salary ribbon — removed outright, not
+  kept alongside the new line.
+
+## Duty Requirements
+
+A single admin-editable set of 3 independent bullet lists — **24Hrs - Live In**, **12Hrs Day
+Shift (8am to 8pm)**, **12Hrs Night Shift (8pm to 8am)** — stored in the `duty_requirements` table
+(migration/psql-applied directly like `scope_of_work`/`rate_card`; a singleton row, `id` fixed to
+1 by a DB CHECK). Describes what the patient/family must **arrange for the nurse** under each
+shift (bedding/meals/supplies, no cooking or household chores, etc.) — a wholly separate concept
+from Scope of Work (which describes caregiving **tasks** by care tier, not what the family must
+arrange by shift) and from Rate Card (salary guidance). **Unlike Scope of Work's tiers, these 3
+lists are NOT cumulative** — each shift stands alone; `DutyRequirementsModel.bulletsFor(dutyType)`
+just returns that one shift's own list, no stacking.
+
+- **Backend** (`apps/api/src/duty-requirements/`): mirrors `scope-of-work`'s exact shape — `GET
+  /duty-requirements` is public (no auth); `GET /admin/duty-requirements` (adds
+  `updated_by_name`) and `PATCH /admin/duty-requirements` are `ADMIN`/`SUPER_ADMIN`-only, audit-
+  logged via `AuditAction.DUTY_REQUIREMENTS_UPDATED` (entityType `'duty_requirements'`, no
+  `entityId`, same non-UUID-PK reasoning as `rate_card`/`scope_of_work`). `DUTY_001` covers an
+  empty list or a list containing a blank/whitespace-only bullet — checked in
+  `DutyRequirementsService`, not via class-validator, since `@IsString({each: true})` alone
+  doesn't reject blank strings (identical reasoning to `SCOPE_001`). `audit_logs.action`'s DB-level
+  CHECK constraint had to be widened (dropped and re-added with `duty_requirements_updated`
+  appended) to accept the new action value — the TypeScript/Dart enum additions alone aren't
+  enough, since the column itself is constrained.
+- **nursenow-app**: `DutyRequirementsInfoButton` (`features/individual/widgets/
+  duty_requirements_button.dart`) — a small ⓘ icon button next to "Hours Care Needed" on
+  `PostRequirementScreen`/`EditRequirementScreen`, disabled until a shift is actually selected
+  (the content is entirely shift-specific, no sensible default to show beforehand). Tapping it
+  opens `DutyRequirementsDialog`, which fetches `GET /duty-requirements` fresh on every tap (own
+  `DutyRequirementsRepository`/`dutyRequirementsRepositoryProvider`, not cached) and renders
+  `dutyRequirements.bulletsFor(selectedDutyType)`. Not shown anywhere else (not on admin-web's job
+  form or Organisation's posting screen) — this is patient/family-facing operational guidance for
+  a NurseNow Individual posting specifically.
+- **admin-web**: `/duty-requirements` screen (`features/duty_requirements/`) — same free-length-
+  bullet-list editing pattern as `/scope-of-work` (every bullet its own `TextField` with a delete
+  button, plus an "Add bullet" button per shift section), just 3 independent sections instead of
+  3 cumulative tiers. `DutyRequirementsRepository.get()` returns a `DutyRequirementsWithUpdater`
+  wrapper (hits authenticated `GET /admin/duty-requirements`); `.update()` sends a bare
+  `DutyRequirementsModel` to `PATCH /admin/duty-requirements`. Reachable via a "Duty Requirements"
+  sidebar nav item (any admin, unconditional — same placement convention as Rate Card/Scope of
+  Work) and registered in `root_screen.dart`'s `_restorableRoutes` safe-list (the page-refresh-
+  stays-on-page fix — every new static admin-web route needs this).
 
 ## Naming Conventions (STRICT)
 
@@ -869,11 +944,22 @@ Field labeled "Hours Care Needed" in the admin-web UI (underlying field/column n
 - `day_duty` — "12Hrs Day Shift (8am to 8pm)"
 - `night_duty` — "12Hrs Night Shift (8pm to 8am)"
 
+**nursenow-app's Individual Post/Edit Requirement forms show a ⓘ info button next to "Hours Care
+Needed"** (`DutyRequirementsInfoButton`, `apps/nursenow-app/lib/features/individual/widgets/
+duty_requirements_button.dart`) — tapping it opens a dialog listing what the patient/family must
+arrange for the nurse under whichever shift is currently selected (bedding/meals for Live-In,
+meals for Day/Night shift, gloves/masks/supplies, no cooking or household chores, etc. — a fixed
+per-shift bullet list). Disabled (greyed out) until a shift is actually picked, since the content
+is entirely shift-specific. **This content is static, hardcoded client-side, and NOT
+admin-editable** — unlike Rate Card/Scope of Work, there's no backend model or admin screen behind
+it, since it wasn't requested and the content is fixed operational policy, not care-need guidance.
+NurseNow-Individual-specific — not shown on admin-web's job form or Organisation's posting screen.
+
 ### Frequency of Care
 Required single-select on a job, alongside Duty Type/Hours Care Needed: `daily` ("Daily"), `monthly` ("Monthly"). Visible to caregivers on the job card same as every other requirement field.
 
 ### Care Duration
-`few_days` ("Few Days"), `few_weeks` ("Few Weeks"), `few_months` ("Few Months"), `long_term` ("Long Term") — `jobs.care_duration` (migration 056). Required single-select, "Duration Care is Needed", shown directly below "Preferred Start Date" in nursenow-app's Individual Post/Edit Requirement forms — only the posting individual ever sets it, never admin (see "NurseNow" above). Nullable at the DB level (admin-posted jobs and every row that predates this column leave it `null`); visible read-only wherever a job's other requirement fields are shown once set (caregiver-app's `JobDetailCard`, admin-web's `JobReadOnlyDetailDialog`, nursenow-app's own `JobsPostedScreen`).
+`few_days` ("Need for few Days"), `few_weeks` ("Need for Few Weeks"), `few_months` ("Need for Minimum a Month"), `long_term` ("Need for Long Term") — `jobs.care_duration` (migration 056). Required single-select, "Duration Care is Needed", shown directly below "Preferred Start Date" in nursenow-app's Individual Post/Edit Requirement forms — only the posting individual ever sets it, never admin (see "NurseNow" above). Nullable at the DB level (admin-posted jobs and every row that predates this column leave it `null`); visible read-only wherever a job's other requirement fields are shown once set (caregiver-app's `JobDetailCard`, admin-web's `JobReadOnlyDetailDialog`, nursenow-app's own `JobsPostedScreen`). **Picking `few_days`/`few_weeks` shows a purely-advisory warning right below the dropdown** (`_showShortTermDurationWarning`, same amber warning-container styling and never-blocks-submission convention as the gender/language/religion preference warnings on the same form) — "Short-term requirement / Many nurses do not accept short-term assignments...", suggesting the family edit to `few_months` ("Need for Minimum a Month") later if they get few/no applicants. `few_months`/`long_term` show no warning.
 
 ### Mobility — removed from the product entirely
 The old `walks_independently`/`walks_with_assistance`/`uses_walker`/`uses_wheelchair`/`bedridden`

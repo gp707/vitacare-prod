@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:nursenow_app/core/duty_requirements/duty_requirements_repository.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/rate_card/rate_card_repository.dart';
+import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/edit_requirement_screen.dart';
 
@@ -84,6 +86,28 @@ class _FakeRateCardRepository extends RateCardRepository {
   }
 }
 
+class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
+  _FakeScopeOfWorkRepository() : super(Dio());
+
+  @override
+  Future<ScopeOfWorkModel> get() async => ScopeOfWorkModel(
+        companionCare: const ['Companion bullet'],
+        bedsideCare: const ['Bedside bullet'],
+        criticalCare: const ['Critical bullet'],
+      );
+}
+
+class _FakeDutyRequirementsRepository extends DutyRequirementsRepository {
+  _FakeDutyRequirementsRepository() : super(Dio());
+
+  @override
+  Future<DutyRequirementsModel> get() async => const DutyRequirementsModel(
+        liveIn: ['Live-in bullet'],
+        dayDuty: ['Day-duty bullet'],
+        nightDuty: ['Night-duty bullet'],
+      );
+}
+
 class _FakeIndividualRepository extends IndividualRepository {
   final ApiException? editError;
   bool editCalled = false;
@@ -145,6 +169,8 @@ Future<void> _pumpTall(
         rateCardRepositoryProvider.overrideWithValue(
           _FakeRateCardRepository(result: rateCards ?? const [], error: rateCardError),
         ),
+        scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
+        dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
       ],
       child: MaterialApp(home: EditRequirementScreen(requirement: requirement)),
     ),
@@ -167,7 +193,17 @@ void main() {
     // bar instead, and Frequency of Care is no longer shown at all.
     expect(find.text('Nurse Fee Guidance'), findsNothing);
     expect(find.text('Frequency of Care'), findsNothing);
-    expect(find.text('You can always negotiate with nurse staff.'), findsOneWidget);
+    // Default fixture's care_receiver is independent/oral-feeding -> Companion Care.
+    expect(find.textContaining('this appears to be a'), findsOneWidget);
+    expect(find.text('Companion Care'), findsOneWidget);
+
+    // Tapping the tier name opens the Scope of Work dialog for that tier.
+    await tester.tap(find.text('Companion Care'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AlertDialog, 'Companion Care'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('Care Location'), findsNothing);
     expect(find.text('Mobility (optional)'), findsNothing);
@@ -186,7 +222,7 @@ void main() {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo, _requirement());
 
-    expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)'), findsOneWidget);
   });
 
   group('Frequency of Care is no longer shown as its own field — only the Salary unit reflects it', () {
@@ -199,7 +235,7 @@ void main() {
       );
 
       expect(find.text('Frequency of Care'), findsNothing);
-      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)'), findsOneWidget);
     });
 
     testWidgets('long_term derives to Monthly', (tester) async {
@@ -210,7 +246,7 @@ void main() {
         _requirement(frequencyOfCare: 'daily', salaryAmount: '9999', careDuration: 'long_term'),
       );
 
-      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Negotiable)'), findsOneWidget);
     });
   });
 

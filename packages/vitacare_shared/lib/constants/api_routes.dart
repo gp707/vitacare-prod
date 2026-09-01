@@ -67,4 +67,6 @@ class ApiRoutes {
   static const rateCard = '/rate-card';
 
   static const scopeOfWork = '/scope-of-work';
+
+  static const dutyRequirements = '/duty-requirements';
 }

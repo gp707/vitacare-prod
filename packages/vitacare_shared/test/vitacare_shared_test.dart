@@ -157,6 +157,34 @@ void main() {
     });
   });
 
+  group('DutyRequirementsModel', () {
+    final dutyRequirements = DutyRequirementsModel(
+      liveIn: ['Bed, bedsheet, pillow and blanket must be provided.', '3 meals daily for the nurse.'],
+      dayDuty: ['Breakfast and lunch for the nurse.'],
+      nightDuty: ['Dinner and breakfast for the nurse.'],
+    );
+
+    test('fromJson/toJson round-trips all 3 lists', () {
+      final json = dutyRequirements.toJson();
+      final parsed = DutyRequirementsModel.fromJson(json);
+      expect(parsed.liveIn, dutyRequirements.liveIn);
+      expect(parsed.dayDuty, dutyRequirements.dayDuty);
+      expect(parsed.nightDuty, dutyRequirements.nightDuty);
+    });
+
+    test('bulletsFor liveIn returns only the live-in list, not stacked with anything', () {
+      expect(dutyRequirements.bulletsFor(DutyType.liveIn), dutyRequirements.liveIn);
+    });
+
+    test('bulletsFor dayDuty returns only the day-duty list', () {
+      expect(dutyRequirements.bulletsFor(DutyType.dayDuty), dutyRequirements.dayDuty);
+    });
+
+    test('bulletsFor nightDuty returns only the night-duty list', () {
+      expect(dutyRequirements.bulletsFor(DutyType.nightDuty), dutyRequirements.nightDuty);
+    });
+  });
+
   group('deriveCareTier', () {
     CareReceiverModel careReceiver({
       String feedingType = FeedingType.oralFeeding,

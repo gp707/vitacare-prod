@@ -17,6 +17,7 @@ enum AppShellSection {
   loginSettings,
   rateCard,
   scopeOfWork,
+  dutyRequirements,
 }
 
 /// Nav shell used by every authenticated screen. Below the tablet
@@ -200,6 +201,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.scopeOfWork,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/scope-of-work', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.assignment_outlined,
+                  label: 'Duty Requirements',
+                  selected: current == AppShellSection.dutyRequirements,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/duty-requirements', (r) => false),
                 ),
               ],
             ),

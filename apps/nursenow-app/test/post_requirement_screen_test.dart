@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:nursenow_app/core/duty_requirements/duty_requirements_repository.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/rate_card/rate_card_repository.dart';
+import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/post_requirement_screen.dart';
 
@@ -47,6 +49,28 @@ class _FakeRateCardRepository extends RateCardRepository {
     if (error != null) throw error!;
     return result!;
   }
+}
+
+class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
+  _FakeScopeOfWorkRepository() : super(Dio());
+
+  @override
+  Future<ScopeOfWorkModel> get() async => ScopeOfWorkModel(
+        companionCare: const ['Companion bullet'],
+        bedsideCare: const ['Bedside bullet'],
+        criticalCare: const ['Critical bullet'],
+      );
+}
+
+class _FakeDutyRequirementsRepository extends DutyRequirementsRepository {
+  _FakeDutyRequirementsRepository() : super(Dio());
+
+  @override
+  Future<DutyRequirementsModel> get() async => const DutyRequirementsModel(
+        liveIn: ['Live-in bullet'],
+        dayDuty: ['Day-duty bullet'],
+        nightDuty: ['Night-duty bullet'],
+      );
 }
 
 class _FakeIndividualRepository extends IndividualRepository {
@@ -117,6 +141,8 @@ Future<void> _pumpTall(
         rateCardRepositoryProvider.overrideWithValue(
           _FakeRateCardRepository(result: rateCards ?? _defaultRateCards),
         ),
+        scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
+        dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
       ],
       child: const MaterialApp(home: PostRequirementScreen()),
     ),
@@ -185,7 +211,14 @@ void main() {
     expect(find.text('Please select duty hours'), findsOneWidget);
     expect(find.text('Select a preferred start date'), findsOneWidget);
     expect(find.text('Please select how long care is needed'), findsOneWidget);
-    expect(find.text('Salary is required'), findsOneWidget);
+    // Salary hasn't appeared yet — Duration/Toilet Assistance/Feeding
+    // Assistance are all still unfilled, so the bar shows its placeholder
+    // hint instead of an input with "Salary is required".
+    expect(find.text('Salary is required'), findsNothing);
+    expect(
+      find.textContaining('Salary will appear here once'),
+      findsOneWidget,
+    );
     // Language Preference is never invalid — it defaults to "No
     // Preference" rather than requiring an active choice.
     expect(find.text('No Preference'), findsOneWidget);
@@ -455,6 +488,56 @@ void main() {
     expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
   });
 
+  testWidgets('shows no short-term-duration warning while Duration Care is Needed is untouched', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    expect(find.text('Short-term requirement'), findsNothing);
+  });
+
+  testWidgets('shows the short-term-duration warning for Need for few Days', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Need for few Days').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Short-term requirement'), findsOneWidget);
+    expect(find.textContaining('Many nurses do not accept short-term assignments'), findsOneWidget);
+  });
+
+  testWidgets('shows the short-term-duration warning for Need for Few Weeks', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Need for Few Weeks').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Short-term requirement'), findsOneWidget);
+  });
+
+  testWidgets('hides the short-term-duration warning once switched to Need for Minimum a Month', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pumpTall(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Need for few Days').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Short-term requirement'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Need for Minimum a Month').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Short-term requirement'), findsNothing);
+  });
+
   testWidgets(
       'groups fields under three headed sections — Patient Details, Care Preferences, and Nurse Fee '
       'Guidance — and no longer offers Mobility or the free-text "more details" field',
@@ -468,7 +551,11 @@ void main() {
     // bar instead, and Frequency of Care is no longer shown at all.
     expect(find.text('Nurse Fee Guidance'), findsNothing);
     expect(find.text('Frequency of Care'), findsNothing);
-    expect(find.text('You can always negotiate with nurse staff.'), findsOneWidget);
+    // Duration/Toilet Assistance/Feeding Assistance are all still unfilled
+    // at this point, so the Salary bar shows its placeholder hint, not the
+    // input or the derived-tier line.
+    expect(find.textContaining('Salary will appear here once'), findsOneWidget);
+    expect(find.textContaining('this appears to be a'), findsNothing);
     // The old section headings are gone — everything now lives under the
     // new ones.
     expect(find.text('About Patient'), findsNothing);
@@ -483,12 +570,31 @@ void main() {
     // optional multi-select chip group.
     expect(find.text('Toilet Assistance (Mandatory)'), findsOneWidget);
 
+    // Fill in the 3 fields Salary is gated on so it actually appears, to
+    // check its position/derived-tier line and the rest of the field order.
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Independent/minimal support').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Feeding/Medicine Assistance (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Oral feeding').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Need for Few Weeks').last);
+    await tester.pumpAndSettle();
+
+    // Independent toilet assistance + oral feeding -> Companion Care.
+    expect(find.textContaining('this appears to be a'), findsOneWidget);
+    expect(find.text('Companion Care'), findsOneWidget);
+
     // Patient Details' own fields appear before Care Location's fields
     // moved into it (city/area) — Care Preferences' fields (hours care
     // needed, start date) come after — matching the new order. The Salary
-    // bar sits above all of this, pinned below the AppBar. Duration Care is
-    // Needed hasn't been picked yet at this point, so the Salary label's
-    // unit defaults to ₹/month — matched by prefix, not the exact label.
+    // bar sits above all of this, pinned below the AppBar.
     final salaryTop = tester
         .getTopLeft(find.byWidgetPredicate(
             (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary')))
@@ -502,6 +608,11 @@ void main() {
     expect(patientDetailsTop, lessThan(cityFieldTop));
     expect(cityFieldTop, lessThan(carePreferencesTop));
     expect(carePreferencesTop, lessThan(dutyTypeFieldTop));
+
+    // Tapping the tier name opens the Scope of Work dialog for that tier.
+    await tester.tap(find.text('Companion Care'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AlertDialog, 'Companion Care'), findsOneWidget);
   });
 
   testWidgets('submitting no longer sends mobility or description', (tester) async {
@@ -525,7 +636,7 @@ void main() {
       await _fillMandatoryFields(tester); // picks 'Need for Few Weeks' -> daily
 
       expect(find.text('Frequency of Care'), findsNothing);
-      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)'), findsOneWidget);
     });
 
     testWidgets('the Salary unit switches to ₹/month when Duration is changed to Long Term', (tester) async {
@@ -538,7 +649,7 @@ void main() {
       await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Negotiable)'), findsOneWidget);
     });
 
     testWidgets('Salary is pre-filled with the Companion daily suggestion once Duration is picked', (tester) async {

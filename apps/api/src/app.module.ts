@@ -15,6 +15,7 @@ import { AppConfigModule } from './app-config/app-config.module';
 import { OtpModule } from './otp/otp.module';
 import { RateCardModule } from './rate-card/rate-card.module';
 import { ScopeOfWorkModule } from './scope-of-work/scope-of-work.module';
+import { DutyRequirementsModule } from './duty-requirements/duty-requirements.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -38,6 +39,7 @@ import { validateEnv } from './config/env.validation';
     OtpModule,
     RateCardModule,
     ScopeOfWorkModule,
+    DutyRequirementsModule,
   ],
 })
 export class AppModule {}

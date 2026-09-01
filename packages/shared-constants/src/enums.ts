@@ -188,6 +188,7 @@ export const AuditAction = {
   OTP_SETTING_UPDATED: 'otp_setting_updated',
   RATE_CARD_UPDATED: 'rate_card_updated',
   SCOPE_OF_WORK_UPDATED: 'scope_of_work_updated',
+  DUTY_REQUIREMENTS_UPDATED: 'duty_requirements_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

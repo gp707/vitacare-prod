@@ -4,9 +4,11 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../app/rate_card_button.dart';
+import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
+import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
@@ -287,6 +289,15 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   /// religion preference eliminates a large pool of candidates who could
   /// otherwise help the patient.
   bool get _showReligionPreferenceWarning => _preferredReligion != null;
+
+  /// Purely advisory, never blocks submission — many nurses decline
+  /// short-term (few days/weeks) assignments, so the family is warned up
+  /// front that they may get fewer or no applicants, with a suggestion to
+  /// edit to a longer duration later if that happens.
+  bool get _showShortTermDurationWarning =>
+      _careDuration == CareDuration.fewDays ||
+      _careDuration == CareDuration.fewWeeks;
+
   bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
 
   bool get _canSubmit =>
@@ -598,23 +609,34 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                   SectionBox(
                     title: 'Care Preferences',
                     children: [
-                      DropdownButtonFormField<String>(
-                        key: _dutyTypeKey,
-                        isExpanded: true,
-                        initialValue: _dutyType,
-                        decoration: InputDecoration(
-                          labelText: 'Hours Care Needed (Mandatory)',
-                          border: const OutlineInputBorder(),
-                          errorText: _showValidationErrors && !_isDutyTypeValid
-                              ? 'Please select duty hours'
-                              : null,
-                        ),
-                        items: DutyType.all
-                            .map((d) => DropdownMenuItem(
-                                value: d,
-                                child: Text(DutyType.displayNames[d] ?? d)))
-                            .toList(),
-                        onChanged: (value) => setState(() => _dutyType = value),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              key: _dutyTypeKey,
+                              isExpanded: true,
+                              initialValue: _dutyType,
+                              decoration: InputDecoration(
+                                labelText: 'Hours Care Needed (Mandatory)',
+                                border: const OutlineInputBorder(),
+                                errorText:
+                                    _showValidationErrors && !_isDutyTypeValid
+                                        ? 'Please select duty hours'
+                                        : null,
+                              ),
+                              items: DutyType.all
+                                  .map((d) => DropdownMenuItem(
+                                      value: d,
+                                      child:
+                                          Text(DutyType.displayNames[d] ?? d)))
+                                  .toList(),
+                              onChanged: (value) =>
+                                  setState(() => _dutyType = value),
+                            ),
+                          ),
+                          DutyRequirementsInfoButton(dutyType: _dutyType),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.md),
                       KeyedSubtree(
@@ -673,6 +695,47 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                           _refreshSuggestedSalary();
                         }),
                       ),
+                      if (_showShortTermDurationWarning) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.warning),
+                            borderRadius: BorderRadius.circular(AppSpacing.sm),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.warning_amber,
+                                  color: AppColors.warning, size: 20),
+                              SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Short-term requirement',
+                                      style: TextStyle(
+                                          color: AppColors.warning,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Many nurses do not accept short-term assignments. You can '
+                                      'continue with this requirement, but you may receive fewer '
+                                      "or no applicants. If you don't find a suitable nurse, you "
+                                      'may edit this job to "Need for minimum a month".',
+                                      style:
+                                          TextStyle(color: AppColors.warning),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.md),
                       DropdownButtonFormField<String>(
                         key: _toiletAssistanceKey,
@@ -915,49 +978,130 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   /// Frequency of Care is still derived internally (see
   /// _derivedFrequencyOfCare) purely to pick the ₹/day vs ₹/month unit and
   /// to submit frequency_of_care — it's just never displayed on its own.
+  ///
+  /// The Salary input itself only appears once Duration Care is Needed,
+  /// Toilet Assistance, and Feeding/Medicine Assistance are all filled in —
+  /// exactly the 3 fields the derived tier/frequency (and therefore the
+  /// Rate Card suggestion) depend on — a placeholder hint fills the bar
+  /// until then instead of showing an input with nothing meaningful to
+  /// suggest yet. In practice this is almost always already true when
+  /// editing an existing requirement, since those 3 fields are pre-filled
+  /// from it in initState.
+  ///
+  /// Styled as a bold yellow ribbon (solid fill, rounded bottom corners, a
+  /// drop shadow to lift it off the page) rather than a plain bordered box
+  /// — this is the single most important figure on the form, so it reads
+  /// as a banner the patient can't miss, not just another field. No icon or
+  /// "SALARY" heading above the input — the field's own label already says
+  /// "Salary". The field is still mandatory for submission (_isSalaryValid
+  /// still gates Submit) — "(Negotiable)" in its label is purely a wording
+  /// choice, not a validation change, matching the "You can always
+  /// negotiate with nurse staff." caption below it.
   Widget _buildSalaryBar() {
-    final unit =
-        _derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+    final ready =
+        _isCareDurationValid && _isToiletAssistanceValid && _isFeedingTypeValid;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-            bottom: BorderSide(color: AppColors.textPrimary, width: 2.5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Pre-filled with the Rate Card's suggested figure for the
-          // patient's derived care tier + frequency, refreshed as related
-          // fields change (see _refreshSuggestedSalary) — free text, not a
-          // number, so it can carry a range or a note exactly as admin
-          // wrote it, and stays fully editable/negotiable either way.
-          TextField(
-            key: _salaryKey,
-            controller: _salaryController,
-            focusNode: _salaryFocusNode,
-            maxLines: null,
-            decoration: InputDecoration(
-              labelText: 'Salary (₹/$unit) (Mandatory)',
-              border: const OutlineInputBorder(),
-              isDense: true,
-              errorText: _showValidationErrors && !_isSalaryValid
-                  ? 'Salary is required'
-                  : null,
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'You can always negotiate with nurse staff.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.amber,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
+      child: !ready
+          ? const Text(
+              'Salary will appear here once Duration Care is Needed, Toilet '
+              'Assistance, and Feeding/Medicine Assistance are filled in.',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Pre-filled with the Rate Card's suggested figure for the
+                // patient's derived care tier + frequency, refreshed as
+                // related fields change (see _refreshSuggestedSalary) —
+                // free text, not a number, so it can carry a range or a
+                // note exactly as admin wrote it, and stays fully
+                // editable/negotiable either way.
+                TextField(
+                  key: _salaryKey,
+                  controller: _salaryController,
+                  focusNode: _salaryFocusNode,
+                  maxLines: null,
+                  decoration: InputDecoration(
+                    labelText:
+                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Negotiable)',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    errorText: _showValidationErrors && !_isSalaryValid
+                        ? 'Salary is required'
+                        : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _buildDerivedTierLine(),
+              ],
+            ),
+    );
+  }
+
+  /// "Based on the requirements you entered, this appears to be a
+  /// `<tier>`." with the tier name itself tappable — opens the same Scope of
+  /// Work dialog [ScopeOfWorkButton] uses elsewhere, for the exact tier
+  /// [deriveCareTier] derives from the form's current selections, right
+  /// where the patient can see it alongside the salary it drove. A plain
+  /// GestureDetector+Text pair rather than a RichText TextSpan recognizer,
+  /// so there's no GestureRecognizer lifecycle to manage. Falls back to an
+  /// empty widget if the original requirement somehow has no care_receiver
+  /// — shouldn't happen in practice (every requirement has one), same
+  /// defensive null-check _refreshSuggestedSalary already does.
+  Widget _buildDerivedTierLine() {
+    final careReceiver = _careReceiverForTierDerivation;
+    if (careReceiver == null) return const SizedBox.shrink();
+    final tier = deriveCareTier(careReceiver);
+    final tierLabel = CareTier.displayNames[tier] ?? tier;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'Based on the requirements you entered, this appears to be a ',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+        ),
+        GestureDetector(
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => ScopeOfWorkDialog(
+              tier: tier,
+              repository: ref.read(scopeOfWorkRepositoryProvider),
+            ),
+          ),
+          child: Text(
+            tierLabel,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+        const Text('.',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+      ],
     );
   }
 }

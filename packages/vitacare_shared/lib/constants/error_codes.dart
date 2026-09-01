@@ -67,6 +67,7 @@ class ErrorCodes {
     'ORG_002': 'Weekday values must be between 1 (Monday) and 7 (Sunday)',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
+    'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',
 
     // General
     'GEN_001': 'Invalid request body',

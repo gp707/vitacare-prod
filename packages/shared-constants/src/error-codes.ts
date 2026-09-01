@@ -88,6 +88,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
   SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },
+  DUTY_001: { status: 400, message: 'Each duty requirements list must have at least one non-empty bullet' },
 
   // General errors
   GEN_001: { status: 400, message: 'Invalid request body' },
