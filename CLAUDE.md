@@ -310,6 +310,23 @@ location) that didn't fit the Individual/admin jobs-table model.
   be null until admin approved; now that it's always set from creation, that condition just checks
   `salary_amount != null`, so a `pending_review` requirement's own figure is visible to the patient
   immediately, not just once it goes live.
+- **nursenow-app's `PostRequirementScreen`/`EditRequirementScreen` no longer have a "Nurse Fee
+  Guidance" `SectionBox` at all — Salary now lives in a sticky bar pinned below the AppBar
+  (`_buildSalaryBar`, a `Column`'s non-scrolling first child, sibling to the `Expanded`
+  `ListView` holding "Patient Details"/"Care Preferences" — not inside the scrollable content),
+  and Frequency of Care is no longer displayed anywhere on either screen.** This is
+  NurseNow-Individual-specific — admin-web's `_JobFormDialog` and `JobsPostedScreen`'s own
+  read-only "Show Full Details" expander (see below) are both untouched, still showing Frequency
+  of Care and Salary inline in their own "Nurse Fee Guidance" section. Frequency of Care is still
+  derived internally exactly as before (`_derivedFrequencyOfCare`/`frequencyForCareDuration()`) —
+  it just drives the Salary bar's `₹/day` vs `₹/month` unit and what's submitted as
+  `frequency_of_care`, rather than being shown as its own field; before any Duration Care is Needed
+  selection, the unit defaults to `₹/month` (`_derivedFrequencyOfCare == FrequencyOfCare.daily ?
+  'day' : 'month'`, unchanged ternary from before — null read as "not daily"). The "You can always
+  negotiate with nurse staff." helper line moved into the same bar, directly under the Salary
+  field. **`PostRequirementScreen` also no longer shows the "An admin reviews every new requirement
+  before it goes live and caregivers can see it." info banner** that used to sit above "Patient
+  Details" — removed outright, not relocated.
 - **admin-web's job form (`_JobFormDialog` in
   `apps/admin-web/lib/features/jobs/screens/admin_jobs_screen.dart`, used for both admin's own
   from-scratch job posting AND creating/editing any job via `POST`/`PATCH /admin/jobs`) has one
@@ -627,6 +644,18 @@ since a caregiver may be weighing either a daily or a monthly engagement.
   the two rendered last in an AppBar's `actions` list sat flush against the screen's right edge,
   since both buttons' own internal padding was already trimmed to near zero to fit 3-action AppBars
   (RateCard + WhatsApp + Logout) without overflowing.
+- **The mobile Rate Card dialog is responsive to the device's actual width, not a fixed 400px box**
+  — `_RateCardDialogState.build()` sizes its content to `(MediaQuery width - 32).clamp(280, 560)`
+  and tightens `AlertDialog.insetPadding` to 16px horizontal (from the Material default 40px), and
+  `_RateCardTable` uses `FlexColumnWidth` (row-label column at 0.7, each data column at 1) instead
+  of the old fixed pixel widths (140px label / 150px per cell) — together this means both the daily
+  and monthly cards' full 4-column tables fit within the dialog's own width without ever needing
+  the horizontal scroll the old fixed-width table required; long cell text (e.g. a Rate Card range
+  with a note) wraps onto multiple lines instead. The outer vertical `SingleChildScrollView` stays
+  as a defensive fallback (in case of an unusually long admin-typed value on a very short screen)
+  but is not expected to engage on a typical phone, since each card is just a title + a 2-row
+  table. This is identical duplicated code in both `apps/caregiver-app` and `apps/nursenow-app`'s
+  own `rate_card_button.dart`, same duplication precedent as the rest of this button.
 
 ## Scope of Work
 

@@ -163,7 +163,10 @@ void main() {
 
     expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
-    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    // Nurse Fee Guidance is gone entirely — Salary lives in the sticky top
+    // bar instead, and Frequency of Care is no longer shown at all.
+    expect(find.text('Nurse Fee Guidance'), findsNothing);
+    expect(find.text('Frequency of Care'), findsNothing);
     expect(find.text('You can always negotiate with nurse staff.'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('Care Location'), findsNothing);
@@ -179,14 +182,14 @@ void main() {
     expect(find.text('58'), findsOneWidget);
   });
 
-  testWidgets('shows Nurse Fee Guidance even for a requirement never yet admin-reviewed', (tester) async {
+  testWidgets('shows the Salary bar even for a requirement never yet admin-reviewed', (tester) async {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo, _requirement());
 
-    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
   });
 
-  group('Frequency of Care is derived from Duration Care is Needed, not manually picked', () {
+  group('Frequency of Care is no longer shown as its own field — only the Salary unit reflects it', () {
     testWidgets('few_weeks derives to Daily, with no dropdown to pick it', (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(
@@ -195,10 +198,8 @@ void main() {
         _requirement(frequencyOfCare: 'monthly', salaryAmount: '9999', careDuration: 'few_weeks'),
       );
 
-      expect(find.text('Frequency of Care'), findsOneWidget);
-      expect(find.text('Daily'), findsOneWidget);
-      // No mandatory-dropdown label for it anymore — it's derived, not picked.
-      expect(find.text('Frequency of Care (Mandatory)'), findsNothing);
+      expect(find.text('Frequency of Care'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
     });
 
     testWidgets('long_term derives to Monthly', (tester) async {
@@ -209,7 +210,7 @@ void main() {
         _requirement(frequencyOfCare: 'daily', salaryAmount: '9999', careDuration: 'long_term'),
       );
 
-      expect(find.text('Monthly'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'), findsOneWidget);
     });
   });
 

@@ -89,10 +89,20 @@ class _RateCardDialogState extends State<_RateCardDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Sized off the actual device width (not a fixed 400px) and paired with
+    // a tight insetPadding, so the dialog claims nearly the full screen on
+    // a phone — combined with _RateCardTable's flexible (not fixed-pixel)
+    // column widths below, both rate cards fit and read fully without
+    // needing horizontal scrolling, and typically without vertical
+    // scrolling either (each card is just a title + a 2-row table). The
+    // outer SingleChildScrollView stays only as a safety net for an
+    // unusually long admin-typed cell value on a short screen.
+    final dialogWidth = (MediaQuery.of(context).size.width - 32).clamp(280.0, 560.0);
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: const Text('Salary Guidance'),
       content: SizedBox(
-        width: 400,
+        width: dialogWidth,
         child: _loading
             ? const Padding(
                 padding: EdgeInsets.all(AppSpacing.lg),
@@ -107,15 +117,12 @@ class _RateCardDialogState extends State<_RateCardDialog> {
                       children: [
                         for (var i = 0; i < _rateCards!.length; i++) ...[
                           if (i > 0) const Padding(
-                            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                             child: Divider(height: 1),
                           ),
-                          Text(_rateCards![i].title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const SizedBox(height: AppSpacing.sm),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: _RateCardTable(rateCard: _rateCards![i]),
-                          ),
+                          Text(_rateCards![i].title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          const SizedBox(height: AppSpacing.xs),
+                          _RateCardTable(rateCard: _rateCards![i]),
                         ],
                       ],
                     ),
@@ -133,35 +140,31 @@ class _RateCardTable extends StatelessWidget {
 
   const _RateCardTable({required this.rateCard});
 
-  static const _rowLabelWidth = 140.0;
-  static const _cellWidth = 150.0;
-
   @override
   Widget build(BuildContext context) {
     return Table(
-      // Table has no intrinsic width of its own — without explicit
-      // columnWidths it divides whatever width its parent gives it (here,
-      // the dialog's fixed content width) evenly across every column,
-      // collapsing each one to a sliver too narrow to hold real text and
-      // wrapping it one character per line. The outer horizontal
-      // SingleChildScrollView only helps once the Table itself claims a
-      // real width via fixed columnWidths.
+      // Flexible, proportional column widths (not fixed pixels) so the
+      // table always fits within whatever width the dialog actually has —
+      // long cell text wraps onto multiple lines instead of forcing
+      // horizontal scrolling. The row-label column gets a smaller share
+      // since it only ever holds the short "Care" label, unlike the data
+      // columns which can carry a whole sentence.
       columnWidths: const {
-        0: FixedColumnWidth(_rowLabelWidth),
-        1: FixedColumnWidth(_cellWidth),
-        2: FixedColumnWidth(_cellWidth),
-        3: FixedColumnWidth(_cellWidth),
+        0: FlexColumnWidth(0.7),
+        1: FlexColumnWidth(1),
+        2: FlexColumnWidth(1),
+        3: FlexColumnWidth(1),
       },
       border: TableBorder.all(color: AppColors.border),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
           children: [
-            const SizedBox(width: 140),
+            const SizedBox.shrink(),
             for (final label in rateCard.columnLabels)
               Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               ),
           ],
         ),
@@ -169,13 +172,13 @@ class _RateCardTable extends StatelessWidget {
           TableRow(
             children: [
               Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Text(rateCard.rowLabels[i], style: const TextStyle(fontWeight: FontWeight.bold)),
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                child: Text(rateCard.rowLabels[i], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               ),
               for (final cell in rateCard.cells[i])
                 Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Text(cell),
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: Text(cell, style: const TextStyle(fontSize: 11)),
                 ),
             ],
           ),

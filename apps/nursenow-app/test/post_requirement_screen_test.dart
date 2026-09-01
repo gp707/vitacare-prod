@@ -464,7 +464,10 @@ void main() {
 
     expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
-    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
+    // Nurse Fee Guidance is gone entirely — Salary lives in the sticky top
+    // bar instead, and Frequency of Care is no longer shown at all.
+    expect(find.text('Nurse Fee Guidance'), findsNothing);
+    expect(find.text('Frequency of Care'), findsNothing);
     expect(find.text('You can always negotiate with nurse staff.'), findsOneWidget);
     // The old section headings are gone — everything now lives under the
     // new ones.
@@ -482,18 +485,23 @@ void main() {
 
     // Patient Details' own fields appear before Care Location's fields
     // moved into it (city/area) — Care Preferences' fields (hours care
-    // needed, start date) come after — and Nurse Fee Guidance comes last,
-    // matching the new order.
+    // needed, start date) come after — matching the new order. The Salary
+    // bar sits above all of this, pinned below the AppBar. Duration Care is
+    // Needed hasn't been picked yet at this point, so the Salary label's
+    // unit defaults to ₹/month — matched by prefix, not the exact label.
+    final salaryTop = tester
+        .getTopLeft(find.byWidgetPredicate(
+            (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary')))
+        .dy;
     final patientDetailsTop = tester.getTopLeft(find.text('Patient Details')).dy;
     final carePreferencesTop = tester.getTopLeft(find.text('Care Preferences')).dy;
-    final nurseFeeGuidanceTop = tester.getTopLeft(find.text('Nurse Fee Guidance')).dy;
     final cityFieldTop = tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)')).dy;
     final dutyTypeFieldTop =
         tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)')).dy;
+    expect(salaryTop, lessThan(patientDetailsTop));
     expect(patientDetailsTop, lessThan(cityFieldTop));
     expect(cityFieldTop, lessThan(carePreferencesTop));
     expect(carePreferencesTop, lessThan(dutyTypeFieldTop));
-    expect(dutyTypeFieldTop, lessThan(nurseFeeGuidanceTop));
   });
 
   testWidgets('submitting no longer sends mobility or description', (tester) async {
@@ -510,17 +518,17 @@ void main() {
   });
 
   group('Frequency of Care and Salary — derived, not admin-set', () {
-    testWidgets('Frequency of Care shows Daily for Few Weeks, with no dropdown to pick it', (tester) async {
+    testWidgets('Frequency of Care is no longer shown as its own field — only the Salary unit reflects it',
+        (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo);
-      await _fillMandatoryFields(tester); // picks 'Need for Few Weeks'
+      await _fillMandatoryFields(tester); // picks 'Need for Few Weeks' -> daily
 
-      expect(find.text('Frequency of Care'), findsOneWidget);
-      expect(find.text('Daily'), findsOneWidget);
-      expect(find.text('Frequency of Care (Mandatory)'), findsNothing);
+      expect(find.text('Frequency of Care'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Mandatory)'), findsOneWidget);
     });
 
-    testWidgets('Frequency of Care switches to Monthly when Duration is changed to Long Term', (tester) async {
+    testWidgets('the Salary unit switches to ₹/month when Duration is changed to Long Term', (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester);
@@ -530,7 +538,7 @@ void main() {
       await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Monthly'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Mandatory)'), findsOneWidget);
     });
 
     testWidgets('Salary is pre-filled with the Companion daily suggestion once Duration is picked', (tester) async {

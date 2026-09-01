@@ -52,7 +52,8 @@ class EditRequirementScreen extends ConsumerStatefulWidget {
   const EditRequirementScreen({super.key, required this.requirement});
 
   @override
-  ConsumerState<EditRequirementScreen> createState() => _EditRequirementScreenState();
+  ConsumerState<EditRequirementScreen> createState() =>
+      _EditRequirementScreenState();
 }
 
 class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
@@ -136,7 +137,9 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       communication: cr.communication,
       feedingType: _feedingType ?? FeedingType.oralFeeding,
       hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
-      medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? [] : _medicalConditions,
+      medicalConditions: _medicalConditions.contains(_noneMedicalCondition)
+          ? []
+          : _medicalConditions,
       toiletAssistance: _toiletAssistance,
       requiresVitalMonitoring: cr.requiresVitalMonitoring,
       vitalMonitoringTypes: cr.vitalMonitoringTypes,
@@ -189,7 +192,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
     final frequency = frequencyForCareDuration(careDuration);
     final suggestion = suggestedRate(_rateCards, tier, frequency);
     if (suggestion == null) return;
-    if (_salaryController.text.isEmpty || _salaryController.text == _lastAutoSuggestedSalary) {
+    if (_salaryController.text.isEmpty ||
+        _salaryController.text == _lastAutoSuggestedSalary) {
       _salaryController.text = suggestion;
       _lastAutoSuggestedSalary = suggestion;
     }
@@ -219,7 +223,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
     _city = job.city;
     _areaController.text = job.area ?? '';
     _dutyType = job.dutyType;
-    _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+    _startDate =
+        job.startDate == null ? null : DateTime.tryParse(job.startDate!);
     _careDuration = job.careDuration;
     // Empty job.languages means the job was itself "No Preference" —
     // _languages already defaults to that, so leave it untouched.
@@ -254,7 +259,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
 
   bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
   bool get _isGenderValid => _gender != null;
-  bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
+  bool get _isWeightValid =>
+      _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
   bool get _isCityValid => _city != null;
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
@@ -267,12 +273,14 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   /// a female caregiver is a much harder match to fill than any other
   /// combination, so we say so up front rather than letting the family
   /// find out only after posting.
-  bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
+  bool get _showGenderMismatchWarning =>
+      _gender == Gender.male && _preferredGender == Gender.female;
 
   /// Purely advisory, never blocks submission — picking any real language
   /// (rather than leaving it at "No Preference") narrows the caregiver pool
   /// down to just those who speak it, so we say so up front.
-  bool get _showLanguagePreferenceWarning => !_languages.contains(_noPreferenceLanguage);
+  bool get _showLanguagePreferenceWarning =>
+      !_languages.contains(_noPreferenceLanguage);
 
   /// Purely advisory, never blocks submission — same rationale as the
   /// language-preference warning above, for the same reason: a specific
@@ -302,7 +310,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
-        _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+        _MandatoryField(_weightKey, _isWeightValid,
+            focusNode: _weightFocusNode),
         _MandatoryField(_cityKey, _isCityValid),
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
@@ -310,7 +319,8 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
         _MandatoryField(_careDurationKey, _isCareDurationValid),
         _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
-        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+        _MandatoryField(_salaryKey, _isSalaryValid,
+            focusNode: _salaryFocusNode),
       ];
 
   Future<void> _pickStartDate() async {
@@ -419,19 +429,27 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
               gender: _gender!,
               weightKg: _weightKg!,
               feedingType: _feedingType,
-              hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+              hasMedicalCondition:
+                  !_medicalConditions.contains(_noneMedicalCondition),
               medicalConditions:
-                  _medicalConditions.contains(_noneMedicalCondition) ? null : _medicalConditions,
-              medicalConditionOther: _medicalConditionOtherController.text.trim(),
-              toiletAssistance: _toiletAssistance.isEmpty ? null : _toiletAssistance,
-              toiletAssistanceOther: _toiletAssistanceOtherController.text.trim(),
+                  _medicalConditions.contains(_noneMedicalCondition)
+                      ? null
+                      : _medicalConditions,
+              medicalConditionOther:
+                  _medicalConditionOtherController.text.trim(),
+              toiletAssistance:
+                  _toiletAssistance.isEmpty ? null : _toiletAssistance,
+              toiletAssistanceOther:
+                  _toiletAssistanceOtherController.text.trim(),
             ),
             city: _city!,
             area: _areaController.text.trim(),
             dutyType: _dutyType!,
-            startDate: '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+            startDate:
+                '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
             careDuration: _careDuration!,
-            languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
+            languages:
+                _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
             preferredReligion: _preferredReligion,
             frequencyOfCare: _derivedFrequencyOfCare!,
@@ -454,265 +472,289 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
           children: [
-            SectionBox(
-              title: 'Patient Details',
-              children: [
-                TextField(
-                  key: _ageKey,
-                  controller: _ageController,
-                  focusNode: _ageFocusNode,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: "Patient's Age (Mandatory)",
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  key: _genderKey,
-                  isExpanded: true,
-                  initialValue: _gender,
-                  decoration: InputDecoration(
-                    labelText: "Patient's Gender (Mandatory)",
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
-                  ),
-                  items: Gender.all
-                      .map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g))))
-                      .toList(),
-                  onChanged: (value) => setState(() => _gender = value),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  key: _weightKey,
-                  controller: _weightController,
-                  focusNode: _weightFocusNode,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: "Patient's Weight (kg) (Mandatory)",
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  key: _cityKey,
-                  isExpanded: true,
-                  initialValue: _city,
-                  decoration: InputDecoration(
-                    labelText: 'City (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
-                  ),
-                  items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
-                  onChanged: (value) => setState(() => _city = value),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  key: _areaKey,
-                  controller: _areaController,
-                  focusNode: _areaFocusNode,
-                  decoration: InputDecoration(
-                    labelText: 'Area (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle),
-                const SizedBox(height: AppSpacing.sm),
-                VitaMultiSelectChips(
-                  options: [_noneMedicalCondition, ...MedicalCondition.all],
-                  labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
-                  selected: _medicalConditions,
-                  onChanged: (next) => setState(() {
-                    _applyMedicalConditionSelection(next);
-                    _refreshSuggestedSalary();
-                  }),
-                ),
-                if (_medicalConditions.contains(MedicalCondition.other)) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _medicalConditionOtherController,
-                    decoration: const InputDecoration(
-                      labelText: 'Please describe the other condition',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SectionBox(
-              title: 'Care Preferences',
-              children: [
-                DropdownButtonFormField<String>(
-                  key: _dutyTypeKey,
-                  isExpanded: true,
-                  initialValue: _dutyType,
-                  decoration: InputDecoration(
-                    labelText: 'Hours Care Needed (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
-                  ),
-                  items: DutyType.all.map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d))).toList(),
-                  onChanged: (value) => setState(() => _dutyType = value),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                KeyedSubtree(
-                  key: _startDateKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            _buildSalaryBar(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  SectionBox(
+                    title: 'Patient Details',
                     children: [
-                      Text(
-                        'Preferred Start Date (Mandatory)',
-                        style: SectionBox.fieldGroupLabelStyle.copyWith(
-                          color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                      TextField(
+                        key: _ageKey,
+                        controller: _ageController,
+                        focusNode: _ageFocusNode,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: "Patient's Age (Mandatory)",
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isAgeValid
+                              ? 'Age is required (1-120)'
+                              : null,
                         ),
+                        onChanged: (_) => setState(() {}),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      OutlinedButton(
-                        onPressed: _pickStartDate,
-                        child: Text(
-                          _startDate == null
-                              ? 'Select date'
-                              : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _genderKey,
+                        isExpanded: true,
+                        initialValue: _gender,
+                        decoration: InputDecoration(
+                          labelText: "Patient's Gender (Mandatory)",
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isGenderValid
+                              ? 'Please select a gender'
+                              : null,
                         ),
+                        items: Gender.all
+                            .map((g) => DropdownMenuItem(
+                                value: g, child: Text(_capitalize(g))))
+                            .toList(),
+                        onChanged: (value) => setState(() => _gender = value),
                       ),
-                      if (_showValidationErrors && !_isStartDateValid)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text('Select a preferred start date', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                      const SizedBox(height: AppSpacing.md),
+                      TextField(
+                        key: _weightKey,
+                        controller: _weightController,
+                        focusNode: _weightFocusNode,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: "Patient's Weight (kg) (Mandatory)",
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isWeightValid
+                              ? 'Weight is required (1-300 kg)'
+                              : null,
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  key: _careDurationKey,
-                  isExpanded: true,
-                  initialValue: _careDuration,
-                  decoration: InputDecoration(
-                    labelText: 'Duration Care is Needed (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText:
-                        _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
-                  ),
-                  items: CareDuration.all
-                      .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _careDuration = value;
-                    _refreshSuggestedSalary();
-                  }),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  key: _toiletAssistanceKey,
-                  isExpanded: true,
-                  initialValue: _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
-                  decoration: InputDecoration(
-                    labelText: 'Toilet Assistance (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText:
-                        _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
-                  ),
-                  items: ToiletAssistance.all
-                      .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _toiletAssistance
-                      ..clear()
-                      ..add(value!);
-                    _refreshSuggestedSalary();
-                  }),
-                ),
-                if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _toiletAssistanceOtherController,
-                    decoration: const InputDecoration(
-                      labelText: 'Please describe the other toilet assistance',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  key: _feedingTypeKey,
-                  isExpanded: true,
-                  initialValue: _feedingType,
-                  decoration: InputDecoration(
-                    labelText: 'Feeding/Medicine Assistance (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
-                  ),
-                  items: FeedingType.all
-                      .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _feedingType = value;
-                    _refreshSuggestedSalary();
-                  }),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: _preferredGender,
-                  decoration: const InputDecoration(labelText: 'Preferred Caregiver Gender', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('No preference')),
-                    DropdownMenuItem(value: Gender.male, child: Text('Male')),
-                    DropdownMenuItem(value: Gender.female, child: Text('Female')),
-                  ],
-                  onChanged: (value) => setState(() => _preferredGender = value),
-                ),
-                if (_showGenderMismatchWarning) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
-                      border: Border.all(color: AppColors.warning),
-                      borderRadius: BorderRadius.circular(AppSpacing.sm),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
-                        SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: Text(
-                            'Requesting a female caregiver for a male patient reduces your chances of '
-                            'getting matched by about 90%.',
-                            style: TextStyle(color: AppColors.warning),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _cityKey,
+                        isExpanded: true,
+                        initialValue: _city,
+                        decoration: InputDecoration(
+                          labelText: 'City (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isCityValid
+                              ? 'Please select a city'
+                              : null,
+                        ),
+                        items: City.all
+                            .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(City.displayNames[c] ?? c)))
+                            .toList(),
+                        onChanged: (value) => setState(() => _city = value),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      TextField(
+                        key: _areaKey,
+                        controller: _areaController,
+                        focusNode: _areaFocusNode,
+                        decoration: InputDecoration(
+                          labelText: 'Area (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isAreaValid
+                              ? 'Area is required'
+                              : null,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const Text('Medical Condition (Mandatory)',
+                          style: SectionBox.fieldGroupLabelStyle),
+                      const SizedBox(height: AppSpacing.sm),
+                      VitaMultiSelectChips(
+                        options: [
+                          _noneMedicalCondition,
+                          ...MedicalCondition.all
+                        ],
+                        labels: {
+                          _noneMedicalCondition: _noneMedicalConditionLabel,
+                          ...MedicalCondition.displayNames
+                        },
+                        selected: _medicalConditions,
+                        onChanged: (next) => setState(() {
+                          _applyMedicalConditionSelection(next);
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      if (_medicalConditions
+                          .contains(MedicalCondition.other)) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _medicalConditionOtherController,
+                          decoration: const InputDecoration(
+                            labelText: 'Please describe the other condition',
+                            border: OutlineInputBorder(),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                KeyedSubtree(
-                  key: _languagesKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: AppSpacing.lg),
+                  SectionBox(
+                    title: 'Care Preferences',
                     children: [
-                      const Text('Language Preference', style: SectionBox.fieldGroupLabelStyle),
-                      const SizedBox(height: AppSpacing.xs),
-                      VitaMultiSelectChips(
-                        options: [_noPreferenceLanguage, ...Language.all],
-                        labels: {_noPreferenceLanguage: _noPreferenceLanguageLabel, ...Language.displayNames},
-                        selected: _languages,
-                        onChanged: (next) => setState(() => _applyLanguageSelection(next)),
+                      DropdownButtonFormField<String>(
+                        key: _dutyTypeKey,
+                        isExpanded: true,
+                        initialValue: _dutyType,
+                        decoration: InputDecoration(
+                          labelText: 'Hours Care Needed (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText: _showValidationErrors && !_isDutyTypeValid
+                              ? 'Please select duty hours'
+                              : null,
+                        ),
+                        items: DutyType.all
+                            .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(DutyType.displayNames[d] ?? d)))
+                            .toList(),
+                        onChanged: (value) => setState(() => _dutyType = value),
                       ),
-                      if (_showLanguagePreferenceWarning) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      KeyedSubtree(
+                        key: _startDateKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Preferred Start Date (Mandatory)',
+                              style: SectionBox.fieldGroupLabelStyle.copyWith(
+                                color:
+                                    _showValidationErrors && !_isStartDateValid
+                                        ? AppColors.error
+                                        : null,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            OutlinedButton(
+                              onPressed: _pickStartDate,
+                              child: Text(
+                                _startDate == null
+                                    ? 'Select date'
+                                    : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                              ),
+                            ),
+                            if (_showValidationErrors && !_isStartDateValid)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text('Select a preferred start date',
+                                    style: TextStyle(
+                                        color: AppColors.error, fontSize: 12)),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _careDurationKey,
+                        isExpanded: true,
+                        initialValue: _careDuration,
+                        decoration: InputDecoration(
+                          labelText: 'Duration Care is Needed (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isCareDurationValid
+                                  ? 'Please select how long care is needed'
+                                  : null,
+                        ),
+                        items: CareDuration.all
+                            .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(CareDuration.displayNames[d] ?? d)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _careDuration = value;
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _toiletAssistanceKey,
+                        isExpanded: true,
+                        initialValue: _toiletAssistance.isEmpty
+                            ? null
+                            : _toiletAssistance.first,
+                        decoration: InputDecoration(
+                          labelText: 'Toilet Assistance (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isToiletAssistanceValid
+                                  ? 'Please select toilet assistance'
+                                  : null,
+                        ),
+                        items: ToiletAssistance.all
+                            .map((t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(
+                                    ToiletAssistance.displayNames[t] ?? t)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _toiletAssistance
+                            ..clear()
+                            ..add(value!);
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      if (_toiletAssistance
+                          .contains(ToiletAssistance.others)) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _toiletAssistanceOtherController,
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Please describe the other toilet assistance',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _feedingTypeKey,
+                        isExpanded: true,
+                        initialValue: _feedingType,
+                        decoration: InputDecoration(
+                          labelText: 'Feeding/Medicine Assistance (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isFeedingTypeValid
+                                  ? 'Please select feeding/medicine assistance'
+                                  : null,
+                        ),
+                        items: FeedingType.all
+                            .map((f) => DropdownMenuItem(
+                                value: f,
+                                child: Text(FeedingType.displayNames[f] ?? f)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _feedingType = value;
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _preferredGender,
+                        decoration: const InputDecoration(
+                            labelText: 'Preferred Caregiver Gender',
+                            border: OutlineInputBorder()),
+                        items: const [
+                          DropdownMenuItem(
+                              value: null, child: Text('No preference')),
+                          DropdownMenuItem(
+                              value: Gender.male, child: Text('Male')),
+                          DropdownMenuItem(
+                              value: Gender.female, child: Text('Female')),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _preferredGender = value),
+                      ),
+                      if (_showGenderMismatchWarning) ...[
                         const SizedBox(height: AppSpacing.xs),
                         Container(
                           padding: const EdgeInsets.all(AppSpacing.sm),
@@ -723,11 +765,108 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                              Icon(Icons.warning_amber,
+                                  color: AppColors.warning, size: 20),
                               SizedBox(width: AppSpacing.xs),
                               Expanded(
                                 child: Text(
-                                  'A specific language preference may restrict potential candidates significantly.',
+                                  'Requesting a female caregiver for a male patient reduces your chances of '
+                                  'getting matched by about 90%.',
+                                  style: TextStyle(color: AppColors.warning),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      KeyedSubtree(
+                        key: _languagesKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Language Preference',
+                                style: SectionBox.fieldGroupLabelStyle),
+                            const SizedBox(height: AppSpacing.xs),
+                            VitaMultiSelectChips(
+                              options: [_noPreferenceLanguage, ...Language.all],
+                              labels: {
+                                _noPreferenceLanguage:
+                                    _noPreferenceLanguageLabel,
+                                ...Language.displayNames
+                              },
+                              selected: _languages,
+                              onChanged: (next) =>
+                                  setState(() => _applyLanguageSelection(next)),
+                            ),
+                            if (_showLanguagePreferenceWarning) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              Container(
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppColors.warning.withValues(alpha: 0.1),
+                                  border: Border.all(color: AppColors.warning),
+                                  borderRadius:
+                                      BorderRadius.circular(AppSpacing.sm),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.warning_amber,
+                                        color: AppColors.warning, size: 20),
+                                    SizedBox(width: AppSpacing.xs),
+                                    Expanded(
+                                      child: Text(
+                                        'A specific language preference may restrict potential candidates significantly.',
+                                        style:
+                                            TextStyle(color: AppColors.warning),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _preferredReligion,
+                        decoration: const InputDecoration(
+                            labelText: 'Preferred Caregiver Religion',
+                            border: OutlineInputBorder()),
+                        items: [
+                          const DropdownMenuItem(
+                              value: null, child: Text('No preference')),
+                          ...[
+                            Religion.hindu,
+                            Religion.muslim,
+                            Religion.christian
+                          ].map((r) => DropdownMenuItem(
+                              value: r, child: Text(_capitalize(r)))),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _preferredReligion = value),
+                      ),
+                      if (_showReligionPreferenceWarning) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.warning),
+                            borderRadius: BorderRadius.circular(AppSpacing.sm),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.warning_amber,
+                                  color: AppColors.warning, size: 20),
+                              SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  'We strongly suggest No Preference for the religion. Selecting a specific '
+                                  'religion eliminates a large pool of candidates who could really help the patient.',
                                   style: TextStyle(color: AppColors.warning),
                                 ),
                               ),
@@ -737,105 +876,91 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                       ],
                     ],
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: _preferredReligion,
-                  decoration: const InputDecoration(labelText: 'Preferred Caregiver Religion', border: OutlineInputBorder()),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('No preference')),
-                    ...[Religion.hindu, Religion.muslim, Religion.christian]
-                        .map((r) => DropdownMenuItem(value: r, child: Text(_capitalize(r)))),
+                  // Nurse Fee Guidance section removed — Salary now lives in the
+                  // sticky top bar (see _buildSalaryBar) instead of buried at the
+                  // bottom of the form; Frequency of Care is no longer shown at
+                  // all (still derived internally via _derivedFrequencyOfCare to
+                  // pick the Salary unit and to submit frequency_of_care).
+                  const SizedBox(height: AppSpacing.lg),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(_error!,
+                        style: const TextStyle(color: AppColors.error)),
                   ],
-                  onChanged: (value) => setState(() => _preferredReligion = value),
-                ),
-                if (_showReligionPreferenceWarning) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
-                      border: Border.all(color: AppColors.warning),
-                      borderRadius: BorderRadius.circular(AppSpacing.sm),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
-                        SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: Text(
-                            'We strongly suggest No Preference for the religion. Selecting a specific '
-                            'religion eliminates a large pool of candidates who could really help the patient.',
-                            style: TextStyle(color: AppColors.warning),
-                          ),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: AppSpacing.lg),
+                  ElevatedButton(
+                    onPressed: _saving ? null : _handleSubmitPressed,
+                    child: _saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Save Changes'),
                   ),
                 ],
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SectionBox(
-              title: 'Nurse Fee Guidance',
-              children: [
-                const Text(
-                  'You can always negotiate with nurse staff.',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                // Derived from Duration Care is Needed (few days/weeks ->
-                // daily, few months/long term -> monthly) — no longer a
-                // manual choice, see _derivedFrequencyOfCare.
-                InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Frequency of Care',
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Text(FrequencyOfCare.displayNames[_derivedFrequencyOfCare] ?? '-'),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                // Pre-filled with the Rate Card's suggested figure for the
-                // patient's derived care tier + frequency, refreshed as
-                // related fields above change (see _refreshSuggestedSalary)
-                // — free text, not a number, so it can carry a range or a
-                // note exactly as admin wrote it, and stays fully
-                // editable/negotiable either way.
-                TextField(
-                  key: _salaryKey,
-                  controller: _salaryController,
-                  focusNode: _salaryFocusNode,
-                  maxLines: null,
-                  decoration: InputDecoration(
-                    labelText: 'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Mandatory)',
-                    border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ],
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: const TextStyle(color: AppColors.error)),
-            ],
-            const SizedBox(height: AppSpacing.lg),
-            ElevatedButton(
-              onPressed: _saving ? null : _handleSubmitPressed,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Save Changes'),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  /// Sticky bar pinned below the AppBar (a sibling of the scrollable
+  /// content, not inside it) so Salary — the one figure that actually
+  /// matters now that Frequency of Care is no longer shown as its own
+  /// field — stays visible no matter how far the form is scrolled.
+  /// Frequency of Care is still derived internally (see
+  /// _derivedFrequencyOfCare) purely to pick the ₹/day vs ₹/month unit and
+  /// to submit frequency_of_care — it's just never displayed on its own.
+  Widget _buildSalaryBar() {
+    final unit =
+        _derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+            bottom: BorderSide(color: AppColors.textPrimary, width: 2.5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Pre-filled with the Rate Card's suggested figure for the
+          // patient's derived care tier + frequency, refreshed as related
+          // fields change (see _refreshSuggestedSalary) — free text, not a
+          // number, so it can carry a range or a note exactly as admin
+          // wrote it, and stays fully editable/negotiable either way.
+          TextField(
+            key: _salaryKey,
+            controller: _salaryController,
+            focusNode: _salaryFocusNode,
+            maxLines: null,
+            decoration: InputDecoration(
+              labelText: 'Salary (₹/$unit) (Mandatory)',
+              border: const OutlineInputBorder(),
+              isDense: true,
+              errorText: _showValidationErrors && !_isSalaryValid
+                  ? 'Salary is required'
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'You can always negotiate with nurse staff.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+String _capitalize(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
