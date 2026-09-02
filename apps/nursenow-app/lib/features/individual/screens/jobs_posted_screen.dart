@@ -556,9 +556,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _StatusBadge(label: _statusLabel, color: _statusColor),
+              Flexible(
+                child: _StatusBadge(
+                  label: _statusLabel,
+                  color: _statusColor,
+                  blink: requirement.status == JobStatus.active,
+                ),
               ),
+              const Spacer(),
               // Always exactly 3 actions — Edit / Post Similar / Cancel —
               // each individually disabled (not hidden) when its own
               // precondition doesn't hold, so the set of actions is
@@ -790,26 +795,56 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 /// A prominent, plain-language, color-coded status pill — the single most
 /// important thing to communicate at a glance, especially for a senior
 /// citizen scanning the card quickly.
-class _StatusBadge extends StatelessWidget {
+/// [blink] is only ever true while the job is genuinely live (active,
+/// visible to caregivers right now) — same "needs attention" signal as
+/// the card's own red border (_cardBorderColor) and JobDetailCard's
+/// BlinkingStartDateBadge on the caregiver-facing side.
+class _StatusBadge extends StatefulWidget {
   final String label;
   final Color color;
+  final bool blink;
 
-  const _StatusBadge({required this.label, required this.color});
+  const _StatusBadge({required this.label, required this.color, this.blink = false});
+
+  @override
+  State<_StatusBadge> createState() => _StatusBadgeState();
+}
+
+class _StatusBadgeState extends State<_StatusBadge> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(_controller);
+    if (widget.blink) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final badge = Container(
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color, width: 1.5),
+        color: widget.color.withValues(alpha: 0.12),
+        border: Border.all(color: widget.color, width: 1.5),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label,
+      child: Text(widget.label,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle)),
+              color: widget.color, fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle)),
     );
+    if (!widget.blink) return badge;
+    return FadeTransition(opacity: _opacity, child: badge);
   }
 }
 

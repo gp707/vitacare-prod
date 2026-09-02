@@ -14,7 +14,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed:admin": "ts-node scripts/seed-admin.ts"
+    "seed:admin": "ts-node scripts/seed-admin.ts",
+    "wipe:non-admin-data": "ts-node scripts/wipe-non-admin-data.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

@@ -16,6 +16,18 @@ import 'package:nursenow_app/features/individual/data/individual_repository.dart
 import 'package:nursenow_app/features/individual/screens/jobs_posted_screen.dart';
 import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 
+/// Equivalent to pumpAndSettle(), but safe once a live (JobStatus.active)
+/// requirement's status badge is on screen — its blink animation repeats
+/// forever via AnimationController, so a real pumpAndSettle() never
+/// observes an idle frame and times out (same reasoning as caregiver-app's
+/// BlinkingStartDateBadge tests, which avoid pumpAndSettle for the same
+/// reason). 500ms comfortably clears every real transition in this screen
+/// (dialogs/snackbars) without completing even one blink cycle (700ms).
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 final _scopeOfWork = ScopeOfWorkModel(
   companionCare: ['Emotional companionship', 'Meal assistance'],
   bedsideCare: ['Diaper changing & hygiene care'],
@@ -230,7 +242,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
       child: const MaterialApp(home: JobsPostedScreen()),
     ),
   );
-  await tester.pumpAndSettle();
+  await _settle(tester);
 }
 
 /// Closed/cancelled/rejected requirements are hidden by default behind a
@@ -238,7 +250,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
 /// first.
 Future<void> _revealClosedRequirements(WidgetTester tester) async {
   await tester.tap(find.textContaining('Show Closed/Cancelled Requirements'));
-  await tester.pumpAndSettle();
+  await _settle(tester);
 }
 
 void main() {
@@ -414,7 +426,7 @@ void main() {
     expect(find.text('Show Full Details'), findsOneWidget);
 
     await tester.tap(find.text('Show Full Details'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // Same three headings, in the same field order, as the Post/Edit
     // Requirement form — labeled rows, not an undifferentiated chip cloud.
@@ -439,7 +451,7 @@ void main() {
     expect(find.text('Salary Guidance Range: ₹1800/day'), findsOneWidget);
 
     await tester.tap(find.text('Show Full Details'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Nurse Fee Guidance'), findsOneWidget);
     expect(find.text('Daily'), findsOneWidget);
@@ -460,7 +472,7 @@ void main() {
     expect(find.text('Scope Of Work: Click Here'), findsOneWidget);
 
     await tester.tap(find.text('Scope Of Work: Click Here'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Companion Care'), findsWidgets);
     expect(find.text('Emotional companionship'), findsOneWidget);
@@ -486,7 +498,7 @@ void main() {
     expect(find.text('Duty Requirements: Click Here'), findsOneWidget);
 
     await tester.tap(find.text('Duty Requirements: Click Here'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('24Hrs - Live In'), findsOneWidget);
   });
@@ -501,7 +513,7 @@ void main() {
     );
 
     await tester.tap(find.text('Show Full Details'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Language Preference'), findsOneWidget);
     expect(find.text('No Preference'), findsOneWidget);
@@ -673,13 +685,13 @@ void main() {
     expect(find.text('Sita Devi'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, 'Reject'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Decline this candidate'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Changed our mind');
     await tester.pump();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -703,7 +715,7 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
 
     await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -760,7 +772,7 @@ void main() {
     await _revealClosedRequirements(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -777,7 +789,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(TextButton, 'Accept'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -794,7 +806,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.profileFetchedJobId, 'job-1');
     expect(repo.profileFetchedApplicationId, 'app-1');
@@ -813,7 +825,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.profileFetchedJobId, 'job-1');
     expect(repo.profileFetchedApplicationId, 'app-1');
@@ -857,7 +869,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(TextButton, 'Reject'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Decline this candidate'), findsOneWidget);
     var confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
@@ -869,7 +881,7 @@ void main() {
     expect(confirmButton.onPressed, isNotNull);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -887,9 +899,9 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(TextButton, 'Reject'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedApplicationId, isNull);
   });
@@ -1060,7 +1072,7 @@ void main() {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // This requirement is itself the account's only live one, so Post
     // Similar is unavailable, while Edit/Cancel stay available (no active
@@ -1074,7 +1086,7 @@ void main() {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit the Job'), findsOneWidget);
     expect(find.text('Edit the Job (Locked)'), findsNothing);
@@ -1092,12 +1104,12 @@ void main() {
     );
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit the Job (Locked)'), findsOneWidget);
     // Disabled — tapping it does nothing, no navigation happens.
     await tester.tap(find.text('Edit the Job (Locked)'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Edit Requirement'), findsNothing);
   });
 
@@ -1114,7 +1126,7 @@ void main() {
     await _revealClosedRequirements(tester);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit the Job'), findsOneWidget);
     expect(find.text('Edit the Job (Locked)'), findsNothing);
@@ -1130,9 +1142,9 @@ void main() {
     );
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Edit the Job'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit Requirement'), findsOneWidget);
     expect(find.text('74'), findsOneWidget); // age, pre-filled
@@ -1148,14 +1160,14 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Cancel the Job'), findsOneWidget);
     await tester.tap(find.text('Cancel the Job'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Cancel this requirement?'), findsOneWidget);
     await tester.tap(find.text('Yes, cancel it'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.cancelledJobId, 'job-1');
   });
@@ -1165,11 +1177,11 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Cancel the Job'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('No, keep it'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.cancelledJobId, isNull);
   });
@@ -1185,11 +1197,11 @@ void main() {
 
     expect(find.text('Cancelled'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
     // Disabled — tapping it does nothing, no confirmation dialog opens.
     await tester.tap(find.text('Cancel the Job (Unavailable)'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Cancel this requirement?'), findsNothing);
     expect(find.textContaining('This requirement was cancelled.'), findsOneWidget);
     expect(find.textContaining('candidate applied in total'), findsNothing);
@@ -1208,7 +1220,7 @@ void main() {
 
     expect(find.text('Rejected'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
   });
 
@@ -1226,10 +1238,10 @@ void main() {
     await _revealClosedRequirements(tester);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Post Similar Requirement'), findsOneWidget);
     await tester.tap(find.text('Post Similar Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Post Similar Requirement'), findsWidgets);
     expect(find.text('74'), findsOneWidget);
@@ -1248,7 +1260,7 @@ void main() {
     await _revealClosedRequirements(tester);
 
     await tester.tap(find.byIcon(Icons.more_vert).first);
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Post Similar Requirement (Unavailable)'), findsOneWidget);
   });
 
