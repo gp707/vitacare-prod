@@ -70,7 +70,7 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                             const SizedBox(height: AppSpacing.md),
                             Text(
                               profile.fullName,
-                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
                               textAlign: TextAlign.center,
                             ),
                             if (caregiverDisplayId(profile.caregiverNumber) != null) ...[
@@ -136,7 +136,7 @@ class _VerifiedBadge extends StatelessWidget {
           SizedBox(width: 4),
           Text(
             'VitaCare-verified caregiver',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+            style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.success),
           ),
         ],
       ),
@@ -179,7 +179,7 @@ class _InfoCard extends StatelessWidget {
               children: [
                 Icon(Icons.language, size: 14, color: AppColors.primaryDark),
                 SizedBox(width: 4),
-                Text('Languages', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                Text('Languages', style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
               ],
             ),
             const SizedBox(height: AppSpacing.xs),
@@ -194,7 +194,7 @@ class _InfoCard extends StatelessWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(AppSpacing.sm),
                     ),
-                    child: Text(Language.displayNames[language] ?? language, style: const TextStyle(fontSize: 12)),
+                    child: Text(Language.displayNames[language] ?? language, style: const TextStyle(fontSize: AppTypography.small)),
                   ),
               ],
             ),
@@ -228,7 +228,7 @@ class _InfoRow extends StatelessWidget {
           ),
           SizedBox(
             width: 92,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
@@ -254,7 +254,7 @@ class _DocumentsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body)),
           const SizedBox(height: AppSpacing.xs),
           _DocumentLink(Icons.credit_card, 'Aadhaar Card', profile.aadhaarDocumentUrl),
           _DocumentLink(Icons.description, 'Qualification Document', profile.qualificationDocumentUrl),
@@ -291,7 +291,7 @@ class _DocumentLink extends StatelessWidget {
           ),
           SizedBox(
             width: 142,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
           ),
           Expanded(
             child: url == null
@@ -326,7 +326,7 @@ class _PreferencesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Preferred Cities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('Preferred Cities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body)),
           const SizedBox(height: AppSpacing.xs),
           Text(profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', ')),
         ],

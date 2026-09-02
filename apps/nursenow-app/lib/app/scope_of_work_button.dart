@@ -42,7 +42,7 @@ class ScopeOfWorkButton extends ConsumerWidget {
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        textStyle: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold),
       ),
     );
   }

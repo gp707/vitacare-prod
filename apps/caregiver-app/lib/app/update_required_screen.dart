@@ -46,7 +46,7 @@ class UpdateRequiredScreen extends StatelessWidget {
                 const SizedBox(height: AppSpacing.lg),
                 const Text(
                   'Update Required',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(

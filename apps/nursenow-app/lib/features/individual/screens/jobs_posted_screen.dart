@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
-import '../../../app/icon_widgets.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../app/rate_card_button.dart';
@@ -12,6 +11,7 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
+import '../widgets/duty_requirements_button.dart';
 import 'edit_requirement_screen.dart';
 import 'post_requirement_screen.dart';
 
@@ -381,7 +381,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-          fontSize: 12,
+          fontSize: AppTypography.small,
           fontWeight: FontWeight.bold,
           color: AppColors.textSecondary),
     );
@@ -407,7 +407,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           Text(label,
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary)),
+                  fontSize: AppTypography.small, color: AppColors.textSecondary)),
           Text(value),
         ],
       ),
@@ -415,7 +415,7 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _RequirementCard extends StatefulWidget {
+class _RequirementCard extends ConsumerStatefulWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
@@ -444,10 +444,10 @@ class _RequirementCard extends StatefulWidget {
   });
 
   @override
-  State<_RequirementCard> createState() => _RequirementCardState();
+  ConsumerState<_RequirementCard> createState() => _RequirementCardState();
 }
 
-class _RequirementCardState extends State<_RequirementCard> {
+class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool _detailsExpanded = false;
 
   bool get _hasAcceptedApplicant =>
@@ -504,39 +504,39 @@ class _RequirementCardState extends State<_RequirementCard> {
     final requirement = widget.requirement;
     final careReceiver = requirement.careReceiver;
     final locked = _hasActiveApplication;
-    // Post Similar takes priority as the primary action once this
-    // requirement is no longer the account's live one (posting fresh is
-    // the more common next step than re-editing an old listing) — Edit is
-    // then demoted to a secondary, tucked-away option. While locked (a
-    // candidate is awaiting a decision), Edit isn't offered at all, even
-    // as a secondary — only the one-line explanation is shown instead.
-    final showPostSimilarPrimary = widget.canPostNew;
-    final showEditPrimary = !showPostSimilarPrimary && !locked;
-    final secondaryActions = <MapEntry<String, VoidCallback>>[
-      if (_canCancel) MapEntry('Cancel Requirement', widget.onCancel),
-      if (showPostSimilarPrimary && !locked) MapEntry('Edit', widget.onEdit),
+    // A fixed 3-item menu, always offered — each item individually
+    // disabled (not hidden) when its own precondition doesn't hold, so the
+    // set of actions is always predictable rather than shifting around
+    // based on state.
+    final menuActions = <_MenuAction>[
+      _MenuAction(
+        label: locked ? 'Edit the Job (Locked)' : 'Edit the Job',
+        enabled: !locked,
+        onSelected: widget.onEdit,
+      ),
+      _MenuAction(
+        label: widget.canPostNew
+            ? 'Post Similar Requirement'
+            : 'Post Similar Requirement (Unavailable)',
+        enabled: widget.canPostNew,
+        onSelected: widget.onPostSimilar,
+      ),
+      _MenuAction(
+        label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
+        enabled: _canCancel,
+        destructive: true,
+        onSelected: widget.onCancel,
+      ),
     ];
-
-    String? primaryLabel;
-    IconData? primaryIcon;
-    VoidCallback? primaryAction;
-    if (showPostSimilarPrimary) {
-      primaryLabel = 'Post Similar Requirement';
-      primaryIcon = Icons.copy_outlined;
-      primaryAction = widget.onPostSimilar;
-    } else if (showEditPrimary) {
-      primaryLabel = 'Edit';
-      primaryIcon = Icons.edit;
-      primaryAction = widget.onEdit;
-    }
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      // A dark, wide border — easier for a senior citizen to see and tell
-      // apart from the page background/other cards than the default thin
-      // light-grey outline used elsewhere.
+      // A red, wide border on a light green shade — easier for a senior
+      // citizen to see and tell apart from the page background/other cards
+      // than the default thin light-grey outline used elsewhere.
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.textPrimary, width: 2.5),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -546,40 +546,30 @@ class _RequirementCardState extends State<_RequirementCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _StatusBadge(label: _statusLabel, color: _statusColor),
-                    const SizedBox(height: 4),
-                    Text(
-                      jobDisplayId(requirement),
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                  ],
-                ),
+                child: _StatusBadge(label: _statusLabel, color: _statusColor),
               ),
-              // Secondary, less-common actions are tucked behind a single
-              // "More options" menu instead of always sitting on screen —
-              // fewer buttons visible at once is easier to scan.
-              if (secondaryActions.isNotEmpty)
-                PopupMenuButton<VoidCallback>(
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'More options',
-                  onSelected: (action) => action(),
-                  itemBuilder: (context) => [
-                    for (final action in secondaryActions)
-                      PopupMenuItem<VoidCallback>(
-                        value: action.value,
-                        child: Text(
-                          action.key,
-                          style: action.key == 'Cancel Requirement'
-                              ? const TextStyle(color: AppColors.error)
-                              : null,
-                        ),
+              // Always exactly 3 actions — Edit / Post Similar / Cancel —
+              // each individually disabled (not hidden) when its own
+              // precondition doesn't hold, so the set of actions is
+              // predictable rather than shifting around based on state.
+              PopupMenuButton<_MenuAction>(
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'More options',
+                onSelected: (action) => action.onSelected(),
+                itemBuilder: (context) => [
+                  for (final action in menuActions)
+                    PopupMenuItem<_MenuAction>(
+                      value: action,
+                      enabled: action.enabled,
+                      child: Text(
+                        action.label,
+                        style: action.destructive && action.enabled
+                            ? const TextStyle(color: AppColors.error)
+                            : null,
                       ),
-                  ],
-                ),
+                    ),
+                ],
+              ),
             ],
           ),
           if (requirement.status == JobStatus.closed &&
@@ -588,82 +578,55 @@ class _RequirementCardState extends State<_RequirementCard> {
             Text('Reason: ${requirement.rejectionReason}',
                 style: const TextStyle(color: AppColors.error)),
           ],
-          // What actually matters most to a patient/family reviewing their
-          // own posting: the patient's care needs and when care must start —
-          // shown up front, not tucked behind "Show Full Details". Salary,
-          // by contrast, is de-emphasized to a small plain line further
-          // below — informational, not the headline figure.
+          // A clean, uniform label/value record — consistent font
+          // size/weight/color across every line (matching clinical/hospital
+          // documentation conventions), except the Job Id itself, which is
+          // set apart in bold green as the card's primary identifier.
+          const SizedBox(height: AppSpacing.sm),
+          _JobIdLine(requirement: requirement),
           if (careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            IconField(
-              icon: Icons.medical_information,
-              maxLines: null,
-              text: careReceiver.hasMedicalCondition && careReceiver.medicalConditions.isNotEmpty
-                  ? careReceiver.medicalConditions.map((c) => MedicalCondition.displayNames[c] ?? c).join(', ')
-                  : 'No medical condition',
-            ),
             const SizedBox(height: AppSpacing.xs),
-            IconField(
-              icon: Icons.wash,
-              maxLines: null,
-              text: careReceiver.toiletAssistance.isEmpty
-                  ? 'Toilet assistance: None'
-                  : 'Toilet assistance: ${careReceiver.toiletAssistance.map((t) => ToiletAssistance.displayNames[t] ?? t).join(', ')}',
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            IconField(
-              icon: Icons.restaurant,
-              text: 'Feeding/Medicine: ${FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType}',
+            _FieldLine(
+              label: 'Type Of Care',
+              value: CareTier.displayNames[deriveCareTier(careReceiver)] ??
+                  deriveCareTier(careReceiver),
             ),
           ],
-          if (requirement.startDate != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            IconField(icon: Icons.calendar_today, text: 'Start: ${requirement.startDate}'),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconField(icon: Icons.access_time, text: DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
-              IconField(icon: Icons.location_on, text: City.displayNames[requirement.city] ?? requirement.city),
-            ],
+          const SizedBox(height: AppSpacing.xs),
+          _FieldLine(
+            label: 'Salary Guidance Range',
+            value: requirement.salaryAmount != null
+                ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
+                : 'Not set',
           ),
-          // Frequency of Care/Salary are derived/suggested from the moment
-          // the requirement is created — no longer admin-set on approval —
-          // so this shows regardless of status, not just once active. Kept
-          // deliberately small and unhighlighted: for a patient/family
-          // reviewing their own posting, the care details above matter far
-          // more than the figure itself (unlike a caregiver deciding whether
-          // to apply, where salary is the headline).
-          if (requirement.salaryAmount != null) ...[
+          if (careReceiver != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            _FieldLine(
+              label: 'Scope Of Work',
+              value: 'Click Here',
+              isLink: true,
+              onTap: () => showDialog(
+                context: context,
+                builder: (_) => ScopeOfWorkDialog(
+                  tier: deriveCareTier(careReceiver),
+                  repository: ref.read(scopeOfWorkRepositoryProvider),
+                ),
+              ),
             ),
           ],
-          const SizedBox(height: AppSpacing.sm),
-          if (primaryLabel != null)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: primaryAction,
-                icon: Icon(primaryIcon, size: 18),
-                label: Text(primaryLabel),
-                style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14)),
+          const SizedBox(height: AppSpacing.xs),
+          _FieldLine(
+            label: 'Duty Requirements',
+            value: 'Click Here',
+            isLink: true,
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => DutyRequirementsDialog(
+                dutyType: requirement.dutyType,
+                repository: ref.read(dutyRequirementsRepositoryProvider),
               ),
-            )
-          else if (locked)
-            const Text(
-              'Editing is locked while a candidate is awaiting your decision.',
-              style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic),
             ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerLeft,
@@ -677,13 +640,6 @@ class _RequirementCardState extends State<_RequirementCard> {
                   _detailsExpanded ? 'Hide Full Details' : 'Show Full Details'),
             ),
           ),
-          if (careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ScopeOfWorkButton(careReceiver: careReceiver),
-            ),
-          ],
           if (_detailsExpanded) ...[
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
@@ -840,8 +796,99 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+              color: color, fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle)),
     );
+  }
+}
+
+/// A single "More options" menu action — [enabled] mirrors the same
+/// preconditions the old primary-button/secondary-menu split used to
+/// enforce (JOB_014 for editing, the one-live-requirement rule for Post
+/// Similar, JOB_015 for cancelling), just always rendered as one of a
+/// fixed 3-item menu rather than conditionally shown/hidden.
+class _MenuAction {
+  final String label;
+  final bool enabled;
+  final bool destructive;
+  final VoidCallback onSelected;
+
+  const _MenuAction({
+    required this.label,
+    required this.enabled,
+    this.destructive = false,
+    required this.onSelected,
+  });
+}
+
+// All 3 share the same dark green — a uniform, clinical-record color scheme
+// for this block of fields (Job Id excepted, which is its own bigger/bolder
+// green as the card's primary identifier — see _JobIdLine).
+const _fieldLabelStyle = TextStyle(
+    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.w600);
+const _fieldValueStyle = TextStyle(
+    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.w600);
+const _fieldLinkStyle = TextStyle(
+    fontSize: AppTypography.body,
+    color: AppColors.success,
+    fontWeight: FontWeight.w700,
+    decoration: TextDecoration.underline);
+
+/// The card's primary identifier — an icon-in-a-box plus the job's real
+/// display id, set apart from every other field on the card in bold green,
+/// same visual weight a hospital chart gives a record/MRN number.
+class _JobIdLine extends StatelessWidget {
+  final JobModel requirement;
+
+  const _JobIdLine({required this.requirement});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          const TextSpan(text: 'Job Id: ', style: _fieldLabelStyle),
+          TextSpan(
+            text: jobDisplayId(requirement),
+            style: const TextStyle(
+                fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single, uniformly-styled "Label: Value" record line — the value is
+/// either plain text or, when [isLink] is set, a tappable "Click Here"
+/// styled like a link, opening whatever [onTap] shows (the derived Scope
+/// of Work or Duty Requirements popup). Consistent font size/weight/color
+/// across every line of this shape, so the card reads like a clean record
+/// rather than a mix of ad hoc chip styles.
+class _FieldLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isLink;
+  final VoidCallback? onTap;
+
+  const _FieldLine({
+    required this.label,
+    required this.value,
+    this.isLink = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$label: ', style: _fieldLabelStyle),
+          TextSpan(text: value, style: isLink ? _fieldLinkStyle : _fieldValueStyle),
+        ],
+      ),
+    );
+    if (onTap == null) return text;
+    return InkWell(onTap: onTap, child: text);
   }
 }
 
@@ -1177,7 +1224,7 @@ class _ApplicantTimeline extends StatelessWidget {
             child: Text(
               entry.value,
               style:
-                  const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
       ],

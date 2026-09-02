@@ -123,7 +123,7 @@ class _LoginSettingsSectionState extends ConsumerState<LoginSettingsSection> {
                   children: [
                     Text(
                       _appLabels[setting.app] ?? setting.app,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle),
                     ),
                     const SizedBox(height: 4),
                     Text(_appDescriptions[setting.app] ?? '',
@@ -131,7 +131,7 @@ class _LoginSettingsSectionState extends ConsumerState<LoginSettingsSection> {
                     if (setting.updatedByName != null)
                       Text(
                         'Last updated by ${setting.updatedByName}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                       ),
                   ],
                 ),

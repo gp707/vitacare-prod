@@ -130,7 +130,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Reports', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Reports', style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.lg),
               Expanded(
                 child: SingleChildScrollView(
@@ -330,21 +330,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             const SizedBox(width: AppSpacing.xs),
             Text(
               row['ever_had_duty'] == true ? 'Previously had a duty' : 'Never had a duty',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ],
         ),
       _CaregiverReport.stalledDuty => Text(
           '${_engagementLabel(row)} · Accepted ${row['days_since_accepted']} days ago',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _CaregiverReport.overThresholdActive => Text(
           '${row['accepted_count']} accepted jobs, not completed',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _CaregiverReport.activity => Text(
           '${row['activity_count']} application(s) in the window',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
     };
     return _ResultCard(
@@ -359,19 +359,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final Widget subtitle = switch (report) {
       _PatientReport.noApplicants => Text(
           '${_jobLabel(row)} · No applicants in the window',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _PatientReport.noPendingCandidate => Text(
           '${_jobLabel(row)} · Nothing pending review',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _PatientReport.unconvertedApplicants => Text(
           '${_jobLabel(row)} · ${row['applicant_count']} applicant(s), none accepted',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _PatientReport.activity => Text(
           '${row['activity_count']} job(s) posted in the window',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
     };
     return _ResultCard(
@@ -386,19 +386,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final Widget subtitle = switch (report) {
       _OrganisationReport.noJobsPosted => const Text(
           'No requirements posted, ever',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _OrganisationReport.noApplicants => Text(
           '${row['live_requirement_count']} live requirement(s) · No applicants in the window',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _OrganisationReport.unconvertedApplicants => Text(
           '${row['applicant_count']} applicant(s), none accepted',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
       _OrganisationReport.activity => Text(
           '${row['activity_count']} requirement(s) posted in the window',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
     };
     return _ResultCard(

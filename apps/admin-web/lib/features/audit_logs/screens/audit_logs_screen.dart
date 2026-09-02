@@ -143,7 +143,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Audit Logs',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.md),
@@ -269,7 +269,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
   static const _mobileFieldLabelStyle = TextStyle(
     color: AppColors.textSecondary,
     fontWeight: FontWeight.w600,
-    fontSize: 13,
+    fontSize: AppTypography.small,
   );
 
   /// Mobile fallback for one DataRow — same fields as the DataTable's
@@ -331,7 +331,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
           // enough when you need the exact id.
           SelectableText(entry.jobId!,
               style: const TextStyle(
-                  fontSize: 10, color: AppColors.textSecondary)),
+                  fontSize: AppTypography.caption, color: AppColors.textSecondary)),
         ],
       );
     }
@@ -344,7 +344,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
               style: const TextStyle(fontWeight: FontWeight.w600)),
           SelectableText(entry.requirementId!,
               style: const TextStyle(
-                  fontSize: 10, color: AppColors.textSecondary)),
+                  fontSize: AppTypography.caption, color: AppColors.textSecondary)),
         ],
       );
     }
@@ -366,7 +366,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
         Text(displayId, style: const TextStyle(fontWeight: FontWeight.w600)),
         Text(entry.targetUserName!,
             style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary)),
       ],
     );
   }

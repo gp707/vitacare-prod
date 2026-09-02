@@ -341,7 +341,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     children: [
                       Text(detail.fullName,
                           style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold)),
+                              fontSize: AppTypography.heading, fontWeight: FontWeight.bold)),
                       if (caregiverDisplayId(detail.caregiverNumber) != null)
                         Text(caregiverDisplayId(detail.caregiverNumber)!,
                             style: const TextStyle(
@@ -438,7 +438,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             children: [
               Icon(Icons.admin_panel_settings, size: 16, color: AppColors.primaryDark),
               SizedBox(width: 4),
-              Text('Admin Override:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              Text('Admin Override:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
             ],
           ),
           DropdownButton<String>(
@@ -671,7 +671,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(
               'Each file must be under ${Validation.fileMaxSizeMb}MB',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
           _documentRow('Selfie', detail.selfiePhotoUrl,
@@ -824,7 +824,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                                 .split('.')
                                 .first,
                             style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 12),
+                                color: AppColors.textSecondary, fontSize: AppTypography.small),
                           ),
                         ],
                       ),

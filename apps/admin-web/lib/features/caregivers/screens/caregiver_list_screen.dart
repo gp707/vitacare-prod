@@ -94,7 +94,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Caregivers',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.md),

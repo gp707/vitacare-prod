@@ -49,7 +49,7 @@ class RateCardButton extends ConsumerWidget {
           children: [
             Icon(Icons.currency_rupee, size: 12),
             SizedBox(width: 1),
-            Text('Rate Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            Text('Rate Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
           ],
         ),
       ),
@@ -127,7 +127,7 @@ class _RateCardDialogState extends State<_RateCardDialog> {
                               const SizedBox(width: AppSpacing.xs),
                               Text(
                                 _rateCards![i].title,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body),
                               ),
                             ],
                           ),
@@ -187,7 +187,7 @@ class _RateCardTable extends StatelessWidget {
                     Text(
                       rateCard.columnLabels[col],
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small),
                     ),
                   ],
                 ),
@@ -200,7 +200,7 @@ class _RateCardTable extends StatelessWidget {
               for (final cell in rateCard.cells[i])
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: Text(cell, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
+                  child: Text(cell, textAlign: TextAlign.center, style: const TextStyle(fontSize: AppTypography.caption)),
                 ),
             ],
           ),

@@ -333,14 +333,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   if (_showValidationErrors && !_isAccountTypeValid)
                     const Padding(
                       padding: EdgeInsets.only(top: 4, left: 12),
-                      child: Text('Select an account type', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                      child: Text('Select an account type', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
                     ),
                 ],
               ),
             ),
             if (_isOrganisation) ...[
               const SizedBox(height: AppSpacing.lg),
-              const Text('Organisation Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('Organisation Details', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.sm),
               TextField(
                 key: _organisationNameKey,
@@ -412,7 +412,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     title: RichText(
                       text: TextSpan(
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: AppTypography.body,
                           color: _showValidationErrors && !_isTermsValid ? AppColors.error : AppColors.textPrimary,
                         ),
                         children: [
@@ -434,7 +434,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       padding: EdgeInsets.only(left: 12),
                       child: Text(
                         'You must accept the Terms & Conditions to continue',
-                        style: TextStyle(color: AppColors.error, fontSize: 12),
+                        style: TextStyle(color: AppColors.error, fontSize: AppTypography.small),
                       ),
                     ),
                 ],
@@ -546,7 +546,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           if (_showValidationErrors && !_isCodeValid)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Text('Verify your phone number to continue', style: TextStyle(color: AppColors.error, fontSize: 12)),
+              child: Text('Verify your phone number to continue', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),

@@ -151,7 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const Text(
                 'NurseJobs',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
+                style: TextStyle(fontSize: AppTypography.jumbo, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
               const SizedBox(height: AppSpacing.xl),
               if (otpMode) ..._buildOtpFields() else ..._buildPinFields(),

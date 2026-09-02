@@ -173,7 +173,7 @@ class _IndividualDetailScreenState
                   children: [
                     Text(detail.fullName,
                         style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold)),
+                            fontSize: AppTypography.heading, fontWeight: FontWeight.bold)),
                     if (patientDisplayId(detail.patientNumber) != null)
                       Text(patientDisplayId(detail.patientNumber)!,
                           style: const TextStyle(
@@ -213,7 +213,7 @@ class _IndividualDetailScreenState
                       children: [
                         Icon(Icons.person, size: 18, color: AppColors.primaryDark),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Profile', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     if (!_editMode)
@@ -340,7 +340,7 @@ class _IndividualDetailScreenState
                 children: [
                   Icon(Icons.history, size: 18, color: AppColors.primaryDark),
                   SizedBox(width: AppSpacing.xs),
-                  Text('Audit History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('Audit History', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                 ],
               ),
               TextButton.icon(
@@ -376,7 +376,7 @@ class _IndividualDetailScreenState
                               .split('.')
                               .first,
                           style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
+                              fontSize: AppTypography.small, color: AppColors.textSecondary)),
                     ),
                     SizedBox(width: 160, child: Text(entry.action)),
                     Expanded(
@@ -384,7 +384,7 @@ class _IndividualDetailScreenState
                         entry.afterValue != null
                             ? formatAuditValue(entry.afterValue)
                             : '-',
-                        style: const TextStyle(fontSize: 12),
+                        style: const TextStyle(fontSize: AppTypography.small),
                       ),
                     ),
                   ],

@@ -71,7 +71,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'VitaCare Admin',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 28,
+                      fontSize: AppTypography.jumbo,
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary),
                 ),

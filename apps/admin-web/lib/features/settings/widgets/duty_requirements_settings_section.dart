@@ -146,7 +146,7 @@ class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequiremen
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Text(
               'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
         ElevatedButton(
@@ -175,7 +175,7 @@ class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequiremen
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(title, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
           const SizedBox(height: AppSpacing.sm),
           for (var i = 0; i < controllers.length; i++)
             Padding(

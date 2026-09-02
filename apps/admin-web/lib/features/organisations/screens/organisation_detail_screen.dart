@@ -188,7 +188,7 @@ class _OrganisationDetailScreenState
                   children: [
                     Text(detail.organisationName,
                         style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold)),
+                            fontSize: AppTypography.heading, fontWeight: FontWeight.bold)),
                     if (organisationDisplayId(detail.orgNumber) != null)
                       Text(organisationDisplayId(detail.orgNumber)!,
                           style: const TextStyle(
@@ -222,7 +222,7 @@ class _OrganisationDetailScreenState
                       children: [
                         Icon(Icons.local_hospital, size: 18, color: AppColors.primaryDark),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Profile', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     if (!_editMode)
@@ -399,7 +399,7 @@ class _OrganisationDetailScreenState
                 children: [
                   Icon(Icons.history, size: 18, color: AppColors.primaryDark),
                   SizedBox(width: AppSpacing.xs),
-                  Text('Audit History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('Audit History', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                 ],
               ),
               TextButton.icon(
@@ -435,7 +435,7 @@ class _OrganisationDetailScreenState
                               .split('.')
                               .first,
                           style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
+                              fontSize: AppTypography.small, color: AppColors.textSecondary)),
                     ),
                     SizedBox(width: 160, child: Text(entry.action)),
                     Expanded(
@@ -443,7 +443,7 @@ class _OrganisationDetailScreenState
                         entry.afterValue != null
                             ? formatAuditValue(entry.afterValue)
                             : '-',
-                        style: const TextStyle(fontSize: 12),
+                        style: const TextStyle(fontSize: AppTypography.small),
                       ),
                     ),
                   ],

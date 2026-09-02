@@ -79,7 +79,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               children: [
                 Icon(Icons.logout, size: 14, color: Colors.white),
                 SizedBox(width: 3),
-                Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
               ],
             ),
           ),
@@ -211,7 +211,7 @@ class _Section extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text(title, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
               ),
               if (onEdit != null)
                 TextButton.icon(

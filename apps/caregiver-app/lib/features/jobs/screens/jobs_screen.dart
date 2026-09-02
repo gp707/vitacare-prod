@@ -216,7 +216,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                 navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               });
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
           ),
         ],
       ),
@@ -469,7 +469,7 @@ class _RequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(organisationJobDisplayId(requirement),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+              style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
           const SizedBox(height: AppSpacing.xs),
           _Tag(
             requirement.organisationType != null
@@ -479,7 +479,7 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             requirement.organisationName ?? '',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
           ),
           if (requirement.organisationType != null || requirement.city != null)
             Text(
@@ -562,7 +562,7 @@ class _Tag extends StatelessWidget {
         color: AppColors.primaryLight,
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12)),
+      child: Text(label, style: const TextStyle(fontSize: AppTypography.small)),
     );
   }
 }

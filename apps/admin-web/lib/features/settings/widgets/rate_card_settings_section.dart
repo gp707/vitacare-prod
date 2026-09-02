@@ -192,7 +192,7 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
               const SizedBox(width: AppSpacing.xs),
               Text(
                 FrequencyOfCare.displayNames[_frequency] ?? _frequency,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -216,7 +216,7 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Text(
                 'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
               ),
             ),
           ElevatedButton(

@@ -167,7 +167,7 @@ class _Tag extends StatelessWidget {
           color: AppColors.primaryLight,
           borderRadius: BorderRadius.circular(AppSpacing.sm),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
+        child: Text(label, style: const TextStyle(fontSize: AppTypography.small)),
       ),
     );
   }

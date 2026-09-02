@@ -40,7 +40,7 @@ class SettingsScreen extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(
                     AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
                 child: Text('Settings',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               ),
               Container(
                 decoration: const BoxDecoration(

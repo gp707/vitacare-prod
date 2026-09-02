@@ -218,7 +218,7 @@ class _ApplicationTimeline extends StatelessWidget {
         for (final line in lines)
           Text(line,
               style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12)),
+                  color: AppColors.textSecondary, fontSize: AppTypography.small)),
       ],
     );
   }

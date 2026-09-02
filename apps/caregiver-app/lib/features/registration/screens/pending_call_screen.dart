@@ -49,7 +49,7 @@ class PendingCallScreen extends ConsumerWidget {
                   navigator.pushNamedAndRemoveUntil('/login', (route) => false);
                 });
               },
-              child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: 13)),
+              child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
             ),
           ],
         ),
@@ -68,7 +68,7 @@ class PendingCallScreen extends ConsumerWidget {
                   'Thank you for registering! You will receive a call from our '
                   'office shortly to verify your phone number.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
+                  style: TextStyle(fontSize: AppTypography.subtitle),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 if (name.isNotEmpty) Text(name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -77,7 +77,7 @@ class PendingCallScreen extends ConsumerWidget {
                 const Text(
                   'Pull down to refresh',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                 ),
               ],
             ),

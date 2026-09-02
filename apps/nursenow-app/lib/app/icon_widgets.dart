@@ -35,7 +35,7 @@ class SalaryBadge extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Text(
             '$amount/$unit',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
+            style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
           ),
         ],
       ),
@@ -74,7 +74,7 @@ class IconField extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             maxLines: maxLines,
             overflow: maxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
           ),

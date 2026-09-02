@@ -204,7 +204,7 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+              color: color, fontSize: AppTypography.small, fontWeight: FontWeight.w600)),
     );
   }
 }

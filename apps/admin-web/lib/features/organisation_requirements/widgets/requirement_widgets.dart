@@ -125,7 +125,7 @@ class RequirementStatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+              color: color, fontSize: AppTypography.small, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -490,7 +490,7 @@ class _MonthCalendarPicker extends StatelessWidget {
                 child: Center(
                   child: Text(label,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 12)),
+                          fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
                 ),
               ),
           ],
@@ -514,7 +514,7 @@ class _MonthCalendarPicker extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         const Text(
             'Selections recur every month, regardless of the day of the week.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
       ],
     );
   }
@@ -545,7 +545,7 @@ class _CalendarDayCell extends StatelessWidget {
             ? Stack(
                 alignment: Alignment.center,
                 children: [
-                  Text('$day', style: const TextStyle(fontSize: 12)),
+                  Text('$day', style: const TextStyle(fontSize: AppTypography.small)),
                   const Positioned(
                     top: 0,
                     right: 0,
@@ -554,7 +554,7 @@ class _CalendarDayCell extends StatelessWidget {
                   ),
                 ],
               )
-            : Text('$day', style: const TextStyle(fontSize: 12)),
+            : Text('$day', style: const TextStyle(fontSize: AppTypography.small)),
       ),
     );
   }

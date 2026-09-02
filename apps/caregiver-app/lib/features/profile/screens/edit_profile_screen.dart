@@ -266,7 +266,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   Text(_profile?.fullName ?? '', style: const TextStyle(color: AppColors.textSecondary)),
                   const Text(
                     "Contact the office to change your name.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text('Gender', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -279,7 +279,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   ),
                   const Text(
                     "Contact the office to change your gender.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text('Religion', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -290,10 +290,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   ),
                   const Text(
                     "Contact the office to change your religion.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  const Text('Profile Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text('Profile Details', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
                     controller: _ageController,
@@ -338,7 +338,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     child: _savingProfile ? const _ButtonSpinner() : const Text('Save'),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  const Text('Phone Number', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text('Phone Number', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                   const SizedBox(height: AppSpacing.sm),
                   if (_willTriggerReview)
                     Container(
@@ -376,11 +376,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     child: _savingPhone ? const _ButtonSpinner() : const Text('Save Phone Number'),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  const Text('Login PIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text('Login PIN', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                   const SizedBox(height: AppSpacing.xs),
                   const Text(
                     "Changing your PIN never affects your verification status.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
@@ -404,7 +404,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     child: _savingCode ? const _ButtonSpinner() : const Text('Save PIN'),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  const Text('Documents', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text('Documents', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                   const SizedBox(height: AppSpacing.sm),
                   _DocumentSlot(
                     title: 'Selfie (mandatory)',

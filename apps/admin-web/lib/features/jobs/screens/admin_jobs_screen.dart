@@ -735,7 +735,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                     child: Text(
                       'Jobs',
                       style:
-                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -852,7 +852,7 @@ class _JobRow extends StatelessWidget {
           jobDisplayId(job),
           style: const TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 12,
+            fontSize: AppTypography.small,
             color: AppColors.primaryDark,
           ),
         ),
@@ -877,7 +877,7 @@ class _JobRow extends StatelessWidget {
             'Posted by patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
             style: const TextStyle(
                 color: AppColors.primaryDark,
-                fontSize: 12,
+                fontSize: AppTypography.small,
                 fontWeight: FontWeight.w600),
           ),
         ],
@@ -896,7 +896,7 @@ class _JobRow extends StatelessWidget {
                 : 'Salary not set',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: AppTypography.small,
               color: job.salaryAmount != null
                   ? AppColors.success
                   : AppColors.error,
@@ -911,12 +911,12 @@ class _JobRow extends StatelessWidget {
                 ? _noPreferenceLanguageLabel
                 : job.languages.map((l) => Language.displayNames[l] ?? l).join(', '),
           ].join(' • '),
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Posted: ${_formatDate(DateTime.parse(job.postedAt))}',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
         ),
         if (job.description != null && job.description!.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -1028,7 +1028,7 @@ class _JobStatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+              color: color, fontSize: AppTypography.small, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -1811,7 +1811,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               if (_showValidationErrors && !_isStartDateValid)
                 const Padding(
                   padding: EdgeInsets.only(top: 4),
-                  child: Text('Please select a start date', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                  child: Text('Please select a start date', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
                 ),
             ],
           ),

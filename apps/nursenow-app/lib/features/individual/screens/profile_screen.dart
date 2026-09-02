@@ -172,7 +172,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   Text(
                     authenticated.isOrganisation ? authenticated.organisationName! : authenticated.fullName,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
                   ),
                   if ((authenticated.isOrganisation
                           ? organisationDisplayId(authenticated.orgNumber)
@@ -220,7 +220,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       children: [
                         Icon(Icons.badge, size: 18, color: AppColors.primaryDark),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Full Name', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Full Name', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -247,7 +247,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       Icon(Icons.phone, size: 18, color: AppColors.primaryDark),
                       SizedBox(width: AppSpacing.xs),
-                      Text('Phone Number', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Phone Number', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -274,7 +274,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       Icon(Icons.lock_outline, size: 18, color: AppColors.primaryDark),
                       SizedBox(width: AppSpacing.xs),
-                      Text('Login PIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Login PIN', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),

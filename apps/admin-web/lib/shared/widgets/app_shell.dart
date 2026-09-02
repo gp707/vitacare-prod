@@ -45,7 +45,7 @@ class AppShell extends ConsumerWidget {
           title: const Text(
             'VitaCare Admin',
             style: TextStyle(
-                fontSize: 18,
+                fontSize: AppTypography.title,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primary),
           ),
@@ -107,7 +107,7 @@ class _NavList extends StatelessWidget {
                   child: Text(
                     'VitaCare Admin',
                     style: TextStyle(
-                        fontSize: 18,
+                        fontSize: AppTypography.title,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary),
                   ),

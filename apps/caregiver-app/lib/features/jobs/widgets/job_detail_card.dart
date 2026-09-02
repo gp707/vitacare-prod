@@ -65,7 +65,7 @@ class SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+      style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
     );
   }
 }
@@ -85,7 +85,7 @@ class Tag extends StatelessWidget {
           color: AppColors.primaryLight,
           borderRadius: BorderRadius.circular(AppSpacing.sm),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
+        child: Text(label, style: const TextStyle(fontSize: AppTypography.small)),
       ),
     );
   }
@@ -125,7 +125,7 @@ class SalaryBadge extends StatelessWidget {
               '$amount/${salaryUnit(frequencyOfCare)}',
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.success),
+              style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
             ),
           ),
         ],
@@ -164,7 +164,7 @@ class IconField extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -213,7 +213,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
                 jobDisplayId(job),
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: AppTypography.small,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryDark,
                 ),
@@ -226,7 +226,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: AppTypography.small,
                   fontWeight: FontWeight.bold,
                   color: urgencyColor(job.daysLeftToApply(applyByWindowDays)),
                 ),
@@ -277,7 +277,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
         const SizedBox(height: 2),
         Text(
           'Posted: ${formatDate(DateTime.parse(job.postedAt))}',
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.xs),
         InkWell(
@@ -288,7 +288,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
               Text(
                 _expanded ? 'Hide details' : 'Show details',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: AppTypography.small,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
                 ),
@@ -338,7 +338,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Other condition: ${job.careReceiver!.medicalConditionOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
               ),
             ],
             if (job.careReceiver!.toiletAssistanceOther != null &&
@@ -346,7 +346,7 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
               ),
             ],
           ],
@@ -561,7 +561,7 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: AppTypography.title,
                   fontWeight: FontWeight.bold,
                   color: AppColors.error,
                 ),

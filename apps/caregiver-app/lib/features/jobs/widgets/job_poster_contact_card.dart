@@ -49,10 +49,10 @@ class JobPosterContactCard extends StatelessWidget {
         children: [
           const Text(
             'Posted by',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 2),
-          Text(poster.fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(poster.fullName, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
           if (showPhone) ...[
             Text(poster.phone, style: const TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: AppSpacing.sm),

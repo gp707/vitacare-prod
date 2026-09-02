@@ -58,7 +58,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 children: [
                   const Text('Dashboard',
                       style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
                   IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
                 ],
               ),
@@ -167,7 +167,7 @@ class _StatCard extends StatelessWidget {
             Text(
               '$value',
               style: TextStyle(
-                  fontSize: 28,
+                  fontSize: AppTypography.jumbo,
                   fontWeight: FontWeight.bold,
                   color: color ?? AppColors.textPrimary),
             ),

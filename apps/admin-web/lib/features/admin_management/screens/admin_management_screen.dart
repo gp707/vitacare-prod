@@ -207,7 +207,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                     child: Text(
                       'Admin Management',
                       style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

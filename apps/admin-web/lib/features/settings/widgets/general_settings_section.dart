@@ -126,7 +126,7 @@ class _GeneralSettingsSectionState extends ConsumerState<GeneralSettingsSection>
                     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                     child: Text(
                       'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                     ),
                   ),
                 ElevatedButton.icon(
@@ -184,11 +184,11 @@ class _SectionCard extends StatelessWidget {
                 child: Icon(icon, size: 18, color: AppColors.primaryDark),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(title, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 4),
-          Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
           const SizedBox(height: AppSpacing.md),
           child,
         ],

@@ -15,7 +15,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 /// InputDecoration.labelText) should use [fieldGroupLabelStyle] rather than
 /// an ad hoc TextStyle, so every such label renders pixel-identical.
 class SectionBox extends StatelessWidget {
-  static const fieldGroupLabelStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.w600);
+  static const fieldGroupLabelStyle = TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.w600);
 
   final IconData icon;
   final String title;
@@ -40,7 +40,7 @@ class SectionBox extends StatelessWidget {
               Icon(icon, size: 20, color: AppColors.primaryDark),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
-                child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(title, style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold)),
               ),
             ],
           ),

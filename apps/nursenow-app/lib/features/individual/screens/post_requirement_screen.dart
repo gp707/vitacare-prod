@@ -713,7 +713,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                                 padding: EdgeInsets.only(top: 4),
                                 child: Text('Select a preferred start date',
                                     style: TextStyle(
-                                        color: AppColors.error, fontSize: 12)),
+                                        color: AppColors.error, fontSize: AppTypography.small)),
                               ),
                           ],
                         ),
@@ -1078,7 +1078,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               'Assistance, and Feeding/Medicine Assistance are filled in.',
               style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 12,
+                  fontSize: AppTypography.small,
                   fontWeight: FontWeight.w500),
             )
           : Column(
@@ -1132,7 +1132,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       children: [
         const Text(
           'Based on the requirements you entered, this appears to be a ',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small),
         ),
         GestureDetector(
           onTap: () => showDialog(
@@ -1146,14 +1146,14 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
             tierLabel,
             style: const TextStyle(
               color: AppColors.primary,
-              fontSize: 12,
+              fontSize: AppTypography.small,
               fontWeight: FontWeight.bold,
               decoration: TextDecoration.underline,
             ),
           ),
         ),
         const Text('.',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small)),
       ],
     );
   }

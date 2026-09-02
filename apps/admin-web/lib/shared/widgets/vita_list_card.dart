@@ -43,9 +43,9 @@ class VitaListCard extends StatelessWidget {
               style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
-                  fontSize: 13),
+                  fontSize: AppTypography.small),
             ),
-            TextSpan(text: value, style: const TextStyle(fontSize: 13)),
+            TextSpan(text: value, style: const TextStyle(fontSize: AppTypography.small)),
           ],
         ),
       ),
@@ -74,7 +74,7 @@ class VitaListCard extends StatelessWidget {
                   Expanded(
                     child: DefaultTextStyle.merge(
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15),
+                          fontWeight: FontWeight.bold, fontSize: AppTypography.body),
                       child: title,
                     ),
                   ),

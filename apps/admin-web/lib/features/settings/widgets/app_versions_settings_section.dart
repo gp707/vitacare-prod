@@ -152,7 +152,7 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                   children: [
                     Text(
                       version.platform[0].toUpperCase() + version.platform.substring(1),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle),
                     ),
                     const SizedBox(height: 4),
                     Text('Minimum version: ${version.minVersion}'),
@@ -165,7 +165,7 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                     if (version.updatedByName != null)
                       Text(
                         'Last updated by ${version.updatedByName}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                       ),
                   ],
                 ),

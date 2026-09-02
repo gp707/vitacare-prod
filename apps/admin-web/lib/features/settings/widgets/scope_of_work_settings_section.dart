@@ -150,7 +150,7 @@ class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettings
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Text(
               'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
         ElevatedButton(
@@ -185,12 +185,12 @@ class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettings
             children: [
               Icon(icon, size: 18, color: AppColors.primaryDark),
               const SizedBox(width: AppSpacing.xs),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(title, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
             ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
           ],
           const SizedBox(height: AppSpacing.sm),
           for (var i = 0; i < controllers.length; i++)
