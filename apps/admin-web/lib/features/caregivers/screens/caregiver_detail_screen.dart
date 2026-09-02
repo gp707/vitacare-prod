@@ -209,10 +209,22 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     }
   }
 
+  /// True (and shows a friendly snackbar) if [sizeBytes] exceeds the shared
+  /// 10MB limit — checked immediately on pick so an oversized file never
+  /// even reaches the upload step, rather than failing later with the
+  /// backend's own less specific error.
+  bool _rejectIfTooLarge(int sizeBytes) {
+    if (sizeBytes <= Validation.fileMaxSizeBytes) return false;
+    _showSnackBar('That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.',
+        isError: true);
+    return true;
+  }
+
   Future<void> _pickAndUploadSelfie() async {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
+    if (_rejectIfTooLarge(picked.size)) return;
 
     setState(() => _uploadingDocType = 'selfie');
     try {
@@ -232,6 +244,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
+    if (_rejectIfTooLarge(picked.size)) return;
 
     setState(() => _uploadingDocType = documentType);
     try {
@@ -654,6 +667,13 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Text(
+              'Each file must be under ${Validation.fileMaxSizeMb}MB',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ),
           _documentRow('Selfie', detail.selfiePhotoUrl,
               onUpload: _pickAndUploadSelfie,
               isUploading: _uploadingDocType == 'selfie'),

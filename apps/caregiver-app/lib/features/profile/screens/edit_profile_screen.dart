@@ -179,17 +179,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  /// True (and sets a friendly error) if [sizeBytes] exceeds the shared
+  /// 10MB limit — checked immediately on pick so an oversized file never
+  /// even reaches the upload step, rather than failing later with the
+  /// backend's own less specific error.
+  bool _rejectIfTooLarge(int sizeBytes) {
+    if (sizeBytes <= Validation.fileMaxSizeBytes) return false;
+    setState(() => _docError = 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
+    return true;
+  }
+
   Future<void> _pickAndUploadSelfie() async {
     final picker = ImagePicker();
     final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (photo == null) return;
+    final bytes = await photo.readAsBytes();
+    if (_rejectIfTooLarge(bytes.length)) return;
     setState(() {
       _uploadingDocType.add('selfie');
       _docError = null;
       _docSuccess = null;
     });
     try {
-      final bytes = await photo.readAsBytes();
       await ref.read(profileRepositoryProvider).uploadSelfie(bytes, photo.name);
       await _load();
     } on ApiException catch (e) {
@@ -203,6 +214,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
+    if (_rejectIfTooLarge(picked.size)) return;
 
     setState(() {
       _uploadingDocType.add(documentType);

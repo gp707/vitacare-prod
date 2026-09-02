@@ -178,6 +178,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
+  /// True (and sets a friendly error) if [sizeBytes] exceeds the shared
+  /// 10MB limit — checked immediately on pick so an oversized file never
+  /// even reaches the upload step, rather than failing later with the
+  /// backend's own less specific error.
+  bool _rejectIfTooLarge(int sizeBytes) {
+    if (sizeBytes <= Validation.fileMaxSizeBytes) return false;
+    setState(() => _errorMessage = 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
+    return true;
+  }
+
   Future<void> _takeSelfie() async {
     final picker = ImagePicker();
     // Camera capture only — CLAUDE.md: never offer ImageSource.gallery for the selfie.
@@ -188,9 +198,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       // preview and the actual upload (ProfileRepository.uploadSelfie takes
       // bytes too, for the same reason).
       final bytes = await photo.readAsBytes();
+      if (_rejectIfTooLarge(bytes.length)) return;
       setState(() {
         _selfieBytes = bytes;
         _selfieFilename = photo.name;
+        _errorMessage = null;
       });
     }
   }
@@ -199,9 +211,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
+    if (_rejectIfTooLarge(picked.size)) return;
     setState(() {
       _aadhaarBytes = picked.bytes;
       _aadhaarFilename = picked.name;
+      _errorMessage = null;
     });
   }
 
@@ -209,9 +223,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
+    if (_rejectIfTooLarge(picked.size)) return;
     setState(() {
       _qualificationDocBytes = picked.bytes;
       _qualificationDocFilename = picked.name;
+      _errorMessage = null;
     });
   }
 
@@ -219,7 +235,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
-    setState(() => _otherDocs.add(picked));
+    if (_rejectIfTooLarge(picked.size)) return;
+    setState(() {
+      _otherDocs.add(picked);
+      _errorMessage = null;
+    });
   }
 
   Future<void> _openTerms() async {
@@ -462,6 +482,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
             const Text('Documents', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Each file must be under ${Validation.fileMaxSizeMb}MB',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
             const SizedBox(height: AppSpacing.sm),
             KeyedSubtree(
               key: _selfieKey,

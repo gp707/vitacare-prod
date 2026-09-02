@@ -11,6 +11,10 @@ class Validation {
   static const ageMax = 65;
   static const rejectionMessageMaxLength = 1000;
   static const fileMaxSizeBytes = 10 * 1024 * 1024;
+  // Display-only convenience derived from fileMaxSizeBytes — shown to the
+  // user wherever a document/photo picker is offered, so the client-side
+  // limit is never a hardcoded number out of sync with the actual check.
+  static const fileMaxSizeMb = fileMaxSizeBytes ~/ (1024 * 1024);
   static const maxOtherDocuments = 3;
   static const paginationDefaultLimit = 20;
   static const paginationMaxLimit = 100;
