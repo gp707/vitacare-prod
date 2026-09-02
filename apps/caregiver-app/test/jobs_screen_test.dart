@@ -352,7 +352,7 @@ void main() {
 
     await _expandDetails(tester);
 
-    expect(find.text('Indiranagar'), findsOneWidget);
+    expect(find.text('Area: Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });
 
@@ -361,9 +361,10 @@ void main() {
     await _pump(tester, _FakeJobsRepository([_job(description: null)]));
     await _expandDetails(tester);
 
-    // Duty type now also appears as its own Tag in the expanded "About
-    // Nurse/Caregiver Requirement" section, alongside the collapsed header.
-    expect(find.text('24Hrs - Live In'), findsWidgets);
+    // Duty type only appears once now — the collapsed header's icon field —
+    // since it's no longer duplicated as its own Tag in the expanded "About
+    // Nurse/Caregiver Requirement" section.
+    expect(find.text('24Hrs - Live In'), findsOneWidget);
     expect(find.text('Bangalore'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
@@ -379,14 +380,17 @@ void main() {
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('About Patient Condition'), findsNothing);
     expect(find.text('78 yrs'), findsOneWidget);
-    expect(find.text('Female'), findsWidgets); // patient gender tag + preferred-gender tag
+    // The preferred-gender tag is now labeled "Preferred Gender: Female",
+    // not bare "Female", so this is just the patient's own gender tag.
+    expect(find.text('Female'), findsOneWidget);
     expect(find.text('60 kg'), findsOneWidget);
     expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding'), findsOneWidget);
     expect(find.text('Medicine Reminders'), findsNothing);
     expect(find.text('Toilet: Diapers/bedside support'), findsOneWidget);
     expect(find.text('Toilet: Catheter support'), findsOneWidget);
-    expect(find.text('Diabetes'), findsOneWidget);
+    expect(find.text('Area: Indiranagar'), findsOneWidget);
+    expect(find.text('Medical Condition: Diabetes'), findsOneWidget);
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);
     expect(find.text('Other condition: Recovering from hip surgery'), findsOneWidget);
@@ -394,11 +398,15 @@ void main() {
 
     // About Nurse/Caregiver Requirement
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
-    // Duty type also appears as its own icon field on the collapsed header,
-    // so this is two matches, not one.
-    expect(find.text('24Hrs - Live In'), findsNWidgets(2));
-    expect(find.text('Daily'), findsOneWidget);
+    // Duty type and Frequency of Care are no longer shown here — Duty type
+    // only appears once, as the collapsed header's icon field; Frequency of
+    // Care isn't shown at all any more.
+    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    expect(find.text('Daily'), findsNothing);
     expect(find.text('Hindi'), findsOneWidget);
+    expect(find.text('Preferred Gender: Female'), findsOneWidget);
+    // Not set on this fixture.
+    expect(find.textContaining('Preferred Religion:'), findsNothing);
     // Not set on this admin-posted job fixture — only a NurseNow
     // individual's own posting sets care_duration.
     expect(find.text('Need for Few Weeks'), findsNothing);
