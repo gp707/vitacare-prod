@@ -12,6 +12,7 @@ import 'package:admin_web/features/audit_logs/data/audit_log_models.dart';
 import 'package:admin_web/features/audit_logs/data/audit_logs_repository.dart';
 import 'package:admin_web/features/individuals/data/admin_individuals_repository.dart';
 import 'package:admin_web/features/individuals/screens/individual_detail_screen.dart';
+import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart' show JobsScreenInitialFilter;
 
 AdminIndividualListItem _item({
   String userId = 'u1',
@@ -193,5 +194,52 @@ void main() {
 
     expect(pushedRoute, '/audit-logs');
     expect(pushedArgs, 'u1');
+  });
+
+  testWidgets(
+      'View Jobs Posted redirects to /jobs pre-filtered to this individual',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeAdminIndividualsRepository(_item());
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(
+                  userId: 'admin-1', role: 'super_admin'),
+          ),
+          adminIndividualsRepositoryProvider.overrideWithValue(repo),
+          auditLogsRepositoryProvider
+              .overrideWithValue(_FakeAuditLogsRepository([])),
+        ],
+        child: MaterialApp(
+          home: const IndividualDetailScreen(userId: 'u1'),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(
+                builder: (_) => const Scaffold(body: Text('Jobs Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('View Jobs Posted'));
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/jobs');
+    final filter = pushedArgs as JobsScreenInitialFilter;
+    expect(filter.postedByUserId, 'u1');
+    expect(filter.postedByLabel, 'Asha Patel');
   });
 }

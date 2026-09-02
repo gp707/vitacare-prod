@@ -169,6 +169,12 @@ export interface ListJobsFilters {
    *  id. Null for admin-posted jobs (no individual row to join), so has no
    *  effect on those either way. */
   search?: string;
+  /** Jobs posted more than this many days ago — e.g. ones that have fallen
+   *  out of their caregiver-facing apply-by urgency window
+   *  (Validation.APPLY_BY_WINDOW_DAYS). Orthogonal to `status`, same as
+   *  every other filter here — combine with status: 'active' to find ones
+   *  still open. */
+  posted_more_than_days_ago?: number;
 }
 
 export interface ListPage {
@@ -206,6 +212,10 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
   if (filters.posted_by_role) {
     params.push(filters.posted_by_role);
     conditions.push(`u.role = $${params.length}`);
+  }
+  if (filters.posted_more_than_days_ago) {
+    params.push(filters.posted_more_than_days_ago);
+    conditions.push(`j.posted_at < NOW() - make_interval(days => $${params.length}::int)`);
   }
   if (filters.search) {
     params.push(`%${filters.search}%`);

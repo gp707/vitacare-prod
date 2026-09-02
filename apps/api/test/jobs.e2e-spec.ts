@@ -863,6 +863,27 @@ describe('Jobs (e2e)', () => {
         .expect(400);
       expect(res.body.error.code).toBe('GEN_005');
     });
+
+    it('filters by posted_more_than_days_ago — finds jobs that have fallen out of their apply-by window', async () => {
+      const freshJob = await createJob();
+      const staleJob = await createJob();
+      await db.query(`UPDATE jobs SET posted_at = NOW() - INTERVAL '5 days' WHERE id = $1`, [staleJob.id]);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?limit=100&posted_more_than_days_ago=3')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const ids = ownJobIds(res, [freshJob.id, staleJob.id]);
+      expect(ids).toEqual([staleJob.id]);
+    });
+
+    it('rejects a non-positive posted_more_than_days_ago (GEN_005)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/jobs?posted_more_than_days_ago=0')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_005');
+    });
   });
 
   describe('GET /v1/admin/jobs/posters', () => {

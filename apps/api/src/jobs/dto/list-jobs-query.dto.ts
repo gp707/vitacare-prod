@@ -57,4 +57,15 @@ export class ListJobsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  // Finds jobs whose posted_at is more than this many days in the past —
+  // e.g. jobs that have fallen out of their caregiver-facing apply-by
+  // urgency window (Validation.APPLY_BY_WINDOW_DAYS) and may need manual
+  // admin attention. Orthogonal to `status` (same as every other filter
+  // here) — combine with status=active to find ones still open.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'GEN_005' })
+  @Min(1, { message: 'GEN_005' })
+  posted_more_than_days_ago?: number;
 }

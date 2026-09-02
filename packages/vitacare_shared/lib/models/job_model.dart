@@ -1,3 +1,4 @@
+import '../constants/validation.dart';
 import 'care_receiver_model.dart';
 
 /// The posting admin's contact info — only ever present on
@@ -193,11 +194,12 @@ class JobModel {
         postedByName: json['posted_by_name'] as String?,
       );
 
-  /// The 3-day "apply by" urgency window, always computed from [postedAt]
-  /// (not [createdAt] — a repost restarts this). Purely informational: it
-  /// does not block applying, it just drives the caregiver-facing urgency
-  /// message.
-  DateTime get applyByDate => DateTime.parse(postedAt).add(const Duration(days: 3));
+  /// The apply-by urgency window (Validation.applyByWindowDays, currently 3
+  /// days), always computed from [postedAt] (not [createdAt] — a repost
+  /// restarts this). Purely informational: it does not block applying, it
+  /// just drives the caregiver-facing urgency message.
+  DateTime get applyByDate =>
+      DateTime.parse(postedAt).add(const Duration(days: Validation.applyByWindowDays));
 
   /// Whole calendar days left until [applyByDate]. 0 means "last day", a
   /// negative number means the window has passed.

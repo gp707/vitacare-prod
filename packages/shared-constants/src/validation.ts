@@ -15,6 +15,13 @@ export const Validation = {
   AGE_MAX: 65,
   REJECTION_MESSAGE_MAX_LENGTH: 1000,
   FILE_MAX_SIZE_BYTES: 10 * 1024 * 1024,
+  // How long a job stays within its caregiver-facing "apply-by" urgency
+  // window (see JobModel.applyByDate/daysLeftToApply) — purely
+  // informational, never blocks applying or auto-closes the job. Also the
+  // default threshold for admin-web's "posted more than N days ago" Jobs
+  // filter (ListJobsQueryDto.posted_more_than_days_ago), which finds jobs
+  // that have fallen out of this window and may need manual attention.
+  APPLY_BY_WINDOW_DAYS: 3,
   MAX_OTHER_DOCUMENTS: 3,
   PAGINATION_DEFAULT_LIMIT: 20,
   PAGINATION_MAX_LIMIT: 100,

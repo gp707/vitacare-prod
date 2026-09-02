@@ -568,6 +568,8 @@ void main() {
     await _selectFilterDropdown(tester, 'Duty Time', '24Hrs - Live In');
     await _selectFilterDropdown(tester, 'Status', 'Closed');
     await _selectFilterDropdown(tester, 'Language', 'Hindi');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Posted more than __ days ago'), '5');
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
     await tester.pumpAndSettle();
@@ -580,8 +582,21 @@ void main() {
           .having((f) => f.gender, 'gender', 'female')
           .having((f) => f.dutyType, 'dutyType', 'live_in')
           .having((f) => f.status, 'status', 'closed')
-          .having((f) => f.language, 'language', 'hindi'),
+          .having((f) => f.language, 'language', 'hindi')
+          .having((f) => f.postedMoreThanDaysAgo, 'postedMoreThanDaysAgo', 5),
     );
+  });
+
+  testWidgets(
+      'leaving "Posted more than __ days ago" empty sends no filter — matches every other optional filter',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastListFilters?.postedMoreThanDaysAgo, isNull);
   });
 
   testWidgets(

@@ -163,6 +163,7 @@ export class JobsService {
         language: query.language,
         posted_by_role: query.posted_by_role,
         search: query.search,
+        posted_more_than_days_ago: query.posted_more_than_days_ago,
       },
       { page: query.page, limit: query.limit },
     );

@@ -365,7 +365,8 @@ describe('JobsService', () => {
       expect(result.meta).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
     });
 
-    it('passes posted_by/gender/duty_type/language/search filters through to the repository, alongside status/city', async () => {
+    it('passes posted_by/gender/duty_type/language/search/posted_more_than_days_ago filters through to the '
+      + 'repository, alongside status/city', async () => {
       jobsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
       await service.listJobsForAdmin({
         page: 1,
@@ -378,6 +379,7 @@ describe('JobsService', () => {
         language: 'hindi',
         posted_by_role: 'individual',
         search: 'PAT-501',
+        posted_more_than_days_ago: 3,
       } as any);
       expect(jobsRepo.listForAdmin).toHaveBeenCalledWith(
         {
@@ -389,6 +391,7 @@ describe('JobsService', () => {
           language: 'hindi',
           posted_by_role: 'individual',
           search: 'PAT-501',
+          posted_more_than_days_ago: 3,
         },
         { page: 1, limit: 20 },
       );

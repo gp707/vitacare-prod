@@ -104,6 +104,12 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   String? _filterStatus;
   String? _filterLanguage;
   String? _filterPosterType;
+  // Empty means "no filter" — matches every other optional filter here
+  // (defaults to null/unselected), so the list isn't silently narrowed on
+  // first load. Admin types a number (e.g. 3, matching
+  // Validation.applyByWindowDays) to find jobs that have fallen out of
+  // their caregiver-facing apply-by urgency window.
+  final _staleDaysController = TextEditingController();
 
   @override
   void initState() {
@@ -141,8 +147,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _staleDaysController.dispose();
     super.dispose();
   }
+
+  int? get _filterPostedMoreThanDaysAgo => int.tryParse(_staleDaysController.text.trim());
 
   /// Fetches whichever of the two poster-type-specific sources the "Posted
   /// By" filter calls for (both, when it's "All jobs") and merges them for
@@ -177,6 +186,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                   status: _filterStatus,
                   language: _filterLanguage,
                   search: search,
+                  postedMoreThanDaysAgo: _filterPostedMoreThanDaysAgo,
                 ),
               )
           : Future.value(<JobModel>[]);
@@ -494,6 +504,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       _filterStatus != null ||
       _filterLanguage != null ||
       _filterPosterType != null ||
+      _filterPostedMoreThanDaysAgo != null ||
       _searchController.text.trim().isNotEmpty;
 
   /// Both lists are unpaginated (limit 100 each), so they're simply merged
@@ -678,6 +689,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               ),
             ],
             onChanged: (value) => setState(() => _filterLanguage = value),
+          ),
+        ),
+        SizedBox(
+          width: 220,
+          child: TextField(
+            controller: _staleDaysController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.hourglass_bottom),
+                labelText: 'Posted more than __ days ago',
+                hintText: 'e.g. ${Validation.applyByWindowDays}',
+                border: OutlineInputBorder(),
+                isDense: true),
+            onSubmitted: (_) => _applyFilters(),
           ),
         ),
         ElevatedButton.icon(

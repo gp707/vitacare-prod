@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
+import '../../jobs/screens/admin_jobs_screen.dart' show JobsScreenInitialFilter;
 import '../data/admin_individuals_repository.dart';
 
 /// individual_profiles has no profile depth beyond the two block levers —
@@ -115,6 +116,20 @@ class _IndividualDetailScreenState
     }
   }
 
+  /// Same redirect as IndividualsListScreen's own "View Jobs" row action —
+  /// the merged Jobs tab, pre-filtered to just this individual's own
+  /// postings (every other Jobs filter stays available to narrow further).
+  void _viewJobs(AdminIndividualListItem detail) {
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/jobs',
+      (route) => false,
+      arguments: JobsScreenInitialFilter(
+        postedByUserId: detail.userId,
+        postedByLabel: detail.fullName,
+      ),
+    );
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -173,6 +188,12 @@ class _IndividualDetailScreenState
               const SizedBox(width: AppSpacing.md),
               Text('Registered ${detail.createdAt.split('T').first}'),
             ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: () => _viewJobs(detail),
+            icon: const Icon(Icons.work_outline, size: 16),
+            label: const Text('View Jobs Posted'),
           ),
           const SizedBox(height: AppSpacing.lg),
           Container(

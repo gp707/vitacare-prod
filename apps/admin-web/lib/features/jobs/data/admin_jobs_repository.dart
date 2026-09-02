@@ -68,6 +68,11 @@ class JobListFilters {
   final String? status;
   final String? language;
   final String? search;
+  /// Finds jobs posted more than this many days ago — e.g. ones that have
+  /// fallen out of their caregiver-facing apply-by urgency window
+  /// (Validation.applyByWindowDays) and may need manual attention.
+  /// Orthogonal to [status], same as every other filter here.
+  final int? postedMoreThanDaysAgo;
 
   const JobListFilters({
     this.postedBy,
@@ -78,6 +83,7 @@ class JobListFilters {
     this.status,
     this.language,
     this.search,
+    this.postedMoreThanDaysAgo,
   });
 
   Map<String, dynamic> toQueryParameters() => {
@@ -90,6 +96,7 @@ class JobListFilters {
         if (status != null) 'status': status,
         if (language != null) 'language': language,
         if (search != null && search!.isNotEmpty) 'search': search,
+        if (postedMoreThanDaysAgo != null) 'posted_more_than_days_ago': postedMoreThanDaysAgo,
       };
 }
 

@@ -11,6 +11,13 @@ class Validation {
   static const ageMax = 65;
   static const rejectionMessageMaxLength = 1000;
   static const fileMaxSizeBytes = 10 * 1024 * 1024;
+  // How long a job stays within its caregiver-facing "apply-by" urgency
+  // window (see JobModel.applyByDate/daysLeftToApply) — purely
+  // informational, never blocks applying or auto-closes the job. Also the
+  // default threshold for admin-web's "posted more than N days ago" Jobs
+  // filter, which finds jobs that have fallen out of this window and may
+  // need manual attention.
+  static const applyByWindowDays = 3;
   // Display-only convenience derived from fileMaxSizeBytes — shown to the
   // user wherever a document/photo picker is offered, so the client-side
   // limit is never a hardcoded number out of sync with the actual check.
