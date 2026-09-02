@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/icon_widgets.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../app/rate_card_button.dart';
@@ -296,10 +297,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                       Text(_error!,
                           style: const TextStyle(color: AppColors.error)),
                     if (!hasLiveRequirement) ...[
-                      ElevatedButton(
+                      ElevatedButton.icon(
                         onPressed:
                             isJobPostingBlocked ? null : _postRequirement,
-                        child: const Text('Post a Requirement'),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Post a Requirement'),
                       ),
                       if (isJobPostingBlocked) ...[
                         const SizedBox(height: AppSpacing.sm),
@@ -586,23 +588,62 @@ class _RequirementCardState extends State<_RequirementCard> {
             Text('Reason: ${requirement.rejectionReason}',
                 style: const TextStyle(color: AppColors.error)),
           ],
-          // Frequency of Care/Salary are derived/suggested from the moment
-          // the requirement is created — no longer admin-set on approval —
-          // so this shows regardless of status, not just once active.
-          if (requirement.salaryAmount != null) ...[
+          // What actually matters most to a patient/family reviewing their
+          // own posting: the patient's care needs and when care must start —
+          // shown up front, not tucked behind "Show Full Details". Salary,
+          // by contrast, is de-emphasized to a small plain line further
+          // below — informational, not the headline figure.
+          if (careReceiver != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, color: AppColors.success),
+            IconField(
+              icon: Icons.medical_information,
+              maxLines: null,
+              text: careReceiver.hasMedicalCondition && careReceiver.medicalConditions.isNotEmpty
+                  ? careReceiver.medicalConditions.map((c) => MedicalCondition.displayNames[c] ?? c).join(', ')
+                  : 'No medical condition',
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            IconField(
+              icon: Icons.wash,
+              maxLines: null,
+              text: careReceiver.toiletAssistance.isEmpty
+                  ? 'Toilet assistance: None'
+                  : 'Toilet assistance: ${careReceiver.toiletAssistance.map((t) => ToiletAssistance.displayNames[t] ?? t).join(', ')}',
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            IconField(
+              icon: Icons.restaurant,
+              text: 'Feeding/Medicine: ${FeedingType.displayNames[careReceiver.feedingType] ?? careReceiver.feedingType}',
             ),
           ],
+          if (requirement.startDate != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            IconField(icon: Icons.calendar_today, text: 'Start: ${requirement.startDate}'),
+          ],
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            '${DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType} in '
-            '${City.displayNames[requirement.city] ?? requirement.city}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconField(icon: Icons.access_time, text: DutyType.displayNames[requirement.dutyType] ?? requirement.dutyType),
+              IconField(icon: Icons.location_on, text: City.displayNames[requirement.city] ?? requirement.city),
+            ],
           ),
+          // Frequency of Care/Salary are derived/suggested from the moment
+          // the requirement is created — no longer admin-set on approval —
+          // so this shows regardless of status, not just once active. Kept
+          // deliberately small and unhighlighted: for a patient/family
+          // reviewing their own posting, the care details above matter far
+          // more than the figure itself (unlike a caregiver deciding whether
+          // to apply, where salary is the headline).
+          if (requirement.salaryAmount != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           if (primaryLabel != null)
             SizedBox(
@@ -1040,23 +1081,26 @@ class _ApplicantTile extends StatelessWidget {
           else
             Row(
               children: [
-                OutlinedButton(
-                    onPressed: onViewProfile,
-                    child: const Text('View Profile')),
+                OutlinedButton.icon(
+                  onPressed: onViewProfile,
+                  icon: const Icon(Icons.person_outline, size: 16),
+                  label: const Text('View Profile'),
+                ),
                 const Spacer(),
                 if (canAccept)
-                  TextButton(
-                      onPressed: onAccept,
-                      child: Text((_isRejected || _isCompleted)
-                          ? 'Accept Anyway'
-                          : 'Accept')),
+                  TextButton.icon(
+                    onPressed: onAccept,
+                    icon: const Icon(Icons.check, size: 16, color: AppColors.success),
+                    label: Text(
+                      (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
+                      style: const TextStyle(color: AppColors.success),
+                    ),
+                  ),
                 if (canReject)
-                  TextButton(
+                  TextButton.icon(
                     onPressed: onReject,
-                    child: Text('Reject',
-                        style: _isAccepted
-                            ? const TextStyle(color: AppColors.error)
-                            : null),
+                    icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
                   ),
               ],
             ),

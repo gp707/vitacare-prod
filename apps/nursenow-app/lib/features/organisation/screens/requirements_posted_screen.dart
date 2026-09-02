@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/icon_widgets.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
@@ -110,9 +111,10 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
                     if (_error != null) Text(_error!, style: const TextStyle(color: AppColors.error)),
-                    ElevatedButton(
+                    ElevatedButton.icon(
                       onPressed: isJobPostingBlocked ? null : _postRequirement,
-                      child: const Text('Post a Requirement'),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Post a Requirement'),
                     ),
                     if (isJobPostingBlocked) ...[
                       const SizedBox(height: AppSpacing.sm),
@@ -239,15 +241,16 @@ class _RequirementCard extends StatelessWidget {
           ],
           if (requirement.status == JobStatus.active && requirement.salaryAmount != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
-            ),
+            SalaryBadge(amount: requirement.salaryAmount!.toString(), frequencyOfCare: requirement.frequencyOfCare),
           ],
+          const SizedBox(height: AppSpacing.sm),
+          IconField(
+            icon: Icons.medical_services,
+            text: TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+          ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             children: [
-              _Tag(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
               if (organisationScheduleLabel(requirement) != null) _Tag(organisationScheduleLabel(requirement)!),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
@@ -335,11 +338,23 @@ class _ApplicantTile extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Row(
               children: [
-                OutlinedButton(onPressed: onViewProfile, child: const Text('View Profile')),
+                OutlinedButton.icon(
+                  onPressed: onViewProfile,
+                  icon: const Icon(Icons.person_outline, size: 16),
+                  label: const Text('View Profile'),
+                ),
                 const Spacer(),
                 if (application.status == JobApplicationStatus.applied) ...[
-                  TextButton(onPressed: () => onDecide(JobApplicationStatus.accepted), child: const Text('Accept')),
-                  TextButton(onPressed: () => onDecide(JobApplicationStatus.rejected), child: const Text('Reject')),
+                  TextButton.icon(
+                    onPressed: () => onDecide(JobApplicationStatus.accepted),
+                    icon: const Icon(Icons.check, size: 16, color: AppColors.success),
+                    label: const Text('Accept', style: TextStyle(color: AppColors.success)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => onDecide(JobApplicationStatus.rejected),
+                    icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                  ),
                 ] else
                   Text(
                     _isAccepted ? 'Accepted' : (application.status[0].toUpperCase() + application.status.substring(1)),

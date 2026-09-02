@@ -268,12 +268,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               const InputDecoration(labelText: 'Rejection message (optional)'),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirm')),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+          ),
         ],
       ),
     );
@@ -356,10 +360,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             isScrollable: true,
             labelColor: AppColors.primary,
             tabs: [
-              Tab(text: 'Profile'),
-              Tab(text: 'Documents'),
-              Tab(text: 'Notes'),
-              Tab(text: 'Audit History')
+              Tab(text: 'Profile', icon: Icon(Icons.person, size: 18)),
+              Tab(text: 'Documents', icon: Icon(Icons.folder, size: 18)),
+              Tab(text: 'Notes', icon: Icon(Icons.notes, size: 18)),
+              Tab(text: 'Audit History', icon: Icon(Icons.history, size: 18)),
             ],
           ),
           Expanded(
@@ -382,15 +386,18 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     final actions = _statusActions[detail.verificationStatus] ?? [];
     for (final action in actions) {
       if (action == 'rejected') {
-        buttons.add(OutlinedButton(
+        buttons.add(OutlinedButton.icon(
           onPressed: _actionInFlight ? null : _showRejectDialog,
-          style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
-          child: const Text('Reject'),
+          style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error)),
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Reject'),
         ));
       } else if (action == 'available') {
-        buttons.add(ElevatedButton(
+        buttons.add(ElevatedButton.icon(
           onPressed: _actionInFlight ? null : () => _updateStatus('available'),
-          child: const Text('Approve'),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+          icon: const Icon(Icons.check, size: 16),
+          label: const Text('Approve'),
         ));
       }
     }
@@ -413,8 +420,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         spacing: AppSpacing.sm,
         runSpacing: AppSpacing.xs,
         children: [
-          const Text('Admin Override:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.admin_panel_settings, size: 16, color: AppColors.primaryDark),
+              SizedBox(width: 4),
+              Text('Admin Override:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+            ],
+          ),
           DropdownButton<String>(
             value: _overrideStatus,
             hint: const Text('Set status to...'),
@@ -435,7 +448,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     labelText: 'Rejection message (optional)', isDense: true),
               ),
             ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: (_actionInFlight || _overrideStatus == null)
                 ? null
                 : () {
@@ -452,7 +465,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     });
                     _updateStatus(status, rejectionMessage: rejectionMessage);
                   },
-            child: const Text('Set Status'),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Set Status'),
           ),
         ],
       ),
@@ -473,11 +487,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: _editMode
-                ? TextButton(
+                ? TextButton.icon(
                     onPressed: _savingEdits
                         ? null
                         : () => setState(() => _editMode = false),
-                    child: const Text('Cancel'),
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('Cancel'),
                   )
                 : OutlinedButton.icon(
                     onPressed: () => _enterEditMode(detail),
@@ -617,16 +632,17 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: _savingEdits ? null : () => _saveProfileEdits(detail),
-          child: _savingEdits
+          icon: _savingEdits
               ? const SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white),
                 )
-              : const Text('Save Changes'),
+              : const Icon(Icons.check, size: 16),
+          label: const Text('Save Changes'),
         ),
       ],
     );
@@ -703,9 +719,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               const SizedBox(
                   height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
             else
-              OutlinedButton(
+              OutlinedButton.icon(
                 onPressed: onUpload,
-                child: Text(url == null ? 'Upload' : 'Replace'),
+                icon: const Icon(Icons.upload_file, size: 16),
+                label: Text(url == null ? 'Upload' : 'Replace'),
               ),
         ],
       ),
@@ -722,6 +739,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             controller: _internalNotesController,
             maxLines: 4,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.notes),
                 labelText: 'Internal Notes', border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -729,13 +747,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             controller: _remarksController,
             maxLines: 2,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.event_available),
                 labelText: 'Availability Remarks',
                 border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.lg),
-          ElevatedButton(
+          ElevatedButton.icon(
               onPressed: _actionInFlight ? null : _saveNotes,
-              child: const Text('Save')),
+              icon: const Icon(Icons.check, size: 16),
+              label: const Text('Save')),
         ],
       ),
     );
@@ -756,10 +776,11 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         children: [
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
+            child: TextButton.icon(
               onPressed: () => Navigator.of(context)
                   .pushNamed('/audit-logs', arguments: detail.userId),
-              child: const Text('View full audit log'),
+              icon: const Icon(Icons.history, size: 16),
+              label: const Text('View full audit log'),
             ),
           ),
           for (final entry in _auditEntries)

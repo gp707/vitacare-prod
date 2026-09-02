@@ -161,19 +161,27 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InfoRow('Phone', profile.phone),
-          if (profile.email != null) _InfoRow('Email', profile.email!),
-          _InfoRow('Age', '${profile.age} yrs'),
-          _InfoRow('Gender', capitalize(profile.gender)),
+          _InfoRow(Icons.phone, 'Phone', profile.phone),
+          if (profile.email != null) _InfoRow(Icons.email, 'Email', profile.email!),
+          _InfoRow(Icons.cake, 'Age', '${profile.age} yrs'),
+          _InfoRow(Icons.wc, 'Gender', capitalize(profile.gender)),
           if (profile.highestQualification != null)
             _InfoRow(
+              Icons.school,
               'Qualification',
               Qualification.displayNames[profile.highestQualification!] ?? profile.highestQualification!,
             ),
-          if (profile.religion != null) _InfoRow('Religion', Religion.displayNames[profile.religion!] ?? profile.religion!),
+          if (profile.religion != null)
+            _InfoRow(Icons.diversity_3, 'Religion', Religion.displayNames[profile.religion!] ?? profile.religion!),
           if (profile.languages.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
-            const Text('Languages', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const Row(
+              children: [
+                Icon(Icons.language, size: 14, color: AppColors.primaryDark),
+                SizedBox(width: 4),
+                Text('Languages', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              ],
+            ),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: AppSpacing.xs,
@@ -198,10 +206,11 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
 
-  const _InfoRow(this.label, this.value);
+  const _InfoRow(this.icon, this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
@@ -210,8 +219,15 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(right: AppSpacing.xs),
+            decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(7)),
+            child: Icon(icon, size: 13, color: AppColors.primaryDark),
+          ),
           SizedBox(
-            width: 110,
+            width: 92,
             child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
@@ -240,10 +256,10 @@ class _DocumentsCard extends StatelessWidget {
         children: [
           const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: AppSpacing.xs),
-          _DocumentLink('Aadhaar Card', profile.aadhaarDocumentUrl),
-          _DocumentLink('Qualification Document', profile.qualificationDocumentUrl),
+          _DocumentLink(Icons.credit_card, 'Aadhaar Card', profile.aadhaarDocumentUrl),
+          _DocumentLink(Icons.description, 'Qualification Document', profile.qualificationDocumentUrl),
           for (var i = 0; i < profile.otherDocumentUrls.length; i++)
-            _DocumentLink('Other Document ${i + 1}', profile.otherDocumentUrls[i]),
+            _DocumentLink(Icons.attach_file, 'Other Document ${i + 1}', profile.otherDocumentUrls[i]),
         ],
       ),
     );
@@ -251,10 +267,11 @@ class _DocumentsCard extends StatelessWidget {
 }
 
 class _DocumentLink extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String? url;
 
-  const _DocumentLink(this.label, this.url);
+  const _DocumentLink(this.icon, this.label, this.url);
 
   @override
   Widget build(BuildContext context) {
@@ -262,8 +279,18 @@ class _DocumentLink extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
+          Container(
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(right: AppSpacing.xs),
+            decoration: BoxDecoration(
+              color: url != null ? AppColors.success.withValues(alpha: 0.15) : AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(icon, size: 13, color: url != null ? AppColors.success : AppColors.primaryDark),
+          ),
           SizedBox(
-            width: 160,
+            width: 142,
             child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ),
           Expanded(

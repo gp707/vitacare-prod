@@ -249,23 +249,21 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
   }
 
   static const _cellWidth = 220.0;
-  static const _rowLabelWidth = 260.0;
 
   Widget _buildGrid() {
     return Table(
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      // No row-label column — with exactly one row ("Care"), a leading
+      // label was redundant; _rowControllers still exists (for the
+      // save payload's rowLabels, unchanged from whatever was loaded) but
+      // is no longer rendered as an editable field.
       columnWidths: {
-        0: const FixedColumnWidth(_rowLabelWidth),
-        for (var i = 1; i <= 3; i++) i: const FixedColumnWidth(_cellWidth),
+        for (var i = 0; i < 3; i++) i: const FixedColumnWidth(_cellWidth),
       },
       border: TableBorder.all(color: AppColors.border),
       children: [
         TableRow(
           children: [
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.sm),
-              child: Text('Caregiver Tier \\ Care Type', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
             // Columns are index-matched to CareTier.all (Companion/Bedside/
             // Critical Care) by convention — see CLAUDE.md's Rate Card
             // section — so the same tier icon ScopeOfWorkButton uses is
@@ -295,14 +293,6 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
         for (var row = 0; row < 1; row++)
           TableRow(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: TextField(
-                  controller: _rowControllers[row],
-                  decoration: const InputDecoration(labelText: 'Row label'),
-                  maxLines: 2,
-                ),
-              ),
               for (var col = 0; col < 3; col++)
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.sm),

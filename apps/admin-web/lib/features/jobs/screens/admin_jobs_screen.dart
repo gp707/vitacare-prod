@@ -328,12 +328,16 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               labelText: 'Reason (shown to the requester)'),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirm')),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+          ),
         ],
       ),
     );
@@ -414,14 +418,17 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 labelText: 'Reason (shown to the organisation)'),
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel')),
-            ElevatedButton(
+            TextButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
               onPressed: controller.text.trim().isEmpty
                   ? null
                   : () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Confirm'),
+              icon: const Icon(Icons.check, size: 16),
+              label: const Text('Confirm'),
             ),
           ],
         ),
@@ -513,6 +520,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
               labelText: 'Search job ID or patient ID (e.g. PAT-501)',
               border: OutlineInputBorder(),
               isDense: true,
@@ -535,6 +543,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 ? _filterPostedBy
                 : null,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.person_outline),
                 labelText: 'Job Poster',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -555,6 +564,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterPosterType,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.source),
                 labelText: 'Posted By',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -578,6 +588,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterCity,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.location_city),
                 labelText: 'City', border: OutlineInputBorder(), isDense: true),
             items: [
               const DropdownMenuItem<String?>(
@@ -594,6 +605,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterGender,
             decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.wc),
               labelText: "Patient's Gender",
               border: OutlineInputBorder(),
               isDense: true,
@@ -613,6 +625,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterDutyType,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.access_time),
                 labelText: 'Duty Time',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -631,6 +644,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterStatus,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.flag_outlined),
                 labelText: 'Status',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -651,6 +665,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             isExpanded: true,
             initialValue: _filterLanguage,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.language),
                 labelText: 'Language',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -665,8 +680,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             onChanged: (value) => setState(() => _filterLanguage = value),
           ),
         ),
-        ElevatedButton(
-            onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton.icon(
+          onPressed: _applyFilters,
+          icon: const Icon(Icons.filter_alt, size: 18),
+          label: const Text('Apply Filters'),
+        ),
       ],
     );
   }
@@ -885,15 +903,35 @@ class _JobRow extends StatelessWidget {
     final actions = Wrap(
       spacing: AppSpacing.xs,
       children: [
-        TextButton(onPressed: onEdit, child: const Text('Edit')),
-        TextButton(
-            onPressed: onViewApplications, child: const Text('Applicants')),
+        TextButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit, size: 16),
+          label: const Text('Edit'),
+        ),
+        TextButton.icon(
+          onPressed: onViewApplications,
+          icon: const Icon(Icons.people_outline, size: 16),
+          label: const Text('Applicants'),
+        ),
         if (onRemind != null)
-          TextButton(onPressed: onRemind, child: const Text('Remind')),
+          TextButton.icon(
+            onPressed: onRemind,
+            icon: const Icon(Icons.notifications_active_outlined, size: 16),
+            label: const Text('Remind'),
+          ),
         if (onClose != null)
-          TextButton(onPressed: onClose, child: const Text('Close')),
+          TextButton.icon(
+            onPressed: onClose,
+            icon: const Icon(Icons.lock_outline, size: 16),
+            label: const Text('Close'),
+          ),
         if (onReject != null)
-          TextButton(onPressed: onReject, child: const Text('Reject')),
+          TextButton.icon(
+            onPressed: onReject,
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Reject'),
+          ),
       ],
     );
 
@@ -1722,17 +1760,30 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               // meant "Preferred Start Date" disappeared the moment a date
               // was picked, leaving just a bare date with no context for
               // what it was.
-              Text(
-                'Preferred Start Date (Mandatory)',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
-                ),
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 16,
+                    color: _showValidationErrors && !_isStartDateValid ? AppColors.error : AppColors.primaryDark,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      'Preferred Start Date (Mandatory)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              OutlinedButton(
+              OutlinedButton.icon(
                 onPressed: _pickStartDate,
-                child: Text(
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: Text(
                   _startDate == null
                       ? 'Select date'
                       : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
@@ -1871,21 +1922,24 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel')),
-        ElevatedButton(
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).pop(false),
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
           // Always clickable — missing fields are handled inside
           // _handlePostPressed (highlight + scroll), not by disabling this.
           onPressed: _submitting ? null : _handlePostPressed,
-          child: _submitting
+          icon: _submitting
               ? const SizedBox(
                   height: 16,
                   width: 16,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white),
                 )
-              : Text(_isEditing ? 'Save Changes' : 'Post'),
+              : const Icon(Icons.check, size: 16),
+          label: Text(_isEditing ? 'Save Changes' : 'Post'),
         ),
       ],
     );

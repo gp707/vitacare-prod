@@ -172,7 +172,7 @@ void main() {
     await _pump(tester, _FakeOrganisationRepository(requirements: [_requirement()]));
 
     expect(find.text('Live — visible to caregivers'), findsOneWidget);
-    expect(find.text('₹40000/month'), findsOneWidget);
+    expect(find.text('40000/month'), findsOneWidget);
     expect(find.text('Registered Nurse'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);

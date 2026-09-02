@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
@@ -43,6 +44,8 @@ Map<String, dynamic> _careReceiverJson({
       'vital_monitoring_types': [],
     };
 
+Iterable<String> _texts(List<MessageItem> messages) => messages.map((m) => m.text);
+
 void main() {
   group('messagesForRequirement', () {
     test('returns nothing for a closed requirement', () {
@@ -52,7 +55,7 @@ void main() {
     test('includes the edit/salary tip for a pending_review requirement', () {
       final messages = messagesForRequirement(_requirement(status: 'pending_review'));
       expect(
-        messages,
+        _texts(messages),
         contains(contains('You can edit this job and change salary')),
       );
     });
@@ -60,7 +63,7 @@ void main() {
     test('includes the edit/salary tip for an active requirement', () {
       final messages = messagesForRequirement(_requirement(status: 'active'));
       expect(
-        messages,
+        _texts(messages),
         contains(contains('You can edit this job and change salary')),
       );
     });
@@ -68,7 +71,7 @@ void main() {
     test('includes the one-requirement-at-a-time tip while live', () {
       final messages = messagesForRequirement(_requirement(status: 'active'));
       expect(
-        messages,
+        _texts(messages),
         contains(contains('You can post one requirement at a time')),
       );
     });
@@ -76,14 +79,14 @@ void main() {
     test('includes the widen-your-scope tip while live', () {
       final messages = messagesForRequirement(_requirement(status: 'active'));
       expect(
-        messages,
+        _texts(messages),
         contains(contains('consider widening your scope')),
       );
     });
 
     test('omits the derived-tier tip when there is no care_receiver yet', () {
       final messages = messagesForRequirement(_requirement(status: 'pending_review'));
-      expect(messages.any((m) => m.contains('we see you need')), isFalse);
+      expect(messages.any((m) => m.text.contains('we see you need')), isFalse);
     });
 
     test('includes the derived-tier tip naming Companion Care for an independent/oral-feeding patient', () {
@@ -91,7 +94,7 @@ void main() {
         _requirement(status: 'active', careReceiver: _careReceiverJson()),
       );
       expect(
-        messages,
+        _texts(messages),
         contains(contains("we see you need Companion Care")),
       );
     });
@@ -104,7 +107,7 @@ void main() {
         ),
       );
       expect(
-        messages,
+        _texts(messages),
         contains(contains('we see you need Critical Care')),
       );
     });
@@ -120,14 +123,38 @@ void main() {
       final messages = messagesForRequirement(_requirement(status: 'pending_review'));
       expect(messages, hasLength(3));
     });
+
+    test('every row gets its own distinct icon, not a repeated generic one', () {
+      final messages = messagesForRequirement(
+        _requirement(status: 'active', careReceiver: _careReceiverJson()),
+      );
+      final icons = messages.map((m) => m.icon).toSet();
+      expect(icons, hasLength(4));
+    });
+
+    test('the derived-tier row uses the same pictogram Scope of Work uses for that tier', () {
+      final companion = messagesForRequirement(
+        _requirement(status: 'active', careReceiver: _careReceiverJson()),
+      );
+      final critical = messagesForRequirement(
+        _requirement(
+          status: 'active',
+          careReceiver: _careReceiverJson(toiletAssistance: const ['uses_catheter']),
+        ),
+      );
+      final companionTierMessage = companion.firstWhere((m) => m.text.contains('we see you need'));
+      final criticalTierMessage = critical.firstWhere((m) => m.text.contains('we see you need'));
+      expect(companionTierMessage.icon, Icons.favorite);
+      expect(criticalTierMessage.icon, Icons.emergency);
+    });
   });
 
   group('welcomeMessages', () {
     test('shows the welcome/orientation messages for an account with no requirements at all', () {
       final messages = welcomeMessages(const []);
       expect(messages, hasLength(2));
-      expect(messages, contains(contains('Welcome to NurseNow')));
-      expect(messages, contains(contains('Post a Requirement')));
+      expect(_texts(messages), contains(contains('Welcome to NurseNow')));
+      expect(_texts(messages), contains(contains('Post a Requirement')));
     });
 
     test('is empty once the account has posted at least one requirement, even a closed one', () {

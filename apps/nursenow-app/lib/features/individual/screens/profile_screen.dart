@@ -160,7 +160,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.xs),
-                  Text(authenticated.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.phone, size: 14, color: AppColors.textSecondary),
+                      const SizedBox(width: 4),
+                      Text(authenticated.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                    ],
+                  ),
                   if (authenticated.isJobPostingBlocked) ...[
                     const SizedBox(height: AppSpacing.sm),
                     const Text(
@@ -169,7 +176,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ],
                   const Divider(height: AppSpacing.xxl),
-                  const Text('Phone Number', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Row(
+                    children: [
+                      Icon(Icons.phone, size: 18, color: AppColors.primaryDark),
+                      SizedBox(width: AppSpacing.xs),
+                      Text('Phone Number', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
                     controller: _phoneController,
@@ -182,14 +195,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Text(_phoneSuccess!, style: const TextStyle(color: AppColors.success)),
                     ),
-                  ElevatedButton(
+                  ElevatedButton.icon(
                     onPressed: _savingPhone ? null : () => _savePhone(authenticated.isOrganisation),
-                    child: _savingPhone
+                    icon: _savingPhone
                         ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
-                        : const Text('Save Phone Number'),
+                        : const Icon(Icons.check, size: 16),
+                    label: const Text('Save Phone Number'),
                   ),
                   const Divider(height: AppSpacing.xxl),
-                  const Text('Login PIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Row(
+                    children: [
+                      Icon(Icons.lock_outline, size: 18, color: AppColors.primaryDark),
+                      SizedBox(width: AppSpacing.xs),
+                      Text('Login PIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   TextField(
                     controller: _codeController,
@@ -203,14 +223,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                       child: Text(_codeSuccess!, style: const TextStyle(color: AppColors.success)),
                     ),
-                  ElevatedButton(
+                  ElevatedButton.icon(
                     onPressed: _savingCode ? null : () => _saveCode(authenticated.isOrganisation),
-                    child: _savingCode
+                    icon: _savingCode
                         ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
-                        : const Text('Save PIN'),
+                        : const Icon(Icons.check, size: 16),
+                    label: const Text('Save PIN'),
                   ),
                   const Divider(height: AppSpacing.xxl),
-                  OutlinedButton(onPressed: _logout, child: const Text('Logout')),
+                  OutlinedButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
+                    label: const Text('Logout', style: TextStyle(color: AppColors.error)),
+                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
+                  ),
                 ],
               ),
             ),

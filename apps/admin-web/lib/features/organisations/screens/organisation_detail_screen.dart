@@ -218,13 +218,19 @@ class _OrganisationDetailScreenState
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Profile',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Row(
+                      children: [
+                        Icon(Icons.local_hospital, size: 18, color: AppColors.primaryDark),
+                        SizedBox(width: AppSpacing.xs),
+                        Text('Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                     if (!_editMode)
-                      TextButton(
-                          onPressed: () => _enterEditMode(detail),
-                          child: const Text('Edit')),
+                      TextButton.icon(
+                        onPressed: () => _enterEditMode(detail),
+                        icon: const Icon(Icons.edit, size: 16),
+                        label: const Text('Edit'),
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -244,35 +250,30 @@ class _OrganisationDetailScreenState
 
   Widget _statusBadge(AdminOrganisationListItem detail) {
     if (!detail.isActive) {
-      return const Text('Blocked',
-          style:
-              TextStyle(color: AppColors.error, fontWeight: FontWeight.bold));
+      return const _StatusPill(icon: Icons.block, color: AppColors.error, label: 'Blocked');
     }
     if (detail.isJobPostingBlocked) {
-      return const Text('Posting Blocked',
-          style:
-              TextStyle(color: AppColors.error, fontWeight: FontWeight.bold));
+      return const _StatusPill(icon: Icons.block, color: AppColors.error, label: 'Posting Blocked');
     }
-    return const Text('Active',
-        style:
-            TextStyle(color: AppColors.success, fontWeight: FontWeight.bold));
+    return const _StatusPill(icon: Icons.check_circle, color: AppColors.success, label: 'Active');
   }
 
   Widget _buildReadOnly(AdminOrganisationListItem detail) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _field('Organisation Name', detail.organisationName),
-        _field('Contact Person', detail.fullName),
-        _field('Phone', detail.phone),
+        _field(Icons.local_hospital, 'Organisation Name', detail.organisationName),
+        _field(Icons.badge, 'Contact Person', detail.fullName),
+        _field(Icons.phone, 'Phone', detail.phone),
         _field(
+            Icons.category,
             'Type',
             OrganisationType.displayNames[detail.organisationType] ??
                 detail.organisationType),
-        _field('City', City.displayNames[detail.city] ?? detail.city),
-        _field('Area', detail.area),
+        _field(Icons.location_city, 'City', City.displayNames[detail.city] ?? detail.city),
+        _field(Icons.location_on, 'Area', detail.area),
         if (detail.blockReason != null)
-          _field('Block Reason', detail.blockReason!),
+          _field(Icons.report_outlined, 'Block Reason', detail.blockReason!),
       ],
     );
   }
@@ -284,12 +285,14 @@ class _OrganisationDetailScreenState
         TextField(
           controller: _organisationNameController,
           decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.local_hospital),
               labelText: 'Organisation Name', border: OutlineInputBorder()),
         ),
         const SizedBox(height: AppSpacing.md),
         TextField(
           controller: _fullNameController,
           decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.badge),
               labelText: 'Contact Person', border: OutlineInputBorder()),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -297,6 +300,7 @@ class _OrganisationDetailScreenState
           isExpanded: true,
           initialValue: _editOrganisationType,
           decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.category),
               labelText: 'Type', border: OutlineInputBorder()),
           items: OrganisationType.all
               .map((t) => DropdownMenuItem(
@@ -309,6 +313,7 @@ class _OrganisationDetailScreenState
           isExpanded: true,
           initialValue: _editCity,
           decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.location_city),
               labelText: 'City', border: OutlineInputBorder()),
           items: [
             ...City.all.map((c) => DropdownMenuItem(
@@ -322,27 +327,30 @@ class _OrganisationDetailScreenState
         TextField(
           controller: _areaController,
           decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.location_on),
               labelText: 'Area', border: OutlineInputBorder()),
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: _savingEdits ? null : () => _saveEdits(detail),
-              child: _savingEdits
+              icon: _savingEdits
                   ? const SizedBox(
                       height: 16,
                       width: 16,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Save Changes'),
+                  : const Icon(Icons.check, size: 16),
+              label: const Text('Save Changes'),
             ),
             const SizedBox(width: AppSpacing.sm),
-            TextButton(
+            TextButton.icon(
               onPressed:
                   _savingEdits ? null : () => setState(() => _editMode = false),
-              child: const Text('Cancel'),
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Cancel'),
             ),
           ],
         ),
@@ -350,14 +358,21 @@ class _OrganisationDetailScreenState
     );
   }
 
-  Widget _field(String label, String value) {
+  Widget _field(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(right: AppSpacing.xs),
+            decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(7)),
+            child: Icon(icon, size: 13, color: AppColors.primaryDark),
+          ),
           SizedBox(
-              width: 140,
+              width: 118,
               child: Text(label,
                   style: const TextStyle(color: AppColors.textSecondary))),
           Expanded(child: Text(value)),
@@ -380,12 +395,18 @@ class _OrganisationDetailScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Audit History',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              TextButton(
+              const Row(
+                children: [
+                  Icon(Icons.history, size: 18, color: AppColors.primaryDark),
+                  SizedBox(width: AppSpacing.xs),
+                  Text('Audit History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              TextButton.icon(
                 onPressed: () => Navigator.of(context)
                     .pushNamed('/audit-logs', arguments: widget.userId),
-                child: const Text('View full audit log'),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('View full audit log'),
               ),
             ],
           ),
@@ -431,6 +452,28 @@ class _OrganisationDetailScreenState
             ),
         ],
       ),
+    );
+  }
+}
+
+/// A color-coded status pill with an icon — the account's active/blocked
+/// state read at a glance, not just from the word alone.
+class _StatusPill extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _StatusPill({required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

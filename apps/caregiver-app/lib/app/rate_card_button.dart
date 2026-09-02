@@ -156,21 +156,19 @@ class _RateCardTable extends StatelessWidget {
       // Flexible, proportional column widths (not fixed pixels) so the
       // table always fits within whatever width the dialog actually has —
       // long cell text wraps onto multiple lines instead of forcing
-      // horizontal scrolling. The row-label column gets a smaller share
-      // since it only ever holds the short "Care" label, unlike the data
-      // columns which can carry a whole sentence.
+      // horizontal scrolling. No row-label column — with exactly one row
+      // ("Care"), a leading label was redundant; the 3 tier columns carry
+      // the data directly.
       columnWidths: const {
-        0: FlexColumnWidth(0.7),
+        0: FlexColumnWidth(1),
         1: FlexColumnWidth(1),
         2: FlexColumnWidth(1),
-        3: FlexColumnWidth(1),
       },
       border: TableBorder.all(color: AppColors.border),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
           children: [
-            const SizedBox.shrink(),
             // Column labels are index-matched to CareTier.all (Companion/
             // Bedside/Critical Care) — same icon mapping ScopeOfWorkButton
             // uses for these same 3 tiers, so the pictogram means the same
@@ -199,14 +197,10 @@ class _RateCardTable extends StatelessWidget {
         for (var i = 0; i < rateCard.rowLabels.length; i++)
           TableRow(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                child: Text(rateCard.rowLabels[i], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              ),
               for (final cell in rateCard.cells[i])
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: Text(cell, style: const TextStyle(fontSize: 11)),
+                  child: Text(cell, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
                 ),
             ],
           ),

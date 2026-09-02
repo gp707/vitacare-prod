@@ -89,6 +89,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
               labelText: 'Search name, phone, or ID (PAT-...)',
               border: OutlineInputBorder(),
               isDense: true,
@@ -102,6 +103,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             isExpanded: true,
             initialValue: _blockStatus,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.flag_outlined),
                 labelText: 'Status',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -117,8 +119,11 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             onChanged: (value) => setState(() => _blockStatus = value),
           ),
         ),
-        ElevatedButton(
-            onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton.icon(
+          onPressed: _applyFilters,
+          icon: const Icon(Icons.filter_alt, size: 18),
+          label: const Text('Apply Filters'),
+        ),
       ],
     );
   }
@@ -141,12 +146,16 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
               labelText: 'Reason (shown to the individual)'),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirm')),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+          ),
         ],
       ),
     );
@@ -390,21 +399,60 @@ class _ActionsCell extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextButton(onPressed: onViewJobs, child: const Text('View Jobs')),
+        TextButton.icon(
+          onPressed: onViewJobs,
+          icon: const Icon(Icons.work_outline, size: 16),
+          label: const Text('View Jobs'),
+        ),
         PopupMenuButton<VoidCallback>(
           tooltip: 'More actions',
           onSelected: (action) => action(),
           itemBuilder: (context) => [
             if (item.isJobPostingBlocked)
-              PopupMenuItem(value: onUnblockJobPosting, child: const Text('Unblock Posting'))
+              PopupMenuItem(
+                value: onUnblockJobPosting,
+                child: const _MenuLabel(icon: Icons.lock_open, color: AppColors.success, label: 'Unblock Posting'),
+              )
             else
-              PopupMenuItem(value: onBlockJobPosting, child: const Text('Block Posting')),
+              PopupMenuItem(
+                value: onBlockJobPosting,
+                child: const _MenuLabel(icon: Icons.block, color: AppColors.error, label: 'Block Posting'),
+              ),
             if (item.isActive)
-              PopupMenuItem(value: onBlockFull, child: const Text('Block Profile'))
+              PopupMenuItem(
+                value: onBlockFull,
+                child: const _MenuLabel(icon: Icons.person_off, color: AppColors.error, label: 'Block Profile'),
+              )
             else
-              PopupMenuItem(value: onUnblockFull, child: const Text('Unblock')),
+              PopupMenuItem(
+                value: onUnblockFull,
+                child: const _MenuLabel(icon: Icons.lock_open, color: AppColors.success, label: 'Unblock'),
+              ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+/// An icon + label pair for a PopupMenuItem — color-coded so a destructive
+/// action (block) and a restorative one (unblock) read apart at a glance,
+/// not just by their words.
+class _MenuLabel extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _MenuLabel({required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: AppSpacing.sm),
+        Text(label),
       ],
     );
   }

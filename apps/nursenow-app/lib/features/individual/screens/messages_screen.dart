@@ -55,7 +55,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = <String>[
+    final messages = <MessageItem>[
       ...welcomeMessages(_requirements),
       for (final requirement in _requirements)
         ...messagesForRequirement(requirement),
@@ -108,10 +108,18 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.info_outline,
-                                      color: AppColors.primary, size: 20),
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryLight,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(messages[index].icon,
+                                        color: AppColors.primaryDark, size: 15),
+                                  ),
                                   const SizedBox(width: AppSpacing.sm),
-                                  Expanded(child: Text(messages[index])),
+                                  Expanded(child: Text(messages[index].text)),
                                 ],
                               ),
                             ),

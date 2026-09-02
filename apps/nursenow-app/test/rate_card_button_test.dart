@@ -69,7 +69,8 @@ void main() {
     expect(find.text('Salary Guidelines — Daily'), findsOneWidget);
     expect(find.text('Salary Guidelines — Monthly'), findsOneWidget);
     expect(find.text('Companion care'), findsNWidgets(2));
-    expect(find.text('Care'), findsNWidgets(2));
+    // No row-label column any more — the single "Care" row has no leading
+    // label, so "Care" is no longer rendered here.
     expect(find.text('867 per day'), findsOneWidget);
     expect(find.text('26000 pm'), findsOneWidget);
     expect(find.text('Caregivers are not suggested'), findsNWidgets(2));

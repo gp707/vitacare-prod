@@ -17,10 +17,11 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 class SectionBox extends StatelessWidget {
   static const fieldGroupLabelStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.w600);
 
+  final IconData icon;
   final String title;
   final List<Widget> children;
 
-  const SectionBox({super.key, required this.title, required this.children});
+  const SectionBox({super.key, required this.icon, required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,15 @@ class SectionBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              Icon(icon, size: 20, color: AppColors.primaryDark),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.md),
           ...children,
         ],

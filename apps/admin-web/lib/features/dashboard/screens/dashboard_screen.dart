@@ -76,34 +76,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       runSpacing: AppSpacing.md,
                       children: [
                         _StatCard(
+                            icon: Icons.groups,
                             label: 'Total Caregivers',
                             value: _stats!.totalCaregivers,
                             onTap: () => _goToCaregivers()),
                         _StatCard(
+                          icon: Icons.call,
                           label: 'Pending Call',
                           value: _stats!.pendingCall,
                           color: AppColors.statusPendingCall,
                           onTap: () => _goToCaregivers(status: 'pending_call'),
                         ),
                         _StatCard(
+                          icon: Icons.verified,
                           label: 'Verified',
                           value: _stats!.available,
                           color: AppColors.statusAvailable,
                           onTap: () => _goToCaregivers(status: 'available'),
                         ),
                         _StatCard(
+                          icon: Icons.cancel,
                           label: 'Rejected',
                           value: _stats!.rejected,
                           color: AppColors.statusRejected,
                           onTap: () => _goToCaregivers(status: 'rejected'),
                         ),
                         _StatCard(
+                            icon: Icons.fiber_new,
                             label: 'New (24h)',
                             value: _stats!.newRegistrations24h),
                         _StatCard(
+                            icon: Icons.date_range,
                             label: 'New (7d)',
                             value: _stats!.newRegistrations7d),
                         _StatCard(
+                          icon: Icons.edit_note,
                           label: 'Pending Edits',
                           value: _stats!.pendingEditsCount,
                           color: AppColors.warning,
@@ -121,16 +128,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 }
 
 class _StatCard extends StatelessWidget {
+  final IconData icon;
   final String label;
   final int value;
   final Color? color;
   final VoidCallback? onTap;
 
   const _StatCard(
-      {required this.label, required this.value, this.color, this.onTap});
+      {required this.icon, required this.label, required this.value, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final tint = color ?? AppColors.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSpacing.sm),
@@ -145,6 +154,16 @@ class _StatCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: tint),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               '$value',
               style: TextStyle(

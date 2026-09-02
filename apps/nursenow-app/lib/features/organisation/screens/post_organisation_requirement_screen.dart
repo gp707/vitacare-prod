@@ -88,10 +88,19 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
                 color: AppColors.primaryLight,
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
               ),
-              child: const Text(
-                "An admin reviews every new requirement and sets the frequency of care, salary, "
-                "and (for daily requirements) the preferred start date before it goes live and "
-                "caregivers can see it. City/area are taken from your organisation's registered location.",
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.primaryDark, size: 18),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      "An admin reviews every new requirement and sets the frequency of care, salary, "
+                      "and (for daily requirements) the preferred start date before it goes live and "
+                      "caregivers can see it. City/area are taken from your organisation's registered location.",
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -100,6 +109,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
               isExpanded: true,
               initialValue: _typeOfNurse,
               decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.medical_services),
                 labelText: 'Type of Nurse/Caregiver (Mandatory)',
                 border: const OutlineInputBorder(),
                 errorText: _showValidationErrors && !_isTypeOfNurseValid ? 'Please select a type' : null,
@@ -112,12 +122,14 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             const SizedBox(height: AppSpacing.md),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.home, color: AppColors.primaryDark),
               title: const Text('Accommodation provided?'),
               value: _accommodationProvided,
               onChanged: (value) => setState(() => _accommodationProvided = value),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.restaurant, color: AppColors.primaryDark),
               title: const Text('Food provided?'),
               value: _foodProvided,
               onChanged: (value) => setState(() => _foodProvided = value),
@@ -127,6 +139,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
               controller: _specialSkillsController,
               maxLines: 3,
               decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.star_outline),
                 labelText: 'Special skills required (optional)',
                 border: OutlineInputBorder(),
               ),
@@ -136,15 +149,16 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
               Text(_error!, style: const TextStyle(color: AppColors.error)),
             ],
             const SizedBox(height: AppSpacing.lg),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: _saving ? null : _handleSubmitPressed,
-              child: _saving
+              icon: _saving
                   ? const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Submit for Review'),
+                  : const Icon(Icons.send, size: 18),
+              label: const Text('Submit for Review'),
             ),
           ],
         ),

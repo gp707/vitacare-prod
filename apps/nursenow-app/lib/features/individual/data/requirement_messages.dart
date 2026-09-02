@@ -1,4 +1,17 @@
+import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import '../../../app/scope_of_work_button.dart' show tierIcon;
+
+/// A single tip row on the Messages tab — pairs the message text with a
+/// fixed icon so each row reads as its own category at a glance (editing/
+/// pricing, care tier, posting rules, matching advice), not an
+/// undifferentiated stack of paragraphs that all look the same.
+class MessageItem {
+  final IconData icon;
+  final String text;
+
+  const MessageItem(this.icon, this.text);
+}
 
 /// Automatic, status-based tips shown on the Individual's "Messages" tab —
 /// purely computed client-side from a requirement's current fields (no
@@ -14,15 +27,18 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 /// one-off events with their own timestamp. Empty once the requirement is
 /// no longer live (closed/rejected/cancelled) — a past requirement has
 /// nothing left to advise the patient/family about.
-List<String> messagesForRequirement(JobModel requirement) {
+List<MessageItem> messagesForRequirement(JobModel requirement) {
   final isLive = requirement.status == JobStatus.pendingReview ||
       requirement.status == JobStatus.active;
   if (!isLive) return const [];
 
-  final messages = <String>[
-    'You can edit this job and change salary. Typically it takes 3 to 5 days for caregivers '
-        'to reach out. If urgent, do not hesitate to click on the red button at the top of '
-        'the app for help.',
+  final messages = <MessageItem>[
+    const MessageItem(
+      Icons.edit_note,
+      'You can edit this job and change salary. Typically it takes 3 to 5 days for caregivers '
+          'to reach out. If urgent, do not hesitate to click on the red button at the top of '
+          'the app for help.',
+    ),
   ];
 
   final careReceiver = requirement.careReceiver;
@@ -30,21 +46,30 @@ List<String> messagesForRequirement(JobModel requirement) {
     final tier = deriveCareTier(careReceiver);
     final tierLabel = CareTier.displayNames[tier] ?? tier;
     messages.add(
-      "Based on the patient's condition we see you need $tierLabel. You may look at the "
-      'standard Rate Card for this care level. You can also tap Scope of Work on the job '
-      'listing to see exactly what it covers.',
+      MessageItem(
+        tierIcon(tier),
+        "Based on the patient's condition we see you need $tierLabel. You may look at the "
+        'standard Rate Card for this care level. You can also tap Scope of Work on the job '
+        'listing to see exactly what it covers.',
+      ),
     );
   }
 
-  messages.addAll([
-    'You can post one requirement at a time — once the existing requirement is closed, '
-        'fulfilled, or cancelled, you can post another. Tip: you may cancel a requirement '
-        'at any time.',
-    'If you are not getting applicants, consider widening your scope: move to a monthly or '
-        'long-term requirement, stay open to candidates of any religion, or set Preferred '
-        'Caregiver Gender and Language Preference to "No Preference" — caregivers are '
-        'trained to handle any gender, so this can significantly widen your pool of '
-        'candidates.',
+  messages.addAll(const [
+    MessageItem(
+      Icons.rule,
+      'You can post one requirement at a time — once the existing requirement is closed, '
+          'fulfilled, or cancelled, you can post another. Tip: you may cancel a requirement '
+          'at any time.',
+    ),
+    MessageItem(
+      Icons.travel_explore,
+      'If you are not getting applicants, consider widening your scope: move to a monthly or '
+          'long-term requirement, stay open to candidates of any religion, or set Preferred '
+          'Caregiver Gender and Language Preference to "No Preference" — caregivers are '
+          'trained to handle any gender, so this can significantly widen your pool of '
+          'candidates.',
+    ),
   ]);
 
   return messages;
@@ -58,15 +83,21 @@ List<String> messagesForRequirement(JobModel requirement) {
 /// posting a first requirement is itself a real, permanent state change,
 /// so this naturally and permanently stops applying the moment [requirements]
 /// is no longer empty, rather than needing to be tracked as "already seen".
-List<String> welcomeMessages(List<JobModel> requirements) {
+List<MessageItem> welcomeMessages(List<JobModel> requirements) {
   if (requirements.isNotEmpty) return const [];
 
   return const [
-    'Welcome to NurseNow! Use Profile to manage your phone number and login PIN, Messages '
-        '(this tab) for tips and updates about your posted job, and Jobs Posted to post a '
-        'requirement and review the caregivers who apply.',
-    'Ready to get started? Head to the Jobs Posted tab and tap "Post a Requirement" to '
-        'describe the care you need — most caregivers typically reach out within 3 to 5 '
-        'days once it goes live.',
+    MessageItem(
+      Icons.waving_hand,
+      'Welcome to NurseNow! Use Profile to manage your phone number and login PIN, Messages '
+          '(this tab) for tips and updates about your posted job, and Jobs Posted to post a '
+          'requirement and review the caregivers who apply.',
+    ),
+    MessageItem(
+      Icons.rocket_launch,
+      'Ready to get started? Head to the Jobs Posted tab and tap "Post a Requirement" to '
+          'describe the care you need — most caregivers typically reach out within 3 to 5 '
+          'days once it goes live.',
+    ),
   ];
 }

@@ -36,6 +36,24 @@ String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(
 /// per-day rate, everything else reads as monthly.
 String salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
 
+/// Collapses CareDuration's 4 values down to the 2-word bucket a caregiver
+/// actually cares about at a glance — "Short Term" for a few days/weeks,
+/// "Long Term" for a month or more — shown next to the "Home Care"/"Posted
+/// by Admin" tag on a job card. Only ever set on a NurseNow individual's own
+/// posting (null for an admin-posted job, so this renders nothing there).
+String? careDurationTermLabel(String? careDuration) {
+  switch (careDuration) {
+    case CareDuration.fewDays:
+    case CareDuration.fewWeeks:
+      return 'Short Term';
+    case CareDuration.fewMonths:
+    case CareDuration.longTerm:
+      return 'Long Term';
+    default:
+      return null;
+  }
+}
+
 class SectionLabel extends StatelessWidget {
   final String text;
 
@@ -214,7 +232,15 @@ class _JobDetailCardState extends State<JobDetailCard> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Tag(jobPostedByLabel(job)),
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: [
+            Tag(jobPostedByLabel(job)),
+            if (careDurationTermLabel(job.careDuration) != null)
+              Tag(careDurationTermLabel(job.careDuration)!),
+          ],
+        ),
         if (job.salaryAmount != null || job.startDate != null) ...[
           const SizedBox(height: AppSpacing.xs),
           Row(

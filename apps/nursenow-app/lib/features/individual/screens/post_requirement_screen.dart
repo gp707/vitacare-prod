@@ -508,6 +508,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
                   SectionBox(
+                    icon: Icons.person,
                     title: 'Patient Details',
                     children: [
                       TextField(
@@ -516,6 +517,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         focusNode: _ageFocusNode,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.cake),
                           labelText: "Patient's Age (Mandatory)",
                           border: const OutlineInputBorder(),
                           errorText: _showValidationErrors && !_isAgeValid
@@ -530,6 +532,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _gender,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.wc),
                           labelText: "Patient's Gender (Mandatory)",
                           border: const OutlineInputBorder(),
                           errorText: _showValidationErrors && !_isGenderValid
@@ -549,6 +552,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         focusNode: _weightFocusNode,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.monitor_weight_outlined),
                           labelText: "Patient's Weight (kg) (Mandatory)",
                           border: const OutlineInputBorder(),
                           errorText: _showValidationErrors && !_isWeightValid
@@ -563,6 +567,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _city,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.location_city),
                           labelText: 'City (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText: _showValidationErrors && !_isCityValid
@@ -582,6 +587,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         controller: _areaController,
                         focusNode: _areaFocusNode,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.location_on),
                           labelText: 'Area (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText: _showValidationErrors && !_isAreaValid
@@ -591,8 +597,15 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      const Text('Medical Condition (Mandatory)',
-                          style: SectionBox.fieldGroupLabelStyle),
+                      const Row(
+                        children: [
+                          Icon(Icons.medical_information, size: 18, color: AppColors.primaryDark),
+                          SizedBox(width: AppSpacing.xs),
+                          Flexible(
+                            child: Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: AppSpacing.sm),
                       VitaMultiSelectChips(
                         options: [
@@ -624,6 +637,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   SectionBox(
+                    icon: Icons.tune,
                     title: 'Care Preferences',
                     children: [
                       Row(
@@ -635,6 +649,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                               isExpanded: true,
                               initialValue: _dutyType,
                               decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.access_time),
                                 labelText: 'Hours Care Needed (Mandatory)',
                                 border: const OutlineInputBorder(),
                                 errorText:
@@ -661,19 +676,33 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Preferred Start Date (Mandatory)',
-                              style: SectionBox.fieldGroupLabelStyle.copyWith(
-                                color:
-                                    _showValidationErrors && !_isStartDateValid
-                                        ? AppColors.error
-                                        : null,
-                              ),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 16,
+                                  color: _showValidationErrors && !_isStartDateValid
+                                      ? AppColors.error
+                                      : AppColors.primaryDark,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    'Preferred Start Date (Mandatory)',
+                                    style: SectionBox.fieldGroupLabelStyle.copyWith(
+                                      color: _showValidationErrors && !_isStartDateValid
+                                          ? AppColors.error
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: AppSpacing.xs),
-                            OutlinedButton(
+                            OutlinedButton.icon(
                               onPressed: _pickStartDate,
-                              child: Text(
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: Text(
                                 _startDate == null
                                     ? 'Select date'
                                     : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
@@ -695,6 +724,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _careDuration,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.timelapse),
                           labelText: 'Duration Care is Needed (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText:
@@ -761,6 +791,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                             ? null
                             : _toiletAssistance.first,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.wash),
                           labelText: 'Toilet Assistance (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText:
@@ -799,6 +830,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _feedingType,
                         decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.restaurant),
                           labelText: 'Feeding/Medicine Assistance (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText:
@@ -821,6 +853,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _preferredGender,
                         decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.people_outline),
                             labelText: 'Preferred Caregiver Gender',
                             border: OutlineInputBorder()),
                         items: const [
@@ -865,8 +898,15 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Language Preference',
-                                style: SectionBox.fieldGroupLabelStyle),
+                            const Row(
+                              children: [
+                                Icon(Icons.language, size: 18, color: AppColors.primaryDark),
+                                SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text('Language Preference', style: SectionBox.fieldGroupLabelStyle),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: AppSpacing.xs),
                             VitaMultiSelectChips(
                               options: [_noPreferenceLanguage, ...Language.all],
@@ -914,6 +954,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         isExpanded: true,
                         initialValue: _preferredReligion,
                         decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.diversity_3),
                             labelText: 'Preferred Caregiver Religion',
                             border: OutlineInputBorder()),
                         items: [
@@ -968,16 +1009,17 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         style: const TextStyle(color: AppColors.error)),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  ElevatedButton(
+                  ElevatedButton.icon(
                     onPressed: _saving ? null : _handleSubmitPressed,
-                    child: _saving
+                    icon: _saving
                         ? const SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Submit for Review'),
+                        : const Icon(Icons.send, size: 18),
+                    label: const Text('Submit for Review'),
                   ),
                 ],
               ),

@@ -91,7 +91,8 @@ void main() {
     expect(find.widgetWithText(TextField, 'Daily Guidelines'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Monthly Guidelines'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Companion care'), findsNWidgets(2));
-    expect(find.widgetWithText(TextField, 'Care'), findsNWidgets(2));
+    // No row-label TextField any more — the single "Care" row has no
+    // leading label column, so "Care" is no longer editable/rendered here.
     expect(find.widgetWithText(TextField, '26000 pm'), findsNWidgets(2));
     expect(find.widgetWithText(TextField, 'Not suggested'), findsNWidgets(2));
   });

@@ -124,6 +124,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           child: TextField(
             controller: _searchController,
             decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
               labelText: 'Search name, phone, or ID (NUR-...)',
               border: OutlineInputBorder(),
               isDense: true,
@@ -137,6 +138,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             isExpanded: true,
             initialValue: _status,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.flag_outlined),
                 labelText: 'Status',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -155,6 +157,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             isExpanded: true,
             initialValue: _qualification,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.school),
                 labelText: 'Qualification',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -173,6 +176,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             isExpanded: true,
             initialValue: _gender,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.wc),
                 labelText: 'Gender',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -191,6 +195,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             isExpanded: true,
             initialValue: _language,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.language),
                 labelText: 'Language',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -209,6 +214,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             isExpanded: true,
             initialValue: _city,
             decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.location_city),
                 labelText: 'Preferred City',
                 border: OutlineInputBorder(),
                 isDense: true),
@@ -221,8 +227,11 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             onChanged: (value) => setState(() => _city = value),
           ),
         ),
-        ElevatedButton(
-            onPressed: _applyFilters, child: const Text('Apply Filters')),
+        ElevatedButton.icon(
+          onPressed: _applyFilters,
+          icon: const Icon(Icons.filter_alt, size: 18),
+          label: const Text('Apply Filters'),
+        ),
       ],
     );
   }
