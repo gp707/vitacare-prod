@@ -70,4 +70,8 @@ class ApiRoutes {
   static const scopeOfWork = '/scope-of-work';
 
   static const dutyRequirements = '/duty-requirements';
+
+  static const jobSettings = '/job-settings';
+  static const adminJobSettings = '/admin/job-settings';
+  static const adminProfilePassword = '/admin/profile/password';
 }

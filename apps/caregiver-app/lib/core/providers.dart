@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'network/api_client.dart';
 import 'storage/local_storage.dart';
@@ -7,6 +8,7 @@ import 'version/app_version_repository.dart';
 import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
+import 'job_settings/job_settings_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
@@ -57,9 +59,20 @@ final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
   return ScopeOfWorkRepository(ref.watch(apiClientProvider).dio);
 });
 
+final jobSettingsRepositoryProvider = Provider<JobSettingsRepository>((ref) {
+  return JobSettingsRepository(ref.watch(apiClientProvider).dio);
+});
+
 /// Whether OTP mode is enabled for this app (nursejobs) — set once at
 /// splash time from AuthConfigRepository.isOtpEnabled(), read by
 /// LoginScreen/RegistrationScreen to decide whether to show phone+OTP or
 /// phone+PIN. Defaults to false (PIN mode), the known-safe default this
 /// falls back to on any error.
 final otpModeProvider = StateProvider<bool>((ref) => false);
+
+/// The admin-configurable apply-by urgency window (in days) — set once at
+/// splash time from JobSettingsRepository.getApplyByWindowDays(), read by
+/// JobDetailCard wherever it shows the "X days left to apply" badge.
+/// Defaults to Validation.applyByWindowDays, the known-safe fallback this
+/// falls back to on any error.
+final applyByWindowDaysProvider = StateProvider<int>((ref) => Validation.applyByWindowDays);

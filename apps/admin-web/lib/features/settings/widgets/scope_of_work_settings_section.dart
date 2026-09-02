@@ -4,23 +4,23 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
 import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
 
-/// Lets an admin edit the 3 cumulative bullet lists (Companion Care /
-/// Bedside Care / Critical Care) shown to caregivers (NurseJobs) via a
-/// per-job "Scope of Work" popup — which tier a job's popup shows is
-/// derived automatically from that job's care needs, never picked here.
-/// Unlike RateCardScreen's fixed 3x3 grid, each tier here is a free-length
-/// bullet list — bullets can be added or removed, not just edited in place.
-class ScopeOfWorkScreen extends ConsumerStatefulWidget {
-  const ScopeOfWorkScreen({super.key});
+/// The "Scope of Work" tab of the Settings hub — lets an admin edit the 3
+/// cumulative bullet lists (Companion Care / Bedside Care / Critical Care)
+/// shown to caregivers (NurseJobs) via a per-job "Scope of Work" popup —
+/// which tier a job's popup shows is derived automatically from that job's
+/// care needs, never picked here. Unlike the Rate Card's fixed 3x3 grid,
+/// each tier here is a free-length bullet list — bullets can be added or
+/// removed, not just edited in place.
+class ScopeOfWorkSettingsSection extends ConsumerStatefulWidget {
+  const ScopeOfWorkSettingsSection({super.key});
 
   @override
-  ConsumerState<ScopeOfWorkScreen> createState() => _ScopeOfWorkScreenState();
+  ConsumerState<ScopeOfWorkSettingsSection> createState() => _ScopeOfWorkSettingsSectionState();
 }
 
-class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
+class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettingsSection> {
   bool _loading = true;
   bool _saving = false;
   String? _errorMessage;
@@ -98,36 +98,12 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.scopeOfWork,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Scope of Work',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Caregiving tasks shown to caregivers (NurseJobs) via a per-job popup. '
-                'Which tier a job shows is derived automatically from that job\'s care needs — '
-                'Bedside Care and Critical Care are cumulative ("everything in the tier(s) below, plus…").',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _buildForm(),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+    if (_loading) {
+      return const Center(child: VitaLoadingIndicator());
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: _buildForm(),
     );
   }
 
@@ -135,6 +111,13 @@ class _ScopeOfWorkScreenState extends ConsumerState<ScopeOfWorkScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Text(
+          'Caregiving tasks shown to caregivers (NurseJobs) via a per-job popup. '
+          'Which tier a job shows is derived automatically from that job\'s care needs — '
+          'Bedside Care and Critical Care are cumulative ("everything in the tier(s) below, plus…").',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         if (_errorMessage != null) ...[
           Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
           const SizedBox(height: AppSpacing.sm),

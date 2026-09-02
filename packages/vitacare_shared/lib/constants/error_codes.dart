@@ -11,6 +11,7 @@ class ErrorCodes {
     'AUTH_006': 'Invalid refresh token',
     'AUTH_007': 'Insufficient permissions',
     'AUTH_008': 'Invalid code',
+    'AUTH_015': 'Current password is incorrect',
 
     // Profile
     'PROFILE_001': 'Full name is required',

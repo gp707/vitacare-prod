@@ -13,11 +13,7 @@ enum AppShellSection {
   reports,
   auditLogs,
   adminManagement,
-  appVersions,
-  loginSettings,
-  rateCard,
-  scopeOfWork,
-  dutyRequirements,
+  settings,
 }
 
 /// Nav shell used by every authenticated screen. Below the tablet
@@ -175,39 +171,11 @@ class _NavList extends StatelessWidget {
                         .pushNamedAndRemoveUntil('/admins', (r) => false),
                   ),
                 _NavItem(
-                  icon: Icons.system_update,
-                  label: 'App Versions',
-                  selected: current == AppShellSection.appVersions,
+                  icon: Icons.settings,
+                  label: 'Settings',
+                  selected: current == AppShellSection.settings,
                   onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/app-versions', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.password,
-                  label: 'Login Settings',
-                  selected: current == AppShellSection.loginSettings,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/login-settings', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.currency_rupee,
-                  label: 'Rate Card',
-                  selected: current == AppShellSection.rateCard,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/rate-card', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.checklist,
-                  label: 'Scope of Work',
-                  selected: current == AppShellSection.scopeOfWork,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/scope-of-work', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.assignment_outlined,
-                  label: 'Duty Requirements',
-                  selected: current == AppShellSection.dutyRequirements,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/duty-requirements', (r) => false),
+                      .pushNamedAndRemoveUntil('/settings', (r) => false),
                 ),
               ],
             ),

@@ -88,6 +88,13 @@ export class UsersRepository {
     ]);
   }
 
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.db.query('UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1', [
+      userId,
+      passwordHash,
+    ]);
+  }
+
   async updateFcmToken(userId: string, token: string): Promise<void> {
     await this.db.query('UPDATE users SET fcm_token = $2, updated_at = NOW() WHERE id = $1', [
       userId,

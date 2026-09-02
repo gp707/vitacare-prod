@@ -361,6 +361,8 @@ class AuditAction {
   static const rateCardUpdated = 'rate_card_updated';
   static const scopeOfWorkUpdated = 'scope_of_work_updated';
   static const dutyRequirementsUpdated = 'duty_requirements_updated';
+  static const jobSettingsUpdated = 'job_settings_updated';
+  static const adminPasswordChanged = 'admin_password_changed';
 
   static const all = [
     registration,
@@ -392,6 +394,8 @@ class AuditAction {
     rateCardUpdated,
     scopeOfWorkUpdated,
     dutyRequirementsUpdated,
+    jobSettingsUpdated,
+    adminPasswordChanged,
   ];
 }
 

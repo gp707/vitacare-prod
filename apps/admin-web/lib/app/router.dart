@@ -7,11 +7,7 @@ import '../features/caregivers/screens/caregiver_detail_screen.dart';
 import '../features/admin_management/screens/admin_management_screen.dart';
 import '../features/audit_logs/screens/audit_logs_screen.dart';
 import '../features/jobs/screens/admin_jobs_screen.dart';
-import '../features/app_versions/screens/app_versions_screen.dart';
-import '../features/login_settings/screens/login_settings_screen.dart';
-import '../features/rate_card/screens/rate_card_screen.dart';
-import '../features/scope_of_work/screens/scope_of_work_screen.dart';
-import '../features/duty_requirements/screens/duty_requirements_screen.dart';
+import '../features/settings/screens/settings_screen.dart';
 import '../features/individuals/screens/individuals_list_screen.dart';
 import '../features/individuals/screens/individual_detail_screen.dart';
 import '../features/organisations/screens/organisations_list_screen.dart';
@@ -32,11 +28,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/login': (context) => const LoginScreen(),
     '/dashboard': (context) => const DashboardScreen(),
     '/admins': (context) => const AdminManagementScreen(),
-    '/app-versions': (context) => const AppVersionsScreen(),
-    '/login-settings': (context) => const LoginSettingsScreen(),
-    '/rate-card': (context) => const RateCardScreen(),
-    '/scope-of-work': (context) => const ScopeOfWorkScreen(),
-    '/duty-requirements': (context) => const DutyRequirementsScreen(),
+    '/settings': (context) => const SettingsScreen(),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
     '/reports': (context) => const ReportsScreen(),

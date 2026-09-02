@@ -24,6 +24,7 @@ import { OtpVerificationsRepository } from './repositories/otp-verifications.rep
 import { RateCardRepository } from './repositories/rate-card.repository';
 import { ScopeOfWorkRepository } from './repositories/scope-of-work.repository';
 import { DutyRequirementsRepository } from './repositories/duty-requirements.repository';
+import { JobSettingsRepository } from './repositories/job-settings.repository';
 
 const repositories = [
   UsersRepository,
@@ -50,6 +51,7 @@ const repositories = [
   RateCardRepository,
   ScopeOfWorkRepository,
   DutyRequirementsRepository,
+  JobSettingsRepository,
 ];
 
 @Global()

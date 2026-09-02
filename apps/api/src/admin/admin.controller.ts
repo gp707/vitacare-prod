@@ -29,6 +29,7 @@ import { UpsertAdminNotesDto } from './dto/upsert-admin-notes.dto';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -114,5 +115,15 @@ export class AdminController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminService.uploadDocument(id, user.sub, dto, file, ip);
+  }
+
+  @Patch('profile/password')
+  @HttpCode(HttpStatus.OK)
+  changeOwnPassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ChangePasswordDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminService.changeOwnPassword(user.sub, dto, ip);
   }
 }

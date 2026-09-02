@@ -20,15 +20,11 @@ const _restorableRoutes = {
   '/dashboard',
   '/admins',
   '/jobs',
-  '/app-versions',
+  '/settings',
   '/patients-family',
   '/rehab-hospitals',
   '/caregivers',
   '/reports',
-  '/login-settings',
-  '/rate-card',
-  '/scope-of-work',
-  '/duty-requirements',
 };
 
 /// Checks for a stored session and redirects to /login, or back to

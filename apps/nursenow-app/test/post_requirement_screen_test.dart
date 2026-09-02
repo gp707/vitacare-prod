@@ -174,7 +174,7 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
 
-  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('Need for Few Weeks').last);
   await tester.pumpAndSettle();
@@ -248,7 +248,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Few Weeks').last);
     await tester.pumpAndSettle();
@@ -389,7 +389,7 @@ void main() {
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Few Weeks').last);
     await tester.pumpAndSettle();
@@ -499,7 +499,7 @@ void main() {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for few Days').last);
     await tester.pumpAndSettle();
@@ -512,7 +512,7 @@ void main() {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Few Weeks').last);
     await tester.pumpAndSettle();
@@ -524,13 +524,13 @@ void main() {
     final repo = _FakeIndividualRepository();
     await _pumpTall(tester, repo);
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for few Days').last);
     await tester.pumpAndSettle();
     expect(find.text('Short-term requirement'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Minimum a Month').last);
     await tester.pumpAndSettle();
@@ -582,7 +582,7 @@ void main() {
     await tester.tap(find.text('Oral feeding').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Few Weeks').last);
     await tester.pumpAndSettle();
@@ -644,7 +644,7 @@ void main() {
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester);
 
-      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration Care is Needed (Mandatory)'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();

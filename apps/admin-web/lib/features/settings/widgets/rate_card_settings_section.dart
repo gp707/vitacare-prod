@@ -4,26 +4,25 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
 import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
-import '../data/rate_card_repository.dart';
+import '../../rate_card/data/rate_card_repository.dart';
 
-/// Lets an admin edit the salary-guidance grids shown behind a persistent
-/// app-bar icon on caregiver-app (NurseJobs) and nursenow-app's Individual
-/// screens — never shown to Organisation accounts. There are always exactly
-/// 2 grids, one per frequency of care ('daily'/'monthly') — each is its own
-/// independently-editable, independently-saveable section rather than one
-/// combined form, since admin edits and saves them on separate occasions.
-/// The grid shape (3 columns x 1 row) is fixed; every label and cell is
-/// free-text editable.
-class RateCardScreen extends ConsumerStatefulWidget {
-  const RateCardScreen({super.key});
+/// The "Rate Card" tab of the Settings hub — lets an admin edit the
+/// salary-guidance grids shown behind a persistent app-bar icon on
+/// caregiver-app (NurseJobs) and nursenow-app's Individual screens. There
+/// are always exactly 2 grids, one per frequency of care
+/// ('daily'/'monthly') — each is its own independently-editable,
+/// independently-saveable section rather than one combined form, since
+/// admin edits and saves them on separate occasions. The grid shape (3
+/// columns x 1 row) is fixed; every label and cell is free-text editable.
+class RateCardSettingsSection extends ConsumerStatefulWidget {
+  const RateCardSettingsSection({super.key});
 
   @override
-  ConsumerState<RateCardScreen> createState() => _RateCardScreenState();
+  ConsumerState<RateCardSettingsSection> createState() => _RateCardSettingsSectionState();
 }
 
-class _RateCardScreenState extends ConsumerState<RateCardScreen> {
+class _RateCardSettingsSectionState extends ConsumerState<RateCardSettingsSection> {
   bool _loading = true;
   String? _errorMessage;
   List<RateCardWithUpdater>? _rateCards;
@@ -51,49 +50,33 @@ class _RateCardScreenState extends ConsumerState<RateCardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.rateCard,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Rate Card',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Salary guidance shown to caregivers (NurseJobs) and patients/families '
-                '(NurseNow) behind an icon on every screen. Not shown to hospitals/rehabs/clinics. '
-                'Daily and monthly rates are maintained separately and saved independently.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final rateCard in _rateCards!)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-                            child: _RateCardSection(
-                              key: ValueKey(rateCard.rateCard.frequencyOfCare),
-                              initial: rateCard,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+    if (_loading) {
+      return const Center(child: VitaLoadingIndicator());
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Salary guidance shown to caregivers (NurseJobs) and patients/families '
+            '(NurseNow) behind an icon on every screen. Not shown to hospitals/rehabs/clinics. '
+            'Daily and monthly rates are maintained separately and saved independently.',
+            style: TextStyle(color: AppColors.textSecondary),
           ),
-        ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_errorMessage != null)
+            Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+          else
+            for (final rateCard in _rateCards!)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                child: _RateCardSection(
+                  key: ValueKey(rateCard.rateCard.frequencyOfCare),
+                  initial: rateCard,
+                ),
+              ),
+        ],
       ),
     );
   }

@@ -194,16 +194,21 @@ class JobModel {
         postedByName: json['posted_by_name'] as String?,
       );
 
-  /// The apply-by urgency window (Validation.applyByWindowDays, currently 3
-  /// days), always computed from [postedAt] (not [createdAt] — a repost
-  /// restarts this). Purely informational: it does not block applying, it
-  /// just drives the caregiver-facing urgency message.
-  DateTime get applyByDate =>
-      DateTime.parse(postedAt).add(const Duration(days: Validation.applyByWindowDays));
+  /// The apply-by urgency window, always computed from [postedAt] (not
+  /// [createdAt] — a repost restarts this). Purely informational: it does
+  /// not block applying, it just drives the caregiver-facing urgency
+  /// message. [windowDays] is admin-configurable server-side (GET
+  /// /job-settings, previously a hardcoded 3-day constant) — callers that
+  /// have fetched the live value should pass it; the default
+  /// (Validation.applyByWindowDays) is only a fail-open fallback for when
+  /// that fetch hasn't resolved yet or failed.
+  DateTime applyByDate([int windowDays = Validation.applyByWindowDays]) =>
+      DateTime.parse(postedAt).add(Duration(days: windowDays));
 
   /// Whole calendar days left until [applyByDate]. 0 means "last day", a
   /// negative number means the window has passed.
-  int get daysLeftToApply => applyByDate.difference(DateTime.now()).inDays;
+  int daysLeftToApply([int windowDays = Validation.applyByWindowDays]) =>
+      applyByDate(windowDays).difference(DateTime.now()).inDays;
 
   /// Whether the posting individual cancelled this requirement themselves
   /// — always implies [status] is 'closed', but distinct from a plain

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
-import '../data/otp_settings_repository.dart';
+import '../../login_settings/data/otp_settings_repository.dart';
 
 const _appLabels = {'nursejobs': 'NurseJobs', 'nursenow': 'NurseNow'};
 const _appDescriptions = {
@@ -12,21 +11,22 @@ const _appDescriptions = {
   'nursenow': 'Patient/family and hospital/rehab registration and login (NurseNow app).',
 };
 
-/// Lets an admin force either mobile app onto SMS-OTP registration/login
-/// instead of the default phone + 4-digit PIN — additive, not a
-/// replacement: while OFF (the default) an app behaves exactly as before.
-/// While ON, that app's registration/login screens show phone+OTP only and
-/// hide the PIN field entirely. Each app is toggled independently. See
+/// The "Login Settings" tab of the Settings hub — lets an admin force
+/// either mobile app onto SMS-OTP registration/login instead of the
+/// default phone + 4-digit PIN — additive, not a replacement: while OFF
+/// (the default) an app behaves exactly as before. While ON, that app's
+/// registration/login screens show phone+OTP only and hide the PIN field
+/// entirely. Each app is toggled independently. See
 /// AuthService.resolveCredential (apps/api) for how the backend enforces
 /// this server-side, never trusting the client.
-class LoginSettingsScreen extends ConsumerStatefulWidget {
-  const LoginSettingsScreen({super.key});
+class LoginSettingsSection extends ConsumerStatefulWidget {
+  const LoginSettingsSection({super.key});
 
   @override
-  ConsumerState<LoginSettingsScreen> createState() => _LoginSettingsScreenState();
+  ConsumerState<LoginSettingsSection> createState() => _LoginSettingsSectionState();
 }
 
-class _LoginSettingsScreenState extends ConsumerState<LoginSettingsScreen> {
+class _LoginSettingsSectionState extends ConsumerState<LoginSettingsSection> {
   List<OtpAppSetting> _settings = [];
   bool _loading = true;
   String? _errorMessage;
@@ -79,33 +79,26 @@ class _LoginSettingsScreenState extends ConsumerState<LoginSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.loginSettings,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Login Settings', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Force an app onto OTP-based registration and login instead of a 4-digit PIN. '
-                'Turning this off reverts that app to the PIN flow immediately.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                const SizedBox(height: AppSpacing.md),
-              ],
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else
-                Expanded(child: _buildList()),
-            ],
+    if (_loading) {
+      return const Center(child: VitaLoadingIndicator());
+    }
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Force an app onto OTP-based registration and login instead of a 4-digit PIN. '
+            'Turning this off reverts that app to the PIN flow immediately.',
+            style: TextStyle(color: AppColors.textSecondary),
           ),
-        ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_errorMessage != null) ...[
+            Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          Expanded(child: _buildList()),
+        ],
       ),
     );
   }
@@ -133,7 +126,8 @@ class _LoginSettingsScreenState extends ConsumerState<LoginSettingsScreen> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 4),
-                    Text(_appDescriptions[setting.app] ?? '', style: const TextStyle(color: AppColors.textSecondary)),
+                    Text(_appDescriptions[setting.app] ?? '',
+                        style: const TextStyle(color: AppColors.textSecondary)),
                     if (setting.updatedByName != null)
                       Text(
                         'Last updated by ${setting.updatedByName}',

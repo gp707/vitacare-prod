@@ -3,21 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
-import '../data/app_versions_repository.dart';
+import '../../app_versions/data/app_versions_repository.dart';
 
-/// Lets an admin force-upgrade the caregiver mobile app: raising a
-/// platform's min_version above what a caregiver has installed blocks them
-/// with an "Update Required" screen on their next launch (see
-/// AppVersionRepository.checkForUpdate in the caregiver app).
-class AppVersionsScreen extends ConsumerStatefulWidget {
-  const AppVersionsScreen({super.key});
+/// The "App Versions" tab of the Settings hub — lets an admin force-upgrade
+/// the caregiver mobile app: raising a platform's min_version above what a
+/// caregiver has installed blocks them with an "Update Required" screen on
+/// their next launch (see AppVersionRepository.checkForUpdate in the
+/// caregiver app).
+class AppVersionsSettingsSection extends ConsumerStatefulWidget {
+  const AppVersionsSettingsSection({super.key});
 
   @override
-  ConsumerState<AppVersionsScreen> createState() => _AppVersionsScreenState();
+  ConsumerState<AppVersionsSettingsSection> createState() => _AppVersionsSettingsSectionState();
 }
 
-class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
+class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettingsSection> {
   List<AppMinVersion> _versions = [];
   bool _loading = true;
   String? _errorMessage;
@@ -44,12 +44,9 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
   }
 
   Future<void> _showEditDialog(AppMinVersion version) async {
-    final minVersionController =
-        TextEditingController(text: version.minVersion);
-    final storeUrlController =
-        TextEditingController(text: version.storeUrl ?? '');
-    final updateMessageController =
-        TextEditingController(text: version.updateMessage ?? '');
+    final minVersionController = TextEditingController(text: version.minVersion);
+    final storeUrlController = TextEditingController(text: version.storeUrl ?? '');
+    final updateMessageController = TextEditingController(text: version.updateMessage ?? '');
     String? dialogError;
 
     final saved = await showDialog<bool>(
@@ -64,8 +61,7 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
               children: [
                 TextField(
                   controller: minVersionController,
-                  decoration: const InputDecoration(
-                      labelText: 'Minimum version (e.g. 1.2.0)'),
+                  decoration: const InputDecoration(labelText: 'Minimum version (e.g. 1.2.0)'),
                 ),
                 TextField(
                   controller: storeUrlController,
@@ -73,22 +69,20 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
                 ),
                 TextField(
                   controller: updateMessageController,
-                  decoration: const InputDecoration(
-                      labelText: 'Update message (shown to caregiver)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Update message (shown to caregiver)'),
                   maxLines: 2,
                 ),
                 if (dialogError != null) ...[
                   const SizedBox(height: AppSpacing.sm),
-                  Text(dialogError!,
-                      style: const TextStyle(color: AppColors.error)),
+                  Text(dialogError!, style: const TextStyle(color: AppColors.error)),
                 ],
               ],
             ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel')),
+                onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
                 try {
@@ -115,33 +109,25 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.appVersions,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('App Versions',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Raise a platform\'s minimum version above what a caregiver has installed to '
-                'force them to update before they can use the app again.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else if (_errorMessage != null)
-                Text(_errorMessage!,
-                    style: const TextStyle(color: AppColors.error))
-              else
-                Expanded(child: _buildList()),
-            ],
+    if (_loading) {
+      return const Center(child: VitaLoadingIndicator());
+    }
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Raise a platform\'s minimum version above what a caregiver has installed to '
+            'force them to update before they can use the app again.',
+            style: TextStyle(color: AppColors.textSecondary),
           ),
-        ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_errorMessage != null)
+            Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
+          else
+            Expanded(child: _buildList()),
+        ],
       ),
     );
   }
@@ -149,8 +135,7 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
   Widget _buildList() {
     return ListView.separated(
       itemCount: _versions.length,
-      separatorBuilder: (context, index) =>
-          const SizedBox(height: AppSpacing.md),
+      separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
       itemBuilder: (context, index) {
         final version = _versions[index];
         return Container(
@@ -166,35 +151,26 @@ class _AppVersionsScreenState extends ConsumerState<AppVersionsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      version.platform[0].toUpperCase() +
-                          version.platform.substring(1),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
+                      version.platform[0].toUpperCase() + version.platform.substring(1),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 4),
                     Text('Minimum version: ${version.minVersion}'),
-                    if (version.storeUrl != null &&
-                        version.storeUrl!.isNotEmpty)
+                    if (version.storeUrl != null && version.storeUrl!.isNotEmpty)
                       Text('Store URL: ${version.storeUrl}',
-                          style:
-                              const TextStyle(color: AppColors.textSecondary)),
-                    if (version.updateMessage != null &&
-                        version.updateMessage!.isNotEmpty)
+                          style: const TextStyle(color: AppColors.textSecondary)),
+                    if (version.updateMessage != null && version.updateMessage!.isNotEmpty)
                       Text('Message: ${version.updateMessage}',
-                          style:
-                              const TextStyle(color: AppColors.textSecondary)),
+                          style: const TextStyle(color: AppColors.textSecondary)),
                     if (version.updatedByName != null)
                       Text(
                         'Last updated by ${version.updatedByName}',
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                       ),
                   ],
                 ),
               ),
-              TextButton(
-                  onPressed: () => _showEditDialog(version),
-                  child: const Text('Edit')),
+              TextButton(onPressed: () => _showEditDialog(version), child: const Text('Edit')),
             ],
           ),
         );

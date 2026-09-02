@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, DocumentType, Validation } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
@@ -19,6 +20,7 @@ import { UpsertAdminNotesDto } from './dto/upsert-admin-notes.dto';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AdminService {
@@ -429,5 +431,29 @@ export class AdminService {
       document_type: dto.document_type,
       file_path: `${Config.STORAGE_BUCKET}/${path}`,
     };
+  }
+
+  /** Self-service — any admin/super_admin changes their own login password
+   *  (operates on the caller's own id, unlike AdminUsersController's
+   *  super_admin-only management of *other* admin accounts). Requires the
+   *  current password, same as any standard change-password flow. */
+  async changeOwnPassword(userId: string, dto: ChangePasswordDto, ipAddress: string | null) {
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new AppException('GEN_002');
+    if (!user.password_hash || !(await bcrypt.compare(dto.current_password, user.password_hash))) {
+      throw new AppException('AUTH_015');
+    }
+
+    const newHash = await bcrypt.hash(dto.new_password, Config.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updatePasswordHash(userId, newHash);
+    await this.auditService.log({
+      userId,
+      action: AuditAction.ADMIN_PASSWORD_CHANGED,
+      entityType: 'users',
+      entityId: userId,
+      ipAddress,
+    });
+
+    return { message: 'Password updated' };
   }
 }

@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { AdminService } from './admin.service';
 import { VerificationStatus } from '@vitacare/shared-constants';
 
@@ -68,7 +69,7 @@ describe('AdminService', () => {
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
     };
-    usersRepo = { updateFullName: jest.fn() };
+    usersRepo = { updateFullName: jest.fn(), findById: jest.fn(), updatePasswordHash: jest.fn() };
     db = { withTransaction: jest.fn((fn: any) => fn({ query: jest.fn() })) };
 
     service = new AdminService(
@@ -603,6 +604,63 @@ describe('AdminService', () => {
       await expect(
         service.uploadDocument('profile-1', 'admin-1', { document_type: 'other' } as any, file),
       ).rejects.toMatchObject({ code: 'UPLOAD_003' });
+    });
+  });
+
+  describe('changeOwnPassword', () => {
+    const existingHash = bcrypt.hashSync('OldPassw0rd', 10);
+
+    it('throws GEN_002 when the user does not exist', async () => {
+      usersRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.changeOwnPassword('admin-1', { current_password: 'x', new_password: 'y' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('throws AUTH_015 when the current password is wrong', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'admin-1', password_hash: existingHash });
+      await expect(
+        service.changeOwnPassword(
+          'admin-1',
+          { current_password: 'WrongPassword', new_password: 'NewPassw0rd' } as any,
+          null,
+        ),
+      ).rejects.toMatchObject({ code: 'AUTH_015' });
+      expect(usersRepo.updatePasswordHash).not.toHaveBeenCalled();
+    });
+
+    it('throws AUTH_015 when the account has no password set at all', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'admin-1', password_hash: null });
+      await expect(
+        service.changeOwnPassword(
+          'admin-1',
+          { current_password: 'anything', new_password: 'NewPassw0rd' } as any,
+          null,
+        ),
+      ).rejects.toMatchObject({ code: 'AUTH_015' });
+    });
+
+    it('hashes and stores the new password, and audit-logs it, when the current password is correct', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'admin-1', password_hash: existingHash });
+      const result = await service.changeOwnPassword(
+        'admin-1',
+        { current_password: 'OldPassw0rd', new_password: 'NewPassw0rd' } as any,
+        '127.0.0.1',
+      );
+
+      expect(usersRepo.updatePasswordHash).toHaveBeenCalledWith('admin-1', expect.any(String));
+      const storedHash = usersRepo.updatePasswordHash.mock.calls[0][1];
+      expect(await bcrypt.compare('NewPassw0rd', storedHash)).toBe(true);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          action: 'admin_password_changed',
+          entityType: 'users',
+          entityId: 'admin-1',
+          ipAddress: '127.0.0.1',
+        }),
+      );
+      expect(result).toEqual({ message: 'Password updated' });
     });
   });
 });

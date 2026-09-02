@@ -725,7 +725,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         initialValue: _careDuration,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.timelapse),
-                          labelText: 'Duration Care is Needed (Mandatory)',
+                          labelText: 'How long you need the care for? (Mandatory)',
                           border: const OutlineInputBorder(),
                           errorText:
                               _showValidationErrors && !_isCareDurationValid
@@ -1074,7 +1074,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
       ),
       child: !ready
           ? const Text(
-              'Salary will appear here once Duration Care is Needed, Toilet '
+              'Salary will appear here once how long you need the care for, Toilet '
               'Assistance, and Feeding/Medicine Assistance are filled in.',
               style: TextStyle(
                   color: AppColors.textPrimary,

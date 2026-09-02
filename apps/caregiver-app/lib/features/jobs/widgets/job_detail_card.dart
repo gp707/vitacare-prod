@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/scope_of_work_button.dart';
+import '../../../core/providers.dart';
 
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -184,21 +186,22 @@ class IconField extends StatelessWidget {
 /// number, urgency, salary, start date, duty type + city, posted date) shows
 /// up front; the patient/requirement detail is a tap away, one card at a
 /// time, so scanning the list stays fast.
-class JobDetailCard extends StatefulWidget {
+class JobDetailCard extends ConsumerStatefulWidget {
   final JobModel job;
 
   const JobDetailCard({super.key, required this.job});
 
   @override
-  State<JobDetailCard> createState() => _JobDetailCardState();
+  ConsumerState<JobDetailCard> createState() => _JobDetailCardState();
 }
 
-class _JobDetailCardState extends State<JobDetailCard> {
+class _JobDetailCardState extends ConsumerState<JobDetailCard> {
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final job = widget.job;
+    final applyByWindowDays = ref.watch(applyByWindowDaysProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -219,13 +222,13 @@ class _JobDetailCardState extends State<JobDetailCard> {
             const SizedBox(width: AppSpacing.xs),
             Flexible(
               child: Text(
-                urgencyLabel(job.daysLeftToApply),
+                urgencyLabel(job.daysLeftToApply(applyByWindowDays)),
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.end,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: urgencyColor(job.daysLeftToApply),
+                  color: urgencyColor(job.daysLeftToApply(applyByWindowDays)),
                 ),
               ),
             ),

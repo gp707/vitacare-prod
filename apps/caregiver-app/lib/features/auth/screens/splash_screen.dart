@@ -36,17 +36,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkVersionThenLoadSession() async {
-    // Both calls are unauthenticated and fail open, so they're safe to run
-    // in parallel rather than sequentially.
+    // All three calls are unauthenticated and fail open, so they're safe to
+    // run in parallel rather than sequentially.
     final results = await Future.wait([
       ref.read(appVersionRepositoryProvider).checkForUpdate(),
       ref.read(authConfigRepositoryProvider).isOtpEnabled(),
+      ref.read(jobSettingsRepositoryProvider).getApplyByWindowDays(),
     ]);
     if (!mounted) return;
 
     final updateInfo = results[0] as UpdateRequiredInfo?;
     final otpEnabled = results[1] as bool;
+    final applyByWindowDays = results[2] as int;
     ref.read(otpModeProvider.notifier).state = otpEnabled;
+    ref.read(applyByWindowDaysProvider.notifier).state = applyByWindowDays;
 
     if (updateInfo != null) {
       setState(() => _updateInfo = updateInfo);

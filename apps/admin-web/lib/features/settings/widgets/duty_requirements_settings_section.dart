@@ -4,24 +4,24 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../../shared/widgets/app_shell.dart';
 
-/// Lets an admin edit the 3 independent bullet lists (24Hrs Live-In / Day
-/// Shift / Night Shift) shown to a patient/family (nursenow-app) via the
-/// "Hours Care Needed" info button — which list that button shows is
-/// whichever shift is currently selected on the form, never picked here.
-/// Unlike ScopeOfWorkScreen's tiers, these 3 lists are NOT cumulative —
-/// each shift stands alone. Same free-length-bullet-list editing pattern
-/// as ScopeOfWorkScreen otherwise (bullets can be added/removed, not just
-/// edited in place).
-class DutyRequirementsScreen extends ConsumerStatefulWidget {
-  const DutyRequirementsScreen({super.key});
+/// The "Duty Requirements" tab of the Settings hub — lets an admin edit the
+/// 3 independent bullet lists (24Hrs Live-In / Day Shift / Night Shift)
+/// shown to a patient/family (nursenow-app) via the "Hours Care Needed"
+/// info button — which list that button shows is whichever shift is
+/// currently selected on the form, never picked here. Unlike Scope of
+/// Work's tiers, these 3 lists are NOT cumulative — each shift stands
+/// alone. Same free-length-bullet-list editing pattern otherwise (bullets
+/// can be added/removed, not just edited in place).
+class DutyRequirementsSettingsSection extends ConsumerStatefulWidget {
+  const DutyRequirementsSettingsSection({super.key});
 
   @override
-  ConsumerState<DutyRequirementsScreen> createState() => _DutyRequirementsScreenState();
+  ConsumerState<DutyRequirementsSettingsSection> createState() =>
+      _DutyRequirementsSettingsSectionState();
 }
 
-class _DutyRequirementsScreenState extends ConsumerState<DutyRequirementsScreen> {
+class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequirementsSettingsSection> {
   bool _loading = true;
   bool _saving = false;
   String? _errorMessage;
@@ -99,36 +99,12 @@ class _DutyRequirementsScreenState extends ConsumerState<DutyRequirementsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      current: AppShellSection.dutyRequirements,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Duty Requirements',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'What the patient/family must arrange for the nurse, shown via the info button next '
-                'to "Hours Care Needed" on a NurseNow individual\'s Post/Edit Requirement form. Each '
-                'shift\'s list is independent — none of them stack with each other.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (_loading)
-                const Expanded(child: Center(child: VitaLoadingIndicator()))
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _buildForm(),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+    if (_loading) {
+      return const Center(child: VitaLoadingIndicator());
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: _buildForm(),
     );
   }
 
@@ -136,6 +112,13 @@ class _DutyRequirementsScreenState extends ConsumerState<DutyRequirementsScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Text(
+          'What the patient/family must arrange for the nurse, shown via the info button next '
+          'to "Hours Care Needed" on a NurseNow individual\'s Post/Edit Requirement form. Each '
+          'shift\'s list is independent — none of them stack with each other.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         if (_errorMessage != null) ...[
           Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
           const SizedBox(height: AppSpacing.sm),
