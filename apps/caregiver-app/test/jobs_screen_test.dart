@@ -942,8 +942,9 @@ void main() {
     expect(find.text('Post-surgery wound care'), findsOneWidget);
   });
 
-  testWidgets('job and requirement cards each have a bold black border clearly separating them from one another',
-      (tester) async {
+  testWidgets(
+      'job and requirement cards each have a bold red border on a light green shade clearly separating them '
+      'from one another — this browse list only ever shows active/live postings', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([_job()]),
@@ -957,7 +958,8 @@ void main() {
       final decoration = container.decoration as BoxDecoration;
       final border = decoration.border as Border;
       expect(border.top.width, greaterThanOrEqualTo(2.5));
-      expect(border.top.color, AppColors.textPrimary);
+      expect(border.top.color, AppColors.error);
+      expect(decoration.color, AppColors.success.withValues(alpha: 0.06));
     }
   });
 

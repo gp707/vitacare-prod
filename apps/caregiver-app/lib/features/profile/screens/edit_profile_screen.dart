@@ -485,7 +485,8 @@ class _DocumentSlot extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: uploaded ? AppColors.error : AppColors.textSecondary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Row(
@@ -495,7 +496,11 @@ class _DocumentSlot extends StatelessWidget {
             color: uploaded ? AppColors.success : AppColors.textSecondary,
           ),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(title)),
+          Expanded(
+            child: Text(title,
+                style: TextStyle(
+                    color: uploaded ? AppColors.success : AppColors.textSecondary,
+                    fontWeight: FontWeight.bold))),
           if (isUploading)
             const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
           else

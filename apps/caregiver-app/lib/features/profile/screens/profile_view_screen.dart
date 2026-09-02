@@ -158,25 +158,25 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               Icons.camera_alt,
               'Selfie',
               profile.selfiePhotoUrl != null ? 'Uploaded' : 'Not uploaded',
-              valueColor: profile.selfiePhotoUrl != null ? AppColors.success : null,
+              valueColor: profile.selfiePhotoUrl != null ? AppColors.success : AppColors.textSecondary,
             ),
             _Field(
               Icons.credit_card,
               'Aadhaar Card',
               profile.aadhaarDocumentUrl != null ? 'Uploaded' : 'Not uploaded',
-              valueColor: profile.aadhaarDocumentUrl != null ? AppColors.success : null,
+              valueColor: profile.aadhaarDocumentUrl != null ? AppColors.success : AppColors.textSecondary,
             ),
             _Field(
               Icons.description,
               'Qualification Document',
               profile.qualificationDocumentUrl != null ? 'Uploaded' : 'Not uploaded',
-              valueColor: profile.qualificationDocumentUrl != null ? AppColors.success : null,
+              valueColor: profile.qualificationDocumentUrl != null ? AppColors.success : AppColors.textSecondary,
             ),
             _Field(
               Icons.attach_file,
               'Other Documents',
               '${profile.otherDocumentUrls.length} uploaded',
-              valueColor: profile.otherDocumentUrls.isNotEmpty ? AppColors.success : null,
+              valueColor: profile.otherDocumentUrls.isNotEmpty ? AppColors.success : AppColors.textSecondary,
             ),
           ],
         ),
@@ -201,7 +201,8 @@ class _Section extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -211,7 +212,11 @@ class _Section extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(title, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: AppTypography.subtitle,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success)),
               ),
               if (onEdit != null)
                 TextButton.icon(
@@ -253,12 +258,13 @@ class _Field extends StatelessWidget {
           ),
           SizedBox(
             width: 130,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+            child: Text(label,
+                style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: Text(
               value,
-              style: valueColor != null ? TextStyle(color: valueColor, fontWeight: FontWeight.w600) : null,
+              style: TextStyle(color: valueColor ?? AppColors.success, fontWeight: FontWeight.bold),
             ),
           ),
         ],

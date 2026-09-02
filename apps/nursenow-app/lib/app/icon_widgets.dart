@@ -74,7 +74,7 @@ class IconField extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.success),
             maxLines: maxLines,
             overflow: maxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
           ),

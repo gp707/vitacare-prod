@@ -217,12 +217,18 @@ class _RequirementCard extends StatelessWidget {
     }
   }
 
+  /// Red while the requirement is genuinely live (active, visible to
+  /// caregivers right now), grey once it's pending review, closed, or
+  /// rejected — same convention as nursenow's Jobs Posted card.
+  Color get _cardBorderColor => requirement.status == JobStatus.active ? AppColors.error : AppColors.textSecondary;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: _cardBorderColor, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -231,7 +237,8 @@ class _RequirementCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(organisationJobDisplayId(requirement), style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(organisationJobDisplayId(requirement),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
               Text(_statusLabel, style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
             ],
           ),
@@ -258,13 +265,15 @@ class _RequirementCard extends StatelessWidget {
           ),
           if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(requirement.specialSkills!),
+            Text(requirement.specialSkills!,
+                style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
           ],
           if (requirement.status != JobStatus.pendingReview) ...[
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
-            Text('Applicants (${applications.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('Applicants (${applications.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
             const SizedBox(height: AppSpacing.sm),
             if (applications.isEmpty)
               const Text('No applicants yet.', style: TextStyle(color: AppColors.textSecondary))

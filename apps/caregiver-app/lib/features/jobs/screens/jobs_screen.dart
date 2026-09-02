@@ -347,10 +347,12 @@ class _JobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold, dark border clearly separates each job/requirement card
-        // from the next — easier to tell listings apart at a glance than
-        // the thin default outline used elsewhere.
-        border: Border.all(color: AppColors.textPrimary, width: 2.5),
+        // A bold red border on a light green shade clearly separates each
+        // job/requirement card from the next — this browse list only ever
+        // shows active/live postings, so the border is always red (the
+        // "genuinely live" color, matching nursenow's own job cards).
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -459,10 +461,12 @@ class _RequirementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold, dark border clearly separates each job/requirement card
-        // from the next — easier to tell listings apart at a glance than
-        // the thin default outline used elsewhere.
-        border: Border.all(color: AppColors.textPrimary, width: 2.5),
+        // A bold red border on a light green shade clearly separates each
+        // job/requirement card from the next — this browse list only ever
+        // shows active/live postings, so the border is always red (the
+        // "genuinely live" color, matching nursenow's own job cards).
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

@@ -360,8 +360,9 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsOneWidget);
   });
 
-  testWidgets('assigned job and requirement cards each have a bold black border clearly separating them from one another',
-      (tester) async {
+  testWidgets(
+      'assigned job and requirement cards each have a bold red border on a light green shade — still active, '
+      'not yet closed', (tester) async {
     await _pump(
       tester,
       jobsRepo: _FakeJobsRepository([_assignedJob()]),
@@ -375,8 +376,23 @@ void main() {
       final decoration = container.decoration as BoxDecoration;
       final border = decoration.border as Border;
       expect(border.top.width, greaterThanOrEqualTo(2.5));
-      expect(border.top.color, AppColors.textPrimary);
+      expect(border.top.color, AppColors.error);
+      expect(decoration.color, AppColors.success.withValues(alpha: 0.06));
     }
+  });
+
+  testWidgets('a completed assigned job card has a grey border instead — no longer active', (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]),
+    );
+    await _showCompletedJobs(tester);
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('ADMIN-JOB-542'), matching: find.byType(Container)).first,
+    );
+    final border = (container.decoration as BoxDecoration).border as Border;
+    expect(border.top.color, AppColors.textSecondary);
   });
 
   testWidgets('sorts assigned jobs and requirements together by accepted date, newest first', (tester) async {

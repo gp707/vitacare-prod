@@ -306,9 +306,12 @@ class _AssignedJobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold, dark border clearly separates each job/requirement card
-        // from the next — matches the browse-list cards in jobs_screen.dart.
-        border: Border.all(color: AppColors.textPrimary, width: 2.5),
+        // A bold border on a light green shade clearly separates each
+        // job/requirement card from the next — matches the browse-list
+        // cards in jobs_screen.dart. Red while still active/assigned, grey
+        // once the caregiver has closed it (no longer "live" work).
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: isCompleted ? AppColors.textSecondary : AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -363,9 +366,12 @@ class _AssignedRequirementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold, dark border clearly separates each job/requirement card
-        // from the next — matches the browse-list cards in jobs_screen.dart.
-        border: Border.all(color: AppColors.textPrimary, width: 2.5),
+        // A bold border on a light green shade clearly separates each
+        // job/requirement card from the next — matches the browse-list
+        // cards in jobs_screen.dart. Red while still active/assigned, grey
+        // once the caregiver has closed it (no longer "live" work).
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: isCompleted ? AppColors.textSecondary : AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

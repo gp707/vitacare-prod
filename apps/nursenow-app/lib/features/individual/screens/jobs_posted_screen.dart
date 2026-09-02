@@ -836,9 +836,9 @@ class _MenuAction {
 // for this block of fields (Job Id excepted, which is its own bigger/bolder
 // green as the card's primary identifier — see _JobIdLine).
 const _fieldLabelStyle = TextStyle(
-    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.w600);
+    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
 const _fieldValueStyle = TextStyle(
-    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.w600);
+    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
 const _fieldLinkStyle = TextStyle(
     fontSize: AppTypography.body,
     color: AppColors.success,

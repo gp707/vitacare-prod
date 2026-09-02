@@ -41,20 +41,30 @@ class JobPosterContactCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: AppColors.success.withValues(alpha: 0.06),
+        // Red while there's an ongoing engagement to contact them about,
+        // grey once the caregiver has closed the job (showPhone is false).
+        border: Border.all(color: showPhone ? AppColors.error : AppColors.textSecondary, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Posted by',
-            style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+            style: TextStyle(
+                fontSize: AppTypography.small,
+                fontWeight: FontWeight.bold,
+                color: showPhone ? AppColors.success : AppColors.textSecondary),
           ),
           const SizedBox(height: 2),
-          Text(poster.fullName, style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+          Text(poster.fullName,
+              style: TextStyle(
+                  fontSize: AppTypography.subtitle,
+                  fontWeight: FontWeight.bold,
+                  color: showPhone ? AppColors.success : AppColors.textSecondary)),
           if (showPhone) ...[
-            Text(poster.phone, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(poster.phone, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [

@@ -65,7 +65,7 @@ class SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+      style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.success),
     );
   }
 }
@@ -164,7 +164,7 @@ class IconField extends StatelessWidget {
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.success),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -100,8 +100,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                             itemBuilder: (context, index) => Container(
                               padding: const EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                border: Border.all(color: AppColors.border),
+                                color: AppColors.success.withValues(alpha: 0.06),
+                                border: Border.all(color: AppColors.error, width: 2.5),
                                 borderRadius:
                                     BorderRadius.circular(AppSpacing.sm),
                               ),
@@ -119,7 +119,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                                         color: AppColors.primaryDark, size: 15),
                                   ),
                                   const SizedBox(width: AppSpacing.sm),
-                                  Expanded(child: Text(messages[index].text)),
+                                  Expanded(
+                                    child: Text(messages[index].text,
+                                        style: const TextStyle(
+                                            color: AppColors.success, fontWeight: FontWeight.bold)),
+                                  ),
                                 ],
                               ),
                             ),

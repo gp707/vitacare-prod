@@ -155,7 +155,8 @@ class _InfoCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -228,9 +229,13 @@ class _InfoRow extends StatelessWidget {
           ),
           SizedBox(
             width: 92,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+            child: Text(label,
+                style: const TextStyle(
+                    color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
           ),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -248,13 +253,15 @@ class _DocumentsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body)),
+          const Text('Documents',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body, color: AppColors.success)),
           const SizedBox(height: AppSpacing.xs),
           _DocumentLink(Icons.credit_card, 'Aadhaar Card', profile.aadhaarDocumentUrl),
           _DocumentLink(Icons.description, 'Qualification Document', profile.qualificationDocumentUrl),
@@ -291,7 +298,9 @@ class _DocumentLink extends StatelessWidget {
           ),
           SizedBox(
             width: 142,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+            child: Text(label,
+                style: const TextStyle(
+                    color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
           ),
           Expanded(
             child: url == null
@@ -320,15 +329,18 @@ class _PreferencesCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.success.withValues(alpha: 0.06),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Preferred Cities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body)),
+          const Text('Preferred Cities',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body, color: AppColors.success)),
           const SizedBox(height: AppSpacing.xs),
-          Text(profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', ')),
+          Text(profile.preferredCities.map((c) => City.displayNames[c] ?? c).join(', '),
+              style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
         ],
       ),
     );
