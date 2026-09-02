@@ -203,7 +203,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
   // of hit-testable range for some fixtures. A generous default surface
   // avoids that for every test in this file, not just the ones that
   // happened to need it first.
-  await tester.binding.setSurfaceSize(const Size(800, 3000));
+  await tester.binding.setSurfaceSize(const Size(360, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -1122,7 +1122,7 @@ void main() {
 
   testWidgets('tapping Edit the Job opens the edit screen pre-filled with the requirement\'s current values',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    await tester.binding.setSurfaceSize(const Size(360, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await _pump(
       tester,
@@ -1215,7 +1215,7 @@ void main() {
   testWidgets(
       'Post Similar Requirement is enabled on a non-live requirement when there is no other live requirement, '
       'and it opens a pre-filled clone', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    await tester.binding.setSurfaceSize(const Size(360, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await _pump(
       tester,

@@ -646,11 +646,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           if (_verificationToken != null)
-            Row(
-              children: const [
+            const Row(
+              children: [
                 Icon(Icons.check_circle, color: AppColors.success),
                 SizedBox(width: AppSpacing.sm),
-                Text('Phone number verified'),
+                Flexible(child: Text('Phone number verified', overflow: TextOverflow.ellipsis)),
               ],
             )
           else if (!_otpSent)
@@ -672,7 +672,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               decoration: const InputDecoration(labelText: '6-digit OTP', border: OutlineInputBorder()),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Row(
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 ElevatedButton(
                   onPressed: _verifyingOtp ? null : _verifyRegistrationOtp,
@@ -684,7 +687,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         )
                       : const Text('Verify'),
                 ),
-                const SizedBox(width: AppSpacing.sm),
                 TextButton(
                   onPressed: _sendingOtp ? null : _sendRegistrationOtp,
                   child: const Text('Resend OTP'),

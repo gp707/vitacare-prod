@@ -134,9 +134,12 @@ class _VerifiedBadge extends StatelessWidget {
         children: [
           Icon(Icons.verified, size: 14, color: AppColors.success),
           SizedBox(width: 4),
-          Text(
-            'VitaCare-verified caregiver',
-            style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.success),
+          Flexible(
+            child: Text(
+              'VitaCare-verified caregiver',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.success),
+            ),
           ),
         ],
       ),

@@ -235,11 +235,19 @@ class _RequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(organisationJobDisplayId(requirement),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
-              Text(_statusLabel, style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
+              Expanded(
+                child: Text(organisationJobDisplayId(requirement),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(_statusLabel,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
+              ),
             ],
           ),
           if (requirement.status == JobStatus.closed && requirement.rejectionReason != null) ...[
@@ -329,7 +337,11 @@ class _ApplicantTile extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(application.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Flexible(
+                          child: Text(application.fullName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ),
                         if (_isAccepted) ...[
                           const SizedBox(width: AppSpacing.xs),
                           const Icon(Icons.check_circle, color: AppColors.success, size: 16),
@@ -345,14 +357,16 @@ class _ApplicantTile extends StatelessWidget {
           ),
           if (!isDeciding) ...[
             const SizedBox(height: AppSpacing.xs),
-            Row(
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: onViewProfile,
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                const Spacer(),
                 if (application.status == JobApplicationStatus.applied) ...[
                   TextButton.icon(
                     onPressed: () => onDecide(JobApplicationStatus.accepted),

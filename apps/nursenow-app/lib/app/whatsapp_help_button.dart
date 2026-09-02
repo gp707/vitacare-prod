@@ -62,7 +62,7 @@ class WhatsAppHelpButton extends StatelessWidget {
           children: [
             Icon(Icons.phone_in_talk, size: 12),
             SizedBox(width: 1),
-            Text('Click for Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
+            Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
           ],
         ),
       ),

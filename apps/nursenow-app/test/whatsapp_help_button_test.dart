@@ -12,7 +12,7 @@ void main() {
       ),
     );
 
-    final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Click for Help'));
+    final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Help'));
     final backgroundColor = button.style?.backgroundColor?.resolve({});
     expect(backgroundColor, AppColors.error);
   });
@@ -36,8 +36,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Click for Help'), findsOneWidget);
-    await tester.tap(find.text('Click for Help'));
+    expect(find.text('Help'), findsOneWidget);
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
 
     expect(openedUri, Uri.parse('https://wa.me/917259255869'));
@@ -56,8 +56,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Click for Help'), findsOneWidget);
-    await tester.tap(find.text('Click for Help'));
+    expect(find.text('Help'), findsOneWidget);
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Could not open WhatsApp'), findsOneWidget);

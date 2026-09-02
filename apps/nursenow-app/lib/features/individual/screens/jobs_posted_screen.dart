@@ -1127,13 +1127,16 @@ class _ApplicantTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                _statusLabel,
-                style: TextStyle(
-                  color: _statusColor,
-                  fontWeight: (_isAccepted || _isRejected)
-                      ? FontWeight.bold
-                      : FontWeight.normal,
+              Flexible(
+                child: Text(
+                  _statusLabel,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _statusColor,
+                    fontWeight: (_isAccepted || _isRejected)
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
             ],
@@ -1151,14 +1154,15 @@ class _ApplicantTile extends StatelessWidget {
             const SizedBox(
                 height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
           else
-            Row(
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
               children: [
                 OutlinedButton.icon(
                   onPressed: onViewProfile,
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                const Spacer(),
                 if (canAccept)
                   TextButton.icon(
                     onPressed: onAccept,

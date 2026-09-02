@@ -33,9 +33,12 @@ class SalaryBadge extends StatelessWidget {
             child: const Icon(Icons.currency_rupee, size: 12, color: Colors.white),
           ),
           const SizedBox(width: AppSpacing.xs),
-          Text(
-            '$amount/$unit',
-            style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
+          Flexible(
+            child: Text(
+              '$amount/$unit',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
+            ),
           ),
         ],
       ),
