@@ -33,7 +33,7 @@ class _FakeProfileRepository extends ProfileRepository {
   }
 }
 
-CaregiverProfileModel _availableProfile() => CaregiverProfileModel.fromJson({
+CaregiverProfileModel _profileWithStatus(String status) => CaregiverProfileModel.fromJson({
       'user_id': 'u1',
       'profile_id': 'p1',
       'full_name': 'Test Caregiver',
@@ -42,9 +42,11 @@ CaregiverProfileModel _availableProfile() => CaregiverProfileModel.fromJson({
       'age': 30,
       'languages': ['hindi'],
       'terms_accepted': true,
-      'verification_status': 'available',
+      'verification_status': status,
       'created_at': '2026-08-01T10:00:00Z',
     });
+
+CaregiverProfileModel _availableProfile() => _profileWithStatus('available');
 
 Future<void> _pumpSplash(
   WidgetTester tester, {
@@ -164,5 +166,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Profile Page'), findsOneWidget);
+  });
+
+  testWidgets('an assigned caregiver (accepted to a job) lands on MyJobs on launch/refresh, not Profile',
+      (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(null),
+      profileRepo: _FakeProfileRepository(_profileWithStatus('assigned')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('My Jobs Page'), findsOneWidget);
+    expect(find.text('Profile Page'), findsNothing);
+  });
+
+  testWidgets('a rejected caregiver lands on Jobs on launch/refresh, not Profile', (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(null),
+      profileRepo: _FakeProfileRepository(_profileWithStatus('rejected')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jobs Page'), findsOneWidget);
+    expect(find.text('Profile Page'), findsNothing);
   });
 }
