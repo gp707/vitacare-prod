@@ -85,11 +85,9 @@ class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      // Green background, white bullet text — the tier heading (title
-      // below) stays black, since it was never given an explicit color
-      // and so keeps rendering in the theme's default text color
-      // regardless of the surface behind it.
-      backgroundColor: AppColors.success,
+      // Plain white dialog background — dark green bullet text still
+      // carries the theme against it. The tier heading (title below)
+      // stays black, since it was never given an explicit color.
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -120,9 +118,12 @@ class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.check_circle, size: 16, color: Colors.white),
+                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
                                 const SizedBox(width: AppSpacing.xs),
-                                Expanded(child: Text(bullet, style: const TextStyle(color: Colors.white))),
+                                Expanded(
+                                    child: Text(bullet,
+                                        style: const TextStyle(
+                                            color: AppColors.success, fontWeight: FontWeight.bold))),
                               ],
                             ),
                           ),
