@@ -1189,30 +1189,24 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       );
 
   /// Fire-and-forget, called once from initState — fetches the Rate Card,
-  /// then always applies the first suggestion it resolves to (replacing
-  /// whatever's already in the Salary field, including a pre-filled
-  /// existing job's salary_amount in edit mode — same reasoning as
-  /// nursenow-app's own EditRequirementScreen: a value pre-filled before
-  /// this resolves must not be mistaken for something admin already typed).
-  /// Every later change flows through [_refreshSuggestedSalary] instead,
-  /// which never overwrites something admin has since typed. Fails open: a
-  /// network error, or the Rate Card/tier simply not resolving to a
-  /// suggestion, just leaves the Salary field as it already was.
+  /// then applies its suggestion the same *guarded* way [_refreshSuggestedSalary]
+  /// always has: only into an empty field, never overwriting a pre-filled
+  /// existing job's salary_amount. Deliberately NOT the unconditional-
+  /// overwrite-on-load behavior nursenow-app's own EditRequirementScreen
+  /// uses for the patient's own posting — here, admin approving/editing a
+  /// job that already carries a real salary (set by the NurseNow patient
+  /// themselves, or a previous admin edit) must never have it silently
+  /// replaced the moment the Rate Card resolves. On a brand-new job (Salary
+  /// field starts empty) this still fills in the initial suggestion exactly
+  /// as before. Fails open: a network error, or the Rate Card/tier simply
+  /// not resolving to a suggestion, just leaves the Salary field as it
+  /// already was.
   Future<void> _loadRateCards() async {
     try {
       final rateCards = await ref.read(rateCardRepositoryProvider).get();
       if (!mounted) return;
       setState(() => _rateCards = rateCards.map((w) => w.rateCard).toList());
-      if (_careDuration == null) return;
-      final tier = deriveCareTier(_careReceiverForTierDerivation);
-      final frequency = frequencyForCareDuration(_careDuration!);
-      final suggestion = suggestedRate(_rateCards, tier, frequency);
-      if (suggestion != null) {
-        setState(() {
-          _salaryController.text = suggestion;
-          _lastAutoSuggestedSalary = suggestion;
-        });
-      }
+      _refreshSuggestedSalary();
     } catch (_) {
       // Fail open — see doc comment above.
     }
@@ -1222,9 +1216,9 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   /// Needed + care-tier selections and, if it changed, refills the field —
   /// but only when the field is still empty or still holds our own
   /// previous suggestion, never overwriting something admin typed
-  /// themselves. Call after any change to _careDuration/_toiletAssistance/
-  /// _feedingType/_medicalConditions, once the initial suggestion (see
-  /// [_loadRateCards]) has already had a chance to apply.
+  /// themselves (or a pre-filled existing job's real salary_amount). Used
+  /// both by [_loadRateCards] on the initial fetch and after any later
+  /// change to _careDuration/_toiletAssistance/_feedingType/_medicalConditions.
   void _refreshSuggestedSalary() {
     if (_careDuration == null) return;
     final tier = deriveCareTier(_careReceiverForTierDerivation);

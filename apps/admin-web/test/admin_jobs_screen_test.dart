@@ -1417,8 +1417,9 @@ void main() {
       expect(find.text('Monthly'), findsOneWidget);
     });
 
-    testWidgets('Salary is pre-filled with the Rate Card suggestion for the derived tier/frequency',
-        (tester) async {
+    testWidgets(
+        'editing an existing job does NOT overwrite its already-set salary with the Rate Card suggestion — '
+        'only a brand-new job (empty Salary field) gets auto-filled', (tester) async {
       // _jobWithCareReceiver's toilet_assistance is ['others'] -> critical tier.
       final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
       await _pump(
@@ -1435,9 +1436,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Edit'));
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
-      expect(find.text('30000'), findsNothing,
-          reason: 'the fixture salary should be overridden by the suggestion');
+      expect(find.widgetWithText(TextField, '30000'), findsOneWidget,
+          reason: 'admin is approving/editing a job that already has a real salary — '
+              'the Rate Card suggestion must not silently replace it');
+      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsNothing);
     });
 
     testWidgets('falls back to the existing salary_amount when the Rate Card fetch fails', (tester) async {
@@ -1450,24 +1452,15 @@ void main() {
       expect(find.widgetWithText(TextField, '30000'), findsOneWidget);
     });
 
-    testWidgets('the pre-filled suggestion stays freely editable and is what gets submitted', (tester) async {
+    testWidgets('the pre-filled existing salary stays freely editable and is what gets submitted', (tester) async {
       final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: 'few_weeks');
-      await _pump(
-        tester,
-        repo,
-        rateCards: [
-          _rateCardWithUpdater(
-              frequencyOfCare: FrequencyOfCare.daily,
-              companion: 'DAILY_COMPANION',
-              critical: 'DAILY_CRITICAL_RATE'),
-        ],
-      );
+      await _pump(tester, repo, rateCards: const []);
 
       await tester.tap(find.widgetWithText(TextButton, 'Edit'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '30000'), findsOneWidget);
 
-      await tester.enterText(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), '35000 negotiable');
+      await tester.enterText(find.widgetWithText(TextField, '30000'), '35000 negotiable');
       final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
       await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);

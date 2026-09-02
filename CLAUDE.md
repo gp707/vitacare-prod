@@ -442,11 +442,19 @@ location) that didn't fit the Individual/admin jobs-table model.
   (`_derivedFrequencyOfCare`, same `frequencyForCareDuration()` helper) and rendered as a
   read-only `InputDecorator`, never a manual dropdown — for every job admin creates or edits, not
   only a NurseNow individual's.** Salary is always a free-text field pre-filled from the Rate
-  Card's suggestion for the derived tier/frequency (`_loadRateCards()`/`_refreshSuggestedSalary()`,
-  the exact same two-phase always-overwrite-once-then-guarded-reactive pattern as nursenow-app's
-  `EditRequirementScreen`, described above) and reactively recomputed as Toilet Assistance/Feeding
-  Type/Medical Condition/Duration Care is Needed change — never a numeric-validated manual entry;
-  the old 1–1,000,000 numeric range check is gone along with the numeric keyboard. `AdminJobsRepository.create()`/`.update()` both gained a required `careDuration` parameter to
+  Card's suggestion for the derived tier/frequency (`_loadRateCards()`/`_refreshSuggestedSalary()`)
+  and reactively recomputed as Toilet Assistance/Feeding Type/Medical Condition/Duration Care is
+  Needed change — never a numeric-validated manual entry; the old 1–1,000,000 numeric range check
+  is gone along with the numeric keyboard. **Unlike nursenow-app's own `EditRequirementScreen`
+  (which unconditionally overwrites Salary with the first resolved suggestion on load, even over a
+  pre-filled existing value — correct there since the patient is editing their own posting),
+  admin-web's `_loadRateCards()` uses the same *guarded* fill `_refreshSuggestedSalary()` always
+  has: only into an empty field, never overwriting a pre-filled existing job's real
+  `salary_amount`.** This matters specifically because admin is often approving/editing a job that
+  already carries a real salary — set by the NurseNow patient themselves, or a previous admin edit
+  — and that value must never be silently replaced the instant the Rate Card resolves; a brand-new
+  job (Salary starts empty) still gets the initial suggestion exactly as before.
+  `AdminJobsRepository.create()`/`.update()` both gained a required `careDuration` parameter to
   match.
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
