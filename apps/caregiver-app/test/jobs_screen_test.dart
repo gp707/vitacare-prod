@@ -6,10 +6,34 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:caregiver_app/core/providers.dart';
+import 'package:caregiver_app/core/scope_of_work/scope_of_work_repository.dart';
+import 'package:caregiver_app/core/duty_requirements/duty_requirements_repository.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/jobs_screen.dart';
 import 'package:caregiver_app/features/jobs/widgets/job_detail_card.dart';
 import 'package:caregiver_app/features/organisation_openings/data/organisation_openings_repository.dart';
+
+class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
+  _FakeScopeOfWorkRepository() : super(Dio());
+
+  @override
+  Future<ScopeOfWorkModel> get() async => const ScopeOfWorkModel(
+        companionCare: ['Companion bullet'],
+        bedsideCare: ['Bedside bullet'],
+        criticalCare: ['Critical bullet'],
+      );
+}
+
+class _FakeDutyRequirementsRepository extends DutyRequirementsRepository {
+  _FakeDutyRequirementsRepository() : super(Dio());
+
+  @override
+  Future<DutyRequirementsModel> get() async => const DutyRequirementsModel(
+        liveIn: ['Live-in bullet'],
+        dayDuty: ['Day-duty bullet'],
+        nightDuty: ['Night-duty bullet'],
+      );
+}
 
 // Same conversion the app applies (UTC -> local) so assertions don't
 // depend on the test machine's timezone.
@@ -166,7 +190,7 @@ Future<void> _pump(
 // JobDetailCard is collapsed by default; tests that need the About
 // Patient/About Nurse-Caregiver Requirement detail must expand it first.
 Future<void> _expandDetails(WidgetTester tester, {int index = 0}) async {
-  await tester.tap(find.text('Show details').at(index));
+  await tester.tap(find.text('Click for More Details about Patient Requirements').at(index));
   await tester.pumpAndSettle();
 }
 
@@ -186,33 +210,91 @@ void main() {
 
     // Collapsed: header (job #, salary, duty type + city, posted date) is
     // visible, but the tag-heavy detail sections are not.
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
+    expect(find.text('Bangalore'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
-    expect(find.text('Show details'), findsOneWidget);
+    expect(find.text('Click for More Details about Patient Requirements'), findsOneWidget);
 
-    await tester.tap(find.text('Show details'));
+    await tester.tap(find.text('Click for More Details about Patient Requirements'));
     await tester.pumpAndSettle();
 
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
-    expect(find.text('Hide details'), findsOneWidget);
-    expect(find.text('Show details'), findsNothing);
+    expect(find.text('Hide More Details about Patient Requirements'), findsOneWidget);
+    expect(find.text('Click for More Details about Patient Requirements'), findsNothing);
 
-    await tester.tap(find.text('Hide details'));
+    await tester.tap(find.text('Hide More Details about Patient Requirements'));
     await tester.pumpAndSettle();
 
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
-    expect(find.text('Show details'), findsOneWidget);
+    expect(find.text('Click for More Details about Patient Requirements'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows Job Id, Type Of Care, and Scope Of Work / Patient Provides links just below Hours Care Needed, '
+      'Duration Care Is Needed, and City', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      extraOverrides: [
+        scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
+        dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
+      ],
+    );
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    // _job()'s care_receiver uses a catheter, which always derives to
+    // Critical Care regardless of anything else selected.
+    expect(find.text('Type Of Care: Critical Care'), findsOneWidget);
+    expect(find.text('Scope Of Work: Click Here'), findsOneWidget);
+    expect(find.text('Patient Provides: Click Here'), findsOneWidget);
+
+    await tester.tap(find.text('Scope Of Work: Click Here'));
+    await tester.pumpAndSettle();
+    expect(find.text('Critical bullet'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Patient Provides: Click Here'));
+    await tester.pumpAndSettle();
+    expect(find.text('Live-in bullet'), findsOneWidget);
+  });
+
+  testWidgets(
+      'does not show Type Of Care or Scope Of Work when the job has no care receiver, '
+      'but Patient Provides always shows', (tester) async {
+    final job = JobModel.fromJson({
+      'id': 'job-1',
+      'admin_job_number': 542,
+      'city': 'bangalore',
+      'duty_type': 'live_in',
+      'frequency_of_care': 'daily',
+      'languages': ['hindi'],
+      'status': 'active',
+      'posted_by': 'admin-1',
+      'posted_at': DateTime.now().toUtc().toIso8601String(),
+      'created_at': '2026-08-01T10:00:00Z',
+    });
+    await _pump(
+      tester,
+      _FakeJobsRepository([job]),
+      extraOverrides: [
+        dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
+      ],
+    );
+
+    expect(find.textContaining('Type Of Care'), findsNothing);
+    expect(find.textContaining('Scope Of Work'), findsNothing);
+    expect(find.text('Patient Provides: Click Here'), findsOneWidget);
   });
 
   testWidgets('labels an admin-posted job "Posted by Admin"', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
-    expect(find.text('Posted by Admin'), findsOneWidget);
-    expect(find.text('Home Care'), findsNothing);
+    expect(find.text('Job in Posted by Admin'), findsOneWidget);
+    expect(find.textContaining('Home Care'), findsNothing);
   });
 
   testWidgets('labels a patient-posted job "Home Care"', (tester) async {
@@ -246,8 +328,8 @@ void main() {
         }),
       ]),
     );
-    expect(find.text('Home Care'), findsOneWidget);
-    expect(find.text('Posted by Admin'), findsNothing);
+    expect(find.text('Job in Home Care'), findsOneWidget);
+    expect(find.textContaining('Posted by Admin'), findsNothing);
   });
 
   testWidgets('labels an organisation requirement with its organisation type (e.g. Hospital)', (tester) async {
@@ -263,7 +345,7 @@ void main() {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
+    expect(find.text('Bangalore'), findsOneWidget);
     // Area/description are inside the collapsible detail section.
     expect(find.text('Indiranagar'), findsNothing);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
@@ -282,7 +364,7 @@ void main() {
     // Duty type now also appears as its own Tag in the expanded "About
     // Nurse/Caregiver Requirement" section, alongside the collapsed header.
     expect(find.text('24Hrs - Live In'), findsWidgets);
-    expect(find.text('Bangalore · Female Patient'), findsOneWidget);
+    expect(find.text('Bangalore'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
 
@@ -325,9 +407,24 @@ void main() {
   testWidgets('shows the Duration Care is Needed tag for a NurseNow individual posting that sets it',
       (tester) async {
     await _pump(tester, _FakeJobsRepository([_job(careDuration: 'few_weeks')]));
+
+    // Visible up front, in the collapsed header, next to "Hours Care
+    // Needed" — not just in the expanded "About Nurse/Caregiver
+    // Requirement" section.
+    expect(find.text('Need for Few Weeks'), findsOneWidget);
+
     await _expandDetails(tester);
 
-    expect(find.text('Need for Few Weeks'), findsOneWidget);
+    // Now shown twice — the collapsed header tag plus the expanded
+    // section's own Tag.
+    expect(find.text('Need for Few Weeks'), findsNWidgets(2));
+  });
+
+  testWidgets('does not show a Duration Care Is Needed tag for an admin-posted job (careDuration is null)',
+      (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job()]));
+
+    expect(find.textContaining('Need for'), findsNothing);
   });
 
   testWidgets('does not show the "other" detail lines when the care receiver has none set', (tester) async {
@@ -370,7 +467,7 @@ void main() {
   testWidgets('shows the job number and salary highlighted at the top', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     // Fixture's frequency_of_care is 'daily' — the unit follows it.
     expect(find.text('30000/day'), findsOneWidget);
   });
@@ -702,7 +799,7 @@ void main() {
     );
 
     expect(find.text('Show All Jobs'), findsNothing);
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
   });
 
@@ -724,7 +821,7 @@ void main() {
     );
 
     expect(find.text('Show All Jobs'), findsNothing);
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
   });
 
@@ -834,7 +931,7 @@ void main() {
     );
 
     expect(find.text('Show All Jobs'), findsNothing);
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
   });
 
   testWidgets('hides a rejected organisation requirement by default too, revealed via Show All Jobs',
@@ -931,7 +1028,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('Hospital · Bangalore · Indiranagar'), findsOneWidget);
@@ -951,7 +1048,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    for (final anchor in ['ADMIN-JOB-542', 'ORG-JOB-7']) {
+    for (final anchor in ['Job Id: ADMIN-JOB-542', 'ORG-JOB-7']) {
       final container = tester.widget<Container>(
         find.ancestor(of: find.text(anchor), matching: find.byType(Container)).first,
       );
@@ -970,7 +1067,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement(postedAt: '2026-08-15T10:00:00Z')]),
     );
 
-    final jobCenter = tester.getCenter(find.text('ADMIN-JOB-542'));
+    final jobCenter = tester.getCenter(find.text('Job Id: ADMIN-JOB-542'));
     final requirementCenter = tester.getCenter(find.text('ORG-JOB-7'));
     expect(requirementCenter.dy, lessThan(jobCenter.dy));
   });

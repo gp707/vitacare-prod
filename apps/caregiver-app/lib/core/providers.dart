@@ -8,6 +8,7 @@ import 'version/app_version_repository.dart';
 import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
+import 'duty_requirements/duty_requirements_repository.dart';
 import 'job_settings/job_settings_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
@@ -57,6 +58,10 @@ final rateCardRepositoryProvider = Provider<RateCardRepository>((ref) {
 
 final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
   return ScopeOfWorkRepository(ref.watch(apiClientProvider).dio);
+});
+
+final dutyRequirementsRepositoryProvider = Provider<DutyRequirementsRepository>((ref) {
+  return DutyRequirementsRepository(ref.watch(apiClientProvider).dio);
 });
 
 final jobSettingsRepositoryProvider = Provider<JobSettingsRepository>((ref) {

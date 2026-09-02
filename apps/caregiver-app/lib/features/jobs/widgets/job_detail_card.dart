@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/scope_of_work_button.dart';
+import '../../../app/duty_requirements_button.dart';
 import '../../../core/providers.dart';
 
 String formatDate(DateTime date) =>
@@ -37,24 +38,6 @@ String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(
 /// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
 /// per-day rate, everything else reads as monthly.
 String salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
-
-/// Collapses CareDuration's 4 values down to the 2-word bucket a caregiver
-/// actually cares about at a glance — "Short Term" for a few days/weeks,
-/// "Long Term" for a month or more — shown next to the "Home Care"/"Posted
-/// by Admin" tag on a job card. Only ever set on a NurseNow individual's own
-/// posting (null for an admin-posted job, so this renders nothing there).
-String? careDurationTermLabel(String? careDuration) {
-  switch (careDuration) {
-    case CareDuration.fewDays:
-    case CareDuration.fewWeeks:
-      return 'Short Term';
-    case CareDuration.fewMonths:
-    case CareDuration.longTerm:
-      return 'Long Term';
-    default:
-      return null;
-  }
-}
 
 class SectionLabel extends StatelessWidget {
   final String text;
@@ -173,6 +156,72 @@ class IconField extends StatelessWidget {
   }
 }
 
+// The label portion (before the colon) of every field line below — "Job
+// Id", "Type Of Care", "Scope Of Work", "Patient Provides" — is bold black,
+// distinct from the dark green value that follows it. Matches nursenow-app's
+// own job card field lines.
+const _fieldLabelStyle = TextStyle(
+    fontSize: AppTypography.body, color: AppColors.textPrimary, fontWeight: FontWeight.bold);
+const _fieldValueStyle = TextStyle(
+    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
+const _fieldLinkStyle = TextStyle(
+    fontSize: AppTypography.body,
+    color: AppColors.success,
+    fontWeight: FontWeight.w700,
+    decoration: TextDecoration.underline);
+
+/// The job's real display id, set apart from the "Job Id" label (bold
+/// black, like every other field label) in its own larger bold green, same
+/// visual weight a hospital chart gives a record/MRN number.
+class _JobIdLine extends StatelessWidget {
+  final JobModel job;
+
+  const _JobIdLine({required this.job});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          const TextSpan(text: 'Job Id: ', style: _fieldLabelStyle),
+          TextSpan(
+            text: jobDisplayId(job),
+            style: const TextStyle(
+                fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single, uniformly-styled "Label: Value" record line — the value is
+/// either plain text or, when [isLink] is set, a tappable "Click Here"
+/// styled like a link, opening whatever [onTap] shows (the derived Scope
+/// of Work or duty-requirements popup).
+class _FieldLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isLink;
+  final VoidCallback? onTap;
+
+  const _FieldLine({required this.label, required this.value, this.isLink = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$label: ', style: _fieldLabelStyle),
+          TextSpan(text: value, style: isLink ? _fieldLinkStyle : _fieldValueStyle),
+        ],
+      ),
+    );
+    if (onTap == null) return text;
+    return InkWell(onTap: onTap, child: text);
+  }
+}
+
 /// Job header (display id, urgency, salary), the About Patient / About
 /// Nurse-Caregiver Requirement sections, and the free-text description —
 /// everything about a job except caregiver-action
@@ -209,13 +258,17 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Flexible(
-              child: Text(
-                jobDisplayId(job),
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: AppTypography.small,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                color: Colors.yellow,
+                child: Text(
+                  'Job in ${jobPostedByLabel(job)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: AppTypography.body,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
                 ),
               ),
             ),
@@ -232,16 +285,6 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
                 ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            Tag(jobPostedByLabel(job)),
-            if (careDurationTermLabel(job.careDuration) != null)
-              Tag(careDurationTermLabel(job.careDuration)!),
           ],
         ),
         if (job.salaryAmount != null || job.startDate != null) ...[
@@ -267,12 +310,51 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             IconField(icon: Icons.access_time, text: DutyType.displayNames[job.dutyType] ?? job.dutyType),
-            IconField(
-              icon: Icons.location_on,
-              text: '${City.displayNames[job.city] ?? job.city}'
-                  '${job.careReceiver != null ? ' · ${capitalize(job.careReceiver!.gender)} Patient' : ''}',
-            ),
+            // Only ever set on a NurseNow individual's own posting — null
+            // for an admin-posted job, so this tag doesn't show there.
+            if (job.careDuration != null)
+              IconField(
+                icon: Icons.date_range,
+                text: CareDuration.displayNames[job.careDuration!] ?? job.careDuration!,
+              ),
+            IconField(icon: Icons.location_on, text: City.displayNames[job.city] ?? job.city),
           ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _JobIdLine(job: job),
+        if (job.careReceiver != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          _FieldLine(
+            label: 'Type Of Care',
+            value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ??
+                deriveCareTier(job.careReceiver!),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _FieldLine(
+            label: 'Scope Of Work',
+            value: 'Click Here',
+            isLink: true,
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => ScopeOfWorkDialog(
+                tier: deriveCareTier(job.careReceiver!),
+                repository: ref.read(scopeOfWorkRepositoryProvider),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.xs),
+        _FieldLine(
+          label: 'Patient Provides',
+          value: 'Click Here',
+          isLink: true,
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => DutyRequirementsDialog(
+              dutyType: job.dutyType,
+              repository: ref.read(dutyRequirementsRepositoryProvider),
+            ),
+          ),
         ),
         const SizedBox(height: 2),
         Text(
@@ -285,12 +367,16 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _expanded ? 'Hide details' : 'Show details',
-                style: const TextStyle(
-                  fontSize: AppTypography.small,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+              Flexible(
+                child: Text(
+                  _expanded
+                      ? 'Hide More Details about Patient Requirements'
+                      : 'Click for More Details about Patient Requirements',
+                  style: const TextStyle(
+                    fontSize: AppTypography.small,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
               Icon(
@@ -301,13 +387,6 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
             ],
           ),
         ),
-        if (job.careReceiver != null) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ScopeOfWorkButton(careReceiver: job.careReceiver!),
-          ),
-        ],
         if (_expanded) ...[
           if (job.careReceiver != null) ...[
             const SizedBox(height: AppSpacing.md),

@@ -177,12 +177,12 @@ void main() {
   testWidgets('shows the assigned job details, including care receiver', (tester) async {
     await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob()]));
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
 
     // JobDetailCard's About Patient/Requirement detail is collapsed by
     // default — expand it to check the care receiver's info renders.
-    await tester.tap(find.text('Show details'));
+    await tester.tap(find.text('Click for More Details about Patient Requirements'));
     await tester.pumpAndSettle();
 
     expect(find.text('About Patient'), findsOneWidget);
@@ -224,8 +224,8 @@ void main() {
     );
     await _showCompletedJobs(tester);
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-543'), findsOneWidget);
     // Only the accepted job gets the action button; the completed one shows a badge instead.
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
     expect(find.text('You closed this job — work completed'), findsOneWidget);
@@ -272,20 +272,20 @@ void main() {
     final toggle = find.widgetWithText(SwitchListTile, 'Hide completed jobs');
     expect(toggle, findsOneWidget);
     expect(tester.widget<SwitchListTile>(toggle).value, isTrue, reason: 'on by default');
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-543'), findsNothing);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-543'), findsNothing);
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-543'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-543'), findsOneWidget);
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ADMIN-JOB-543'), findsNothing);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-543'), findsNothing);
   });
 
   testWidgets('shows a message instead of the empty state when every job is completed and hidden', (tester) async {
@@ -352,7 +352,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
     );
 
-    expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('You were accepted for this requirement'), findsOneWidget);
@@ -369,7 +369,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
     );
 
-    for (final anchor in ['ADMIN-JOB-542', 'ORG-JOB-7']) {
+    for (final anchor in ['Job Id: ADMIN-JOB-542', 'ORG-JOB-7']) {
       final container = tester.widget<Container>(
         find.ancestor(of: find.text(anchor), matching: find.byType(Container)).first,
       );
@@ -389,7 +389,7 @@ void main() {
     await _showCompletedJobs(tester);
 
     final container = tester.widget<Container>(
-      find.ancestor(of: find.text('ADMIN-JOB-542'), matching: find.byType(Container)).first,
+      find.ancestor(of: find.text('Job Id: ADMIN-JOB-542'), matching: find.byType(Container)).first,
     );
     final border = (container.decoration as BoxDecoration).border as Border;
     expect(border.top.color, AppColors.textSecondary);
@@ -402,7 +402,7 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(acceptedAt: '2026-08-01T10:00:00Z')]),
     );
 
-    final jobCenter = tester.getCenter(find.text('ADMIN-JOB-542'));
+    final jobCenter = tester.getCenter(find.text('Job Id: ADMIN-JOB-542'));
     final requirementCenter = tester.getCenter(find.text('ORG-JOB-7'));
     expect(jobCenter.dy, lessThan(requirementCenter.dy));
   });

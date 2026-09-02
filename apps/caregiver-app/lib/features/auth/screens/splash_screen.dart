@@ -76,15 +76,32 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     });
 
-    return const Scaffold(
+    final session = ref.watch(sessionProvider);
+
+    return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            VitaSplashBranding(appLabel: 'NURSEJOBS'),
-            SizedBox(height: AppSpacing.xl),
-            VitaLoadingIndicator(),
+            const VitaSplashBranding(appLabel: 'NURSEJOBS'),
+            const SizedBox(height: AppSpacing.xl),
+            if (session is SessionLoadError) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: Text(
+                  session.message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ElevatedButton(
+                onPressed: () => ref.read(sessionProvider.notifier).loadSession(),
+                child: const Text('Retry'),
+              ),
+            ] else
+              const VitaLoadingIndicator(),
           ],
         ),
       ),

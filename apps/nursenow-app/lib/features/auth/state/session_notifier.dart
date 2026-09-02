@@ -1,10 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/jwt_decode.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../individual/data/individual_repository.dart';
 import '../../organisation/data/organisation_repository.dart';
 import 'session_state.dart';
+
+/// Error codes that mean the token itself is no longer good for anything —
+/// a genuinely invalid/expired token, or the account behind it deleted or
+/// deactivated (see JwtAuthGuard, apps/api). Only these actually warrant
+/// clearing the stored token and forcing a fresh login; every other error
+/// loadSession can hit (no connectivity, the backend briefly unreachable,
+/// a 5xx) says nothing about the token's validity.
+const _tokenInvalidErrorCodes = {'AUTH_004', 'AUTH_005'};
 
 /// Single source of truth for "who is logged in". Reused at splash
 /// (loadSession) and right after register/login, since both cases just
@@ -60,9 +69,19 @@ class SessionNotifier extends StateNotifier<SessionState> {
           patientNumber: me.patientNumber,
         );
       }
+    } on ApiException catch (e) {
+      if (_tokenInvalidErrorCodes.contains(e.code)) {
+        await _localStorage.clearTokens();
+        state = const SessionUnauthenticated();
+      } else {
+        // Server-side error (5xx, GEN_003 network-unreachable, ...) — the
+        // token is left in storage; loadSession can simply be called again.
+        state = SessionLoadError(e.message);
+      }
     } catch (_) {
-      await _localStorage.clearTokens();
-      state = const SessionUnauthenticated();
+      // Anything not already wrapped as an ApiException (e.g. no
+      // connectivity at all) — same fail-open treatment.
+      state = const SessionLoadError('Could not reach the server. Please check your connection and try again.');
     }
   }
 

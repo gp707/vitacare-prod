@@ -472,6 +472,12 @@ class _RequirementCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Job in Posted by Organisation '
+            '${requirement.city != null ? (City.displayNames[requirement.city] ?? requirement.city!) : ''}',
+            style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.error),
+          ),
+          const SizedBox(height: AppSpacing.xs),
           Text(organisationJobDisplayId(requirement),
               style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
           const SizedBox(height: AppSpacing.xs),

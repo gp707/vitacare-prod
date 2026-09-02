@@ -131,7 +131,10 @@ class _RateCardDialogState extends State<_RateCardDialog> {
                               const SizedBox(width: AppSpacing.xs),
                               Text(
                                 _rateCards![i].title,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: AppTypography.body,
+                                    color: AppColors.error),
                               ),
                             ],
                           ),
@@ -191,7 +194,7 @@ class _RateCardTable extends StatelessWidget {
                     Text(
                       rateCard.columnLabels[col],
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.body),
                     ),
                   ],
                 ),
@@ -206,7 +209,7 @@ class _RateCardTable extends StatelessWidget {
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Text(cell,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: AppTypography.caption, color: AppColors.success, fontWeight: FontWeight.bold)),
+                      style: const TextStyle(fontSize: AppTypography.subtitle, color: AppColors.success, fontWeight: FontWeight.bold)),
                 ),
             ],
           ),

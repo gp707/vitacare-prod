@@ -832,11 +832,12 @@ class _MenuAction {
   });
 }
 
-// All 3 share the same dark green — a uniform, clinical-record color scheme
-// for this block of fields (Job Id excepted, which is its own bigger/bolder
-// green as the card's primary identifier — see _JobIdLine).
+// The label portion (before the colon) of every field line — "Job Id",
+// "Type Of Care", "Salary Guidance Range", "Scope Of Work", "Duty
+// Requirements" — is bold black, distinct from the dark green value that
+// follows it.
 const _fieldLabelStyle = TextStyle(
-    fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
+    fontSize: AppTypography.body, color: AppColors.textPrimary, fontWeight: FontWeight.bold);
 const _fieldValueStyle = TextStyle(
     fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
 const _fieldLinkStyle = TextStyle(
@@ -845,9 +846,10 @@ const _fieldLinkStyle = TextStyle(
     fontWeight: FontWeight.w700,
     decoration: TextDecoration.underline);
 
-/// The card's primary identifier — an icon-in-a-box plus the job's real
-/// display id, set apart from every other field on the card in bold green,
-/// same visual weight a hospital chart gives a record/MRN number.
+/// The card's primary identifier — the job's real display id, set apart
+/// from the "Job Id" label (bold black, like every other field label) in
+/// its own larger bold green, same visual weight a hospital chart gives a
+/// record/MRN number.
 class _JobIdLine extends StatelessWidget {
   final JobModel requirement;
 

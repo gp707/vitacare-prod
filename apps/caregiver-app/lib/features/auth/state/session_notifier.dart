@@ -1,10 +1,19 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/fcm/fcm_service.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../profile/data/profile_repository.dart';
 import 'session_state.dart';
+
+/// Error codes that mean the token itself is no longer good for anything —
+/// a genuinely invalid/expired token, or the account behind it deleted or
+/// deactivated (see JwtAuthGuard, apps/api). Only these actually warrant
+/// clearing the stored token and forcing a fresh login; every other error
+/// loadSession can hit (no connectivity, the backend briefly unreachable,
+/// a 5xx) says nothing about the token's validity.
+const _tokenInvalidErrorCodes = {'AUTH_004', 'AUTH_005'};
 
 /// Single source of truth for "who is logged in and what's their status".
 /// Reused at splash (loadSession) and right after register/login, since
@@ -35,9 +44,19 @@ class SessionNotifier extends StateNotifier<SessionState> {
       );
       // SPEC.md 6.4: register on every app launch / login, not just once.
       unawaited(_fcmService.register());
+    } on ApiException catch (e) {
+      if (_tokenInvalidErrorCodes.contains(e.code)) {
+        await _localStorage.clearTokens();
+        state = const SessionUnauthenticated();
+      } else {
+        // Server-side error (5xx, GEN_003 network-unreachable, ...) — the
+        // token is left in storage; loadSession can simply be called again.
+        state = SessionLoadError(e.message);
+      }
     } catch (_) {
-      await _localStorage.clearTokens();
-      state = const SessionUnauthenticated();
+      // Anything not already wrapped as an ApiException (e.g. no
+      // connectivity at all) — same fail-open treatment.
+      state = const SessionLoadError('Could not reach the server. Please check your connection and try again.');
     }
   }
 

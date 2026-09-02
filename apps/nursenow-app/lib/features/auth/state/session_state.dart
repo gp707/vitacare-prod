@@ -10,6 +10,19 @@ class SessionUnauthenticated extends SessionState {
   const SessionUnauthenticated();
 }
 
+/// A stored token exists but couldn't be verified against the server on
+/// this launch due to a transient problem (no connectivity, the backend
+/// briefly unreachable, a 5xx) — as opposed to the server actively
+/// rejecting the token (AUTH_004/AUTH_005), which does mean logging out.
+/// The token is deliberately left in storage so a retry (or the next
+/// launch) can still succeed instead of forcing a needless re-login for a
+/// problem that had nothing to do with whether the token itself is valid.
+class SessionLoadError extends SessionState {
+  final String message;
+
+  const SessionLoadError(this.message);
+}
+
 /// No verification pipeline like a caregiver has — an individual/
 /// organisation account is either logged in or it isn't. [isJobPostingBlocked]
 /// gates the "post a requirement" action client-side (the server also

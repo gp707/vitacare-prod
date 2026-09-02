@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:caregiver_app/core/network/api_exception.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/core/storage/local_storage.dart';
 import 'package:caregiver_app/core/version/app_version_repository.dart';
@@ -21,10 +22,12 @@ class _FakeAppVersionRepository extends AppVersionRepository {
 
 class _FakeProfileRepository extends ProfileRepository {
   final CaregiverProfileModel? profile;
-  _FakeProfileRepository(this.profile) : super(Dio());
+  final ApiException? error;
+  _FakeProfileRepository(this.profile, {this.error}) : super(Dio());
 
   @override
   Future<CaregiverProfileModel> getProfile() async {
+    if (error != null) throw error!;
     if (profile == null) throw Exception('no profile');
     return profile!;
   }
@@ -91,13 +94,37 @@ void main() {
     expect(find.text('Login Page'), findsNothing);
   });
 
-  testWidgets('proceeds to the normal session flow (unauthenticated -> login) when no update is required',
-      (tester) async {
-    await _pumpSplash(tester, appVersionRepo: _FakeAppVersionRepository(null));
+  testWidgets('a genuinely invalid/expired token (AUTH_005) is cleared and routes to login', (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(null),
+      profileRepo: _FakeProfileRepository(
+        null,
+        error: const ApiException(code: 'AUTH_005', message: 'Invalid or expired token'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Update Required'), findsNothing);
     expect(find.text('Login Page'), findsOneWidget);
+  });
+
+  testWidgets('a transient load failure (e.g. network/server error) fails open with a retry, not a forced logout',
+      (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(null),
+      profileRepo: _FakeProfileRepository(
+        null,
+        error: const ApiException(code: 'GEN_003', message: 'Could not reach the server.'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Update Required'), findsNothing);
+    expect(find.text('Login Page'), findsNothing);
+    expect(find.text('Could not reach the server.'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
   });
 
   testWidgets('an authenticated session restores the pre-refresh route (e.g. Jobs) instead of the default Profile',

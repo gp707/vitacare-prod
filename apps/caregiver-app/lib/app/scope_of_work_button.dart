@@ -23,7 +23,7 @@ class ScopeOfWorkButton extends ConsumerWidget {
     return OutlinedButton.icon(
       onPressed: () => showDialog(
         context: context,
-        builder: (_) => _ScopeOfWorkDialog(
+        builder: (_) => ScopeOfWorkDialog(
           tier: tier,
           repository: ref.read(scopeOfWorkRepositoryProvider),
         ),
@@ -42,17 +42,17 @@ class ScopeOfWorkButton extends ConsumerWidget {
   }
 }
 
-class _ScopeOfWorkDialog extends StatefulWidget {
+class ScopeOfWorkDialog extends StatefulWidget {
   final String tier;
   final ScopeOfWorkRepository repository;
 
-  const _ScopeOfWorkDialog({required this.tier, required this.repository});
+  const ScopeOfWorkDialog({required this.tier, required this.repository});
 
   @override
-  State<_ScopeOfWorkDialog> createState() => _ScopeOfWorkDialogState();
+  State<ScopeOfWorkDialog> createState() => ScopeOfWorkDialogState();
 }
 
-class _ScopeOfWorkDialogState extends State<_ScopeOfWorkDialog> {
+class ScopeOfWorkDialogState extends State<ScopeOfWorkDialog> {
   ScopeOfWorkModel? _scopeOfWork;
   String? _error;
   bool _loading = true;
