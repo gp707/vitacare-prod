@@ -499,6 +499,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     }
   }
 
+  /// The card's own outer border — red while the job is genuinely live
+  /// (active, visible to caregivers right now), grey once it's cancelled
+  /// or closed in any way (including pending_review, which isn't yet
+  /// visible to caregivers). A different signal from [_statusColor], which
+  /// colors the status pill itself.
+  Color get _cardBorderColor =>
+      widget.requirement.status == JobStatus.active ? AppColors.error : AppColors.textSecondary;
+
   @override
   Widget build(BuildContext context) {
     final requirement = widget.requirement;
@@ -531,12 +539,15 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      // A red, wide border on a light green shade — easier for a senior
-      // citizen to see and tell apart from the page background/other cards
-      // than the default thin light-grey outline used elsewhere.
+      // A wide border on a light green shade — easier for a senior citizen
+      // to see and tell apart from the page background/other cards than
+      // the default thin light-grey outline used elsewhere. Red while the
+      // job is genuinely live (see _cardBorderColor), grey once it's
+      // cancelled or closed — so the border itself signals whether this
+      // posting still needs attention.
       decoration: BoxDecoration(
         color: AppColors.success.withValues(alpha: 0.06),
-        border: Border.all(color: AppColors.error, width: 2.5),
+        border: Border.all(color: _cardBorderColor, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -598,6 +609,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             value: requirement.salaryAmount != null
                 ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
                 : 'Not set',
+            valueColor: AppColors.error,
           ),
           if (careReceiver != null) ...[
             const SizedBox(height: AppSpacing.xs),
@@ -869,21 +881,32 @@ class _FieldLine extends StatelessWidget {
   final String value;
   final bool isLink;
   final VoidCallback? onTap;
+  // Overrides the value's color only — e.g. the Salary Guidance Range
+  // figure stays red regardless of the shared dark-green value color every
+  // other field line uses, to draw the eye straight to the number.
+  final Color? valueColor;
 
   const _FieldLine({
     required this.label,
     required this.value,
     this.isLink = false,
     this.onTap,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final baseValueStyle = isLink ? _fieldLinkStyle : _fieldValueStyle;
     final text = Text.rich(
       TextSpan(
         children: [
           TextSpan(text: '$label: ', style: _fieldLabelStyle),
-          TextSpan(text: value, style: isLink ? _fieldLinkStyle : _fieldValueStyle),
+          TextSpan(
+            text: value,
+            style: valueColor != null
+                ? baseValueStyle.copyWith(color: valueColor)
+                : baseValueStyle,
+          ),
         ],
       ),
     );

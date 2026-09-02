@@ -328,9 +328,10 @@ void main() {
     expect(find.text('Accepted'), findsOneWidget);
   });
 
-  testWidgets('requirement card has a wide red border on a light green shade — senior-citizen-friendly visibility',
+  testWidgets(
+      'a live (active) requirement card has a wide red border on a light green shade — senior-citizen-friendly visibility',
       (tester) async {
-    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
+    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
     final container = tester.widget<Container>(
       find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
@@ -340,6 +341,64 @@ void main() {
     expect(border.top.width, greaterThanOrEqualTo(2.5));
     expect(border.top.color, AppColors.error);
     expect(decoration.color, AppColors.success.withValues(alpha: 0.06));
+  });
+
+  testWidgets('a closed requirement card has a grey border, not red — it is no longer live', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      ),
+    );
+    await _revealClosedRequirements(tester);
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
+    );
+    final border = (container.decoration as BoxDecoration).border as Border;
+    expect(border.top.color, AppColors.textSecondary);
+  });
+
+  testWidgets('a cancelled requirement card has a grey border, not red', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
+      ),
+    );
+    await _revealClosedRequirements(tester);
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
+    );
+    final border = (container.decoration as BoxDecoration).border as Border;
+    expect(border.top.color, AppColors.textSecondary);
+  });
+
+  testWidgets('a pending_review requirement card has a grey border — not yet live/visible to caregivers',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'pending_review', salaryAmount: null, frequencyOfCare: null)],
+      ),
+    );
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
+    );
+    final border = (container.decoration as BoxDecoration).border as Border;
+    expect(border.top.color, AppColors.textSecondary);
+  });
+
+  testWidgets('the Salary Guidance Range figure is red, distinct from every other field line\'s dark green',
+      (tester) async {
+    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
+
+    final salaryText = tester.widget<Text>(find.text('Salary Guidance Range: ₹1800/day'));
+    final span = salaryText.textSpan! as TextSpan;
+    final valueSpan = span.children![1] as TextSpan;
+    expect(valueSpan.style!.color, AppColors.error);
   });
 
   testWidgets('the full Patient Details / Care Preferences detail is collapsed by default, and expands on tap',
