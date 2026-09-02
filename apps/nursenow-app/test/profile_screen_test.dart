@@ -15,22 +15,30 @@ import 'package:nursenow_app/features/individual/screens/profile_screen.dart';
 import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 
 class _FakeIndividualRepository extends IndividualRepository {
+  String? updatedName;
   String? updatedPhone;
   String? updatedCode;
+  final ApiException? nameError;
   final ApiException? phoneError;
   final ApiException? codeError;
 
-  _FakeIndividualRepository({this.phoneError, this.codeError}) : super(Dio());
+  _FakeIndividualRepository({this.nameError, this.phoneError, this.codeError}) : super(Dio());
 
   // Overridden so a post-save session refresh (loadSession() -> getMe())
   // never makes a real, unmocked Dio call in a widget test.
   @override
   Future<IndividualModel> getMe() async => IndividualModel(
         userId: 'individual-1',
-        fullName: 'Asha Patel',
+        fullName: updatedName ?? 'Asha Patel',
         phone: updatedPhone ?? '+919876543210',
         isJobPostingBlocked: false,
       );
+
+  @override
+  Future<void> updateName(String fullName) async {
+    if (nameError != null) throw nameError!;
+    updatedName = fullName;
+  }
 
   @override
   Future<void> updatePhone(String phone) async {
@@ -46,6 +54,14 @@ class _FakeIndividualRepository extends IndividualRepository {
 }
 
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
+  // Now 3 full form sections (Full Name/Phone Number/Login PIN) plus
+  // Logout — taller than the default 800x600 surface's viewport + cache
+  // extent, so the ListView never mounts the later sections without a
+  // taller surface (same reasoning as the standalone "logging out" test
+  // below, which already needed this).
+  await tester.binding.setSurfaceSize(const Size(400, 1400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -84,10 +100,58 @@ void main() {
   testWidgets('shows the account name and phone, prefilled into the phone field', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 
-    expect(find.text('Asha Patel'), findsOneWidget);
+    // Appears twice — once in the header, once prefilled into the new Full
+    // Name field below (find.text matches EditableText, not just Text).
+    expect(find.text('Asha Patel'), findsNWidgets(2));
     final phoneField = tester.widget<TextField>(find.widgetWithText(TextField, 'Phone number'));
     expect(phoneField.controller?.text, '+919876543210');
     expect(find.text('PAT-500'), findsOneWidget);
+  });
+
+  testWidgets('shows the account name prefilled into the Full Name field', (tester) async {
+    await _pump(tester, _FakeIndividualRepository());
+
+    final nameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Full name'));
+    expect(nameField.controller?.text, 'Asha Patel');
+  });
+
+  testWidgets('saving a valid name calls the repository and shows a success message', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pump(tester, repo);
+
+    final nameField = find.widgetWithText(TextField, 'Full name');
+    await tester.enterText(nameField, 'Asha P Patel');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
+    await tester.pumpAndSettle();
+
+    expect(repo.updatedName, 'Asha P Patel');
+    expect(find.text('Name updated.'), findsOneWidget);
+  });
+
+  testWidgets('rejects an invalid name without calling the repository', (tester) async {
+    final repo = _FakeIndividualRepository();
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Full name'), 'Asha123');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
+    await tester.pumpAndSettle();
+
+    expect(repo.updatedName, isNull);
+    expect(find.text('Enter a valid name (letters and spaces only)'), findsOneWidget);
+  });
+
+  testWidgets('shows a server error message when the name save fails', (tester) async {
+    final repo = _FakeIndividualRepository(
+      nameError: const ApiException(code: 'PROFILE_020', message: 'Name can only contain letters and spaces'),
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Full name'), 'Asha P Patel');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Name can only contain letters and spaces'), findsOneWidget);
+    expect(repo.updatedName, isNull);
   });
 
   testWidgets('shows a blocked-posting notice when is_job_posting_blocked is true', (tester) async {

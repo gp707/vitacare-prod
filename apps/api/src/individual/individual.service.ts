@@ -17,6 +17,7 @@ import { UpdateIndividualRequirementDto } from './dto/update-individual-requirem
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
+import { UpdateNameDto } from './dto/update-name.dto';
 
 @Injectable()
 export class IndividualService {
@@ -290,6 +291,30 @@ export class IndividualService {
       ipAddress,
     });
     return { message: 'Login code updated' };
+  }
+
+  /** Unlike a caregiver's full_name (locked from self-edit past
+   *  registration — only admins can change it), an individual/patient can
+   *  freely update their own name — there's no verification pipeline tying
+   *  it to anything else, so no re-review implications either way. */
+  async updateName(userId: string, dto: UpdateNameDto, ipAddress: string | null) {
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new AppException('GEN_002');
+    if (dto.full_name === user.full_name) return { message: 'Name updated' };
+
+    await this.usersRepo.updateFullName(userId, dto.full_name);
+    await this.auditService.log({
+      userId,
+      action: AuditAction.PROFILE_UPDATED,
+      entityType: 'individual_profiles',
+      entityId: profile.id,
+      beforeValue: { full_name: user.full_name },
+      afterValue: { full_name: dto.full_name },
+      ipAddress,
+    });
+    return { message: 'Name updated' };
   }
 
   /** Once cancelled (see cancelRequirement above), the individual can no

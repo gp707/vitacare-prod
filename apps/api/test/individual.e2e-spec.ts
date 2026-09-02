@@ -1466,4 +1466,40 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(403);
     });
   });
+
+  describe('PATCH /v1/individual/profile/name', () => {
+    it("changes the name, reflected in GET /individual/me", async () => {
+      const individual = await registerIndividual('0027');
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/name')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ full_name: 'Asha P Patel' })
+        .expect(200);
+
+      const me = await request(app.getHttpServer())
+        .get('/v1/individual/me')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .expect(200);
+      expect(me.body.data.full_name).toBe('Asha P Patel');
+    });
+
+    it('rejects a name containing digits (PROFILE_020)', async () => {
+      const individual = await registerIndividual('0028');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/individual/profile/name')
+        .set('Authorization', `Bearer ${individual.access_token}`)
+        .send({ full_name: 'Asha123' })
+        .expect(400);
+      expect(res.body.error.code).toBe('PROFILE_020');
+    });
+
+    it('rejects a caregiver token (AUTH_007)', async () => {
+      const caregiver = await registerCaregiver('0122');
+      await request(app.getHttpServer())
+        .patch('/v1/individual/profile/name')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ full_name: 'Someone Else' })
+        .expect(403);
+    });
+  });
 });

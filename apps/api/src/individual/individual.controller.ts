@@ -12,6 +12,7 @@ import { UpdateIndividualRequirementDto } from './dto/update-individual-requirem
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
+import { UpdateNameDto } from './dto/update-name.dto';
 
 @Controller('individual')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -70,6 +71,12 @@ export class IndividualController {
   @HttpCode(HttpStatus.OK)
   updateCode(@CurrentUser() user: JwtPayload, @Body() dto: UpdateCodeDto, @ClientIp() ip: string | null) {
     return this.individualService.updateCode(user.sub, dto, ip);
+  }
+
+  @Patch('profile/name')
+  @HttpCode(HttpStatus.OK)
+  updateName(@CurrentUser() user: JwtPayload, @Body() dto: UpdateNameDto, @ClientIp() ip: string | null) {
+    return this.individualService.updateName(user.sub, dto, ip);
   }
 
   @Get('requirements/:id/applications')

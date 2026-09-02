@@ -59,6 +59,7 @@ describe('IndividualService', () => {
       findByPhoneAndRoles: jest.fn(),
       updatePhone: jest.fn(),
       updateCodeHash: jest.fn(),
+      updateFullName: jest.fn(),
     };
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
@@ -328,6 +329,42 @@ describe('IndividualService', () => {
         expect.objectContaining({ userId: 'user-1', action: 'code_changed', entityType: 'individual_profiles' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
+    });
+  });
+
+  describe('updateName', () => {
+    it('throws GEN_002 when no individual profile exists', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(
+        service.updateName('user-1', { full_name: 'Asha Patel' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('is a no-op when the name is unchanged', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'user-1', full_name: 'Asha Patel' });
+      const result = await service.updateName('user-1', { full_name: 'Asha Patel' } as any, null);
+      expect(result).toEqual({ message: 'Name updated' });
+      expect(usersRepo.updateFullName).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('updates the name and audit-logs it when it changed', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'user-1', full_name: 'Asha Patel' });
+      const result = await service.updateName('user-1', { full_name: 'Asha P.' } as any, '127.0.0.1');
+
+      expect(usersRepo.updateFullName).toHaveBeenCalledWith('user-1', 'Asha P.');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          action: 'profile_updated',
+          entityType: 'individual_profiles',
+          beforeValue: { full_name: 'Asha Patel' },
+          afterValue: { full_name: 'Asha P.' },
+        }),
+      );
+      expect(result).toEqual({ message: 'Name updated' });
     });
   });
 

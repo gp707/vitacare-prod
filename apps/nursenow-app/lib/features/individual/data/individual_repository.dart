@@ -235,4 +235,15 @@ class IndividualRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// Unlike a caregiver's full_name (locked from self-edit — only admins
+  /// can change it), a patient/family account can freely update their own
+  /// name — no verification pipeline ties it to anything else.
+  Future<void> updateName(String fullName) async {
+    try {
+      await _dio.patch(ApiRoutes.individualProfileName, data: {'full_name': fullName});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

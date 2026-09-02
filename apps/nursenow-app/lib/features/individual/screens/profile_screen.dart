@@ -26,6 +26,11 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  final _fullNameController = TextEditingController();
+  bool _savingName = false;
+  String? _nameError;
+  String? _nameSuccess;
+
   final _phoneController = TextEditingController();
   bool _savingPhone = false;
   String? _phoneError;
@@ -36,13 +41,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _codeError;
   String? _codeSuccess;
 
+  bool _namePrefilled = false;
   bool _phonePrefilled = false;
 
   @override
   void dispose() {
+    _fullNameController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
+  }
+
+  /// Individual-only — unlike a caregiver's full_name (locked from
+  /// self-edit — only admins can change it), a patient/family account can
+  /// freely update their own name. Not offered for Organisation (the
+  /// "contact person" name is admin-editable via a different flow, see
+  /// CLAUDE.md — out of scope here since it wasn't asked for).
+  Future<void> _saveName() async {
+    final name = _fullNameController.text.trim();
+    if (!Validators.isValidName(name)) {
+      setState(() => _nameError = 'Enter a valid name (letters and spaces only)');
+      return;
+    }
+    setState(() {
+      _savingName = true;
+      _nameError = null;
+      _nameSuccess = null;
+    });
+    try {
+      await ref.read(individualRepositoryProvider).updateName(name);
+      await ref.read(sessionProvider.notifier).loadSession();
+      if (mounted) setState(() => _nameSuccess = 'Name updated.');
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _nameError = e.message);
+    } finally {
+      if (mounted) setState(() => _savingName = false);
+    }
   }
 
   Future<void> _savePhone(bool isOrganisation) async {
@@ -110,9 +144,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final session = ref.watch(sessionProvider);
     final authenticated = session is SessionAuthenticated ? session : null;
 
-    // Prefill the phone field from the session once, the first time it's
-    // available — a plain setState during build (not initState) since the
-    // session hydrates asynchronously and may not be ready on first build.
+    // Prefill the name/phone fields from the session once, the first time
+    // they're available — a plain setState during build (not initState)
+    // since the session hydrates asynchronously and may not be ready on
+    // first build.
+    if (authenticated != null && !_namePrefilled) {
+      _namePrefilled = true;
+      _fullNameController.text = authenticated.fullName;
+    }
     if (authenticated != null && !_phonePrefilled) {
       _phonePrefilled = true;
       _phoneController.text = authenticated.phone;
@@ -173,6 +212,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const Text(
                       'Posting new requirements is currently blocked. Contact the office for details.',
                       style: TextStyle(color: AppColors.error),
+                    ),
+                  ],
+                  if (!authenticated.isOrganisation) ...[
+                    const Divider(height: AppSpacing.xxl),
+                    const Row(
+                      children: [
+                        Icon(Icons.badge, size: 18, color: AppColors.primaryDark),
+                        SizedBox(width: AppSpacing.xs),
+                        Text('Full Name', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _fullNameController,
+                      decoration: InputDecoration(labelText: 'Full name', errorText: _nameError),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (_nameSuccess != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Text(_nameSuccess!, style: const TextStyle(color: AppColors.success)),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: _savingName ? null : _saveName,
+                      icon: _savingName
+                          ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
+                          : const Icon(Icons.check, size: 16),
+                      label: const Text('Save Name'),
                     ),
                   ],
                   const Divider(height: AppSpacing.xxl),
