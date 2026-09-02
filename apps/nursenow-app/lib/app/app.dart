@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
+import '../core/connectivity/connectivity_banner.dart';
 import 'router.dart';
 
 class NurseNowApp extends StatelessWidget {
@@ -29,6 +30,7 @@ class NurseNowApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: buildRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
+      builder: (context, child) => ConnectivityBanner(child: child!),
     );
   }
 }

@@ -80,6 +80,11 @@ class DutyRequirementsDialogState extends State<DutyRequirementsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      // Green background, white bullet text — the shift heading (title
+      // below) stays black, since it was never given an explicit color
+      // and so keeps rendering in the theme's default text color
+      // regardless of the surface behind it.
+      backgroundColor: AppColors.success,
       title: Text(DutyType.displayNames[widget.dutyType] ?? widget.dutyType),
       content: SizedBox(
         width: 360,
@@ -101,8 +106,8 @@ class DutyRequirementsDialogState extends State<DutyRequirementsDialog> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('•  '),
-                                Expanded(child: Text(bullet)),
+                                const Text('•  ', style: TextStyle(color: Colors.white)),
+                                Expanded(child: Text(bullet, style: const TextStyle(color: Colors.white))),
                               ],
                             ),
                           ),

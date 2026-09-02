@@ -100,6 +100,12 @@ class _RateCardDialogState extends State<_RateCardDialog> {
     // unusually long admin-typed cell value on a short screen.
     final dialogWidth = (MediaQuery.of(context).size.width - 32).clamp(280.0, 560.0);
     return AlertDialog(
+      // Green background, white body text — headings (the dialog title,
+      // each frequency's own title, and the tier column labels) stay
+      // black, since they were never given an explicit color and so keep
+      // rendering in the theme's default text color regardless of the
+      // surface behind them.
+      backgroundColor: AppColors.success,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: const Text('Salary Guidance'),
       content: SizedBox(
@@ -164,7 +170,7 @@ class _RateCardTable extends StatelessWidget {
         1: FlexColumnWidth(1),
         2: FlexColumnWidth(1),
       },
-      border: TableBorder.all(color: AppColors.border),
+      border: TableBorder.all(color: Colors.white),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
@@ -200,7 +206,9 @@ class _RateCardTable extends StatelessWidget {
               for (final cell in rateCard.cells[i])
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: Text(cell, textAlign: TextAlign.center, style: const TextStyle(fontSize: AppTypography.caption)),
+                  child: Text(cell,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: AppTypography.caption, color: Colors.white)),
                 ),
             ],
           ),
