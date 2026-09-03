@@ -205,6 +205,17 @@ export const MessageEvent = {
   WELCOME: 'welcome',
   REQUIREMENT_LIVE: 'requirement_live',
   REQUIREMENT_CARE_TIER: 'requirement_care_tier',
+  // Evaluated against the account's most recently posted requirement's
+  // applications (any status present on it, regardless of the
+  // requirement's own status — acceptance closes the requirement, so
+  // caregiverAccepted/caregiverClosed can never coincide with a still-
+  // "live" requirement). Not mutually exclusive with each other or with
+  // requirementLive/requirementCareTier — e.g. a still-live requirement
+  // can simultaneously have other applied-but-undecided candidates.
+  CAREGIVER_APPLIED: 'caregiver_applied',
+  CAREGIVER_ACCEPTED: 'caregiver_accepted',
+  CAREGIVER_REJECTED: 'caregiver_rejected',
+  CAREGIVER_CLOSED: 'caregiver_closed',
 } as const;
 export type MessageEvent = (typeof MessageEvent)[keyof typeof MessageEvent];
 
@@ -222,6 +233,10 @@ export const MessageIcon = {
   EMERGENCY: 'emergency',
   INFO: 'info',
   CELEBRATION: 'celebration',
+  PERSON_ADD: 'person_add',
+  CHECK_CIRCLE: 'check_circle',
+  CANCEL: 'cancel',
+  TASK_ALT: 'task_alt',
 } as const;
 export type MessageIcon = (typeof MessageIcon)[keyof typeof MessageIcon];
 

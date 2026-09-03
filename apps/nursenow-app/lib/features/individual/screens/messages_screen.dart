@@ -13,11 +13,15 @@ import '../data/requirement_messages.dart';
 /// requirement(s) — see requirement_messages.dart's resolveMessages() for
 /// exactly which messages apply and when. Message content/delivery-event
 /// is admin-managed (apps/admin-web's "NurseNow Messages" screen); this
-/// screen just fetches the current template set + the individual's own
+/// screen fetches the current template set + the individual's own
 /// requirements (the same GET /individual/requirements call
-/// JobsPostedScreen makes) in parallel and resolves them client-side — no
-/// persistence, no read/unread state; refreshing always shows whatever
-/// currently applies, nothing more.
+/// JobsPostedScreen makes) in parallel, then — only when
+/// needsApplicationsFetch() says there's actually something to check —
+/// a 3rd call for the most recent requirement's own applications (the
+/// caregiver_* events need to know who's applied/been accepted/rejected/
+/// closed on it). Resolved entirely client-side — no persistence, no
+/// read/unread state; refreshing always shows whatever currently applies,
+/// nothing more.
 class MessagesScreen extends ConsumerStatefulWidget {
   const MessagesScreen({super.key});
 
@@ -28,6 +32,7 @@ class MessagesScreen extends ConsumerStatefulWidget {
 class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   List<JobModel> _requirements = [];
   List<IndividualMessageModel> _templates = [];
+  List<JobApplicationModel> _currentApplications = [];
   String? _error;
   bool _loading = true;
 
@@ -43,14 +48,21 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _error = null;
     });
     try {
+      final individualRepo = ref.read(individualRepositoryProvider);
       final results = await Future.wait([
-        ref.read(individualRepositoryProvider).listMyRequirements(),
+        individualRepo.listMyRequirements(),
         ref.read(individualMessagesRepositoryProvider).get(),
       ]);
+      final requirements = results[0] as List<JobModel>;
+      final templates = results[1] as List<IndividualMessageModel>;
+      final applications = needsApplicationsFetch(requirements)
+          ? await individualRepo.listApplications(requirements.first.id)
+          : <JobApplicationModel>[];
       if (!mounted) return;
       setState(() {
-        _requirements = results[0] as List<JobModel>;
-        _templates = results[1] as List<IndividualMessageModel>;
+        _requirements = requirements;
+        _templates = templates;
+        _currentApplications = applications;
       });
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -61,7 +73,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = resolveMessages(_templates, _requirements);
+    final messages = resolveMessages(_templates, _requirements, _currentApplications);
 
     return Scaffold(
       appBar: AppBar(

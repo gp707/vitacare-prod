@@ -34,6 +34,14 @@ IconData iconFor(String key) {
       return Icons.emergency;
     case MessageIcon.celebration:
       return Icons.celebration;
+    case MessageIcon.personAdd:
+      return Icons.person_add;
+    case MessageIcon.checkCircle:
+      return Icons.check_circle;
+    case MessageIcon.cancel:
+      return Icons.cancel;
+    case MessageIcon.taskAlt:
+      return Icons.task_alt;
     case MessageIcon.info:
     default:
       return Icons.info;
@@ -42,16 +50,6 @@ IconData iconFor(String key) {
 
 bool _isLive(JobModel requirement) =>
     requirement.status == JobStatus.pendingReview || requirement.status == JobStatus.active;
-
-/// At most one requirement is ever live at a time (the existing one-live-
-/// requirement rule, JOB_009), so the first live one found is the only one
-/// that matters here.
-JobModel? _liveRequirement(List<JobModel> requirements) {
-  for (final requirement in requirements) {
-    if (_isLive(requirement)) return requirement;
-  }
-  return null;
-}
 
 /// Replaces the literal token "{tier}" with the derived care tier's
 /// display name — only meaningful for MessageEvent.requirementCareTier
@@ -67,35 +65,71 @@ String _interpolate(String message, JobModel requirement) {
 }
 
 /// Resolves [templates] (the full admin-editable set, fetched once per
-/// Messages tab load) against the individual's own [requirements] into the
+/// Messages tab load) against the individual's own [requirements] and
+/// [currentRequirementApplications] (the applications on the most
+/// recently posted requirement — see [needsApplicationsFetch]) into the
 /// final ordered list to render — no persistence, no read/unread state,
 /// recomputed fresh every time, same architecture as before this became
 /// admin-editable, just data-driven now instead of hardcoded.
 ///
 /// Before the account has ever posted a requirement at all, only
-/// MessageEvent.welcome templates apply. Otherwise, only the one
-/// currently-live requirement (if any) matters: MessageEvent.
-/// requirementLive templates always apply, and MessageEvent.
-/// requirementCareTier templates apply additionally when that requirement
-/// has a care_receiver. All applicable templates — regardless of which
-/// event matched — are sorted together by a single shared displayOrder,
-/// so admin fully controls how they interleave.
-List<MessageItem> resolveMessages(List<IndividualMessageModel> templates, List<JobModel> requirements) {
+/// MessageEvent.welcome templates apply. Otherwise every other event is
+/// evaluated against `requirements.first` — the account's most recently
+/// posted requirement (the backend returns requirements newest-first) —
+/// since acceptance closes a requirement (flips it off "live"), so a
+/// caregiverAccepted/caregiverClosed tip can never coexist with that same
+/// requirement still being "live"; picking the single most recent
+/// requirement, regardless of its exact status, is what lets both still
+/// work without tracking two different "current requirement" concepts.
+/// requirementLive/requirementCareTier still require that requirement to
+/// actually be live; the 4 caregiver_* events instead check whether an
+/// application with the matching status is present on it (not mutually
+/// exclusive with each other or with requirementLive — e.g. a still-live
+/// requirement can simultaneously have other applied-but-undecided
+/// candidates). All applicable templates — regardless of which event
+/// matched — are sorted together by a single shared displayOrder, so
+/// admin fully controls how they interleave.
+List<MessageItem> resolveMessages(
+  List<IndividualMessageModel> templates,
+  List<JobModel> requirements,
+  List<JobApplicationModel> currentRequirementApplications,
+) {
   if (requirements.isEmpty) {
     final welcome = templates.where((t) => t.event == MessageEvent.welcome).toList()
       ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
     return welcome.map((t) => MessageItem(iconFor(t.icon), t.message)).toList();
   }
 
-  final live = _liveRequirement(requirements);
-  if (live == null) return const [];
+  final current = requirements.first;
+  final applicationStatuses = currentRequirementApplications.map((a) => a.status).toSet();
 
   final applicable = templates.where((t) {
-    if (t.event == MessageEvent.requirementLive) return true;
-    if (t.event == MessageEvent.requirementCareTier) return live.careReceiver != null;
-    return false;
+    switch (t.event) {
+      case MessageEvent.requirementLive:
+        return _isLive(current);
+      case MessageEvent.requirementCareTier:
+        return _isLive(current) && current.careReceiver != null;
+      case MessageEvent.caregiverApplied:
+        return applicationStatuses.contains(JobApplicationStatus.applied);
+      case MessageEvent.caregiverAccepted:
+        return applicationStatuses.contains(JobApplicationStatus.accepted);
+      case MessageEvent.caregiverRejected:
+        return applicationStatuses.contains(JobApplicationStatus.rejected);
+      case MessageEvent.caregiverClosed:
+        return applicationStatuses.contains(JobApplicationStatus.completed);
+      default:
+        return false;
+    }
   }).toList()
     ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
-  return applicable.map((t) => MessageItem(iconFor(t.icon), _interpolate(t.message, live))).toList();
+  return applicable.map((t) => MessageItem(iconFor(t.icon), _interpolate(t.message, current))).toList();
 }
+
+/// Whether resolveMessages() needs applications data for [requirements] at
+/// all — false when there's nothing posted yet, or when the most recent
+/// requirement is still pending_review (caregivers can't see/apply to a
+/// job before it's approved to active, so it's guaranteed to have zero
+/// applications — fetching would just waste a network call).
+bool needsApplicationsFetch(List<JobModel> requirements) =>
+    requirements.isNotEmpty && requirements.first.status != JobStatus.pendingReview;

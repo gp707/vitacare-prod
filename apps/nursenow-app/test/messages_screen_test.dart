@@ -41,13 +41,28 @@ JobModel _requirement({
 class _FakeIndividualRepository extends IndividualRepository {
   final List<JobModel> requirements;
   final ApiException? error;
+  final List<JobApplicationModel> applications;
+  final ApiException? applicationsError;
+  int listApplicationsCallCount = 0;
 
-  _FakeIndividualRepository({this.requirements = const [], this.error}) : super(Dio());
+  _FakeIndividualRepository({
+    this.requirements = const [],
+    this.error,
+    this.applications = const [],
+    this.applicationsError,
+  }) : super(Dio());
 
   @override
   Future<List<JobModel>> listMyRequirements() async {
     if (error != null) throw error!;
     return requirements;
+  }
+
+  @override
+  Future<List<JobApplicationModel>> listApplications(String jobId) async {
+    listApplicationsCallCount++;
+    if (applicationsError != null) throw applicationsError!;
+    return applications;
   }
 }
 
@@ -209,5 +224,61 @@ void main() {
     );
 
     expect(find.text('Could not load messages'), findsOneWidget);
+  });
+
+  testWidgets('does not fetch applications when there is no requirement yet', (tester) async {
+    final repo = _FakeIndividualRepository(requirements: []);
+    await _pump(tester, repo);
+
+    expect(repo.listApplicationsCallCount, 0);
+  });
+
+  testWidgets('does not fetch applications when the most recent requirement is still pending_review',
+      (tester) async {
+    final repo = _FakeIndividualRepository(requirements: [_requirement(status: 'pending_review')]);
+    await _pump(tester, repo);
+
+    expect(repo.listApplicationsCallCount, 0);
+  });
+
+  testWidgets('fetches applications and shows the accepted tip even though acceptance closed the requirement',
+      (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed')],
+      applications: [
+        JobApplicationModel(
+          id: 'app-1',
+          jobId: 'job-1',
+          profileId: 'profile-1',
+          status: 'accepted',
+          fullName: 'Test Caregiver',
+          phone: '+919876543210',
+          updatedAt: '2026-08-01T10:00:00Z',
+        ),
+      ],
+    );
+    final templates = [
+      _template(
+        id: 'accepted',
+        event: MessageEvent.caregiverAccepted,
+        message: 'A caregiver accepted your requirement!',
+        displayOrder: 10,
+      ),
+    ];
+
+    await _pump(tester, repo, templates: templates);
+
+    expect(repo.listApplicationsCallCount, 1);
+    expect(find.textContaining('A caregiver accepted your requirement'), findsOneWidget);
+  });
+
+  testWidgets('shows a friendly error instead of crashing when the applications fetch fails', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'active')],
+      applicationsError: ApiException(message: 'Could not load applications', code: 'GEN_003'),
+    );
+    await _pump(tester, repo);
+
+    expect(find.text('Could not load applications'), findsOneWidget);
   });
 }

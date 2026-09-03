@@ -130,13 +130,36 @@ class MessageEvent {
   static const welcome = 'welcome';
   static const requirementLive = 'requirement_live';
   static const requirementCareTier = 'requirement_care_tier';
+  // Evaluated against the account's most recently posted requirement's
+  // applications (any status present on it, regardless of the
+  // requirement's own status — acceptance closes the requirement, so
+  // caregiverAccepted/caregiverClosed can never coincide with a still-
+  // "live" requirement). Not mutually exclusive with each other or with
+  // requirementLive/requirementCareTier — e.g. a still-live requirement
+  // can simultaneously have other applied-but-undecided candidates.
+  static const caregiverApplied = 'caregiver_applied';
+  static const caregiverAccepted = 'caregiver_accepted';
+  static const caregiverRejected = 'caregiver_rejected';
+  static const caregiverClosed = 'caregiver_closed';
 
-  static const all = [welcome, requirementLive, requirementCareTier];
+  static const all = [
+    welcome,
+    requirementLive,
+    requirementCareTier,
+    caregiverApplied,
+    caregiverAccepted,
+    caregiverRejected,
+    caregiverClosed,
+  ];
 
   static const displayNames = {
     welcome: 'Welcome (before any requirement ever posted)',
     requirementLive: 'Requirement is live',
     requirementCareTier: 'Requirement is live + has a care tier (supports {tier})',
+    caregiverApplied: 'A caregiver applied (most recent requirement)',
+    caregiverAccepted: 'A caregiver was accepted (most recent requirement)',
+    caregiverRejected: 'A caregiver was rejected (most recent requirement)',
+    caregiverClosed: 'A caregiver closed the engagement (most recent requirement)',
   };
 }
 
@@ -154,6 +177,10 @@ class MessageIcon {
   static const emergency = 'emergency';
   static const info = 'info';
   static const celebration = 'celebration';
+  static const personAdd = 'person_add';
+  static const checkCircle = 'check_circle';
+  static const cancel = 'cancel';
+  static const taskAlt = 'task_alt';
 
   static const all = [
     editNote,
@@ -166,6 +193,10 @@ class MessageIcon {
     emergency,
     info,
     celebration,
+    personAdd,
+    checkCircle,
+    cancel,
+    taskAlt,
   ];
 }
 
