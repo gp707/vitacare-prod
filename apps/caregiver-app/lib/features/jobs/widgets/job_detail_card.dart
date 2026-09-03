@@ -55,8 +55,13 @@ class SectionLabel extends StatelessWidget {
 
 class Tag extends StatelessWidget {
   final String label;
+  // Marks a tag as highlighter-pen yellow instead of the default neutral
+  // pill — used to call out the gender fields specifically (patient's own
+  // gender, and the caregiver-preferred gender) so they stand out at a
+  // glance among the rest of the About Patient/Requirement tags.
+  final bool highlighted;
 
-  const Tag(this.label, {super.key});
+  const Tag(this.label, {super.key, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +70,7 @@ class Tag extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
         decoration: BoxDecoration(
-          color: AppColors.primaryLight,
+          color: highlighted ? Colors.yellow : AppColors.primaryLight,
           borderRadius: BorderRadius.circular(AppSpacing.sm),
         ),
         child: Text(label, style: const TextStyle(fontSize: AppTypography.small)),
@@ -317,7 +322,13 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
                 icon: Icons.date_range,
                 text: CareDuration.displayNames[job.careDuration!] ?? job.careDuration!,
               ),
-            IconField(icon: Icons.location_on, text: City.displayNames[job.city] ?? job.city),
+            IconField(
+              icon: Icons.location_on,
+              text: [
+                City.displayNames[job.city] ?? job.city,
+                if (job.area != null && job.area!.isNotEmpty) job.area!,
+              ].join(' · '),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -397,12 +408,11 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
             Wrap(
               children: [
                 Tag('${job.careReceiver!.age} yrs'),
-                Tag(capitalize(job.careReceiver!.gender)),
+                Tag(capitalize(job.careReceiver!.gender), highlighted: true),
                 Tag('${job.careReceiver!.weightKg} kg'),
                 Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
                 for (final t in job.careReceiver!.toiletAssistance)
                   Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-                if (job.area != null && job.area!.isNotEmpty) Tag('Area: ${job.area!}'),
                 if (job.careReceiver!.hasMedicalCondition)
                   for (final c in job.careReceiver!.medicalConditions)
                     Tag('Medical Condition: ${MedicalCondition.displayNames[c] ?? c}')
@@ -442,7 +452,8 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
               if (job.careDuration != null)
                 Tag(CareDuration.displayNames[job.careDuration!] ?? job.careDuration!),
               for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
-              if (job.preferredGender != null) Tag('Preferred Gender: ${capitalize(job.preferredGender!)}'),
+              if (job.preferredGender != null)
+                Tag('Preferred Gender: ${capitalize(job.preferredGender!)}', highlighted: true),
               if (job.preferredReligion != null)
                 Tag('Preferred Religion: ${Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!}'),
             ],

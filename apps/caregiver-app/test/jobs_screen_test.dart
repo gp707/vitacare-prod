@@ -207,11 +207,11 @@ void main() {
       'so cards are distinguishable when scanning a list of many', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    // Collapsed: header (job #, salary, duty type + city, posted date) is
-    // visible, but the tag-heavy detail sections are not.
+    // Collapsed: header (job #, salary, duty type + city/area, posted date)
+    // is visible, but the tag-heavy detail sections are not.
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-    expect(find.text('Bangalore'), findsOneWidget);
+    expect(find.text('Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
     expect(find.text('Click for More Details about Patient Requirements'), findsOneWidget);
@@ -342,15 +342,14 @@ void main() {
   testWidgets('shows job details: duty type, city, area, description', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
+    // City + area are shown together, up front in the collapsed header —
+    // not buried in the collapsible detail section like description is.
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-    expect(find.text('Bangalore'), findsOneWidget);
-    // Area/description are inside the collapsible detail section.
-    expect(find.text('Indiranagar'), findsNothing);
+    expect(find.text('Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
 
     await _expandDetails(tester);
 
-    expect(find.text('Area: Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });
 
@@ -363,7 +362,7 @@ void main() {
     // since it's no longer duplicated as its own Tag in the expanded "About
     // Nurse/Caregiver Requirement" section.
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-    expect(find.text('Bangalore'), findsOneWidget);
+    expect(find.text('Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('Need a caregiver for an elderly patient'), findsNothing);
   });
 
@@ -386,7 +385,9 @@ void main() {
     expect(find.text('Medicine Reminders'), findsNothing);
     expect(find.text('Toilet: Diapers/bedside support'), findsOneWidget);
     expect(find.text('Toilet: Catheter support'), findsOneWidget);
-    expect(find.text('Area: Indiranagar'), findsOneWidget);
+    // Area moved out of this section — it's shown next to City in the
+    // collapsed header now (see the "shows job details" test).
+    expect(find.text('Area: Indiranagar'), findsNothing);
     expect(find.text('Medical Condition: Diabetes'), findsOneWidget);
     expect(find.text('Monitor: Blood pressure'), findsOneWidget);
     expect(find.text('Monitor: Blood sugar'), findsOneWidget);
