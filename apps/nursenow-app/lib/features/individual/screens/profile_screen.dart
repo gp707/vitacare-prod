@@ -158,7 +158,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const VitaAppBarTitle('Profile'),
         actions: individualAppBarActions(showBell: !(session is SessionAuthenticated && session.isOrganisation)),
       ),
       backgroundColor: AppColors.background,

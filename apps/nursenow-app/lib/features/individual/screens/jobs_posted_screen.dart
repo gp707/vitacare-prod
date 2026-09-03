@@ -279,7 +279,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Jobs Posted'),
+        title: const VitaAppBarTitle('Jobs Posted'),
         actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
@@ -554,7 +554,21 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
+            // spaceBetween (not an explicit Spacer) keeps the menu button
+            // pinned to the row's far right regardless of the badge's
+            // width, while the badge's own Flexible below is free to claim
+            // up to the rest of the row for a long status label like
+            // "Live — visible to caregivers" instead of being squeezed
+            // into half the row the way a 50/50 Flexible+Spacer pairing
+            // would.
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Loose fit (hugs its own text when short) but can grow up
+              // to the remaining row width for a long label. On a narrow
+              // phone where even the full row width isn't enough for one
+              // line, _StatusBadge wraps onto a second line rather than
+              // truncating with "…" — the full status stays readable
+              // either way.
               Flexible(
                 child: _StatusBadge(
                   label: _statusLabel,
@@ -562,7 +576,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   blink: requirement.status == JobStatus.active,
                 ),
               ),
-              const Spacer(),
               // Always exactly 3 actions — Edit / Post Similar / Cancel —
               // each individually disabled (not hidden) when its own
               // precondition doesn't hold, so the set of actions is
@@ -598,15 +611,22 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           // documentation conventions), except the Job Id itself, which is
           // set apart in bold green as the card's primary identifier.
           const SizedBox(height: AppSpacing.sm),
-          _JobIdLine(requirement: requirement),
-          if (careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            _FieldLine(
-              label: 'Type Of Care',
-              value: CareTier.displayNames[deriveCareTier(careReceiver)] ??
-                  deriveCareTier(careReceiver),
-            ),
-          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _JobIdLine(requirement: requirement)),
+              if (careReceiver != null) ...[
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _FieldLine(
+                    label: 'Type Of Care',
+                    value: CareTier.displayNames[deriveCareTier(careReceiver)] ??
+                        deriveCareTier(careReceiver),
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: AppSpacing.xs),
           _FieldLine(
             label: 'Salary Guidance Range',
@@ -615,33 +635,42 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 : 'Not set',
             valueColor: AppColors.error,
           ),
-          if (careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            _FieldLine(
-              label: 'Scope Of Work',
-              value: 'Click Here',
-              isLink: true,
-              onTap: () => showDialog(
-                context: context,
-                builder: (_) => ScopeOfWorkDialog(
-                  tier: deriveCareTier(careReceiver),
-                  repository: ref.read(scopeOfWorkRepositoryProvider),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (careReceiver != null) ...[
+                Expanded(
+                  child: _FieldLine(
+                    label: 'Scope Of Work',
+                    value: 'Click Here',
+                    isLink: true,
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => ScopeOfWorkDialog(
+                        tier: deriveCareTier(careReceiver),
+                        repository: ref.read(scopeOfWorkRepositoryProvider),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+              ],
+              Expanded(
+                child: _FieldLine(
+                  label: 'Duty Requirements',
+                  value: 'Click Here',
+                  isLink: true,
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => DutyRequirementsDialog(
+                      dutyType: requirement.dutyType,
+                      repository: ref.read(dutyRequirementsRepositoryProvider),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.xs),
-          _FieldLine(
-            label: 'Duty Requirements',
-            value: 'Click Here',
-            isLink: true,
-            onTap: () => showDialog(
-              context: context,
-              builder: (_) => DutyRequirementsDialog(
-                dutyType: requirement.dutyType,
-                repository: ref.read(dutyRequirementsRepositoryProvider),
-              ),
-            ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Align(
@@ -837,8 +866,12 @@ class _StatusBadgeState extends State<_StatusBadge> with SingleTickerProviderSta
         border: Border.all(color: widget.color, width: 1.5),
         borderRadius: BorderRadius.circular(999),
       ),
+      // No overflow/ellipsis — a status label wraps onto a second line
+      // rather than ever being truncated with "…"; the pill's own
+      // rounded-rect background grows with it (borderRadius 999 still
+      // reads as fully rounded ends on a short one-line label, and as a
+      // softly rounded rectangle on a wrapped two-line one).
       child: Text(widget.label,
-          overflow: TextOverflow.ellipsis,
           style: TextStyle(
               color: widget.color, fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle)),
     );

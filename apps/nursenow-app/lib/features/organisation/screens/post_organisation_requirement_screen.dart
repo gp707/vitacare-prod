@@ -76,7 +76,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Post a Requirement'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(title: const VitaAppBarTitle('Post a Requirement'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(

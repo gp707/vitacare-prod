@@ -267,7 +267,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(title: const VitaAppBarTitle('Register'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(

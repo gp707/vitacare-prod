@@ -6,7 +6,6 @@ import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/messages_bell.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../auth/state/session_notifier.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 
@@ -185,24 +184,11 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     final visible = _hideCompleted ? assignments.where((a) => !a.isCompleted).toList() : assignments;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MyJobs'),
-        actions: [
-          ...caregiverAppBarActions(showBell: true),
-          TextButton(
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onPressed: () {
-              final navigator = Navigator.of(context);
-              ref.read(sessionProvider.notifier).logout().then((_) {
-                navigator.pushNamedAndRemoveUntil('/login', (route) => false);
-              });
-            },
-            child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
-          ),
-        ],
+        title: const VitaAppBarTitle('MyJobs'),
+        // Logout lives only on the Profile screen now (moved to the bottom
+        // of the page there) — no longer duplicated in every screen's
+        // AppBar.
+        actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const CaregiverBottomNav(currentIndex: 2),

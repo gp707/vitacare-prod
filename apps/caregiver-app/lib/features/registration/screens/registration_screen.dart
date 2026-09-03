@@ -356,7 +356,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Register'),
+        title: const VitaAppBarTitle('Register'),
         actions: const [RateCardButton()],
       ),
       backgroundColor: AppColors.background,

@@ -142,12 +142,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Image.asset(
+                'packages/vitacare_ui/assets/branding/logo_icon.png',
+                width: 120,
+                height: 120,
+              ),
+              const SizedBox(height: AppSpacing.sm),
               const Text(
                 'NurseJobs',
                 textAlign: TextAlign.center,

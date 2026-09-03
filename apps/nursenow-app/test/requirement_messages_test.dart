@@ -174,6 +174,23 @@ void main() {
       expect(_texts(messages), contains(contains('we see you need Companion Care')));
     });
 
+    test('also interpolates the tolerated <tier> (angle-bracket) form, not just {tier}', () {
+      final templates = [
+        _template(
+          id: 'tier-angle',
+          event: MessageEvent.requirementCareTier,
+          message: 'Based on the patient we think this is <tier>.',
+          displayOrder: 10,
+        ),
+      ];
+      final messages = resolveMessages(
+        templates,
+        [_requirement(status: 'active', careReceiver: _careReceiverJson())],
+        const [],
+      );
+      expect(_texts(messages), [contains('Based on the patient we think this is Companion Care.')]);
+    });
+
     test('interpolates {tier} as Critical Care for a catheter-support patient', () {
       final messages = resolveMessages(
         _seedTemplates(),
@@ -365,6 +382,22 @@ void main() {
         ],
       );
       expect(_texts(messages).toSet(), {'Asha applied to your job', 'Bhavna applied to your job'});
+    });
+
+    test('also interpolates the tolerated <caregiver_name> (angle-bracket) form, not just {caregiver_name}', () {
+      final named = [
+        _template(
+            id: 'applied-named-angle',
+            event: MessageEvent.caregiverApplied,
+            message: '<caregiver_name> applied to your job',
+            displayOrder: 10),
+      ];
+      final messages = resolveMessages(
+        named,
+        [_requirement(status: 'active')],
+        [_application(id: 'a1', status: 'applied', fullName: 'Asha')],
+      );
+      expect(_texts(messages), ['Asha applied to your job']);
     });
 
     test('needsApplicationsFetch is false with no requirements or a pending_review most-recent one', () {

@@ -138,6 +138,24 @@ void main() {
       expect(_texts(messages), [contains('Successfully applied to job ADMIN-JOB-512')]);
     });
 
+    test('also interpolates the tolerated <job_id> (angle-bracket) form, not just {job_id}', () {
+      final templates = [
+        _template(
+          id: 'm1',
+          event: CaregiverMessageEvent.jobApplied,
+          message: 'You have successfully applied to the job with id <job_id>',
+          displayOrder: 10,
+        ),
+      ];
+      final messages = resolveCaregiverMessages(
+        templates,
+        [_job(adminJobNumber: 512, myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-01T10:00:00Z'))],
+        const [],
+      );
+      expect(_texts(messages), [contains('You have successfully applied to the job with id ADMIN-JOB-512')]);
+      expect(_texts(messages), isNot(contains(contains('<job_id>'))));
+    });
+
     test('shows jobRejected for a currently-active rejected job', () {
       final messages = resolveCaregiverMessages(
         _seedTemplates(),

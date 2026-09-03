@@ -488,7 +488,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Requirement'),
+        title: const VitaAppBarTitle('Edit Requirement'),
         actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,

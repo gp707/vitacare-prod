@@ -57,11 +57,22 @@ IconData iconFor(String key) {
   }
 }
 
-/// Replaces the literal token "{job_id}" with [job]'s display id — safe to
-/// call on any message (a no-op if the token isn't present).
+/// Replaces the token `{job_id}` (the documented format — see admin-web's
+/// helper text) with [job]'s display id — safe to call on any message (a
+/// no-op if neither token is present). Also accepts `<job_id>` as a
+/// tolerated alternative, since admin free-typing the message field has no
+/// enforced syntax and angle brackets are a common way people denote a
+/// placeholder — silently supporting both means a stray typo doesn't
+/// quietly ship a message with the literal token still showing.
 String _interpolate(String message, JobModel job) {
-  if (!message.contains('{job_id}')) return message;
-  return message.replaceAll('{job_id}', jobDisplayId(job));
+  var result = message;
+  if (result.contains('{job_id}')) {
+    result = result.replaceAll('{job_id}', jobDisplayId(job));
+  }
+  if (result.contains('<job_id>')) {
+    result = result.replaceAll('<job_id>', jobDisplayId(job));
+  }
+  return result;
 }
 
 /// One job whose application currently matches an event, paired with the

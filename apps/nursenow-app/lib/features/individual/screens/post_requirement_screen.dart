@@ -490,7 +490,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.cloneFrom != null
+        title: VitaAppBarTitle(widget.cloneFrom != null
             ? 'Post Similar Requirement'
             : 'Post a Requirement'),
         actions: individualAppBarActions(showBell: true),

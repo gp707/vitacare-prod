@@ -60,7 +60,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: const VitaAppBarTitle('My Profile'),
         actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,

@@ -332,40 +332,58 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        _JobIdLine(job: job),
-        if (job.careReceiver != null) ...[
-          const SizedBox(height: AppSpacing.xs),
-          _FieldLine(
-            label: 'Type Of Care',
-            value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ??
-                deriveCareTier(job.careReceiver!),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _FieldLine(
-            label: 'Scope Of Work',
-            value: 'Click Here',
-            isLink: true,
-            onTap: () => showDialog(
-              context: context,
-              builder: (_) => ScopeOfWorkDialog(
-                tier: deriveCareTier(job.careReceiver!),
-                repository: ref.read(scopeOfWorkRepositoryProvider),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _JobIdLine(job: job)),
+            if (job.careReceiver != null) ...[
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _FieldLine(
+                  label: 'Type Of Care',
+                  value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ??
+                      deriveCareTier(job.careReceiver!),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (job.careReceiver != null) ...[
+              Expanded(
+                child: _FieldLine(
+                  label: 'Scope Of Work',
+                  value: 'Click Here',
+                  isLink: true,
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => ScopeOfWorkDialog(
+                      tier: deriveCareTier(job.careReceiver!),
+                      repository: ref.read(scopeOfWorkRepositoryProvider),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+            ],
+            Expanded(
+              child: _FieldLine(
+                label: 'Patient Provides',
+                value: 'Click Here',
+                isLink: true,
+                onTap: () => showDialog(
+                  context: context,
+                  builder: (_) => DutyRequirementsDialog(
+                    dutyType: job.dutyType,
+                    repository: ref.read(dutyRequirementsRepositoryProvider),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.xs),
-        _FieldLine(
-          label: 'Patient Provides',
-          value: 'Click Here',
-          isLink: true,
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => DutyRequirementsDialog(
-              dutyType: job.dutyType,
-              repository: ref.read(dutyRequirementsRepositoryProvider),
-            ),
-          ),
+          ],
         ),
         const SizedBox(height: 2),
         Text(

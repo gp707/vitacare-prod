@@ -99,7 +99,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     final isJobPostingBlocked = session is SessionAuthenticated && session.isJobPostingBlocked;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Requirements Posted'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(title: const VitaAppBarTitle('Requirements Posted'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 1),
       body: SafeArea(

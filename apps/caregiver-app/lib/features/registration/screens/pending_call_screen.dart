@@ -31,25 +31,13 @@ class PendingCallScreen extends ConsumerWidget {
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('NurseJobs'),
+          title: const VitaAppBarTitle('NurseJobs'),
           automaticallyImplyLeading: false,
-          actions: [
-            ...caregiverAppBarActions(showBell: true),
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () {
-                final navigator = Navigator.of(context);
-                ref.read(sessionProvider.notifier).logout().then((_) {
-                  navigator.pushNamedAndRemoveUntil('/login', (route) => false);
-                });
-              },
-              child: const Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
-            ),
-          ],
+          // Logout lives only on the Profile screen now (moved to the
+          // bottom of the page there) — no longer duplicated in every
+          // screen's AppBar. Reachable from here via the bottom nav's
+          // Profile tab, same as from any other screen.
+          actions: caregiverAppBarActions(showBell: true),
         ),
         backgroundColor: AppColors.background,
         bottomNavigationBar: const CaregiverBottomNav(currentIndex: 0),

@@ -61,23 +61,28 @@ IconData iconFor(String key) {
 bool _isLive(JobModel requirement) =>
     requirement.status == JobStatus.pendingReview || requirement.status == JobStatus.active;
 
-/// Replaces "{tier}" with the derived care tier's display name (only
-/// meaningful for MessageEvent.requirementCareTier) and "{caregiver_name}"
+/// Replaces `{tier}` with the derived care tier's display name (only
+/// meaningful for MessageEvent.requirementCareTier) and `{caregiver_name}`
 /// with [application]'s applicant name (only meaningful for the 4
 /// applicant-scoped caregiver_* events) — safe to call on any message, a
 /// no-op for whichever token isn't present or whose source data is absent.
+/// `<tier>`/`<caregiver_name>` are also tolerated alongside the documented
+/// curly-brace form, since admin free-typing the message field has no
+/// enforced syntax and angle brackets are a common way people denote a
+/// placeholder — silently supporting both means a stray typo doesn't
+/// quietly ship a message with the literal token still showing.
 String _interpolate(String message, JobModel requirement, {JobApplicationModel? application}) {
   var result = message;
-  if (result.contains('{tier}')) {
+  if (result.contains('{tier}') || result.contains('<tier>')) {
     final careReceiver = requirement.careReceiver;
     if (careReceiver != null) {
       final tier = deriveCareTier(careReceiver);
       final tierLabel = CareTier.displayNames[tier] ?? tier;
-      result = result.replaceAll('{tier}', tierLabel);
+      result = result.replaceAll('{tier}', tierLabel).replaceAll('<tier>', tierLabel);
     }
   }
-  if (application != null && result.contains('{caregiver_name}')) {
-    result = result.replaceAll('{caregiver_name}', application.fullName);
+  if (application != null) {
+    result = result.replaceAll('{caregiver_name}', application.fullName).replaceAll('<caregiver_name>', application.fullName);
   }
   return result;
 }

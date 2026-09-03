@@ -240,7 +240,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const VitaAppBarTitle('Edit Profile'),
         actions: const [RateCardButton()],
       ),
       backgroundColor: AppColors.background,
