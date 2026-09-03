@@ -172,7 +172,6 @@ JobModel _jobWithCareReceiver({
       'age': 72,
       'gender': 'female',
       'weight_kg': 58,
-      'communication': 'verbal',
       'feeding_type': 'oral_feeding',
       'has_medical_condition': false,
       'medical_conditions': [],
@@ -1543,8 +1542,8 @@ void main() {
   });
 
   group(
-      'Communication and Vital Monitoring are removed from admin-web\'s form entirely — the backend still '
-      'defaults them server-side', () {
+      'Vital Monitoring is removed from admin-web\'s form entirely (backend still defaults it server-side) '
+      'and Communication no longer exists in the product at all', () {
     testWidgets('not offered on a from-scratch Post New Job', (tester) async {
       final repo = _FakeAdminJobsRepository([]);
       await _pump(tester, repo);
@@ -1736,11 +1735,10 @@ void main() {
         findsOneWidget);
     expect(find.descendant(of: dialog, matching: find.text('Close')),
         findsOneWidget);
-    // Same field-set trim as the editable form — Communication, Vital
-    // Monitoring, and the free-text description aren't shown here either,
-    // even though this fixture's care_receiver has non-default values for
-    // them (see _jobWithCareReceiver — communication: 'verbal' isn't
-    // "None"/absent, it's just never rendered as a labeled row any more).
+    // Same field-set trim as the editable form — Vital Monitoring and the
+    // free-text description aren't shown here either, even though this
+    // fixture's care_receiver has non-default values for them. Communication
+    // no longer exists in the product at all, so it can never appear either.
     expect(find.descendant(of: dialog, matching: find.text('Communication')),
         findsNothing);
     expect(

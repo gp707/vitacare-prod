@@ -16,12 +16,13 @@ String _salaryUnit(String? frequencyOfCare) =>
 /// Guidance in the exact same field set and order as `_JobFormDialog`
 /// (see admin_jobs_screen.dart) — this is what admin actually reviews
 /// before approving (via Edit) or rejecting a job, so it must show exactly
-/// what the patient/admin submitted, nothing more. Communication, Vital
-/// Monitoring, and the free-text description are not shown here at all —
-/// admin's create/edit form doesn't collect them, so surfacing them here
-/// (even as leftover data on an older job) would suggest they're still
-/// part of the reviewable shape. Has its own Edit button handing off to
-/// the existing _JobFormDialog edit flow.
+/// what the patient/admin submitted, nothing more. Vital Monitoring and the
+/// free-text description are not shown here at all — admin's create/edit
+/// form doesn't collect them, so surfacing them here (even as leftover data
+/// on an older job) would suggest they're still part of the reviewable
+/// shape. Communication has been removed from the product entirely, so
+/// there's nothing left to show for it either way. Has its own Edit button
+/// handing off to the existing _JobFormDialog edit flow.
 class JobReadOnlyDetailDialog extends StatelessWidget {
   final JobModel job;
   final VoidCallback onEdit;

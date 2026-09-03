@@ -75,7 +75,6 @@ JobModel _jobWithCareReceiver() {
       'age': 72,
       'gender': 'female',
       'weight_kg': 58,
-      'communication': 'verbal',
       'feeding_type': 'oral_feeding',
       'has_medical_condition': false,
       'medical_conditions': [],

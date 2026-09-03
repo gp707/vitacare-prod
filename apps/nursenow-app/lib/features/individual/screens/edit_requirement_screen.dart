@@ -123,10 +123,10 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
 
   /// Rebuilds a [CareReceiverModel] from whatever's currently live-edited
   /// on this screen (toilet assistance, feeding type, medical condition),
-  /// mixed with the fields this screen never edits (vitals monitoring,
-  /// communication) preserved from the original — so the suggested-rate
-  /// tier always reflects the patient's latest selections here, not a
-  /// stale snapshot from when the requirement was first posted.
+  /// mixed with the field this screen never edits (vitals monitoring)
+  /// preserved from the original — so the suggested-rate tier always
+  /// reflects the patient's latest selections here, not a stale snapshot
+  /// from when the requirement was first posted.
   CareReceiverModel? get _careReceiverForTierDerivation {
     final cr = widget.requirement.careReceiver;
     if (cr == null) return null;
@@ -135,7 +135,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       age: cr.age,
       gender: cr.gender,
       weightKg: cr.weightKg,
-      communication: cr.communication,
       feedingType: _feedingType ?? FeedingType.oralFeeding,
       hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
       medicalConditions: _medicalConditions.contains(_noneMedicalCondition)

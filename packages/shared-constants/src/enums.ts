@@ -78,13 +78,6 @@ export const CareDuration = {
 } as const;
 export type CareDuration = (typeof CareDuration)[keyof typeof CareDuration];
 
-export const Communication = {
-  VERBAL: 'verbal',
-  DIFFICULTY_COMMUNICATING: 'difficulty_communicating',
-  SIGN_LANGUAGE: 'sign_language',
-} as const;
-export type Communication = (typeof Communication)[keyof typeof Communication];
-
 export const FeedingType = {
   ORAL_FEEDING: 'oral_feeding',
   TUBE_FEEDING: 'tube_feeding',

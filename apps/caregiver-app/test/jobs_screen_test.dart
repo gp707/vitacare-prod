@@ -70,7 +70,6 @@ JobModel _job({
       'age': 78,
       'gender': 'female',
       'weight_kg': 60,
-      'communication': 'verbal',
       'feeding_type': 'oral_feeding',
       'has_medical_condition': true,
       'medical_conditions': ['diabetes'],
@@ -317,7 +316,6 @@ void main() {
             'age': 70,
             'gender': 'male',
             'weight_kg': 65,
-            'communication': 'verbal',
             'feeding_type': 'oral_feeding',
             'has_medical_condition': false,
             'medical_conditions': [],
@@ -384,7 +382,6 @@ void main() {
     // not bare "Female", so this is just the patient's own gender tag.
     expect(find.text('Female'), findsOneWidget);
     expect(find.text('60 kg'), findsOneWidget);
-    expect(find.text('Can Speak/Communicate'), findsOneWidget);
     expect(find.text('Oral feeding'), findsOneWidget);
     expect(find.text('Medicine Reminders'), findsNothing);
     expect(find.text('Toilet: Diapers/bedside support'), findsOneWidget);
@@ -456,7 +453,6 @@ void main() {
         'age': 78,
         'gender': 'female',
         'weight_kg': 60,
-        'communication': 'verbal',
         'feeding_type': 'oral_feeding',
         'has_medical_condition': false,
         'medical_conditions': [],

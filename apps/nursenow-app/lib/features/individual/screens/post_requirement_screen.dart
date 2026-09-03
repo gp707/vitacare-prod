@@ -196,15 +196,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   }
 
   /// Rebuilds a [CareReceiverModel] from whatever's currently selected on
-  /// this form, for [deriveCareTier] — communication/vitals aren't
-  /// collected on this form at all, so they're just fixed at their
-  /// server-side defaults (matches CARE_RECEIVER_DEFAULTS).
+  /// this form, for [deriveCareTier] — vitals aren't collected on this form
+  /// at all, so they're just fixed at their server-side default.
   CareReceiverModel get _careReceiverForTierDerivation => CareReceiverModel(
         id: '',
         age: _age ?? 0,
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
-        communication: Communication.verbal,
         feedingType: _feedingType ?? FeedingType.oralFeeding,
         hasMedicalCondition:
             !_medicalConditions.contains(_noneMedicalCondition),

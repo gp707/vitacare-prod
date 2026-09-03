@@ -38,7 +38,6 @@ CareReceiverModel _careReceiver({
       age: 74,
       gender: 'female',
       weightKg: 58,
-      communication: Communication.verbal,
       feedingType: feedingType,
       hasMedicalCondition: hasMedicalCondition,
       medicalConditions: const [],

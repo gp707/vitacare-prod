@@ -103,7 +103,6 @@ final _careReceiverJson = {
   'age': 74,
   'gender': 'female',
   'weight_kg': 58,
-  'communication': 'verbal',
   'feeding_type': 'oral_feeding',
   'has_medical_condition': false,
   'medical_conditions': [],

@@ -38,8 +38,12 @@ List<Widget> individualAppBarActions({required bool showBell}) => [
 /// Read/unread is tracked on-device only (LocalStorage.readMessageIds/
 /// markMessagesRead) — no backend read-state table, keeping this
 /// feature's "no persistence, fetched fresh" architecture intact.
-/// Opening the overlay immediately marks every currently-shown message id
-/// as read (standard notification-bell UX), not a per-row interaction.
+/// Opening the overlay does NOT mark anything read by itself — each row is
+/// individually tappable, opening that one message in its own popup (see
+/// _openMessageDetail). Only once the popup is closed does that message
+/// get marked read (and the badge decremented) — so an unread message
+/// stays unread until the user actually opens and dismisses it, not just
+/// on a bare tap.
 class MessagesBellButton extends ConsumerStatefulWidget {
   const MessagesBellButton({super.key});
 
@@ -107,81 +111,147 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
     }
   }
 
-  void _openOverlay() {
-    final shownIds = _messages.map((m) => m.id);
-    if (shownIds.isNotEmpty) {
-      ref.read(localStorageProvider).markMessagesRead(shownIds);
-    }
-    setState(() => _unreadCount = 0);
-    _syncAnimation();
+  /// Shows a single message's full content in its own popup — tapping a
+  /// row in the overlay list opens this instead of marking it read
+  /// immediately. [onClosed] (which actually marks the message read) only
+  /// runs once the popup is dismissed, whether via the Close button or by
+  /// tapping the barrier — showDialog's Future resolves on either path.
+  Future<void> _openMessageDetail(BuildContext context, MessageItem message, {required VoidCallback onClosed}) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(message.icon, color: AppColors.primaryDark, size: 17),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(child: Text(message.text)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    onClosed();
+  }
 
+  void _openOverlay() {
     final messages = _messages;
     final error = _error;
+    // Mutated in place as rows are tapped — a local snapshot (not re-read
+    // from LocalStorage per rebuild) so the sheet's own StatefulBuilder can
+    // synchronously reflect a tap without waiting on the write to land.
+    final readIds = {...ref.read(localStorageProvider).readMessageIds};
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
-                  ),
-                  if (error != null)
-                    Text(error, style: const TextStyle(color: AppColors.error))
-                  else if (messages.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                      child: Center(
-                        child: Text('No messages right now.', style: TextStyle(color: AppColors.textSecondary)),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> markRead(String id) async {
+            if (readIds.contains(id)) return;
+            setSheetState(() => readIds.add(id));
+            await ref.read(localStorageProvider).markMessagesRead([id]);
+            if (!mounted) return;
+            setState(() => _unreadCount = messages.where((m) => !readIds.contains(m.id)).length);
+            _syncAnimation();
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.7),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: AppSpacing.md),
+                        child: Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
                       ),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: messages.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (context, index) => Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.06),
-                          border: Border.all(color: AppColors.error, width: 2.5),
-                          borderRadius: BorderRadius.circular(AppSpacing.sm),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(8),
+                      if (error != null)
+                        Text(error, style: const TextStyle(color: AppColors.error))
+                      else if (messages.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                          child: Center(
+                            child: Text('No messages right now.', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        )
+                      else
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: messages.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+                            final isRead = readIds.contains(message.id);
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _openMessageDetail(sheetContext, message, onClosed: () => markRead(message.id)),
+                                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                                child: Container(
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    color: isRead
+                                        ? AppColors.textSecondary.withValues(alpha: 0.05)
+                                        : AppColors.success.withValues(alpha: 0.06),
+                                    border: Border.all(
+                                      color: isRead ? AppColors.textSecondary.withValues(alpha: 0.3) : AppColors.error,
+                                      width: isRead ? 1 : 2.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(AppSpacing.sm),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 24,
+                                        height: 24,
+                                        decoration: BoxDecoration(
+                                          color: isRead ? AppColors.textSecondary.withValues(alpha: 0.15) : AppColors.primaryLight,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(message.icon,
+                                            color: isRead ? AppColors.textSecondary : AppColors.primaryDark, size: 15),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Expanded(
+                                        child: Text(message.text,
+                                            style: TextStyle(
+                                                color: isRead ? AppColors.textSecondary : AppColors.success,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              child: Icon(messages[index].icon, color: AppColors.primaryDark, size: 15),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(messages[index].text,
-                                  style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

@@ -19,7 +19,6 @@ import {
 import {
   CareDuration,
   City,
-  Communication,
   DutyType,
   FeedingType,
   FrequencyOfCare,
@@ -44,11 +43,6 @@ export class CareReceiverDto {
   @Min(1, { message: 'GEN_001' })
   @Max(300, { message: 'GEN_001' })
   weight_kg!: number;
-
-  // Not required — defaults to verbal ("Can Speak/Communicate") when omitted.
-  @IsOptional()
-  @IsIn(Object.values(Communication), { message: 'GEN_001' })
-  communication?: Communication;
 
   @IsIn(Object.values(FeedingType), { message: 'GEN_001' })
   feeding_type!: FeedingType;

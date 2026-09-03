@@ -25,7 +25,6 @@ Map<String, dynamic> _careReceiverJson({
       'age': 74,
       'gender': 'female',
       'weight_kg': 58,
-      'communication': 'verbal',
       'feeding_type': feedingType,
       'has_medical_condition': hasMedicalCondition,
       'medical_conditions': hasMedicalCondition ? ['diabetes'] : <String>[],

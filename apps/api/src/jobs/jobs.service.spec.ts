@@ -18,7 +18,6 @@ describe('JobsService', () => {
     age: 72,
     gender: 'female',
     weight_kg: 58,
-    communication: 'verbal',
     feeding_type: 'oral_feeding',
     has_medical_condition: false,
     medical_conditions: [],
@@ -102,7 +101,6 @@ describe('JobsService', () => {
         age: 72 as any,
         gender: 'female' as any,
         weight_kg: 58 as any,
-        communication: 'verbal' as any,
         feeding_type: 'oral_feeding' as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,
@@ -168,9 +166,7 @@ describe('JobsService', () => {
       );
     });
 
-    it('defaults every remaining optional care-receiver field to a real, explicit value when omitted', async () => {
-      // feeding_type/toilet_assistance are hard-required at the DTO layer now
-      // (a real request can't omit them), so only communication still defaults.
+    it('defaults optional medical/toilet "other" free-text fields to null when omitted', async () => {
       const minimalDto = {
         ...dto,
         care_receiver: {
@@ -187,7 +183,6 @@ describe('JobsService', () => {
           age: 72,
           gender: 'female',
           weight_kg: 58,
-          communication: 'verbal',
           feeding_type: 'oral_feeding',
           has_medical_condition: false,
           medical_conditions: [],
@@ -233,7 +228,6 @@ describe('JobsService', () => {
         age: 73 as any,
         gender: 'female' as any,
         weight_kg: 60 as any,
-        communication: 'verbal' as any,
         feeding_type: 'oral_feeding' as any,
         has_medical_condition: false,
         toilet_assistance: ['others'] as any,

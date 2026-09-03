@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
-  Communication,
   FeedingType,
   Gender,
   MedicalCondition,
@@ -15,7 +14,6 @@ export interface CareReceiverRecord {
   age: number;
   gender: Gender;
   weight_kg: number;
-  communication: Communication;
   feeding_type: FeedingType;
   has_medical_condition: boolean;
   medical_conditions: MedicalCondition[];
@@ -32,7 +30,6 @@ export interface CreateCareReceiverInput {
   age: number;
   gender: Gender;
   weight_kg: number;
-  communication: Communication;
   feeding_type: FeedingType;
   has_medical_condition: boolean;
   medical_conditions?: MedicalCondition[];
@@ -51,17 +48,16 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `INSERT INTO care_receivers
-         (age, gender, weight_kg, communication, feeding_type,
+         (age, gender, weight_kg, feeding_type,
           has_medical_condition, medical_conditions,
           medical_condition_other, toilet_assistance, toilet_assistance_other,
           requires_vital_monitoring, vital_monitoring_types)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         input.age,
         input.gender,
         input.weight_kg,
-        input.communication,
         input.feeding_type,
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),
@@ -91,19 +87,18 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `UPDATE care_receivers SET
-         age = $1, gender = $2, weight_kg = $3, communication = $4,
-         feeding_type = $5,
-         has_medical_condition = $6, medical_conditions = $7,
-         medical_condition_other = $8, toilet_assistance = $9, toilet_assistance_other = $10,
-         requires_vital_monitoring = $11, vital_monitoring_types = $12,
+         age = $1, gender = $2, weight_kg = $3,
+         feeding_type = $4,
+         has_medical_condition = $5, medical_conditions = $6,
+         medical_condition_other = $7, toilet_assistance = $8, toilet_assistance_other = $9,
+         requires_vital_monitoring = $10, vital_monitoring_types = $11,
          updated_at = NOW()
-       WHERE id = $13
+       WHERE id = $12
        RETURNING *`,
       [
         input.age,
         input.gender,
         input.weight_kg,
-        input.communication,
         input.feeding_type,
         input.has_medical_condition,
         JSON.stringify(input.medical_conditions ?? []),

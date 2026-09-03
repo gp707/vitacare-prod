@@ -198,7 +198,6 @@ void main() {
           age: 70,
           gender: 'male',
           weightKg: 60,
-          communication: Communication.verbal,
           feedingType: feedingType,
           hasMedicalCondition: hasMedicalCondition,
           medicalConditions: medicalConditions,

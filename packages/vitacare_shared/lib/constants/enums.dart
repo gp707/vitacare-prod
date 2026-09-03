@@ -231,20 +231,6 @@ class CareDuration {
   };
 }
 
-class Communication {
-  static const verbal = 'verbal';
-  static const difficultyCommunicating = 'difficulty_communicating';
-  static const signLanguage = 'sign_language';
-
-  static const all = [verbal, difficultyCommunicating, signLanguage];
-
-  static const displayNames = {
-    verbal: 'Can Speak/Communicate',
-    difficultyCommunicating: 'Can NOT Speak',
-    signLanguage: 'Communicate via Sign Languages',
-  };
-}
-
 class FeedingType {
   static const oralFeeding = 'oral_feeding';
   static const tubeFeeding = 'tube_feeding';

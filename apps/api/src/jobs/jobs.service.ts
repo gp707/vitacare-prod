@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   AuditAction,
   City,
-  Communication,
   DutyType,
   JobApplicationStatus,
   JobStatus,
@@ -62,24 +61,16 @@ const CITY_LABELS: Record<City, string> = {
   [City.GURGAON]: 'Gurgaon',
 };
 
-// age/gender/weight/feeding_type/toilet_assistance are hard-required on a
-// care receiver — every other field is optional on the form and, if left
-// unselected, is defaulted here so the persisted (and later admin-edited /
-// caregiver-visible) value is always a real, explicit selection rather than
-// null/empty.
-const CARE_RECEIVER_DEFAULTS = {
-  communication: Communication.VERBAL,
-} as const;
-
 // Exported for reuse by individual.service.ts — a NurseNow individual's
 // requirement gets the exact same care-receiver defaulting as an
-// admin-posted job.
+// admin-posted job. age/gender/weight/feeding_type/toilet_assistance are
+// hard-required on a care receiver; every other field here uses its own
+// inline fallback (?? false/[]/null) rather than a shared defaults object.
 export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
   return {
     age: dto.age,
     gender: dto.gender,
     weight_kg: dto.weight_kg,
-    communication: dto.communication ?? CARE_RECEIVER_DEFAULTS.communication,
     feeding_type: dto.feeding_type,
     has_medical_condition: dto.has_medical_condition ?? false,
     medical_conditions: dto.medical_conditions ?? [],

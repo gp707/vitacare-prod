@@ -10,7 +10,6 @@ class CareReceiverInput {
   final int age;
   final String gender;
   final int weightKg;
-  final String? communication;
   final String? feedingType;
   final bool hasMedicalCondition;
   final List<String>? medicalConditions;
@@ -24,7 +23,6 @@ class CareReceiverInput {
     required this.age,
     required this.gender,
     required this.weightKg,
-    this.communication,
     this.feedingType,
     required this.hasMedicalCondition,
     this.medicalConditions,
@@ -39,7 +37,6 @@ class CareReceiverInput {
         'age': age,
         'gender': gender,
         'weight_kg': weightKg,
-        if (communication != null) 'communication': communication,
         if (feedingType != null) 'feeding_type': feedingType,
         'has_medical_condition': hasMedicalCondition,
         if (medicalConditions != null) 'medical_conditions': medicalConditions,

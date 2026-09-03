@@ -71,7 +71,6 @@ describe('Jobs (e2e)', () => {
     age: 72,
     gender: 'female',
     weight_kg: 58,
-    communication: 'verbal',
     feeding_type: 'oral_feeding',
     has_medical_condition: false,
     toilet_assistance: ['others'],
@@ -342,7 +341,6 @@ describe('Jobs (e2e)', () => {
         age: 65,
         gender: 'male',
         weight_kg: 70,
-        communication: 'verbal',
         feeding_type: 'oral_feeding',
         has_medical_condition: false,
         toilet_assistance: ['independent'],
@@ -456,25 +454,6 @@ describe('Jobs (e2e)', () => {
           city: 'bangalore',
           area: 'Indiranagar',
           description: `${jobDescriptionPrefix} multi-value toilet_assistance test`,
-          duty_type: 'live_in',
-          frequency_of_care: 'daily',
-          languages: ['hindi'],
-          salary_amount: '30000',
-          care_duration: 'few_weeks',
-        })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
-    });
-
-    it('rejects "other_non_verbal" as a communication value — dropped, only 3 options remain (GEN_001)', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/admin/jobs')
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send({
-          care_receiver: { ...defaultCareReceiver, communication: 'other_non_verbal' },
-          city: 'bangalore',
-          area: 'Indiranagar',
-          description: `${jobDescriptionPrefix} communication validation test`,
           duty_type: 'live_in',
           frequency_of_care: 'daily',
           languages: ['hindi'],
@@ -746,7 +725,6 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
       expect(res.body.data.applications).toEqual([]);
-      expect(res.body.data.care_receiver).toEqual(expect.objectContaining({ communication: 'verbal' }));
     });
 
     it('returns GEN_002 for a non-existent job', async () => {

@@ -1103,10 +1103,12 @@ const _noneMedicalConditionLabel = 'None';
 /// Fee Guidance — for every job admin creates or edits, whether it's
 /// admin's own from-scratch posting or approving/editing a NurseNow
 /// individual's own requirement. There is no longer a field-set branch
-/// between the two cases. Communication, Vital Monitoring, and the
-/// free-text "more details" description field are not offered here at all
-/// (removed entirely — the backend still defaults them server-side, see
-/// CARE_RECEIVER_DEFAULTS in jobs.service.ts). Frequency of Care is always
+/// between the two cases. Vital Monitoring and the free-text "more details"
+/// description field are not offered here at all (removed entirely from
+/// this form — the backend still defaults/accepts them server-side).
+/// Communication has been removed from the product entirely (see its own
+/// enum entry in CLAUDE.md) — no field, no default, nowhere shown.
+/// Frequency of Care is always
 /// derived from Duration Care is Needed (never a manual dropdown) and
 /// Salary is always a freely-editable, Rate-Card-suggested figure — no
 /// manual-entry path remains for either.
@@ -1194,16 +1196,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   /// Rebuilds a [CareReceiverModel] from whatever's currently live-edited
   /// on this dialog, for [deriveCareTier] — mirrors nursenow-app's own
-  /// Post/Edit Requirement screens exactly. Communication/vital-monitoring
-  /// aren't collected on this form at all, so they're fixed at their
-  /// server-side defaults (matches CARE_RECEIVER_DEFAULTS), same as
-  /// nursenow-app's PostRequirementScreen.
+  /// Post/Edit Requirement screens exactly. Vital-monitoring isn't
+  /// collected on this form at all, so it's fixed at its server-side
+  /// default, same as nursenow-app's PostRequirementScreen.
   CareReceiverModel get _careReceiverForTierDerivation => CareReceiverModel(
         id: widget.careReceiver?.id ?? '',
         age: _age ?? 0,
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
-        communication: Communication.verbal,
         feedingType: _feedingType ?? FeedingType.oralFeeding,
         hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
         medicalConditions:

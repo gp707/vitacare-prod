@@ -165,7 +165,7 @@ void main() {
     expect(find.byType(Scaffold), findsOneWidget);
   });
 
-  testWidgets('opening the overlay clears the badge and persists the shown ids as read', (tester) async {
+  testWidgets('opening the overlay alone does not mark anything read or change the badge', (tester) async {
     final localStorage = await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
     expect(find.text('1'), findsOneWidget);
@@ -173,8 +173,90 @@ void main() {
     await tester.tap(find.byTooltip('Messages'));
     await _settle(tester);
 
+    // Still 1 unread — merely opening the sheet must not itself mark
+    // anything read. The badge is drawn on the AppBar, still mounted
+    // underneath the sheet, so it stays visible/queryable while open.
+    expect(find.text('1'), findsOneWidget);
+    expect(localStorage.readMessageIds, isEmpty);
+  });
+
+  testWidgets('tapping a message row opens it in a popup, not marked read yet', (tester) async {
+    final localStorage = await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
+
+    await tester.tap(find.byTooltip('Messages'));
+    await _settle(tester);
+
+    await tester.tap(find.textContaining('You can edit this job and change salary').first);
+    await _settle(tester);
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(localStorage.readMessageIds, isEmpty);
+    // Badge is unchanged while the popup is merely open.
+    expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('closing the popup via Close marks that message read and decrements the badge', (tester) async {
+    final localStorage = await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
+
+    await tester.tap(find.byTooltip('Messages'));
+    await _settle(tester);
+    await tester.tap(find.textContaining('You can edit this job and change salary').first);
+    await _settle(tester);
+
+    await tester.tap(find.text('Close'));
+    await _settle(tester);
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(localStorage.readMessageIds, {'m1'});
     expect(find.text('1'), findsNothing);
-    expect(localStorage.readMessageIds, contains('m1'));
+  });
+
+  testWidgets('dismissing the popup via the barrier also marks it read', (tester) async {
+    final localStorage = await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
+
+    await tester.tap(find.byTooltip('Messages'));
+    await _settle(tester);
+    await tester.tap(find.textContaining('You can edit this job and change salary').first);
+    await _settle(tester);
+
+    await tester.tapAt(const Offset(10, 10));
+    await _settle(tester);
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(localStorage.readMessageIds, {'m1'});
+  });
+
+  testWidgets('reading one of two messages leaves the other unread', (tester) async {
+    final templates = [
+      _template(id: 'm1', event: MessageEvent.requirementLive, message: 'You can edit this job and change salary.'),
+      _template(id: 'm3', event: MessageEvent.requirementLive, message: 'You can post one requirement at a time.'),
+    ];
+    final localStorage = await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(status: 'active')]),
+      templates: templates,
+    );
+
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Messages'));
+    await _settle(tester);
+    await tester.tap(find.textContaining('You can edit this job and change salary').first);
+    await _settle(tester);
+    await tester.tap(find.text('Close'));
+    await _settle(tester);
+
+    expect(localStorage.readMessageIds, {'m1'});
+    expect(find.text('1'), findsOneWidget);
+
+    await tester.tap(find.textContaining('You can post one requirement at a time').first);
+    await _settle(tester);
+    await tester.tap(find.text('Close'));
+    await _settle(tester);
+
+    expect(localStorage.readMessageIds, {'m1', 'm3'});
+    expect(find.text('1'), findsNothing);
+    expect(find.text('2'), findsNothing);
   });
 
   testWidgets('a previously-read message contributes nothing to a later unread count', (tester) async {

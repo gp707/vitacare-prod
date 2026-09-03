@@ -44,7 +44,6 @@ JobModel _assignedJob({
       'age': 78,
       'gender': 'female',
       'weight_kg': 60,
-      'communication': 'verbal',
       'feeding_type': 'oral_feeding',
       'has_medical_condition': false,
       'medical_conditions': [],
