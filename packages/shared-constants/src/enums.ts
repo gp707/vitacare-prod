@@ -187,6 +187,9 @@ export const AuditAction = {
   INDIVIDUAL_MESSAGE_CREATED: 'individual_message_created',
   INDIVIDUAL_MESSAGE_UPDATED: 'individual_message_updated',
   INDIVIDUAL_MESSAGE_DELETED: 'individual_message_deleted',
+  CAREGIVER_MESSAGE_CREATED: 'caregiver_message_created',
+  CAREGIVER_MESSAGE_UPDATED: 'caregiver_message_updated',
+  CAREGIVER_MESSAGE_DELETED: 'caregiver_message_deleted',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -232,6 +235,30 @@ export const MessageIcon = {
   TASK_ALT: 'task_alt',
 } as const;
 export type MessageIcon = (typeof MessageIcon)[keyof typeof MessageIcon];
+
+// When each caregiver_messages row is shown on NurseJobs (caregiver-app)'s
+// Messages bell — the caregiver-side counterpart to MessageEvent, evaluated
+// against the caregiver's own application lifecycle instead of an
+// Individual's posted requirement (see resolveCaregiverMessages() in
+// apps/caregiver-app/lib/features/jobs/data/caregiver_messages_logic.dart).
+// Reuses MessageIcon for icon selection — no separate icon enum needed.
+export const CaregiverMessageEvent = {
+  // Caregiver has never applied to any job yet.
+  WELCOME: 'welcome',
+  // A currently-active job (GET /caregiver/jobs) has
+  // my_application.status == 'applied'.
+  JOB_APPLIED: 'job_applied',
+  // An assigned job (GET /caregiver/jobs/assigned, durable regardless of
+  // the job's own status) has my_application.status == 'accepted'.
+  JOB_ACCEPTED: 'job_accepted',
+  // A currently-active job has my_application.status == 'rejected'.
+  JOB_REJECTED: 'job_rejected',
+  // An assigned job has my_application.status == 'completed' — a
+  // caregiver-initiated close of an accepted job (matches the "Close"
+  // terminology already used in caregiver-app's own MyJobs UI).
+  JOB_CLOSED: 'job_closed',
+} as const;
+export type CaregiverMessageEvent = (typeof CaregiverMessageEvent)[keyof typeof CaregiverMessageEvent];
 
 export const AppPlatform = {
   ANDROID: 'android',

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
-import '../../../app/whatsapp_help_button.dart';
-import '../../../app/rate_card_button.dart';
+import '../../../app/messages_bell.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -202,8 +201,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       appBar: AppBar(
         title: const Text('Jobs'),
         actions: [
-          const RateCardButton(),
-          const WhatsAppHelpButton(),
+          ...caregiverAppBarActions(showBell: true),
           TextButton(
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,

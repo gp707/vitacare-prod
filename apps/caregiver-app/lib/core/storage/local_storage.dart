@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
+  static const _readMessageIdsKey = 'read_message_ids';
 
   final SharedPreferences _prefs;
 
@@ -26,5 +27,16 @@ class LocalStorage {
   Future<void> clearTokens() async {
     await _prefs.remove(_accessTokenKey);
     await _prefs.remove(_refreshTokenKey);
+  }
+
+  /// On-device only — which NurseJobs message template ids the user has
+  /// already seen (see MessagesBellButton). No backend/account sync;
+  /// local-device tracking was a deliberate choice to keep this feature's
+  /// "no persistence layer, fetched fresh" architecture intact.
+  Set<String> get readMessageIds => (_prefs.getStringList(_readMessageIdsKey) ?? const []).toSet();
+
+  Future<void> markMessagesRead(Iterable<String> ids) async {
+    final updated = {...readMessageIds, ...ids};
+    await _prefs.setStringList(_readMessageIdsKey, updated.toList());
   }
 }

@@ -14,4 +14,5 @@ export 'models/scope_of_work_model.dart';
 export 'models/duty_requirements_model.dart';
 export 'models/care_tier.dart';
 export 'models/individual_message_model.dart';
+export 'models/caregiver_message_model.dart';
 export 'utils/validators.dart';

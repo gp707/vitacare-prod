@@ -2,9 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:caregiver_app/core/caregiver_messages/caregiver_messages_repository.dart';
 import 'package:caregiver_app/core/providers.dart';
+import 'package:caregiver_app/core/storage/local_storage.dart';
+import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/profile/data/profile_repository.dart';
 import 'package:caregiver_app/features/profile/screens/profile_view_screen.dart';
 
@@ -35,22 +39,46 @@ class _FakeProfileRepository extends ProfileRepository {
   Future<CaregiverProfileModel> getProfile() async => profile;
 }
 
-Future<void> _pumpTall(WidgetTester tester, Widget child) async {
+class _FakeJobsRepository extends JobsRepository {
+  _FakeJobsRepository() : super(Dio());
+
+  @override
+  Future<List<JobModel>> listActiveJobs() async => const [];
+
+  @override
+  Future<List<JobModel>> getAssignedJobs() async => const [];
+}
+
+class _FakeCaregiverMessagesRepository extends CaregiverMessagesRepository {
+  _FakeCaregiverMessagesRepository() : super(Dio());
+
+  @override
+  Future<List<CaregiverMessageModel>> get() async => const [];
+}
+
+Future<void> _pumpTall(WidgetTester tester, _FakeProfileRepository fakeRepo) async {
   await tester.binding.setSurfaceSize(const Size(400, 2800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(child);
+  // ignore: invalid_use_of_visible_for_testing_member
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        profileRepositoryProvider.overrideWithValue(fakeRepo),
+        jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
+        localStorageProvider.overrideWithValue(localStorage),
+        caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
+      ],
+      child: const MaterialApp(home: ProfileViewScreen()),
+    ),
+  );
 }
 
 void main() {
   testWidgets('shows basic profile fields read-only', (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile());
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
+    await _pumpTall(tester, fakeRepo);
     await tester.pumpAndSettle();
 
     expect(find.text('Test Caregiver'), findsOneWidget);
@@ -61,13 +89,7 @@ void main() {
   testWidgets('Edit is always available, at any verification status', (tester) async {
     for (final status in ['pending_call', 'available', 'unavailable', 'assigned', 'rejected']) {
       final fakeRepo = _FakeProfileRepository(_profile(status: status));
-      await _pumpTall(
-        tester,
-        ProviderScope(
-          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-          child: const MaterialApp(home: ProfileViewScreen()),
-        ),
-      );
+      await _pumpTall(tester, fakeRepo);
       await tester.pumpAndSettle();
 
       // Basic Info + Professional & Contact Info + Documents = 3 Edit
@@ -94,13 +116,7 @@ void main() {
       'created_at': '2026-08-01T10:00:00Z',
     });
     final fakeRepo = _FakeProfileRepository(profile);
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
+    await _pumpTall(tester, fakeRepo);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Aadhaar unreadable'), findsOneWidget);
@@ -110,13 +126,7 @@ void main() {
   testWidgets('does not show the job poster\'s contact info (phone/call/WhatsApp) — that now lives only on MyJobs',
       (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(status: 'assigned'));
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: ProfileViewScreen()),
-      ),
-    );
+    await _pumpTall(tester, fakeRepo);
     await tester.pumpAndSettle();
 
     expect(find.text('Posted by'), findsNothing);
@@ -128,13 +138,7 @@ void main() {
       (tester) async {
     for (final status in ['pending_call', 'available', 'unavailable', 'assigned', 'rejected']) {
       final fakeRepo = _FakeProfileRepository(_profile(status: status));
-      await _pumpTall(
-        tester,
-        ProviderScope(
-          overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-          child: const MaterialApp(home: ProfileViewScreen()),
-        ),
-      );
+      await _pumpTall(tester, fakeRepo);
       await tester.pumpAndSettle();
       expect(find.widgetWithText(ElevatedButton, 'Available for Jobs'), findsNothing, reason: 'status: $status');
     }

@@ -77,4 +77,7 @@ class ApiRoutes {
 
   static const individualMessages = '/individual-messages';
   static const adminIndividualMessages = '/admin/individual-messages';
+
+  static const caregiverMessages = '/caregiver-messages';
+  static const adminCaregiverMessages = '/admin/caregiver-messages';
 }

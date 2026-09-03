@@ -20,6 +20,7 @@ import '../features/duty_requirements/data/duty_requirements_repository.dart';
 import '../features/settings/data/job_settings_repository.dart';
 import '../features/settings/data/admin_profile_repository.dart';
 import '../features/individual_messages/data/individual_messages_repository.dart';
+import '../features/caregiver_messages/data/caregiver_messages_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -80,6 +81,11 @@ final dutyRequirementsRepositoryProvider =
 final individualMessagesRepositoryProvider =
     Provider<IndividualMessagesRepository>((ref) {
   return IndividualMessagesRepository(ref.watch(apiClientProvider).dio);
+});
+
+final caregiverMessagesRepositoryProvider =
+    Provider<CaregiverMessagesRepository>((ref) {
+  return CaregiverMessagesRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminIndividualsRepositoryProvider =

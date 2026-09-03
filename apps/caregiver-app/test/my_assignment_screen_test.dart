@@ -2,13 +2,23 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
+import 'package:caregiver_app/core/caregiver_messages/caregiver_messages_repository.dart';
 import 'package:caregiver_app/core/providers.dart';
+import 'package:caregiver_app/core/storage/local_storage.dart';
 import 'package:caregiver_app/features/jobs/data/jobs_repository.dart';
 import 'package:caregiver_app/features/jobs/screens/my_assignment_screen.dart';
 import 'package:caregiver_app/features/organisation_openings/data/organisation_openings_repository.dart';
+
+class _FakeCaregiverMessagesRepository extends CaregiverMessagesRepository {
+  _FakeCaregiverMessagesRepository() : super(Dio());
+
+  @override
+  Future<List<CaregiverMessageModel>> get() async => const [];
+}
 
 JobModel _assignedJob({
   String id = 'job-1',
@@ -108,6 +118,9 @@ class _FakeJobsRepository extends JobsRepository {
   _FakeJobsRepository([this.jobs = const [], this.completeStillAssigned = false]) : super(Dio());
 
   @override
+  Future<List<JobModel>> listActiveJobs() async => const [];
+
+  @override
   Future<List<JobModel>> getAssignedJobs() async => jobs;
 
   @override
@@ -153,11 +166,16 @@ Future<void> _pump(
 }) async {
   await tester.binding.setSurfaceSize(const Size(400, 2800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  // ignore: invalid_use_of_visible_for_testing_member
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         jobsRepositoryProvider.overrideWithValue(jobsRepo ?? _FakeJobsRepository()),
         organisationOpeningsRepositoryProvider.overrideWithValue(orgRepo ?? _FakeOrganisationOpeningsRepository()),
+        localStorageProvider.overrideWithValue(localStorage),
+        caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
       ],
       child: const MaterialApp(home: MyAssignmentScreen()),
     ),
@@ -456,6 +474,8 @@ void main() {
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -465,6 +485,8 @@ void main() {
               _assignedRequirement(scheduleType: 'date_range', startDate: '2026-08-25', endDate: '2026-09-05'),
             ]),
           ),
+          localStorageProvider.overrideWithValue(await LocalStorage.create()),
+          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
         ],
         child: const MaterialApp(home: MyAssignmentScreen()),
       ),
@@ -485,6 +507,8 @@ void main() {
   testWidgets('shows a highlighted red day list for an assigned specific_days/monthly requirement', (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -494,6 +518,8 @@ void main() {
               _assignedRequirement(scheduleType: 'specific_days', scheduleRepeat: 'monthly', specificDays: [5, 15, 25]),
             ]),
           ),
+          localStorageProvider.overrideWithValue(await LocalStorage.create()),
+          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
         ],
         child: const MaterialApp(home: MyAssignmentScreen()),
       ),
@@ -510,6 +536,8 @@ void main() {
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 2800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -519,6 +547,8 @@ void main() {
               _assignedRequirement(scheduleType: 'specific_days', scheduleRepeat: 'weekly', specificDays: [2, 4]),
             ]),
           ),
+          localStorageProvider.overrideWithValue(await LocalStorage.create()),
+          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
         ],
         child: const MaterialApp(home: MyAssignmentScreen()),
       ),

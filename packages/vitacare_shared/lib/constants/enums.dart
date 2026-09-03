@@ -200,6 +200,40 @@ class MessageIcon {
   ];
 }
 
+/// When an admin-editable caregiver_messages row is shown on NurseJobs
+/// (caregiver-app)'s Messages bell — the caregiver-side counterpart to
+/// MessageEvent, evaluated against the caregiver's own application
+/// lifecycle instead of an Individual's posted requirement (see
+/// resolveCaregiverMessages() in apps/caregiver-app/lib/features/jobs/data/
+/// caregiver_messages_logic.dart). Reuses MessageIcon for icon selection —
+/// no separate icon enum needed.
+class CaregiverMessageEvent {
+  // Caregiver has never applied to any job yet.
+  static const welcome = 'welcome';
+  // A currently-active job (GET /caregiver/jobs) has
+  // myApplication.status == 'applied'.
+  static const jobApplied = 'job_applied';
+  // An assigned job (GET /caregiver/jobs/assigned, durable regardless of
+  // the job's own status) has myApplication.status == 'accepted'.
+  static const jobAccepted = 'job_accepted';
+  // A currently-active job has myApplication.status == 'rejected'.
+  static const jobRejected = 'job_rejected';
+  // An assigned job has myApplication.status == 'completed' — a
+  // caregiver-initiated close of an accepted job (matches the "Close"
+  // terminology already used in caregiver-app's own MyJobs UI).
+  static const jobClosed = 'job_closed';
+
+  static const all = [welcome, jobApplied, jobAccepted, jobRejected, jobClosed];
+
+  static const displayNames = {
+    welcome: 'Welcome (before any application ever made)',
+    jobApplied: 'Applied to a job (supports {job_id})',
+    jobAccepted: 'Accepted by patient/employer (supports {job_id})',
+    jobRejected: 'Rejected by patient/employer (supports {job_id})',
+    jobClosed: 'Caregiver closed the job (supports {job_id})',
+  };
+}
+
 class FrequencyOfCare {
   static const daily = 'daily';
   static const monthly = 'monthly';
@@ -431,6 +465,9 @@ class AuditAction {
   static const individualMessageCreated = 'individual_message_created';
   static const individualMessageUpdated = 'individual_message_updated';
   static const individualMessageDeleted = 'individual_message_deleted';
+  static const caregiverMessageCreated = 'caregiver_message_created';
+  static const caregiverMessageUpdated = 'caregiver_message_updated';
+  static const caregiverMessageDeleted = 'caregiver_message_deleted';
 
   static const all = [
     registration,
@@ -467,6 +504,9 @@ class AuditAction {
     individualMessageCreated,
     individualMessageUpdated,
     individualMessageDeleted,
+    caregiverMessageCreated,
+    caregiverMessageUpdated,
+    caregiverMessageDeleted,
   ];
 }
 

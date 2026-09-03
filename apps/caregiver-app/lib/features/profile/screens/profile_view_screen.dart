@@ -7,8 +7,7 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
-import '../../../app/whatsapp_help_button.dart';
-import '../../../app/rate_card_button.dart';
+import '../../../app/messages_bell.dart';
 
 /// Full read-only view of the caregiver's own profile, reachable at any
 /// verification status. The single Edit entry point hands off to
@@ -51,39 +50,18 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     }
   }
 
+  Future<void> _logout() async {
+    final navigator = Navigator.of(context);
+    await ref.read(sessionProvider.notifier).logout();
+    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
-        actions: [
-          const RateCardButton(),
-          const WhatsAppHelpButton(),
-          TextButton(
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onPressed: () {
-              final navigator = Navigator.of(context);
-              ref.read(sessionProvider.notifier).logout().then((_) {
-                navigator.pushNamedAndRemoveUntil('/login', (route) => false);
-              });
-            },
-            // A manual Row instead of TextButton.icon — the latter's built-in
-            // icon/label gap was just wide enough to overflow the AppBar
-            // alongside RateCardButton/WhatsAppHelpButton on a narrow screen.
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.logout, size: 14, color: Colors.white),
-                SizedBox(width: 3),
-                Text('Logout', style: TextStyle(color: Colors.white, fontSize: AppTypography.small)),
-              ],
-            ),
-          ),
-        ],
+        actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const CaregiverBottomNav(currentIndex: 0),
@@ -179,6 +157,13 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               valueColor: profile.otherDocumentUrls.isNotEmpty ? AppColors.success : AppColors.textSecondary,
             ),
           ],
+        ),
+        const Divider(height: AppSpacing.xxl),
+        OutlinedButton.icon(
+          onPressed: _logout,
+          icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
+          label: const Text('Logout', style: TextStyle(color: AppColors.error)),
+          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
         ),
       ],
     );

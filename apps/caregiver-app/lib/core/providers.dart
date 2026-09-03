@@ -10,6 +10,7 @@ import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
 import 'duty_requirements/duty_requirements_repository.dart';
 import 'job_settings/job_settings_repository.dart';
+import 'caregiver_messages/caregiver_messages_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
@@ -66,6 +67,10 @@ final dutyRequirementsRepositoryProvider = Provider<DutyRequirementsRepository>(
 
 final jobSettingsRepositoryProvider = Provider<JobSettingsRepository>((ref) {
   return JobSettingsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final caregiverMessagesRepositoryProvider = Provider<CaregiverMessagesRepository>((ref) {
+  return CaregiverMessagesRepository(ref.watch(apiClientProvider).dio);
 });
 
 /// Whether OTP mode is enabled for this app (nursejobs) — set once at

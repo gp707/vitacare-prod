@@ -18,6 +18,7 @@ import { ScopeOfWorkModule } from './scope-of-work/scope-of-work.module';
 import { DutyRequirementsModule } from './duty-requirements/duty-requirements.module';
 import { JobSettingsModule } from './job-settings/job-settings.module';
 import { IndividualMessagesModule } from './individual-messages/individual-messages.module';
+import { CaregiverMessagesModule } from './caregiver-messages/caregiver-messages.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -44,6 +45,7 @@ import { validateEnv } from './config/env.validation';
     DutyRequirementsModule,
     JobSettingsModule,
     IndividualMessagesModule,
+    CaregiverMessagesModule,
   ],
 })
 export class AppModule {}
