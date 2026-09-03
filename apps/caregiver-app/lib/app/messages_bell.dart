@@ -8,19 +8,12 @@ import '../features/jobs/data/caregiver_messages_logic.dart';
 import 'rate_card_button.dart';
 import 'whatsapp_help_button.dart';
 
-/// Rate Card + Help stay paired but move to the middle of the AppBar, and
-/// this returns the full trailing `actions` list — the pair centered in
-/// whatever space remains, with the bell pinned flush right where the pair
-/// alone used to sit. Mirrors nursenow-app's individualAppBarActions().
+/// Rate Card + Help sit flush right, immediately next to the bell (no
+/// longer centered in the AppBar — that was an earlier iteration, reversed
+/// on explicit request). Mirrors nursenow-app's individualAppBarActions().
 List<Widget> caregiverAppBarActions({required bool showBell}) => [
-      Expanded(
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [RateCardButton(), WhatsAppHelpButton()],
-          ),
-        ),
-      ),
+      const RateCardButton(),
+      const WhatsAppHelpButton(),
       if (showBell) const MessagesBellButton(),
     ];
 

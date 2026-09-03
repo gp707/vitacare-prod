@@ -142,9 +142,11 @@ class _IndividualMessagesScreenState extends ConsumerState<IndividualMessagesScr
                     controller: messageController,
                     decoration: const InputDecoration(
                       labelText: 'Message',
-                      helperText: 'Use the literal text {tier} to insert the derived care tier '
-                          '(Companion/Bedside/Critical Care) — only used for the "care tier" event.',
-                      helperMaxLines: 3,
+                      helperText: 'Use {tier} to insert the derived care tier (Companion/Bedside/Critical '
+                          'Care) — only for the "care tier" event. Use {caregiver_name} to insert the '
+                          'applicant\'s name — only for the 4 caregiver applied/accepted/rejected/closed '
+                          'events, which fire once per matching applicant.',
+                      helperMaxLines: 4,
                     ),
                     maxLines: 4,
                   ),

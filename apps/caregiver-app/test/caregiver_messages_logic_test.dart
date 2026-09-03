@@ -194,7 +194,8 @@ void main() {
       });
     });
 
-    test('interpolates using the most recently matching job when more than one matches the same event', () {
+    test('fires once per matching job application, newest first, when more than one job matches the same event',
+        () {
       final messages = resolveCaregiverMessages(
         _seedTemplates(),
         [
@@ -211,7 +212,48 @@ void main() {
         ],
         const [],
       );
-      expect(_texts(messages), [contains('Successfully applied to job ADMIN-JOB-531')]);
+      expect(messages.map((m) => m.text).toList(), [
+        contains('Successfully applied to job ADMIN-JOB-531'),
+        contains('Successfully applied to job ADMIN-JOB-530'),
+      ]);
+    });
+
+    test('each job-scoped message has a distinct id, keyed by both the template and the job', () {
+      final messages = resolveCaregiverMessages(
+        _seedTemplates(),
+        [
+          _job(
+            id: 'job-a',
+            adminJobNumber: 550,
+            myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-01T10:00:00Z'),
+          ),
+          _job(
+            id: 'job-b',
+            adminJobNumber: 551,
+            myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-02T10:00:00Z'),
+          ),
+        ],
+        const [],
+      );
+      expect(messages.map((m) => m.id).toSet(), {'m1:job-a', 'm1:job-b'});
+    });
+
+    test('applying to 3 jobs shows 3 separate applied messages, each with its own real job id', () {
+      final messages = resolveCaregiverMessages(
+        _seedTemplates(),
+        [
+          _job(id: 'j1', adminJobNumber: 601, myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-01T10:00:00Z')),
+          _job(id: 'j2', adminJobNumber: 602, myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-02T10:00:00Z')),
+          _job(id: 'j3', adminJobNumber: 603, myApplication: _myApplication(status: 'applied', appliedAt: '2026-08-03T10:00:00Z')),
+        ],
+        const [],
+      );
+      expect(messages, hasLength(3));
+      expect(_texts(messages).toSet(), {
+        'Successfully applied to job ADMIN-JOB-601',
+        'Successfully applied to job ADMIN-JOB-602',
+        'Successfully applied to job ADMIN-JOB-603',
+      });
     });
 
     test('messages are ordered by displayOrder, interleaving across events as admin set it up', () {

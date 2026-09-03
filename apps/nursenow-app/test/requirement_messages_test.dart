@@ -48,14 +48,23 @@ JobApplicationModel _application({
   String id = 'app-1',
   String jobId = 'job-1',
   String status = 'applied',
+  String fullName = 'Test Caregiver',
+  String? appliedAt,
+  String? acceptedAt,
+  String? rejectedAt,
+  String? completedAt,
 }) =>
     JobApplicationModel(
       id: id,
       jobId: jobId,
       profileId: 'profile-1',
       status: status,
-      fullName: 'Test Caregiver',
+      fullName: fullName,
       phone: '+919876543210',
+      appliedAt: appliedAt,
+      acceptedAt: acceptedAt,
+      rejectedAt: rejectedAt,
+      completedAt: completedAt,
       updatedAt: '2026-08-01T10:00:00Z',
     );
 
@@ -323,6 +332,39 @@ void main() {
         [_application(jobId: 'job-2', status: 'applied')],
       );
       expect(_texts(messages), [contains('Someone applied')]);
+    });
+
+    test('fires once per matching applicant, newest first, when more than one applicant matches the same event',
+        () {
+      final messages = resolveMessages(
+        applicationTemplates,
+        [_requirement(status: 'active')],
+        [
+          _application(id: 'a1', status: 'applied', fullName: 'Asha', appliedAt: '2026-08-01T10:00:00Z'),
+          _application(id: 'a2', status: 'applied', fullName: 'Bhavna', appliedAt: '2026-08-03T10:00:00Z'),
+        ],
+      );
+      expect(_texts(messages), [contains('Someone applied'), contains('Someone applied')]);
+      expect(messages.map((m) => m.id).toList(), ['applied:a2', 'applied:a1']);
+    });
+
+    test('interpolates {caregiver_name} with each applicant\'s own real name', () {
+      final named = [
+        _template(
+            id: 'applied-named',
+            event: MessageEvent.caregiverApplied,
+            message: '{caregiver_name} applied to your job',
+            displayOrder: 10),
+      ];
+      final messages = resolveMessages(
+        named,
+        [_requirement(status: 'active')],
+        [
+          _application(id: 'a1', status: 'applied', fullName: 'Asha'),
+          _application(id: 'a2', status: 'applied', fullName: 'Bhavna'),
+        ],
+      );
+      expect(_texts(messages).toSet(), {'Asha applied to your job', 'Bhavna applied to your job'});
     });
 
     test('needsApplicationsFetch is false with no requirements or a pending_review most-recent one', () {

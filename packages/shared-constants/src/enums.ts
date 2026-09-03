@@ -205,7 +205,10 @@ export const MessageEvent = {
   // applications (any status present on it, regardless of the
   // requirement's own status — acceptance closes the requirement, so
   // caregiverAccepted/caregiverClosed can never coincide with a still-
-  // "live" requirement). Not mutually exclusive with each other or with
+  // "live" requirement). Fires once per matching applicant, not once per
+  // requirement — message text may contain the literal token
+  // "{caregiver_name}", substituted with that specific applicant's name.
+  // Not mutually exclusive with each other or with
   // requirementLive/requirementCareTier — e.g. a still-live requirement
   // can simultaneously have other applied-but-undecided candidates.
   CAREGIVER_APPLIED: 'caregiver_applied',

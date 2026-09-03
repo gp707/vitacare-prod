@@ -75,6 +75,17 @@ class _FakeJobsRepository extends JobsRepository {
 CaregiverMessageModel _template({required String id, required String event, required String message}) =>
     CaregiverMessageModel(id: id, event: event, icon: MessageIcon.info, message: message, displayOrder: 10, enabled: true);
 
+Map<String, dynamic> _acceptedApplication() => {
+      'status': 'accepted',
+      'applied_at': '2026-08-01T10:00:00Z',
+      'accepted_at': '2026-08-02T10:00:00Z',
+      'rejected_at': null,
+      'completed_at': null,
+      'reapplied_at': null,
+      'decided_by_admin': true,
+      'decline_reason': null,
+    };
+
 List<CaregiverMessageModel> _seedTemplates() => [
       _template(id: 'm1', event: CaregiverMessageEvent.jobApplied, message: 'Successfully applied to job {job_id}'),
       _template(id: 'm2', event: CaregiverMessageEvent.welcome, message: 'Welcome to NurseJobs!'),
@@ -129,7 +140,7 @@ void main() {
       tester,
       _FakeJobsRepository(activeJobs: [_job(myApplication: _appliedApplication())]),
       initialPrefs: {
-        'read_message_ids': ['m1'],
+        'read_message_ids': ['m1:job-1'],
       },
     );
 
@@ -184,7 +195,7 @@ void main() {
     await _settle(tester);
 
     expect(find.byType(AlertDialog), findsNothing);
-    expect(localStorage.readMessageIds, {'m1'});
+    expect(localStorage.readMessageIds, {'m1:job-1'});
     expect(find.text('1'), findsNothing);
   });
 
@@ -200,7 +211,7 @@ void main() {
     await _settle(tester);
 
     expect(find.byType(AlertDialog), findsNothing);
-    expect(localStorage.readMessageIds, {'m1'});
+    expect(localStorage.readMessageIds, {'m1:job-1'});
   });
 
   testWidgets('a previously-read message contributes nothing to a later unread count', (tester) async {
@@ -208,7 +219,7 @@ void main() {
       tester,
       _FakeJobsRepository(activeJobs: [_job(myApplication: _appliedApplication())]),
       initialPrefs: {
-        'read_message_ids': ['m1'],
+        'read_message_ids': ['m1:job-1'],
       },
     );
 
@@ -232,5 +243,21 @@ void main() {
     await _settle(tester);
 
     expect(find.textContaining('Welcome to NurseJobs'), findsOneWidget);
+  });
+
+  testWidgets('detects an accepted application from the assigned-jobs list, not the active-jobs list', (tester) async {
+    final templates = [
+      _template(id: 'm3', event: CaregiverMessageEvent.jobAccepted, message: 'Selected by patient for job {job_id}'),
+    ];
+    await _pump(
+      tester,
+      _FakeJobsRepository(assignedJobs: [_job(adminJobNumber: 900, myApplication: _acceptedApplication())]),
+      templates: templates,
+    );
+
+    await tester.tap(find.byTooltip('Messages'));
+    await _settle(tester);
+
+    expect(find.textContaining('Selected by patient for job ADMIN-JOB-900'), findsOneWidget);
   });
 }

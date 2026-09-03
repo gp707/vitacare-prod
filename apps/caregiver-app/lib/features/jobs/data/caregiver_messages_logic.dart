@@ -3,10 +3,15 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 
 /// A single tip row shown in the bell overlay — pairs the message text with
 /// an icon so each row reads as its own category at a glance, not an
-/// undifferentiated stack of paragraphs that all look the same. [id] is the
-/// backing CaregiverMessageModel's id — used by MessagesBellButton to track
-/// which templates the user has already seen (see LocalStorage's
-/// readMessageIds/markMessagesRead).
+/// undifferentiated stack of paragraphs that all look the same. [id] is
+/// `"<template id>:<job id>"` for a job-scoped event (jobApplied/
+/// jobAccepted/jobRejected/jobClosed fire once per matching job
+/// application, not just once for the most recent one — see
+/// resolveCaregiverMessages) or the bare template id for `welcome`, which
+/// isn't job-scoped. Used by MessagesBellButton to track which (template,
+/// job) pairs the user has already seen (see LocalStorage's
+/// readMessageIds/markMessagesRead) — composite so marking one job's
+/// "applied" message read doesn't also mark a different job's read.
 class CaregiverMessageItem {
   final String id;
   final IconData icon;
@@ -59,58 +64,60 @@ String _interpolate(String message, JobModel job) {
   return message.replaceAll('{job_id}', jobDisplayId(job));
 }
 
-/// Picks the most recently relevant job for [event] out of [activeJobs] +
-/// [assignedJobs] — whichever job has the latest matching timestamp for
-/// that event's status transition. Returns null if no job currently
-/// matches the event.
-JobModel? _mostRecentMatch(
+/// One job whose application currently matches an event, paired with the
+/// timestamp of that transition (used only to order same-template matches
+/// newest-first — never shown to the user).
+class _JobMatch {
+  final JobModel job;
+  final String? timestamp;
+
+  const _JobMatch(this.job, this.timestamp);
+}
+
+/// Every job out of [activeJobs] + [assignedJobs] whose application
+/// currently matches [event] — one entry per job, not just the most
+/// recent, since each job application fires its own message instance (a
+/// caregiver who applied to 3 jobs sees 3 "applied" messages, each with
+/// that job's own real id).
+List<_JobMatch> _allMatches(
   String event,
   List<JobModel> activeJobs,
   List<JobModel> assignedJobs,
 ) {
-  JobModel? best;
-  String? bestTimestamp;
-
-  void consider(JobModel job, String? timestamp) {
-    if (timestamp == null) return;
-    if (bestTimestamp == null || timestamp.compareTo(bestTimestamp!) > 0) {
-      best = job;
-      bestTimestamp = timestamp;
-    }
-  }
+  final matches = <_JobMatch>[];
 
   switch (event) {
     case CaregiverMessageEvent.jobApplied:
       for (final job in activeJobs) {
         if (job.myApplication?.status == JobApplicationStatus.applied) {
-          consider(job, job.myApplication!.appliedAt);
+          matches.add(_JobMatch(job, job.myApplication!.appliedAt));
         }
       }
       break;
     case CaregiverMessageEvent.jobRejected:
       for (final job in activeJobs) {
         if (job.myApplication?.status == JobApplicationStatus.rejected) {
-          consider(job, job.myApplication!.rejectedAt);
+          matches.add(_JobMatch(job, job.myApplication!.rejectedAt));
         }
       }
       break;
     case CaregiverMessageEvent.jobAccepted:
       for (final job in assignedJobs) {
         if (job.myApplication?.status == JobApplicationStatus.accepted) {
-          consider(job, job.myApplication!.acceptedAt);
+          matches.add(_JobMatch(job, job.myApplication!.acceptedAt));
         }
       }
       break;
     case CaregiverMessageEvent.jobClosed:
       for (final job in assignedJobs) {
         if (job.myApplication?.status == JobApplicationStatus.completed) {
-          consider(job, job.myApplication!.completedAt);
+          matches.add(_JobMatch(job, job.myApplication!.completedAt));
         }
       }
       break;
   }
 
-  return best;
+  return matches;
 }
 
 /// Whether the caregiver has ever applied to any job — checked across both
@@ -129,12 +136,18 @@ bool _hasEverApplied(List<JobModel> activeJobs, List<JobModel> assignedJobs) =>
 /// read/unread state, recomputed fresh every time.
 ///
 /// CaregiverMessageEvent.welcome only applies before the caregiver has ever
-/// applied to any job. jobApplied/jobRejected are only detectable while the
-/// underlying job stays active (no "full application history" endpoint
-/// exists — see caregiver-messages plan doc); jobAccepted/jobClosed are
-/// fully durable via the assigned endpoint. All applicable templates —
-/// regardless of which event matched — are sorted together by a single
-/// shared displayOrder, so admin fully controls how they interleave.
+/// applied to any job. Every other event fires **once per matching job
+/// application**, not just once for the most recently matching job — a
+/// caregiver who has applied to 3 jobs sees 3 separate "applied" messages,
+/// each with that job's own real display id substituted for `{job_id}`.
+/// jobApplied/jobRejected are only detectable while the underlying job
+/// stays active (no "full application history" endpoint exists — see
+/// caregiver-messages plan doc); jobAccepted/jobClosed are fully durable
+/// via the assigned endpoint. Every item — regardless of which
+/// template/job matched — is sorted by the template's shared displayOrder
+/// first (so admin fully controls how different events interleave), then
+/// by that job's own transition timestamp newest-first as a tie-break
+/// among multiple jobs sharing one template.
 List<CaregiverMessageItem> resolveCaregiverMessages(
   List<CaregiverMessageModel> templates,
   List<JobModel> activeJobs,
@@ -146,21 +159,26 @@ List<CaregiverMessageItem> resolveCaregiverMessages(
     return welcome.map((t) => CaregiverMessageItem(t.id, iconFor(t.icon), t.message)).toList();
   }
 
-  final applicable = <CaregiverMessageModel>[];
-  final matches = <String, JobModel?>{};
+  final entries = <(CaregiverMessageModel template, _JobMatch match)>[];
 
   for (final t in templates) {
     if (t.event == CaregiverMessageEvent.welcome) continue;
-    final match = _mostRecentMatch(t.event, activeJobs, assignedJobs);
-    if (match != null) {
-      applicable.add(t);
-      matches[t.id] = match;
+    for (final match in _allMatches(t.event, activeJobs, assignedJobs)) {
+      entries.add((t, match));
     }
   }
 
-  applicable.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+  entries.sort((a, b) {
+    final orderCompare = a.$1.displayOrder.compareTo(b.$1.displayOrder);
+    if (orderCompare != 0) return orderCompare;
+    return (b.$2.timestamp ?? '').compareTo(a.$2.timestamp ?? '');
+  });
 
-  return applicable
-      .map((t) => CaregiverMessageItem(t.id, iconFor(t.icon), _interpolate(t.message, matches[t.id]!)))
+  return entries
+      .map((e) => CaregiverMessageItem(
+            '${e.$1.id}:${e.$2.job.id}',
+            iconFor(e.$1.icon),
+            _interpolate(e.$1.message, e.$2.job),
+          ))
       .toList();
 }

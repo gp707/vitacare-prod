@@ -3,10 +3,16 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 
 /// A single tip row shown in the bell overlay — pairs the message text with
 /// an icon so each row reads as its own category at a glance, not an
-/// undifferentiated stack of paragraphs that all look the same. [id] is the
-/// backing IndividualMessageModel's id — used by MessagesBellButton to
-/// track which templates the user has already seen (see LocalStorage's
-/// readMessageIds/markMessagesRead).
+/// undifferentiated stack of paragraphs that all look the same. [id] is
+/// `"<template id>:<application id>"` for an applicant-scoped event
+/// (caregiverApplied/caregiverAccepted/caregiverRejected/caregiverClosed
+/// fire once per matching applicant, not just once for the whole
+/// requirement — see resolveMessages) or the bare template id for
+/// welcome/requirementLive/requirementCareTier, which aren't
+/// applicant-scoped. Used by MessagesBellButton to track which (template,
+/// applicant) pairs the user has already seen (see LocalStorage's
+/// readMessageIds/markMessagesRead) — composite so marking one applicant's
+/// "applied" message read doesn't also mark a different applicant's read.
 class MessageItem {
   final String id;
   final IconData icon;
@@ -55,17 +61,61 @@ IconData iconFor(String key) {
 bool _isLive(JobModel requirement) =>
     requirement.status == JobStatus.pendingReview || requirement.status == JobStatus.active;
 
-/// Replaces the literal token "{tier}" with the derived care tier's
-/// display name — only meaningful for MessageEvent.requirementCareTier
-/// messages, but safe to call on any message (a no-op if the token isn't
-/// present or there's no care receiver to derive a tier from).
-String _interpolate(String message, JobModel requirement) {
-  if (!message.contains('{tier}')) return message;
-  final careReceiver = requirement.careReceiver;
-  if (careReceiver == null) return message;
-  final tier = deriveCareTier(careReceiver);
-  final tierLabel = CareTier.displayNames[tier] ?? tier;
-  return message.replaceAll('{tier}', tierLabel);
+/// Replaces "{tier}" with the derived care tier's display name (only
+/// meaningful for MessageEvent.requirementCareTier) and "{caregiver_name}"
+/// with [application]'s applicant name (only meaningful for the 4
+/// applicant-scoped caregiver_* events) — safe to call on any message, a
+/// no-op for whichever token isn't present or whose source data is absent.
+String _interpolate(String message, JobModel requirement, {JobApplicationModel? application}) {
+  var result = message;
+  if (result.contains('{tier}')) {
+    final careReceiver = requirement.careReceiver;
+    if (careReceiver != null) {
+      final tier = deriveCareTier(careReceiver);
+      final tierLabel = CareTier.displayNames[tier] ?? tier;
+      result = result.replaceAll('{tier}', tierLabel);
+    }
+  }
+  if (application != null && result.contains('{caregiver_name}')) {
+    result = result.replaceAll('{caregiver_name}', application.fullName);
+  }
+  return result;
+}
+
+/// Every application out of [applications] that currently matches
+/// [event], paired with the timestamp of that transition (used only to
+/// order same-template matches newest-first — never shown to the user).
+/// One entry per matching applicant, not just the most recent, since each
+/// applicant fires their own message instance (a requirement with 3
+/// applicants sees 3 "applied" messages, each naming that applicant).
+List<(JobApplicationModel application, String? timestamp)> _matchingApplications(
+  String event,
+  List<JobApplicationModel> applications,
+) {
+  switch (event) {
+    case MessageEvent.caregiverApplied:
+      return applications
+          .where((a) => a.status == JobApplicationStatus.applied)
+          .map((a) => (a, a.appliedAt))
+          .toList();
+    case MessageEvent.caregiverAccepted:
+      return applications
+          .where((a) => a.status == JobApplicationStatus.accepted)
+          .map((a) => (a, a.acceptedAt))
+          .toList();
+    case MessageEvent.caregiverRejected:
+      return applications
+          .where((a) => a.status == JobApplicationStatus.rejected)
+          .map((a) => (a, a.rejectedAt))
+          .toList();
+    case MessageEvent.caregiverClosed:
+      return applications
+          .where((a) => a.status == JobApplicationStatus.completed)
+          .map((a) => (a, a.completedAt))
+          .toList();
+    default:
+      return const [];
+  }
 }
 
 /// Resolves [templates] (the full admin-editable set, fetched once per
@@ -86,13 +136,18 @@ String _interpolate(String message, JobModel requirement) {
 /// requirement, regardless of its exact status, is what lets both still
 /// work without tracking two different "current requirement" concepts.
 /// requirementLive/requirementCareTier still require that requirement to
-/// actually be live; the 4 caregiver_* events instead check whether an
-/// application with the matching status is present on it (not mutually
-/// exclusive with each other or with requirementLive — e.g. a still-live
-/// requirement can simultaneously have other applied-but-undecided
-/// candidates). All applicable templates — regardless of which event
-/// matched — are sorted together by a single shared displayOrder, so
-/// admin fully controls how they interleave.
+/// actually be live and each fire at most once. The 4 caregiver_* events
+/// instead fire **once per matching applicant** — a requirement with 3
+/// still-undecided applicants shows 3 separate "applied" messages, each
+/// with that applicant's own real name substituted for
+/// `{caregiver_name}` — not mutually exclusive with each other or with
+/// requirementLive (e.g. a still-live requirement can simultaneously have
+/// other applied-but-undecided candidates). Every item — regardless of
+/// which template/applicant matched — is sorted by the template's shared
+/// displayOrder first (so admin fully controls how different events
+/// interleave), then by that applicant's own transition timestamp
+/// newest-first as a tie-break among multiple applicants sharing one
+/// template.
 List<MessageItem> resolveMessages(
   List<IndividualMessageModel> templates,
   List<JobModel> requirements,
@@ -105,29 +160,41 @@ List<MessageItem> resolveMessages(
   }
 
   final current = requirements.first;
-  final applicationStatuses = currentRequirementApplications.map((a) => a.status).toSet();
 
-  final applicable = templates.where((t) {
+  final entries = <(IndividualMessageModel template, JobApplicationModel? application, String? timestamp)>[];
+
+  for (final t in templates) {
     switch (t.event) {
       case MessageEvent.requirementLive:
-        return _isLive(current);
+        if (_isLive(current)) entries.add((t, null, null));
+        break;
       case MessageEvent.requirementCareTier:
-        return _isLive(current) && current.careReceiver != null;
+        if (_isLive(current) && current.careReceiver != null) entries.add((t, null, null));
+        break;
       case MessageEvent.caregiverApplied:
-        return applicationStatuses.contains(JobApplicationStatus.applied);
       case MessageEvent.caregiverAccepted:
-        return applicationStatuses.contains(JobApplicationStatus.accepted);
       case MessageEvent.caregiverRejected:
-        return applicationStatuses.contains(JobApplicationStatus.rejected);
       case MessageEvent.caregiverClosed:
-        return applicationStatuses.contains(JobApplicationStatus.completed);
-      default:
-        return false;
+        for (final (application, timestamp) in _matchingApplications(t.event, currentRequirementApplications)) {
+          entries.add((t, application, timestamp));
+        }
+        break;
     }
-  }).toList()
-    ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+  }
 
-  return applicable.map((t) => MessageItem(t.id, iconFor(t.icon), _interpolate(t.message, current))).toList();
+  entries.sort((a, b) {
+    final orderCompare = a.$1.displayOrder.compareTo(b.$1.displayOrder);
+    if (orderCompare != 0) return orderCompare;
+    return (b.$3 ?? '').compareTo(a.$3 ?? '');
+  });
+
+  return entries
+      .map((e) => MessageItem(
+            e.$2 == null ? e.$1.id : '${e.$1.id}:${e.$2!.id}',
+            iconFor(e.$1.icon),
+            _interpolate(e.$1.message, current, application: e.$2),
+          ))
+      .toList();
 }
 
 /// Whether resolveMessages() needs applications data for [requirements] at
