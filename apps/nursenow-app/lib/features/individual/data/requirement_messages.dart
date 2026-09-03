@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
-import '../../../app/scope_of_work_button.dart' show tierIcon;
 
-/// A single tip row on the Messages tab — pairs the message text with a
-/// fixed icon so each row reads as its own category at a glance (editing/
-/// pricing, care tier, posting rules, matching advice), not an
+/// A single tip row on the Messages tab — pairs the message text with an
+/// icon so each row reads as its own category at a glance, not an
 /// undifferentiated stack of paragraphs that all look the same.
 class MessageItem {
   final IconData icon;
@@ -13,91 +11,91 @@ class MessageItem {
   const MessageItem(this.icon, this.text);
 }
 
-/// Automatic, status-based tips shown on the Individual's "Messages" tab —
-/// purely computed client-side from a requirement's current fields (no
-/// backend model, no persistence, no read/unread state). Always reflects
-/// whatever the requirement's current status/care needs are right now,
-/// recomputed fresh every time the tab is opened — there's no dedup or
-/// "already shown" tracking, so the "everyday" cadence on the last message
-/// below just means it keeps appearing every day the job stays live, not a
-/// literal once-per-calendar-day flag.
-///
-/// Returns every message that currently applies to [requirement], in a
-/// fixed logical order — not a real timeline, since none of these are
-/// one-off events with their own timestamp. Empty once the requirement is
-/// no longer live (closed/rejected/cancelled) — a past requirement has
-/// nothing left to advise the patient/family about.
-List<MessageItem> messagesForRequirement(JobModel requirement) {
-  final isLive = requirement.status == JobStatus.pendingReview ||
-      requirement.status == JobStatus.active;
-  if (!isLive) return const [];
-
-  final messages = <MessageItem>[
-    const MessageItem(
-      Icons.edit_note,
-      'You can edit this job and change salary. Typically it takes 3 to 5 days for caregivers '
-          'to reach out. If urgent, do not hesitate to click on the red button at the top of '
-          'the app for help.',
-    ),
-  ];
-
-  final careReceiver = requirement.careReceiver;
-  if (careReceiver != null) {
-    final tier = deriveCareTier(careReceiver);
-    final tierLabel = CareTier.displayNames[tier] ?? tier;
-    messages.add(
-      MessageItem(
-        tierIcon(tier),
-        "Based on the patient's condition we see you need $tierLabel. You may look at the "
-        'standard Rate Card for this care level. You can also tap Scope of Work on the job '
-        'listing to see exactly what it covers.',
-      ),
-    );
+/// Maps an admin-picked MessageIcon key to real IconData — a fixed,
+/// bounded switch (never free-form), so a bad/future-unknown key falls
+/// back to a neutral default instead of crashing.
+IconData iconFor(String key) {
+  switch (key) {
+    case MessageIcon.editNote:
+      return Icons.edit_note;
+    case MessageIcon.rule:
+      return Icons.rule;
+    case MessageIcon.travelExplore:
+      return Icons.travel_explore;
+    case MessageIcon.wavingHand:
+      return Icons.waving_hand;
+    case MessageIcon.rocketLaunch:
+      return Icons.rocket_launch;
+    case MessageIcon.favorite:
+      return Icons.favorite;
+    case MessageIcon.medicalServices:
+      return Icons.medical_services;
+    case MessageIcon.emergency:
+      return Icons.emergency;
+    case MessageIcon.celebration:
+      return Icons.celebration;
+    case MessageIcon.info:
+    default:
+      return Icons.info;
   }
-
-  messages.addAll(const [
-    MessageItem(
-      Icons.rule,
-      'You can post one requirement at a time — once the existing requirement is closed, '
-          'fulfilled, or cancelled, you can post another. Tip: you may cancel a requirement '
-          'at any time.',
-    ),
-    MessageItem(
-      Icons.travel_explore,
-      'If you are not getting applicants, consider widening your scope: move to a monthly or '
-          'long-term requirement, stay open to candidates of any religion, or set Preferred '
-          'Caregiver Gender and Language Preference to "No Preference" — caregivers are '
-          'trained to handle any gender, so this can significantly widen your pool of '
-          'candidates.',
-    ),
-  ]);
-
-  return messages;
 }
 
-/// A first-time-user welcome/orientation, shown only for an account that
-/// has never posted a requirement at all — not merely "no *live* one right
-/// now" (see [messagesForRequirement], which covers that case per-
-/// requirement instead). Computed the same way as the rest of this file:
-/// no persistence, no dismiss/mark-as-seen flag. It doesn't need one —
-/// posting a first requirement is itself a real, permanent state change,
-/// so this naturally and permanently stops applying the moment [requirements]
-/// is no longer empty, rather than needing to be tracked as "already seen".
-List<MessageItem> welcomeMessages(List<JobModel> requirements) {
-  if (requirements.isNotEmpty) return const [];
+bool _isLive(JobModel requirement) =>
+    requirement.status == JobStatus.pendingReview || requirement.status == JobStatus.active;
 
-  return const [
-    MessageItem(
-      Icons.waving_hand,
-      'Welcome to NurseNow! Use Profile to manage your phone number and login PIN, Messages '
-          '(this tab) for tips and updates about your posted job, and Jobs Posted to post a '
-          'requirement and review the caregivers who apply.',
-    ),
-    MessageItem(
-      Icons.rocket_launch,
-      'Ready to get started? Head to the Jobs Posted tab and tap "Post a Requirement" to '
-          'describe the care you need — most caregivers typically reach out within 3 to 5 '
-          'days once it goes live.',
-    ),
-  ];
+/// At most one requirement is ever live at a time (the existing one-live-
+/// requirement rule, JOB_009), so the first live one found is the only one
+/// that matters here.
+JobModel? _liveRequirement(List<JobModel> requirements) {
+  for (final requirement in requirements) {
+    if (_isLive(requirement)) return requirement;
+  }
+  return null;
+}
+
+/// Replaces the literal token "{tier}" with the derived care tier's
+/// display name — only meaningful for MessageEvent.requirementCareTier
+/// messages, but safe to call on any message (a no-op if the token isn't
+/// present or there's no care receiver to derive a tier from).
+String _interpolate(String message, JobModel requirement) {
+  if (!message.contains('{tier}')) return message;
+  final careReceiver = requirement.careReceiver;
+  if (careReceiver == null) return message;
+  final tier = deriveCareTier(careReceiver);
+  final tierLabel = CareTier.displayNames[tier] ?? tier;
+  return message.replaceAll('{tier}', tierLabel);
+}
+
+/// Resolves [templates] (the full admin-editable set, fetched once per
+/// Messages tab load) against the individual's own [requirements] into the
+/// final ordered list to render — no persistence, no read/unread state,
+/// recomputed fresh every time, same architecture as before this became
+/// admin-editable, just data-driven now instead of hardcoded.
+///
+/// Before the account has ever posted a requirement at all, only
+/// MessageEvent.welcome templates apply. Otherwise, only the one
+/// currently-live requirement (if any) matters: MessageEvent.
+/// requirementLive templates always apply, and MessageEvent.
+/// requirementCareTier templates apply additionally when that requirement
+/// has a care_receiver. All applicable templates — regardless of which
+/// event matched — are sorted together by a single shared displayOrder,
+/// so admin fully controls how they interleave.
+List<MessageItem> resolveMessages(List<IndividualMessageModel> templates, List<JobModel> requirements) {
+  if (requirements.isEmpty) {
+    final welcome = templates.where((t) => t.event == MessageEvent.welcome).toList()
+      ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+    return welcome.map((t) => MessageItem(iconFor(t.icon), t.message)).toList();
+  }
+
+  final live = _liveRequirement(requirements);
+  if (live == null) return const [];
+
+  final applicable = templates.where((t) {
+    if (t.event == MessageEvent.requirementLive) return true;
+    if (t.event == MessageEvent.requirementCareTier) return live.careReceiver != null;
+    return false;
+  }).toList()
+    ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+
+  return applicable.map((t) => MessageItem(iconFor(t.icon), _interpolate(t.message, live))).toList();
 }

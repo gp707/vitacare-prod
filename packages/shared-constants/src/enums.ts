@@ -191,8 +191,39 @@ export const AuditAction = {
   DUTY_REQUIREMENTS_UPDATED: 'duty_requirements_updated',
   JOB_SETTINGS_UPDATED: 'job_settings_updated',
   ADMIN_PASSWORD_CHANGED: 'admin_password_changed',
+  INDIVIDUAL_MESSAGE_CREATED: 'individual_message_created',
+  INDIVIDUAL_MESSAGE_UPDATED: 'individual_message_updated',
+  INDIVIDUAL_MESSAGE_DELETED: 'individual_message_deleted',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
+
+// When each individual_messages row is shown on NurseNow's Messages tab —
+// picked by admin per message, evaluated client-side against the
+// individual's own already-fetched requirement data (see
+// apps/nursenow-app/lib/features/individual/data/requirement_messages.dart).
+export const MessageEvent = {
+  WELCOME: 'welcome',
+  REQUIREMENT_LIVE: 'requirement_live',
+  REQUIREMENT_CARE_TIER: 'requirement_care_tier',
+} as const;
+export type MessageEvent = (typeof MessageEvent)[keyof typeof MessageEvent];
+
+// A curated, bounded set of icon keys an admin can pick per message —
+// never free text, so a bad value can't crash the client. Keys match
+// their corresponding Flutter Icons.* constant name.
+export const MessageIcon = {
+  EDIT_NOTE: 'edit_note',
+  RULE: 'rule',
+  TRAVEL_EXPLORE: 'travel_explore',
+  WAVING_HAND: 'waving_hand',
+  ROCKET_LAUNCH: 'rocket_launch',
+  FAVORITE: 'favorite',
+  MEDICAL_SERVICES: 'medical_services',
+  EMERGENCY: 'emergency',
+  INFO: 'info',
+  CELEBRATION: 'celebration',
+} as const;
+export type MessageIcon = (typeof MessageIcon)[keyof typeof MessageIcon];
 
 export const AppPlatform = {
   ANDROID: 'android',

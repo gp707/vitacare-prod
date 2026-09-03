@@ -74,4 +74,7 @@ class ApiRoutes {
   static const jobSettings = '/job-settings';
   static const adminJobSettings = '/admin/job-settings';
   static const adminProfilePassword = '/admin/profile/password';
+
+  static const individualMessages = '/individual-messages';
+  static const adminIndividualMessages = '/admin/individual-messages';
 }

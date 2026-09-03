@@ -44,123 +44,193 @@ Map<String, dynamic> _careReceiverJson({
       'vital_monitoring_types': [],
     };
 
+IndividualMessageModel _template({
+  required String id,
+  required String event,
+  String icon = MessageIcon.info,
+  required String message,
+  required int displayOrder,
+}) =>
+    IndividualMessageModel(
+      id: id,
+      event: event,
+      icon: icon,
+      message: message,
+      displayOrder: displayOrder,
+      enabled: true,
+    );
+
+/// Mirrors the real migration seed content (6 messages), so these tests
+/// double as a regression check that resolveMessages() reproduces the
+/// exact behavior the old hardcoded functions had.
+List<IndividualMessageModel> _seedTemplates() => [
+      _template(
+        id: 'm1',
+        event: MessageEvent.requirementLive,
+        icon: MessageIcon.editNote,
+        message: 'You can edit this job and change salary.',
+        displayOrder: 10,
+      ),
+      _template(
+        id: 'm2',
+        event: MessageEvent.requirementCareTier,
+        icon: MessageIcon.favorite,
+        message: "Based on the patient's condition we see you need {tier}.",
+        displayOrder: 20,
+      ),
+      _template(
+        id: 'm3',
+        event: MessageEvent.requirementLive,
+        icon: MessageIcon.rule,
+        message: 'You can post one requirement at a time.',
+        displayOrder: 30,
+      ),
+      _template(
+        id: 'm4',
+        event: MessageEvent.requirementLive,
+        icon: MessageIcon.travelExplore,
+        message: 'If you are not getting applicants, consider widening your scope.',
+        displayOrder: 40,
+      ),
+      _template(
+        id: 'm5',
+        event: MessageEvent.welcome,
+        icon: MessageIcon.wavingHand,
+        message: 'Welcome to NurseNow!',
+        displayOrder: 10,
+      ),
+      _template(
+        id: 'm6',
+        event: MessageEvent.welcome,
+        icon: MessageIcon.rocketLaunch,
+        message: 'Ready to get started? Post a Requirement.',
+        displayOrder: 20,
+      ),
+    ];
+
 Iterable<String> _texts(List<MessageItem> messages) => messages.map((m) => m.text);
 
 void main() {
-  group('messagesForRequirement', () {
+  group('resolveMessages — live requirement', () {
     test('returns nothing for a closed requirement', () {
-      expect(messagesForRequirement(_requirement(status: 'closed')), isEmpty);
+      expect(resolveMessages(_seedTemplates(), [_requirement(status: 'closed')]), isEmpty);
     });
 
     test('includes the edit/salary tip for a pending_review requirement', () {
-      final messages = messagesForRequirement(_requirement(status: 'pending_review'));
-      expect(
-        _texts(messages),
-        contains(contains('You can edit this job and change salary')),
-      );
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'pending_review')]);
+      expect(_texts(messages), contains(contains('You can edit this job and change salary')));
     });
 
     test('includes the edit/salary tip for an active requirement', () {
-      final messages = messagesForRequirement(_requirement(status: 'active'));
-      expect(
-        _texts(messages),
-        contains(contains('You can edit this job and change salary')),
-      );
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'active')]);
+      expect(_texts(messages), contains(contains('You can edit this job and change salary')));
     });
 
     test('includes the one-requirement-at-a-time tip while live', () {
-      final messages = messagesForRequirement(_requirement(status: 'active'));
-      expect(
-        _texts(messages),
-        contains(contains('You can post one requirement at a time')),
-      );
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'active')]);
+      expect(_texts(messages), contains(contains('You can post one requirement at a time')));
     });
 
     test('includes the widen-your-scope tip while live', () {
-      final messages = messagesForRequirement(_requirement(status: 'active'));
-      expect(
-        _texts(messages),
-        contains(contains('consider widening your scope')),
-      );
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'active')]);
+      expect(_texts(messages), contains(contains('consider widening your scope')));
     });
 
     test('omits the derived-tier tip when there is no care_receiver yet', () {
-      final messages = messagesForRequirement(_requirement(status: 'pending_review'));
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'pending_review')]);
       expect(messages.any((m) => m.text.contains('we see you need')), isFalse);
     });
 
-    test('includes the derived-tier tip naming Companion Care for an independent/oral-feeding patient', () {
-      final messages = messagesForRequirement(
-        _requirement(status: 'active', careReceiver: _careReceiverJson()),
+    test('interpolates {tier} as Companion Care for an independent/oral-feeding patient', () {
+      final messages = resolveMessages(
+        _seedTemplates(),
+        [_requirement(status: 'active', careReceiver: _careReceiverJson())],
       );
-      expect(
-        _texts(messages),
-        contains(contains("we see you need Companion Care")),
-      );
+      expect(_texts(messages), contains(contains('we see you need Companion Care')));
     });
 
-    test('includes the derived-tier tip naming Critical Care for a catheter-support patient', () {
-      final messages = messagesForRequirement(
-        _requirement(
-          status: 'active',
-          careReceiver: _careReceiverJson(toiletAssistance: const ['uses_catheter']),
-        ),
+    test('interpolates {tier} as Critical Care for a catheter-support patient', () {
+      final messages = resolveMessages(
+        _seedTemplates(),
+        [
+          _requirement(
+            status: 'active',
+            careReceiver: _careReceiverJson(toiletAssistance: const ['uses_catheter']),
+          ),
+        ],
       );
-      expect(
-        _texts(messages),
-        contains(contains('we see you need Critical Care')),
-      );
+      expect(_texts(messages), contains(contains('we see you need Critical Care')));
     });
 
     test('returns exactly 4 messages once a care_receiver is present on a live requirement', () {
-      final messages = messagesForRequirement(
-        _requirement(status: 'active', careReceiver: _careReceiverJson()),
+      final messages = resolveMessages(
+        _seedTemplates(),
+        [_requirement(status: 'active', careReceiver: _careReceiverJson())],
       );
       expect(messages, hasLength(4));
     });
 
     test('returns exactly 3 messages when there is no care_receiver yet', () {
-      final messages = messagesForRequirement(_requirement(status: 'pending_review'));
+      final messages = resolveMessages(_seedTemplates(), [_requirement(status: 'pending_review')]);
       expect(messages, hasLength(3));
     });
 
-    test('every row gets its own distinct icon, not a repeated generic one', () {
-      final messages = messagesForRequirement(
-        _requirement(status: 'active', careReceiver: _careReceiverJson()),
+    test('icon comes from the admin-set template, not a tier-dependent switch', () {
+      // Unlike the old hardcoded behavior, the tier message's icon is now
+      // whatever admin picked for that template — same icon regardless of
+      // which tier gets interpolated into the text.
+      final companion = resolveMessages(
+        _seedTemplates(),
+        [_requirement(status: 'active', careReceiver: _careReceiverJson())],
       );
-      final icons = messages.map((m) => m.icon).toSet();
-      expect(icons, hasLength(4));
-    });
-
-    test('the derived-tier row uses the same pictogram Scope of Work uses for that tier', () {
-      final companion = messagesForRequirement(
-        _requirement(status: 'active', careReceiver: _careReceiverJson()),
-      );
-      final critical = messagesForRequirement(
-        _requirement(
-          status: 'active',
-          careReceiver: _careReceiverJson(toiletAssistance: const ['uses_catheter']),
-        ),
+      final critical = resolveMessages(
+        _seedTemplates(),
+        [
+          _requirement(
+            status: 'active',
+            careReceiver: _careReceiverJson(toiletAssistance: const ['uses_catheter']),
+          ),
+        ],
       );
       final companionTierMessage = companion.firstWhere((m) => m.text.contains('we see you need'));
       final criticalTierMessage = critical.firstWhere((m) => m.text.contains('we see you need'));
       expect(companionTierMessage.icon, Icons.favorite);
-      expect(criticalTierMessage.icon, Icons.emergency);
+      expect(criticalTierMessage.icon, Icons.favorite);
+    });
+
+    test('messages are ordered by displayOrder, interleaving across events as admin set it up', () {
+      // Put the tier message (event requirementCareTier) FIRST via order,
+      // ahead of the requirementLive messages — confirms ordering is one
+      // global sort, not grouped per event.
+      final reordered = [
+        _template(id: 'a', event: MessageEvent.requirementCareTier, message: 'tier {tier}', displayOrder: 1),
+        _template(id: 'b', event: MessageEvent.requirementLive, message: 'salary tip', displayOrder: 2),
+        _template(id: 'c', event: MessageEvent.requirementLive, message: 'scope tip', displayOrder: 3),
+      ];
+      final messages = resolveMessages(
+        reordered,
+        [_requirement(status: 'active', careReceiver: _careReceiverJson())],
+      );
+      expect(messages.map((m) => m.text).toList(), [
+        contains('tier Companion Care'),
+        'salary tip',
+        'scope tip',
+      ]);
     });
   });
 
-  group('welcomeMessages', () {
+  group('resolveMessages — welcome', () {
     test('shows the welcome/orientation messages for an account with no requirements at all', () {
-      final messages = welcomeMessages(const []);
+      final messages = resolveMessages(_seedTemplates(), const []);
       expect(messages, hasLength(2));
       expect(_texts(messages), contains(contains('Welcome to NurseNow')));
       expect(_texts(messages), contains(contains('Post a Requirement')));
     });
 
     test('is empty once the account has posted at least one requirement, even a closed one', () {
-      expect(welcomeMessages([_requirement(status: 'closed')]), isEmpty);
-      expect(welcomeMessages([_requirement(status: 'active')]), isEmpty);
-      expect(welcomeMessages([_requirement(status: 'pending_review')]), isEmpty);
+      expect(resolveMessages(_seedTemplates(), [_requirement(status: 'closed')]), isEmpty);
+      expect(resolveMessages(_seedTemplates(), [_requirement(status: 'active')]), isNotEmpty);
+      expect(resolveMessages(_seedTemplates(), [_requirement(status: 'pending_review')]), isNotEmpty);
     });
   });
 }

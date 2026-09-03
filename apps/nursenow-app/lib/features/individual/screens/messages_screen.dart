@@ -9,15 +9,15 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/requirement_messages.dart';
 
-/// Automatically-generated, status-based tips about the patient/family's
-/// own posted requirement(s), plus a first-time welcome/orientation
-/// ([welcomeMessages]) before they've ever posted one — see
-/// requirement_messages.dart for exactly which messages apply and when.
-/// Purely a computed view over data already fetched via
-/// GET /individual/requirements (the same call JobsPostedScreen makes) —
-/// no new backend endpoint, no persistence, no read/unread state;
-/// refreshing this screen always shows whatever currently applies, nothing
-/// more.
+/// Admin-editable, status-based tips about the patient/family's own posted
+/// requirement(s) — see requirement_messages.dart's resolveMessages() for
+/// exactly which messages apply and when. Message content/delivery-event
+/// is admin-managed (apps/admin-web's "NurseNow Messages" screen); this
+/// screen just fetches the current template set + the individual's own
+/// requirements (the same GET /individual/requirements call
+/// JobsPostedScreen makes) in parallel and resolves them client-side — no
+/// persistence, no read/unread state; refreshing always shows whatever
+/// currently applies, nothing more.
 class MessagesScreen extends ConsumerStatefulWidget {
   const MessagesScreen({super.key});
 
@@ -27,6 +27,7 @@ class MessagesScreen extends ConsumerStatefulWidget {
 
 class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   List<JobModel> _requirements = [];
+  List<IndividualMessageModel> _templates = [];
   String? _error;
   bool _loading = true;
 
@@ -42,10 +43,15 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _error = null;
     });
     try {
-      final requirements =
-          await ref.read(individualRepositoryProvider).listMyRequirements();
+      final results = await Future.wait([
+        ref.read(individualRepositoryProvider).listMyRequirements(),
+        ref.read(individualMessagesRepositoryProvider).get(),
+      ]);
       if (!mounted) return;
-      setState(() => _requirements = requirements);
+      setState(() {
+        _requirements = results[0] as List<JobModel>;
+        _templates = results[1] as List<IndividualMessageModel>;
+      });
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -55,11 +61,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = <MessageItem>[
-      ...welcomeMessages(_requirements),
-      for (final requirement in _requirements)
-        ...messagesForRequirement(requirement),
-    ];
+    final messages = resolveMessages(_templates, _requirements);
 
     return Scaffold(
       appBar: AppBar(

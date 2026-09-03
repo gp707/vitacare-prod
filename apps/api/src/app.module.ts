@@ -17,6 +17,7 @@ import { RateCardModule } from './rate-card/rate-card.module';
 import { ScopeOfWorkModule } from './scope-of-work/scope-of-work.module';
 import { DutyRequirementsModule } from './duty-requirements/duty-requirements.module';
 import { JobSettingsModule } from './job-settings/job-settings.module';
+import { IndividualMessagesModule } from './individual-messages/individual-messages.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -42,6 +43,7 @@ import { validateEnv } from './config/env.validation';
     ScopeOfWorkModule,
     DutyRequirementsModule,
     JobSettingsModule,
+    IndividualMessagesModule,
   ],
 })
 export class AppModule {}

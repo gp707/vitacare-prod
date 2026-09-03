@@ -25,6 +25,7 @@ import { RateCardRepository } from './repositories/rate-card.repository';
 import { ScopeOfWorkRepository } from './repositories/scope-of-work.repository';
 import { DutyRequirementsRepository } from './repositories/duty-requirements.repository';
 import { JobSettingsRepository } from './repositories/job-settings.repository';
+import { IndividualMessagesRepository } from './repositories/individual-messages.repository';
 
 const repositories = [
   UsersRepository,
@@ -52,6 +53,7 @@ const repositories = [
   ScopeOfWorkRepository,
   DutyRequirementsRepository,
   JobSettingsRepository,
+  IndividualMessagesRepository,
 ];
 
 @Global()

@@ -121,6 +121,54 @@ class DutyType {
   };
 }
 
+/// When an admin-editable individual_messages row is shown on NurseNow's
+/// Messages tab — picked by admin per message, evaluated client-side
+/// against the individual's own already-fetched requirement data (see
+/// resolveMessages() in apps/nursenow-app/lib/features/individual/data/
+/// requirement_messages.dart).
+class MessageEvent {
+  static const welcome = 'welcome';
+  static const requirementLive = 'requirement_live';
+  static const requirementCareTier = 'requirement_care_tier';
+
+  static const all = [welcome, requirementLive, requirementCareTier];
+
+  static const displayNames = {
+    welcome: 'Welcome (before any requirement ever posted)',
+    requirementLive: 'Requirement is live',
+    requirementCareTier: 'Requirement is live + has a care tier (supports {tier})',
+  };
+}
+
+/// A curated, bounded set of icon keys an admin can pick per message —
+/// never free text, so a bad value can't crash the client. Keys match
+/// their corresponding Flutter Icons.* constant name.
+class MessageIcon {
+  static const editNote = 'edit_note';
+  static const rule = 'rule';
+  static const travelExplore = 'travel_explore';
+  static const wavingHand = 'waving_hand';
+  static const rocketLaunch = 'rocket_launch';
+  static const favorite = 'favorite';
+  static const medicalServices = 'medical_services';
+  static const emergency = 'emergency';
+  static const info = 'info';
+  static const celebration = 'celebration';
+
+  static const all = [
+    editNote,
+    rule,
+    travelExplore,
+    wavingHand,
+    rocketLaunch,
+    favorite,
+    medicalServices,
+    emergency,
+    info,
+    celebration,
+  ];
+}
+
 class FrequencyOfCare {
   static const daily = 'daily';
   static const monthly = 'monthly';
@@ -363,6 +411,9 @@ class AuditAction {
   static const dutyRequirementsUpdated = 'duty_requirements_updated';
   static const jobSettingsUpdated = 'job_settings_updated';
   static const adminPasswordChanged = 'admin_password_changed';
+  static const individualMessageCreated = 'individual_message_created';
+  static const individualMessageUpdated = 'individual_message_updated';
+  static const individualMessageDeleted = 'individual_message_deleted';
 
   static const all = [
     registration,
@@ -396,6 +447,9 @@ class AuditAction {
     dutyRequirementsUpdated,
     jobSettingsUpdated,
     adminPasswordChanged,
+    individualMessageCreated,
+    individualMessageUpdated,
+    individualMessageDeleted,
   ];
 }
 

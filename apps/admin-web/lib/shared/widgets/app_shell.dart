@@ -10,6 +10,7 @@ enum AppShellSection {
   patientsFamily,
   jobs,
   rehabHospitals,
+  nursenowMessages,
   reports,
   auditLogs,
   adminManagement,
@@ -147,6 +148,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.rehabHospitals,
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/rehab-hospitals', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'NurseNow Messages',
+                  selected: current == AppShellSection.nursenowMessages,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/nursenow-messages', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.query_stats,

@@ -19,6 +19,7 @@ import '../features/scope_of_work/data/scope_of_work_repository.dart';
 import '../features/duty_requirements/data/duty_requirements_repository.dart';
 import '../features/settings/data/job_settings_repository.dart';
 import '../features/settings/data/admin_profile_repository.dart';
+import '../features/individual_messages/data/individual_messages_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -74,6 +75,11 @@ final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
 final dutyRequirementsRepositoryProvider =
     Provider<DutyRequirementsRepository>((ref) {
   return DutyRequirementsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final individualMessagesRepositoryProvider =
+    Provider<IndividualMessagesRepository>((ref) {
+  return IndividualMessagesRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminIndividualsRepositoryProvider =

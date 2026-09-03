@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:nursenow_app/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
@@ -61,7 +62,75 @@ class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
       );
 }
 
-Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo) async {
+IndividualMessageModel _template({
+  required String id,
+  required String event,
+  required String message,
+  required int displayOrder,
+}) =>
+    IndividualMessageModel(
+      id: id,
+      event: event,
+      icon: MessageIcon.info,
+      message: message,
+      displayOrder: displayOrder,
+      enabled: true,
+    );
+
+/// Mirrors the real migration seed content closely enough for the existing
+/// text assertions below to keep working unchanged.
+List<IndividualMessageModel> _seedTemplates() => [
+      _template(
+        id: 'm1',
+        event: MessageEvent.requirementLive,
+        message: 'You can edit this job and change salary.',
+        displayOrder: 10,
+      ),
+      _template(
+        id: 'm3',
+        event: MessageEvent.requirementLive,
+        message: 'You can post one requirement at a time.',
+        displayOrder: 30,
+      ),
+      _template(
+        id: 'm4',
+        event: MessageEvent.requirementLive,
+        message: 'If you are not getting applicants, consider widening your scope.',
+        displayOrder: 40,
+      ),
+      _template(
+        id: 'm5',
+        event: MessageEvent.welcome,
+        message: 'Welcome to NurseNow!',
+        displayOrder: 10,
+      ),
+      _template(
+        id: 'm6',
+        event: MessageEvent.welcome,
+        message: 'Ready to get started? Post a Requirement.',
+        displayOrder: 20,
+      ),
+    ];
+
+class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
+  final List<IndividualMessageModel> templates;
+  final ApiException? error;
+
+  _FakeIndividualMessagesRepository({this.templates = const [], this.error}) : super(Dio());
+
+  @override
+  Future<List<IndividualMessageModel>> get() async {
+    if (error != null) throw error!;
+    return templates;
+  }
+}
+
+Future<void> _pump(
+  WidgetTester tester,
+  _FakeIndividualRepository repo, {
+  List<IndividualMessageModel>? templates,
+  ApiException? messagesError,
+}) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -71,6 +140,9 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo) async {
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
+        individualMessagesRepositoryProvider.overrideWithValue(
+          _FakeIndividualMessagesRepository(templates: templates ?? _seedTemplates(), error: messagesError),
+        ),
         scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
@@ -126,5 +198,16 @@ void main() {
     );
 
     expect(find.text('Network error'), findsOneWidget);
+  });
+
+  testWidgets('shows a friendly error instead of crashing when the message-templates fetch fails',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(status: 'active')]),
+      messagesError: ApiException(message: 'Could not load messages', code: 'GEN_003'),
+    );
+
+    expect(find.text('Could not load messages'), findsOneWidget);
   });
 }
