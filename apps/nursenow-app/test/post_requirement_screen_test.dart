@@ -2,13 +2,16 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/core/duty_requirements/duty_requirements_repository.dart';
+import 'package:nursenow_app/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/rate_card/rate_card_repository.dart';
 import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
+import 'package:nursenow_app/core/storage/local_storage.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/post_requirement_screen.dart';
 
@@ -51,6 +54,13 @@ class _FakeRateCardRepository extends RateCardRepository {
   }
 }
 
+class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
+  _FakeIndividualMessagesRepository() : super(Dio());
+
+  @override
+  Future<List<IndividualMessageModel>> get() async => const [];
+}
+
 class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
   _FakeScopeOfWorkRepository() : super(Dio());
 
@@ -86,6 +96,15 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? capturedSalaryAmount;
 
   _FakeIndividualRepository({this.createError}) : super(Dio());
+
+  // Only exercised via MessagesBellButton, embedded in this screen's AppBar
+  // — irrelevant to what this file actually tests (posting a requirement),
+  // so both return empty rather than hitting the real network.
+  @override
+  Future<List<JobModel>> listMyRequirements() async => const [];
+
+  @override
+  Future<List<JobApplicationModel>> listApplications(String jobId) async => const [];
 
   @override
   Future<JobModel> createRequirement({
@@ -134,6 +153,9 @@ Future<void> _pumpTall(
 }) async {
   await tester.binding.setSurfaceSize(const Size(400, 4200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  // ignore: invalid_use_of_visible_for_testing_member
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -143,6 +165,8 @@ Future<void> _pumpTall(
         ),
         scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
         dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
+        individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
+        localStorageProvider.overrideWithValue(localStorage),
       ],
       child: const MaterialApp(home: PostRequirementScreen()),
     ),

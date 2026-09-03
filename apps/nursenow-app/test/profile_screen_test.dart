@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:nursenow_app/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
@@ -51,6 +53,24 @@ class _FakeIndividualRepository extends IndividualRepository {
     if (codeError != null) throw codeError!;
     updatedCode = code;
   }
+
+  // Only exercised via MessagesBellButton, embedded in this screen's AppBar
+  // for a non-organisation session — irrelevant to what this file actually
+  // tests (name/phone/PIN self-edit), so both return empty rather than
+  // hitting the real network.
+  @override
+  Future<List<JobModel>> listMyRequirements() async => const [];
+
+  @override
+  Future<List<JobApplicationModel>> listApplications(String jobId) async => const [];
+}
+
+/// Empty on purpose — see the fake above's own note.
+class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
+  _FakeIndividualMessagesRepository() : super(Dio());
+
+  @override
+  Future<List<IndividualMessageModel>> get() async => const [];
 }
 
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
@@ -77,6 +97,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
+        individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
             ..state = SessionAuthenticated(
@@ -240,6 +261,7 @@ void main() {
         overrides: [
           localStorageProvider.overrideWithValue(localStorage),
           individualRepositoryProvider.overrideWithValue(repo),
+          individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
           sessionProvider.overrideWith(
             (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
               ..state = const SessionAuthenticated(

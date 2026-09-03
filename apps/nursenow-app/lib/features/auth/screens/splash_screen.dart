@@ -10,15 +10,14 @@ import '../../../core/providers.dart';
 /// ('/', '/login', '/register'). All are argument-free. Kept in sync with
 /// router.dart by hand, same convention as the other two apps' equivalent
 /// sets. '/org-home'/'/org-post-requirement' are organisation-only and
-/// '/post-requirement'/'/messages' are individual-only — restoring the
-/// wrong one for the resolved session's role is guarded against
-/// separately below, not by this set (an individual account could still
-/// have this route sitting stale in the URL from a previous different-role
-/// session on a shared browser).
+/// '/post-requirement' is individual-only — restoring the wrong one for
+/// the resolved session's role is guarded against separately below, not by
+/// this set (an individual account could still have this route sitting
+/// stale in the URL from a previous different-role session on a shared
+/// browser).
 const _restorableRoutes = {
   '/home',
   '/profile',
-  '/messages',
   '/post-requirement',
   '/org-home',
   '/org-post-requirement',
@@ -59,7 +58,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       } else if (next is SessionAuthenticated) {
         final restoreRoute = widget.initialDeepLinkRoute;
         final isOrgOnlyRoute = restoreRoute == '/org-home' || restoreRoute == '/org-post-requirement';
-        final isIndividualOnlyRoute = restoreRoute == '/post-requirement' || restoreRoute == '/messages';
+        final isIndividualOnlyRoute = restoreRoute == '/post-requirement';
         final roleMismatch =
             (isOrgOnlyRoute && !next.isOrganisation) || (isIndividualOnlyRoute && next.isOrganisation);
         final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute) && !roleMismatch

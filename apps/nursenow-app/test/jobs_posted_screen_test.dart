@@ -7,6 +7,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/core/duty_requirements/duty_requirements_repository.dart';
+import 'package:nursenow_app/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/scope_of_work/scope_of_work_repository.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
@@ -39,6 +40,17 @@ class _FakeScopeOfWorkRepository extends ScopeOfWorkRepository {
 
   @override
   Future<ScopeOfWorkModel> get() async => _scopeOfWork;
+}
+
+/// Empty on purpose — this screen's own tests exercise requirement cards,
+/// not the bell's unread count (see messages_bell_test.dart for that); an
+/// empty template set keeps MessagesBellButton's badge out of the way of
+/// this file's own text/number assertions.
+class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
+  _FakeIndividualMessagesRepository() : super(Dio());
+
+  @override
+  Future<List<IndividualMessageModel>> get() async => const [];
 }
 
 final _dutyRequirements = const DutyRequirementsModel(
@@ -229,6 +241,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
         individualRepositoryProvider.overrideWithValue(repo),
         scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
         dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
+        individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
             ..state = SessionAuthenticated(

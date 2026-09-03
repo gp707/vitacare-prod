@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
-/// A single tip row on the Messages tab — pairs the message text with an
-/// icon so each row reads as its own category at a glance, not an
-/// undifferentiated stack of paragraphs that all look the same.
+/// A single tip row shown in the bell overlay — pairs the message text with
+/// an icon so each row reads as its own category at a glance, not an
+/// undifferentiated stack of paragraphs that all look the same. [id] is the
+/// backing IndividualMessageModel's id — used by MessagesBellButton to
+/// track which templates the user has already seen (see LocalStorage's
+/// readMessageIds/markMessagesRead).
 class MessageItem {
+  final String id;
   final IconData icon;
   final String text;
 
-  const MessageItem(this.icon, this.text);
+  const MessageItem(this.id, this.icon, this.text);
 }
 
 /// Maps an admin-picked MessageIcon key to real IconData — a fixed,
@@ -97,7 +101,7 @@ List<MessageItem> resolveMessages(
   if (requirements.isEmpty) {
     final welcome = templates.where((t) => t.event == MessageEvent.welcome).toList()
       ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
-    return welcome.map((t) => MessageItem(iconFor(t.icon), t.message)).toList();
+    return welcome.map((t) => MessageItem(t.id, iconFor(t.icon), t.message)).toList();
   }
 
   final current = requirements.first;
@@ -123,7 +127,7 @@ List<MessageItem> resolveMessages(
   }).toList()
     ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
-  return applicable.map((t) => MessageItem(iconFor(t.icon), _interpolate(t.message, current))).toList();
+  return applicable.map((t) => MessageItem(t.id, iconFor(t.icon), _interpolate(t.message, current))).toList();
 }
 
 /// Whether resolveMessages() needs applications data for [requirements] at

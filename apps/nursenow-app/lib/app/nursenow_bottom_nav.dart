@@ -11,12 +11,12 @@ import '../features/auth/state/session_state.dart';
 /// account type (JobsPostedScreen for Individual, RequirementsPostedScreen
 /// for Organisation), since the two have genuinely different data models
 /// and application-review UX (see "NurseNow" in CLAUDE.md) — are shared by
-/// both account types. **Individual gets a 3rd tab, Messages**
-/// (MessagesScreen — automatic status-based tips about their own posted
-/// requirement, see requirement_messages.dart) — Organisation doesn't get
-/// one, since these messages are all Individual-specific (salary/Rate
-/// Card/Scope of Work/one-live-requirement concepts that don't apply to
-/// Organisation's own requirement model).
+/// both account types, so both are just 2 tabs now. **Individual's status-
+/// based tips (see requirement_messages.dart) no longer have their own
+/// dedicated Messages tab** — they moved into MessagesBellButton
+/// (app/messages_bell.dart), a swinging bell + unread badge shown in the
+/// AppBar of every Individual-only screen, opening an overlay on tap
+/// instead of navigating to a separate page.
 class NurseNowBottomNav extends ConsumerWidget {
   final int currentIndex;
 
@@ -26,9 +26,7 @@ class NurseNowBottomNav extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     final isOrganisation = session is SessionAuthenticated && session.isOrganisation;
-    final routes = isOrganisation
-        ? ['/profile', '/org-home']
-        : ['/profile', '/messages', '/home'];
+    final routes = isOrganisation ? ['/profile', '/org-home'] : ['/profile', '/home'];
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
@@ -43,7 +41,6 @@ class NurseNowBottomNav extends ConsumerWidget {
             ]
           : const [
               BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-              BottomNavigationBarItem(icon: Icon(Icons.message_outlined), label: 'Messages'),
               BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Jobs Posted'),
             ],
     );

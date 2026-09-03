@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
-import '../../../app/whatsapp_help_button.dart';
-import '../../../app/rate_card_button.dart';
+import '../../../app/messages_bell.dart';
 import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
@@ -496,7 +495,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         title: Text(widget.cloneFrom != null
             ? 'Post Similar Requirement'
             : 'Post a Requirement'),
-        actions: const [RateCardButton(), WhatsAppHelpButton()],
+        actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(
