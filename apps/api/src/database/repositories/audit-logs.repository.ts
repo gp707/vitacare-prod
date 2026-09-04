@@ -149,4 +149,14 @@ export class AuditLogsRepository {
 
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
+
+  /** Hard-deletes every row older than [cutoff] — the retention sweep's
+   *  actual delete, called by AuditLogRetentionService.purgeExpiredLogs().
+   *  Returns the count deleted so the caller can decide whether it's worth
+   *  audit-logging the sweep itself (skipped when nothing was deleted, to
+   *  avoid writing a no-op row every single day — see that service). */
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    const result = await this.db.query('DELETE FROM audit_logs WHERE created_at < $1', [cutoff]);
+    return result.rowCount ?? 0;
+  }
 }

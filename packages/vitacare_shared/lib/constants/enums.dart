@@ -471,6 +471,8 @@ class AuditAction {
   static const caregiverMessageCreated = 'caregiver_message_created';
   static const caregiverMessageUpdated = 'caregiver_message_updated';
   static const caregiverMessageDeleted = 'caregiver_message_deleted';
+  static const auditLogRetentionUpdated = 'audit_log_retention_updated';
+  static const auditLogsPurged = 'audit_logs_purged';
 
   static const all = [
     registration,
@@ -510,6 +512,8 @@ class AuditAction {
     caregiverMessageCreated,
     caregiverMessageUpdated,
     caregiverMessageDeleted,
+    auditLogRetentionUpdated,
+    auditLogsPurged,
   ];
 }
 

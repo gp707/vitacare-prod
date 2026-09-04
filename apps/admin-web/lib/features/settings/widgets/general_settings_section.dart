@@ -141,7 +141,137 @@ class _GeneralSettingsSectionState extends ConsumerState<GeneralSettingsSection>
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
+          const _AuditLogRetentionCard(),
+          const SizedBox(height: AppSpacing.lg),
           const _ChangePasswordCard(),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuditLogRetentionCard extends ConsumerStatefulWidget {
+  const _AuditLogRetentionCard();
+
+  @override
+  ConsumerState<_AuditLogRetentionCard> createState() => _AuditLogRetentionCardState();
+}
+
+class _AuditLogRetentionCardState extends ConsumerState<_AuditLogRetentionCard> {
+  bool _loading = true;
+  bool _saving = false;
+  String? _errorMessage;
+  String? _updatedByName;
+  String? _updatedAt;
+  late TextEditingController _retentionDaysController;
+
+  @override
+  void initState() {
+    super.initState();
+    _retentionDaysController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _retentionDaysController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+    try {
+      final settings = await ref.read(auditLogRetentionRepositoryProvider).get();
+      if (!mounted) return;
+      setState(() {
+        _retentionDaysController.text = settings.retentionDays.toString();
+        _updatedByName = settings.updatedByName;
+        _updatedAt = settings.updatedAt;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    final days = int.tryParse(_retentionDaysController.text.trim());
+    if (days == null || days < 1) {
+      setState(() => _errorMessage = 'Enter a whole number of at least 1');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref.read(auditLogRetentionRepositoryProvider).update(days);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audit log retention saved')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const _SectionCard(
+        icon: Icons.auto_delete_outlined,
+        title: 'Audit Log Retention',
+        description: 'Loading…',
+        child: SizedBox(height: 40, child: Center(child: VitaLoadingIndicator())),
+      );
+    }
+    return _SectionCard(
+      icon: Icons.auto_delete_outlined,
+      title: 'Audit Log Retention',
+      description: 'How many days an audit log entry stays in the database. Every night, entries older '
+          'than this are permanently deleted — there is no backup or export, this cannot be undone.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_errorMessage != null) ...[
+            Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          SizedBox(
+            width: 200,
+            child: TextField(
+              controller: _retentionDaysController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Days',
+                prefixIcon: Icon(Icons.calendar_today, size: 18),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (_updatedByName != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                'Last updated by $_updatedByName${_updatedAt != null ? ' on $_updatedAt' : ''}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+              ),
+            ),
+          ElevatedButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.check, size: 18),
+            label: const Text('Save'),
+          ),
         ],
       ),
     );

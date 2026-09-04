@@ -11,6 +11,7 @@ import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/settings/data/job_settings_repository.dart';
+import 'package:admin_web/features/settings/data/audit_log_retention_repository.dart';
 import 'package:admin_web/features/settings/data/admin_profile_repository.dart';
 import 'package:admin_web/features/settings/screens/settings_screen.dart';
 import 'package:admin_web/features/rate_card/data/rate_card_repository.dart';
@@ -45,6 +46,26 @@ class _FakeJobSettingsRepository extends JobSettingsRepository {
     savedDays = applyByWindowDays;
     current = JobSettingsWithUpdater(
       applyByWindowDays: applyByWindowDays,
+      updatedByName: 'Test Admin',
+      updatedAt: '2026-08-30T10:00:00Z',
+    );
+  }
+}
+
+class _FakeAuditLogRetentionRepository extends AuditLogRetentionRepository {
+  AuditLogRetentionWithUpdater current;
+  int? savedDays;
+
+  _FakeAuditLogRetentionRepository(this.current) : super(Dio());
+
+  @override
+  Future<AuditLogRetentionWithUpdater> get() async => current;
+
+  @override
+  Future<void> update(int retentionDays) async {
+    savedDays = retentionDays;
+    current = AuditLogRetentionWithUpdater(
+      retentionDays: retentionDays,
       updatedByName: 'Test Admin',
       updatedAt: '2026-08-30T10:00:00Z',
     );
@@ -201,6 +222,7 @@ class _FakeOtpSettingsRepository extends OtpSettingsRepository {
 
 class _Repos {
   final _FakeJobSettingsRepository jobSettings;
+  final _FakeAuditLogRetentionRepository auditLogRetention;
   final _FakeAdminProfileRepository adminProfile;
   final _FakeRateCardRepository rateCard;
   final _FakeScopeOfWorkRepository scopeOfWork;
@@ -210,6 +232,7 @@ class _Repos {
 
   _Repos({
     _FakeJobSettingsRepository? jobSettings,
+    _FakeAuditLogRetentionRepository? auditLogRetention,
     _FakeAdminProfileRepository? adminProfile,
     _FakeRateCardRepository? rateCard,
     _FakeScopeOfWorkRepository? scopeOfWork,
@@ -218,6 +241,8 @@ class _Repos {
     _FakeOtpSettingsRepository? otpSettings,
   })  : jobSettings = jobSettings ??
             _FakeJobSettingsRepository(const JobSettingsWithUpdater(applyByWindowDays: 3)),
+        auditLogRetention = auditLogRetention ??
+            _FakeAuditLogRetentionRepository(const AuditLogRetentionWithUpdater(retentionDays: 180)),
         adminProfile = adminProfile ?? _FakeAdminProfileRepository(),
         rateCard = rateCard ??
             _FakeRateCardRepository({
@@ -245,6 +270,7 @@ Future<void> _pump(WidgetTester tester, _Repos repos) async {
             ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
         ),
         jobSettingsRepositoryProvider.overrideWithValue(repos.jobSettings),
+        auditLogRetentionRepositoryProvider.overrideWithValue(repos.auditLogRetention),
         adminProfileRepositoryProvider.overrideWithValue(repos.adminProfile),
         rateCardRepositoryProvider.overrideWithValue(repos.rateCard),
         scopeOfWorkRepositoryProvider.overrideWithValue(repos.scopeOfWork),
@@ -293,7 +319,7 @@ void main() {
       expect(field, findsOneWidget);
 
       await tester.enterText(field, '5');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
       await tester.pumpAndSettle();
 
       expect(repos.jobSettings.savedDays, 5);
@@ -306,10 +332,38 @@ void main() {
       await _pump(tester, repos);
 
       await tester.enterText(find.widgetWithText(TextField, '3'), '0');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
       await tester.pumpAndSettle();
 
       expect(repos.jobSettings.savedDays, isNull);
+      expect(find.text('Enter a whole number of at least 1'), findsOneWidget);
+    });
+
+    testWidgets('loads and saves the audit log retention window', (tester) async {
+      final repos = _Repos();
+      await _pump(tester, repos);
+
+      final field = find.widgetWithText(TextField, '180');
+      expect(field, findsOneWidget);
+
+      await tester.enterText(field, '90');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save').at(1));
+      await tester.pumpAndSettle();
+
+      expect(repos.auditLogRetention.savedDays, 90);
+      expect(find.text('Audit log retention saved'), findsOneWidget);
+      expect(find.textContaining('Last updated by Test Admin'), findsOneWidget);
+    });
+
+    testWidgets('rejects a non-positive audit log retention window without calling the repository', (tester) async {
+      final repos = _Repos();
+      await _pump(tester, repos);
+
+      await tester.enterText(find.widgetWithText(TextField, '180'), '0');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save').at(1));
+      await tester.pumpAndSettle();
+
+      expect(repos.auditLogRetention.savedDays, isNull);
       expect(find.text('Enter a whole number of at least 1'), findsOneWidget);
     });
 

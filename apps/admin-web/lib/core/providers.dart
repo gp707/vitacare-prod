@@ -18,6 +18,7 @@ import '../features/rate_card/data/rate_card_repository.dart';
 import '../features/scope_of_work/data/scope_of_work_repository.dart';
 import '../features/duty_requirements/data/duty_requirements_repository.dart';
 import '../features/settings/data/job_settings_repository.dart';
+import '../features/settings/data/audit_log_retention_repository.dart';
 import '../features/settings/data/admin_profile_repository.dart';
 import '../features/individual_messages/data/individual_messages_repository.dart';
 import '../features/caregiver_messages/data/caregiver_messages_repository.dart';
@@ -110,6 +111,10 @@ final adminReportsRepositoryProvider = Provider<AdminReportsRepository>((ref) {
 
 final jobSettingsRepositoryProvider = Provider<JobSettingsRepository>((ref) {
   return JobSettingsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final auditLogRetentionRepositoryProvider = Provider<AuditLogRetentionRepository>((ref) {
+  return AuditLogRetentionRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminProfileRepositoryProvider = Provider<AdminProfileRepository>((ref) {

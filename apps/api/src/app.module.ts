@@ -19,6 +19,7 @@ import { DutyRequirementsModule } from './duty-requirements/duty-requirements.mo
 import { JobSettingsModule } from './job-settings/job-settings.module';
 import { IndividualMessagesModule } from './individual-messages/individual-messages.module';
 import { CaregiverMessagesModule } from './caregiver-messages/caregiver-messages.module';
+import { AuditLogRetentionModule } from './audit-log-retention/audit-log-retention.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -46,6 +47,7 @@ import { validateEnv } from './config/env.validation';
     JobSettingsModule,
     IndividualMessagesModule,
     CaregiverMessagesModule,
+    AuditLogRetentionModule,
   ],
 })
 export class AppModule {}

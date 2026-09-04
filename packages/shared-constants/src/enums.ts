@@ -190,6 +190,8 @@ export const AuditAction = {
   CAREGIVER_MESSAGE_CREATED: 'caregiver_message_created',
   CAREGIVER_MESSAGE_UPDATED: 'caregiver_message_updated',
   CAREGIVER_MESSAGE_DELETED: 'caregiver_message_deleted',
+  AUDIT_LOG_RETENTION_UPDATED: 'audit_log_retention_updated',
+  AUDIT_LOGS_PURGED: 'audit_logs_purged',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
