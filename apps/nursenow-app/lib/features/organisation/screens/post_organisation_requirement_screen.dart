@@ -33,6 +33,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _specialSkillsController = TextEditingController();
   final _numberOfVacanciesController = TextEditingController(text: '1');
   String? _preferredGender;
+  String? _durationType;
 
   bool _saving = false;
   String? _error;
@@ -41,6 +42,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _typeOfNurseKey = GlobalKey();
   final _typeOfNurseOtherKey = GlobalKey();
   final _numberOfVacanciesKey = GlobalKey();
+  final _durationTypeKey = GlobalKey();
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _specialSkillsController.text = source.specialSkills ?? '';
       _numberOfVacanciesController.text = source.numberOfVacancies.toString();
       _preferredGender = source.preferredGender;
+      _durationType = source.durationType;
     }
   }
 
@@ -65,8 +68,14 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
     return value != null && value > 0 && value < 50;
   }
 
+  bool get _isDurationTypeValid => _durationType != null;
+
   bool get _canSubmit =>
-      !_saving && _isTypeOfNurseValid && _isTypeOfNurseOtherValid && _isNumberOfVacanciesValid;
+      !_saving &&
+      _isTypeOfNurseValid &&
+      _isTypeOfNurseOtherValid &&
+      _isNumberOfVacanciesValid &&
+      _isDurationTypeValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one seen when Submit scrolls/focuses to it.
@@ -74,6 +83,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
         _typeOfNurseKey,
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
+        _durationTypeKey,
       ];
 
   @override
@@ -116,6 +126,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             specialSkills: _specialSkillsController.text.trim(),
             numberOfVacancies: int.parse(_numberOfVacanciesController.text.trim()),
             preferredGender: _preferredGender,
+            durationType: _durationType!,
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -178,6 +189,22 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
                     ? 'Enter a number between 1 and 49'
                     : null,
               ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              key: _durationTypeKey,
+              isExpanded: true,
+              initialValue: _durationType,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.hourglass_bottom),
+                labelText: 'Duration (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isDurationTypeValid ? 'Please select a duration' : null,
+              ),
+              items: RequirementDuration.all
+                  .map((d) => DropdownMenuItem(value: d, child: Text(RequirementDuration.displayNames[d] ?? d)))
+                  .toList(),
+              onChanged: (value) => setState(() => _durationType = value),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

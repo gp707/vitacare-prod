@@ -370,38 +370,18 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     await _load();
   }
 
-  /// Doubles as "Approve" (from pending_review, sets frequency/salary/
-  /// schedule for the first time) and "Edit" (from active/closed — admin
-  /// can revisit/correct those same admin-set fields later; every other
-  /// field stays org-owned, unchanged from [requirement]) — same dialog,
-  /// same endpoint, only the label changes with current status.
-  Future<void> _editRequirement(
+  /// Only offered for a pending_review requirement — a bare approve click,
+  /// no fields to fill in (the organisation set everything itself).
+  Future<void> _approveRequirement(
       AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => EditRequirementDialog(
+      builder: (dialogContext) => ApproveRequirementDialog(
         requirement: requirement,
-        onSubmit: (frequency, salary, scheduleType, startDate, endDate,
-            scheduleRepeat, specificDays) async {
+        onSubmit: () async {
           await ref
               .read(adminOrganisationRequirementsRepositoryProvider)
-              .approve(
-                requirement.id,
-                typeOfNurse: requirement.typeOfNurse,
-                typeOfNurseOther: requirement.typeOfNurseOther,
-                frequencyOfCare: frequency,
-                salaryAmount: salary,
-                scheduleType: scheduleType,
-                startDate: startDate,
-                endDate: endDate,
-                scheduleRepeat: scheduleRepeat,
-                specificDays: specificDays,
-                accommodationProvided: requirement.accommodationProvided,
-                foodProvided: requirement.foodProvided,
-                specialSkills: requirement.specialSkills,
-                numberOfVacancies: requirement.numberOfVacancies,
-                preferredGender: requirement.preferredGender,
-              );
+              .approve(requirement.id);
           await _load();
         },
       ),
@@ -458,18 +438,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     }
   }
 
-  /// Row tap opens the full detail read-only; its own Edit button hands
-  /// off to _editRequirement.
+  /// Row tap opens the full detail read-only; its own Approve button (shown
+  /// only for a pending_review requirement) hands off to
+  /// _approveRequirement.
   Future<void> _viewRequirementDetail(
       AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => RequirementReadOnlyDialog(
         requirement: requirement,
-        onEdit: () {
-          Navigator.of(dialogContext).pop();
-          _editRequirement(requirement);
-        },
+        onApprove: requirement.status == JobStatus.pendingReview
+            ? () {
+                Navigator.of(dialogContext).pop();
+                _approveRequirement(requirement);
+              }
+            : null,
       ),
     );
   }
@@ -791,7 +774,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         _RequirementEntry(:final requirement) => RequirementRow(
                             requirement: requirement,
                             onTap: () => _viewRequirementDetail(requirement),
-                            onEdit: () => _editRequirement(requirement),
+                            onApprove:
+                                requirement.status == JobStatus.pendingReview
+                                    ? () => _approveRequirement(requirement)
+                                    : null,
                             onReject:
                                 requirement.status == JobStatus.pendingReview
                                     ? () => _rejectRequirement(requirement)

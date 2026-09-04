@@ -24,19 +24,13 @@ AdminOrganisationRequirement _requirement({
   String id = 'r1',
   int requirementNumber = 101,
   String status = JobStatus.pendingReview,
-  String? frequencyOfCare,
-  int? salaryAmount,
-  String? scheduleType,
-  String? startDate,
-  String? endDate,
-  String? scheduleRepeat,
-  List<int>? specificDays,
   String? rejectionReason,
   bool accommodationProvided = true,
   bool foodProvided = false,
   String? typeOfNurseOther,
   int numberOfVacancies = 1,
   String? preferredGender,
+  String? durationType = RequirementDuration.shortTerm,
 }) {
   return AdminOrganisationRequirement(
     id: id,
@@ -44,17 +38,11 @@ AdminOrganisationRequirement _requirement({
     postedBy: 'org-user-1',
     typeOfNurse: TypeOfNurse.auxiliaryNurse,
     typeOfNurseOther: typeOfNurseOther,
-    frequencyOfCare: frequencyOfCare,
-    salaryAmount: salaryAmount,
-    scheduleType: scheduleType,
-    startDate: startDate,
-    endDate: endDate,
-    scheduleRepeat: scheduleRepeat,
-    specificDays: specificDays,
     accommodationProvided: accommodationProvided,
     foodProvided: foodProvided,
     numberOfVacancies: numberOfVacancies,
     preferredGender: preferredGender,
+    durationType: durationType,
     status: status,
     rejectionReason: rejectionReason,
     postedAt: '2026-08-01T10:00:00Z',
@@ -86,13 +74,6 @@ class _FakeAdminOrganisationRequirementsRepository
   List<AdminOrganisationRequirement> items;
   List<OrganisationRequirementApplicationModel> applications;
   String? approvedId;
-  String? approvedFrequency;
-  int? approvedSalary;
-  String? approvedScheduleType;
-  String? approvedStartDate;
-  String? approvedEndDate;
-  String? approvedScheduleRepeat;
-  List<int>? approvedSpecificDays;
   String? rejectedId;
   String? rejectedReason;
   String? decidedRequirementId;
@@ -125,31 +106,8 @@ class _FakeAdminOrganisationRequirementsRepository
   }
 
   @override
-  Future<void> approve(
-    String id, {
-    required String typeOfNurse,
-    String? typeOfNurseOther,
-    required String frequencyOfCare,
-    required int salaryAmount,
-    required String scheduleType,
-    String? startDate,
-    String? endDate,
-    String? scheduleRepeat,
-    List<int>? specificDays,
-    required bool accommodationProvided,
-    required bool foodProvided,
-    String? specialSkills,
-    required int numberOfVacancies,
-    String? preferredGender,
-  }) async {
+  Future<void> approve(String id) async {
     approvedId = id;
-    approvedFrequency = frequencyOfCare;
-    approvedSalary = salaryAmount;
-    approvedScheduleType = scheduleType;
-    approvedStartDate = startDate;
-    approvedEndDate = endDate;
-    approvedScheduleRepeat = scheduleRepeat;
-    approvedSpecificDays = specificDays;
   }
 
   @override
@@ -247,206 +205,35 @@ void main() {
   });
 
   testWidgets(
-      'Reject only shows for a pending_review requirement; Edit is always available',
+      'Approve and Reject only show for a pending_review requirement; nothing to edit once active',
       (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.monthly,
-            salaryAmount: 25000),
+        _requirement(status: JobStatus.active),
       ]),
     );
 
     expect(find.text('Approve'), findsNothing);
     expect(find.text('Reject'), findsNothing);
     expect(find.text('Applicants'), findsOneWidget);
-    expect(find.text('Edit'), findsOneWidget);
   });
 
   testWidgets(
-      'editing an active requirement pre-fills current frequency/salary/schedule and calls approve() again',
+      'approving a pending_review requirement is a bare click — no fields to fill in',
       (tester) async {
-    final repo = _FakeAdminOrganisationRequirementsRepository([
-      _requirement(
-        status: JobStatus.active,
-        frequencyOfCare: FrequencyOfCare.monthly,
-        salaryAmount: 25000,
-        scheduleType: 'specific_days',
-        scheduleRepeat: 'monthly',
-        specificDays: [3, 12, 20],
-      ),
-    ]);
+    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Edit'));
+    await tester.tap(find.text('Approve'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
-    expect(find.text('Monthly'), findsWidgets);
-    final salaryField = tester.widget<TextField>(find.descendant(
-        of: find.byType(AlertDialog), matching: find.byType(TextField)));
-    expect(salaryField.controller!.text, '25000');
-    // Pre-filled from the existing specific_days/monthly schedule — 3
-    // pre-selected days show as 3 green check-circle markers on the
-    // calendar (no date-range checkmarks exist in this schedule mode).
-    expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
+    expect(find.text('Approve ORG-JOB-101'), findsOneWidget);
 
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(AlertDialog), matching: find.byType(TextField)),
-        '28000');
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Approve'));
     await tester.pumpAndSettle();
 
     expect(repo.approvedId, 'r1');
-    expect(repo.approvedFrequency, FrequencyOfCare.monthly);
-    expect(repo.approvedSalary, 28000);
-    expect(repo.approvedScheduleType, 'specific_days');
-    expect(repo.approvedScheduleRepeat, 'monthly');
-    expect(repo.approvedSpecificDays, [3, 12, 20]);
-  });
-
-  testWidgets(
-      'approving with a specific_days/monthly schedule fills frequency/salary/days (via the calendar) and calls the repository',
-      (tester) async {
-    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Monthly').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(AlertDialog), matching: find.byType(TextField)),
-        '30000');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Specific Days'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Monthly').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('5'));
-    await tester.tap(find.text('15'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Approve').last);
-    await tester.pumpAndSettle();
-
-    expect(repo.approvedId, 'r1');
-    expect(repo.approvedFrequency, FrequencyOfCare.monthly);
-    expect(repo.approvedSalary, 30000);
-    expect(repo.approvedScheduleType, 'specific_days');
-    expect(repo.approvedScheduleRepeat, 'monthly');
-    expect(repo.approvedSpecificDays, [5, 15]);
-  });
-
-  testWidgets(
-      'approving with a specific_days/weekly schedule picks weekday chips and calls the repository',
-      (tester) async {
-    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Monthly').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(AlertDialog), matching: find.byType(TextField)),
-        '30000');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Specific Days'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Weekly').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Mon'));
-    await tester.tap(find.widgetWithText(FilterChip, 'Wed'));
-    await tester.tap(find.widgetWithText(FilterChip, 'Fri'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Approve').last);
-    await tester.pumpAndSettle();
-
-    expect(repo.approvedId, 'r1');
-    expect(repo.approvedScheduleType, 'specific_days');
-    expect(repo.approvedScheduleRepeat, 'weekly');
-    expect(repo.approvedSpecificDays, [1, 3, 5]);
-  });
-
-  testWidgets(
-      'the Save/Approve button stays disabled until a repeat cadence is chosen for a specific_days schedule',
-      (tester) async {
-    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Monthly').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(AlertDialog), matching: find.byType(TextField)),
-        '30000');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Specific Days'));
-    await tester.pumpAndSettle();
-
-    // No repeat cadence chosen yet, so neither the weekday chips nor the
-    // calendar have rendered, and submit stays disabled.
-    final approveButton = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Approve').last);
-    expect(approveButton.onPressed, isNull);
-  });
-
-  testWidgets(
-      'approving with a date_range schedule requires both dates and calls the repository',
-      (tester) async {
-    final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Monthly').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-        find.descendant(
-            of: find.byType(AlertDialog), matching: find.byType(TextField)),
-        '30000');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Date Range'));
-    await tester.pumpAndSettle();
-
-    // Save Changes/Approve stays disabled until both dates are picked —
-    // exercised via the submit button's onPressed being null rather than
-    // driving the real date picker dialog.
-    final approveButton = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Approve').last);
-    expect(approveButton.onPressed, isNull);
   });
 
   testWidgets('rejecting requires a reason before Confirm is enabled',
@@ -480,10 +267,7 @@ void main() {
   ) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
       [
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.daily,
-            salaryAmount: 1500)
+        _requirement(status: JobStatus.active)
       ],
       [_application()],
     );
@@ -506,10 +290,7 @@ void main() {
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
       [
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.daily,
-            salaryAmount: 1500)
+        _requirement(status: JobStatus.active)
       ],
       [_application(status: JobApplicationStatus.accepted)],
     );
@@ -527,10 +308,7 @@ void main() {
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository(
       [
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.daily,
-            salaryAmount: 1500)
+        _requirement(status: JobStatus.active)
       ],
       [_application(status: JobApplicationStatus.accepted)],
     );
@@ -546,15 +324,12 @@ void main() {
   });
 
   testWidgets(
-      'tapping the requirement row opens a read-only detail view, not the edit form',
+      'tapping an active requirement row opens a read-only detail view with no Approve action',
       (tester) async {
     await _pump(
       tester,
       _FakeAdminOrganisationRequirementsRepository([
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.daily,
-            salaryAmount: 1800),
+        _requirement(status: JobStatus.active),
       ]),
     );
 
@@ -567,26 +342,18 @@ void main() {
         findsOneWidget);
     expect(
         find.descendant(
-            of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')),
-        findsOneWidget);
+            of: dialog, matching: find.widgetWithText(ElevatedButton, 'Approve')),
+        findsNothing);
     expect(find.descendant(of: dialog, matching: find.text('Close')),
         findsOneWidget);
-    // Read-only: not the edit form.
-    expect(find.text('Edit ORG-JOB-101'), findsNothing);
-    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
   });
 
   testWidgets(
-      'tapping Edit inside the read-only detail view opens the edit form',
+      'tapping Approve inside a pending_review requirement\'s read-only detail view opens the approve confirmation',
       (tester) async {
     await _pump(
       tester,
-      _FakeAdminOrganisationRequirementsRepository([
-        _requirement(
-            status: JobStatus.active,
-            frequencyOfCare: FrequencyOfCare.daily,
-            salaryAmount: 1800),
-      ]),
+      _FakeAdminOrganisationRequirementsRepository([_requirement()]),
     );
 
     await tester.tap(find.text('ORG-JOB-101'));
@@ -595,11 +362,10 @@ void main() {
     final readOnlyDialog = find.byType(AlertDialog);
     await tester.tap(find.descendant(
         of: readOnlyDialog,
-        matching: find.widgetWithText(ElevatedButton, 'Edit')));
+        matching: find.widgetWithText(ElevatedButton, 'Approve')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+    expect(find.text('Approve ORG-JOB-101'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 

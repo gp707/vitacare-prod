@@ -88,6 +88,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
+    duration_type: 'short_term',
     ...overrides,
   });
 
@@ -288,6 +289,58 @@ describe('Organisation requirement enhancements (e2e)', () => {
     });
   });
 
+  describe('POST /v1/organisation/requirements — Duration Type', () => {
+    it('is mandatory — rejects when omitted', async () => {
+      const org = await registerOrganisation('0090');
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects an unrecognized value', async () => {
+      const org = await registerOrganisation('0091');
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ duration_type: 'medium_term' }))
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it.each([
+      ['0092', 'short_term'],
+      ['0093', 'long_term'],
+    ])('accepts and persists %s: %s', async (phoneSuffix, value) => {
+      const org = await registerOrganisation(phoneSuffix);
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ duration_type: value }))
+        .expect(201);
+      expect(res.body.data.duration_type).toBe(value);
+    });
+
+    it('can be changed via org self-edit', async () => {
+      const org = await registerOrganisation('0094');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ duration_type: 'short_term' }))
+        .expect(201);
+      const requirementId = create.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(selfEditPayload({ duration_type: 'long_term' }))
+        .expect(200);
+      expect(res.body.data.duration_type).toBe('long_term');
+    });
+  });
+
   describe('Caregiver-facing preferred_gender enforcement', () => {
     it('a female-preferred requirement is hidden from a male caregiver and visible to a female one', async () => {
       const org = await registerOrganisation('0060');
@@ -352,7 +405,6 @@ describe('Organisation requirement enhancements (e2e)', () => {
       expect(res.body.data.number_of_vacancies).toBe(7);
       expect(res.body.data.preferred_gender).toBe('male');
       expect(res.body.data.status).toBe('pending_review');
-      expect(res.body.data.frequency_of_care).toBeNull();
     });
 
     it('rejects editing a requirement owned by a different organisation (GEN_002)', async () => {
@@ -411,7 +463,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
   });
 
   describe('POST /v1/organisation/requirements/:id/cancel — org self-cancel', () => {
-    it('cancels the requirement, bulk-rejects active applications, and hides applicants afterward', async () => {
+    it('cancels the requirement without touching any application — candidates stay visible and actionable', async () => {
       const org = await registerOrganisation('0080');
       const create = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -438,7 +490,6 @@ describe('Organisation requirement enhancements (e2e)', () => {
         .set('Authorization', `Bearer ${org.access_token}`)
         .expect(200);
       expect(cancelRes.body.data.status).toBe('closed');
-      expect(cancelRes.body.data.rejected_applications).toBe(1);
 
       const row = await db.query('SELECT status, cancelled_at FROM organisation_requirements WHERE id = $1', [
         requirementId,
@@ -446,11 +497,28 @@ describe('Organisation requirement enhancements (e2e)', () => {
       expect(row.rows[0].status).toBe('closed');
       expect(row.rows[0].cancelled_at).not.toBeNull();
 
+      // The candidate's application is untouched — still 'applied', not
+      // rejected — and stays fully visible/actionable after cancellation.
       const applicationsRes = await request(app.getHttpServer())
         .get(`/v1/organisation/requirements/${requirementId}/applications`)
         .set('Authorization', `Bearer ${org.access_token}`)
         .expect(200);
-      expect(applicationsRes.body.data).toEqual([]);
+      expect(applicationsRes.body.data).toHaveLength(1);
+      expect(applicationsRes.body.data[0].status).toBe('applied');
+      expect(applicationsRes.body.data[0].phone).toBeDefined();
+
+      const profileRes = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications/${applicationsRes.body.data[0].id}/profile`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      expect(profileRes.body.data.full_name).toBeDefined();
+
+      // Still accept/reject-able after cancellation.
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationsRes.body.data[0].id}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected' })
+        .expect(200);
     });
 
     it('rejects cancelling a second time (JOB_015)', async () => {

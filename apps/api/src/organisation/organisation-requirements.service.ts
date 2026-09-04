@@ -1,13 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  AuditAction,
-  JobApplicationStatus,
-  JobStatus,
-  ScheduleRepeat,
-  ScheduleType,
-  TypeOfNurse,
-  VerificationStatus,
-} from '@vitacare/shared-constants';
+import { AuditAction, JobApplicationStatus, JobStatus, TypeOfNurse, VerificationStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { DatabaseService } from '../database/database.service';
@@ -24,7 +16,6 @@ import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
-import { UpdateOrganisationRequirementDto } from './dto/update-organisation-requirement.dto';
 import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation-requirement.dto';
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
@@ -83,6 +74,7 @@ export class OrganisationRequirementsService {
       special_skills: dto.special_skills ?? null,
       number_of_vacancies: dto.number_of_vacancies ?? 1,
       preferred_gender: dto.preferred_gender ?? null,
+      duration_type: dto.duration_type,
       status: JobStatus.PENDING_REVIEW,
     });
 
@@ -107,8 +99,9 @@ export class OrganisationRequirementsService {
    *  re-review required, same as IndividualService.editRequirement.
    *  Allowed regardless of the requirement's current status (pending_review,
    *  active, or closed) — the only gate is whether a caregiver has already
-   *  responded (JOB_014). Never touches frequency_of_care/salary_amount/
-   *  schedule — those stay admin-only, unaffected by this call. */
+   *  responded (JOB_014). There is nothing admin-owned left to protect —
+   *  admin's own role is a pure approve/reject click (see
+   *  approveRequirement below), no fields at all. */
   async editRequirement(
     orgUserId: string,
     id: string,
@@ -131,6 +124,7 @@ export class OrganisationRequirementsService {
       special_skills: dto.special_skills ?? null,
       number_of_vacancies: dto.number_of_vacancies,
       preferred_gender: dto.preferred_gender ?? null,
+      duration_type: dto.duration_type,
     });
 
     await this.auditService.log({
@@ -150,10 +144,11 @@ export class OrganisationRequirementsService {
    *  lifecycle, regardless of whether anyone has applied. The only
    *  requirements that can't be cancelled are ones already terminated some
    *  other way — admin-rejected (rejection_reason set) or already cancelled
-   *  once (JOB_015 either way). Every still applied/accepted application is
-   *  bulk-rejected with a fixed system reason and, for any that was
-   *  accepted, that caregiver is flipped back to available. Mirrors
-   *  IndividualService.cancelRequirement exactly. */
+   *  once (JOB_015 either way). Deliberately does NOT touch any existing
+   *  application — unlike Individual, cancelling here means only "stop
+   *  accepting new applications going forward"; every applicant's status,
+   *  contact details, and profile stay exactly as they were, and the org
+   *  can still accept/reject them afterward via the normal decide flow. */
   async cancelRequirement(orgUserId: string, id: string, ipAddress: string | null) {
     const existing = await this.requirementsRepo.findById(id);
     if (!existing || existing.posted_by !== orgUserId) throw new AppException('GEN_002');
@@ -161,23 +156,7 @@ export class OrganisationRequirementsService {
       throw new AppException('JOB_015');
     }
 
-    const activeApplications = await this.applicationsRepo.findActiveForRequirement(id);
-
-    await this.db.withTransaction(async (client) => {
-      for (const application of activeApplications) {
-        await this.applicationsRepo.decide(
-          application.id,
-          JobApplicationStatus.REJECTED,
-          orgUserId,
-          client,
-          'This requirement was cancelled.',
-        );
-        if (application.status === JobApplicationStatus.ACCEPTED) {
-          await this.caregiverProfilesRepo.markAvailable(application.profile_id, client);
-        }
-      }
-      await this.requirementsRepo.cancel(id, client);
-    });
+    await this.requirementsRepo.cancel(id);
 
     await this.auditService.log({
       userId: orgUserId,
@@ -185,20 +164,19 @@ export class OrganisationRequirementsService {
       entityType: 'organisation_requirements',
       entityId: id,
       beforeValue: { status: existing.status },
-      afterValue: { status: 'closed', cancelled: true, rejected_applications: activeApplications.length },
+      afterValue: { status: 'closed', cancelled: true },
       ipAddress,
     });
 
-    return { message: 'Requirement cancelled', status: 'closed', rejected_applications: activeApplications.length };
+    return { message: 'Requirement cancelled', status: 'closed' };
   }
 
-  /** Once cancelled (see cancelRequirement above), the org can no longer see
-   *  who applied or their phone numbers — an empty list rather than an
-   *  error, matching IndividualService.getMyRequirementApplications. */
+  /** Applicants (and their profiles/contact details) always stay visible,
+   *  regardless of whether the requirement was later cancelled — cancelling
+   *  only stops new applications, it never hides who already applied. */
   async getRequirementApplications(orgUserId: string, requirementId: string) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
-    if (requirement.cancelled_at != null) return [];
     return this.applicationsRepo.findByRequirementId(requirementId);
   }
 
@@ -212,7 +190,6 @@ export class OrganisationRequirementsService {
   async getApplicantProfile(orgUserId: string, requirementId: string, applicationId: string) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
-    if (requirement.cancelled_at != null) throw new AppException('GEN_002');
     const application = await this.applicationsRepo.findById(applicationId);
     if (!application || application.requirement_id !== requirementId) throw new AppException('GEN_002');
     return this.caregiverService.getApplicantProfile(application.profile_id);
@@ -421,59 +398,27 @@ export class OrganisationRequirementsService {
     };
   }
 
-  /** Admin edits any field — same shape/validation as create. If the
-   *  requirement was pending_review, this is the approval: it activates
-   *  (push-broadcasts) and stamps posted_at, same repost pattern as
-   *  JobsService.updateJob. An edit of an already-active requirement does
-   *  not resend the push. */
-  async updateRequirement(
-    adminId: string,
-    id: string,
-    dto: UpdateOrganisationRequirementDto,
-    ipAddress: string | null,
-  ) {
+  /** Admin's entire role on an organisation requirement is a pure click —
+   *  approve (this method, no fields at all) or reject (below, reason
+   *  only). Every field is org-owned, set via the org's own create/self-
+   *  edit endpoints; admin never sees or touches any of them. Activates
+   *  (push-broadcasts) and stamps posted_at from pending_review OR a
+   *  previously-closed requirement — same repost-on-reactivate behavior
+   *  JobsService.updateJob has, just with no fields to submit alongside
+   *  it. A no-op (no push, no audit entry) if called on an already-active
+   *  requirement, since admin-web only shows this action for
+   *  pending_review/closed ones in the first place. */
+  async approveRequirement(adminId: string, id: string, ipAddress: string | null) {
     const existing = await this.requirementsRepo.findById(id);
     if (!existing) throw new AppException('GEN_002');
+    if (existing.status === JobStatus.ACTIVE) return existing;
 
-    this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
+    const requirement = await this.requirementsRepo.activate(id);
 
-    const shouldActivate = existing.status === JobStatus.CLOSED || existing.status === JobStatus.PENDING_REVIEW;
-
-    const isDateRange = dto.schedule_type === ScheduleType.DATE_RANGE;
-    if (isDateRange && dto.start_date && dto.end_date && dto.end_date < dto.start_date) {
-      throw new AppException('ORG_001');
-    }
-
-    const isSpecificDays = dto.schedule_type === ScheduleType.SPECIFIC_DAYS;
-    const isWeekly = isSpecificDays && dto.schedule_repeat === ScheduleRepeat.WEEKLY;
-    if (isWeekly && dto.specific_days?.some((day) => day < 1 || day > 7)) {
-      throw new AppException('ORG_002');
-    }
-
-    const requirement = await this.requirementsRepo.update(id, {
-      type_of_nurse: dto.type_of_nurse,
-      type_of_nurse_other: dto.type_of_nurse === TypeOfNurse.OTHERS ? (dto.type_of_nurse_other ?? null) : null,
-      frequency_of_care: dto.frequency_of_care,
-      salary_amount: dto.salary_amount,
-      schedule_type: dto.schedule_type,
-      start_date: isDateRange ? (dto.start_date ?? null) : null,
-      end_date: isDateRange ? (dto.end_date ?? null) : null,
-      schedule_repeat: isSpecificDays ? (dto.schedule_repeat ?? null) : null,
-      specific_days: isSpecificDays ? (dto.specific_days ?? null) : null,
-      accommodation_provided: dto.accommodation_provided,
-      food_provided: dto.food_provided,
-      special_skills: dto.special_skills ?? null,
-      number_of_vacancies: dto.number_of_vacancies,
-      preferred_gender: dto.preferred_gender ?? null,
-      activate: shouldActivate,
-    });
-
-    if (shouldActivate) {
-      await this.fcmService.sendToAllCaregivers(
-        'New Organisation Opening',
-        `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
-      );
-    }
+    await this.fcmService.sendToAllCaregivers(
+      'New Organisation Opening',
+      `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
+    );
 
     await this.auditService.log({
       userId: adminId,

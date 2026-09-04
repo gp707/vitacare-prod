@@ -6,10 +6,10 @@ import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 
-/// Edits the org-owned fields of the org's own requirement — never
-/// frequency_of_care/salary_amount/schedule, which stay admin-only (see
-/// UpdateOrganisationRequirementDto vs UpdateMyOrganisationRequirementDto
-/// on the backend). Allowed regardless of the requirement's own status
+/// Edits the org-owned fields of the org's own requirement — every field
+/// there is, since admin owns none of them (approval is a pure
+/// approve/reject click, see OrganisationRequirementsService.
+/// approveRequirement). Allowed regardless of the requirement's own status
 /// (pending_review/active/closed) — only gated on there being no active
 /// application (JOB_014), matching Individual's own EditRequirementScreen.
 class EditOrganisationRequirementScreen extends ConsumerStatefulWidget {
@@ -33,6 +33,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   late final _numberOfVacanciesController =
       TextEditingController(text: widget.requirement.numberOfVacancies.toString());
   late String? _preferredGender;
+  late String? _durationType;
 
   bool _saving = false;
   String? _error;
@@ -41,6 +42,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   final _typeOfNurseKey = GlobalKey();
   final _typeOfNurseOtherKey = GlobalKey();
   final _numberOfVacanciesKey = GlobalKey();
+  final _durationTypeKey = GlobalKey();
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
     _accommodationProvided = widget.requirement.accommodationProvided;
     _foodProvided = widget.requirement.foodProvided;
     _preferredGender = widget.requirement.preferredGender;
+    _durationType = widget.requirement.durationType;
   }
 
   bool get _isTypeOfNurseValid => _typeOfNurse != null;
@@ -59,13 +62,20 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
     return value != null && value > 0 && value < 50;
   }
 
+  bool get _isDurationTypeValid => _durationType != null;
+
   bool get _canSubmit =>
-      !_saving && _isTypeOfNurseValid && _isTypeOfNurseOtherValid && _isNumberOfVacanciesValid;
+      !_saving &&
+      _isTypeOfNurseValid &&
+      _isTypeOfNurseOtherValid &&
+      _isNumberOfVacanciesValid &&
+      _isDurationTypeValid;
 
   List<GlobalKey> get _mandatoryFieldKeysInOrder => [
         _typeOfNurseKey,
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
+        _durationTypeKey,
       ];
 
   @override
@@ -109,6 +119,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
             specialSkills: _specialSkillsController.text.trim(),
             numberOfVacancies: int.parse(_numberOfVacanciesController.text.trim()),
             preferredGender: _preferredGender,
+            durationType: _durationType!,
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -171,6 +182,22 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
                     ? 'Enter a number between 1 and 49'
                     : null,
               ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              key: _durationTypeKey,
+              isExpanded: true,
+              initialValue: _durationType,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.hourglass_bottom),
+                labelText: 'Duration (Mandatory)',
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isDurationTypeValid ? 'Please select a duration' : null,
+              ),
+              items: RequirementDuration.all
+                  .map((d) => DropdownMenuItem(value: d, child: Text(RequirementDuration.displayNames[d] ?? d)))
+                  .toList(),
+              onChanged: (value) => setState(() => _durationType = value),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

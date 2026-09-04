@@ -17,19 +17,13 @@ OrganisationRequirementModel _requirement({
   String id = 'req-1',
   int requirementNumber = 5,
   String status = 'active',
-  int? salaryAmount = 40000,
-  String? frequencyOfCare = 'monthly',
   String? rejectionReason,
   String? cancelledAt,
-  String? scheduleType,
-  String? startDate,
-  String? endDate,
-  String? scheduleRepeat,
-  List<int>? specificDays,
   String typeOfNurse = 'registered_nurse',
   String? typeOfNurseOther,
   int numberOfVacancies = 1,
   String? preferredGender,
+  String durationType = 'short_term',
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -37,18 +31,12 @@ OrganisationRequirementModel _requirement({
     'posted_by': 'org-1',
     'type_of_nurse': typeOfNurse,
     'type_of_nurse_other': typeOfNurseOther,
-    'frequency_of_care': frequencyOfCare,
-    'salary_amount': salaryAmount,
-    'schedule_type': scheduleType,
-    'start_date': startDate,
-    'end_date': endDate,
-    'schedule_repeat': scheduleRepeat,
-    'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Wound care',
     'number_of_vacancies': numberOfVacancies,
     'preferred_gender': preferredGender,
+    'duration_type': durationType,
     'status': status,
     'rejection_reason': rejectionReason,
     'cancelled_at': cancelledAt,
@@ -110,6 +98,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
+    required String durationType,
   }) async {
     editedRequirementId = requirementId;
     return _requirement(id: requirementId);
@@ -186,7 +175,7 @@ void main() {
       _FakeOrganisationRepository(
         requirements: [
           _requirement(id: 'req-1', requirementNumber: 1, status: 'active'),
-          _requirement(id: 'req-2', requirementNumber: 2, status: 'pending_review', salaryAmount: null, frequencyOfCare: null),
+          _requirement(id: 'req-2', requirementNumber: 2, status: 'pending_review'),
         ],
       ),
     );
@@ -198,60 +187,26 @@ void main() {
     expect(find.text('ORG-JOB-2'), findsOneWidget);
   });
 
-  testWidgets('shows requirement details: type of nurse, salary, accommodation/food, special skills',
+  testWidgets('shows requirement details: type of nurse, duration, accommodation/food, special skills',
       (tester) async {
-    await _pump(tester, _FakeOrganisationRepository(requirements: [_requirement()]));
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(requirements: [_requirement(durationType: 'long_term')]),
+    );
 
     expect(find.text('Live — visible to caregivers'), findsOneWidget);
-    expect(find.text('40000/month'), findsOneWidget);
     expect(find.text('Registered Nurse'), findsOneWidget);
+    expect(find.text('Long Term'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Wound care'), findsOneWidget);
-  });
-
-  testWidgets('shows the admin-set schedule once approved — date range', (tester) async {
-    await _pump(
-      tester,
-      _FakeOrganisationRepository(
-        requirements: [_requirement(scheduleType: 'date_range', startDate: '2026-09-01', endDate: '2026-09-10')],
-      ),
-    );
-
-    expect(find.text('2026-09-01 – 2026-09-10'), findsOneWidget);
-  });
-
-  testWidgets('shows the admin-set schedule once approved — specific days of the month', (tester) async {
-    await _pump(
-      tester,
-      _FakeOrganisationRepository(
-        requirements: [
-          _requirement(scheduleType: 'specific_days', scheduleRepeat: 'monthly', specificDays: [3, 12, 20]),
-        ],
-      ),
-    );
-
-    expect(find.text('Days: 3, 12, 20'), findsOneWidget);
-  });
-
-  testWidgets('shows the admin-set schedule once approved — specific days of the week', (tester) async {
-    await _pump(
-      tester,
-      _FakeOrganisationRepository(
-        requirements: [
-          _requirement(scheduleType: 'specific_days', scheduleRepeat: 'weekly', specificDays: [1, 3, 5]),
-        ],
-      ),
-    );
-
-    expect(find.text('Every: Mon, Wed, Fri'), findsOneWidget);
   });
 
   testWidgets('shows the accepted caregiver on a closed requirement', (tester) async {
     await _pump(
       tester,
       _FakeOrganisationRepository(
-        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        requirements: [_requirement(status: 'closed')],
         applicationsByRequirementId: {
           'req-1': [_application(status: 'accepted')],
         },
@@ -300,7 +255,7 @@ void main() {
 
   testWidgets('View Profile is also available for an already-decided (accepted) applicant', (tester) async {
     final repo = _FakeOrganisationRepository(
-      requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+      requirements: [_requirement(status: 'closed')],
       applicationsByRequirementId: {
         'req-1': [_application(status: 'accepted')],
       },
@@ -389,7 +344,7 @@ void main() {
   testWidgets('Cancel the Requirement is disabled once the requirement was admin-rejected', (tester) async {
     final repo = _FakeOrganisationRepository(
       requirements: [
-        _requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, rejectionReason: 'Not needed'),
+        _requirement(status: 'closed', rejectionReason: 'Not needed'),
       ],
     );
     await _pump(tester, repo);
@@ -404,7 +359,7 @@ void main() {
       (tester) async {
     final repo = _FakeOrganisationRepository(
       requirements: [
-        _requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, cancelledAt: '2026-08-05T10:00:00Z'),
+        _requirement(status: 'closed', cancelledAt: '2026-08-05T10:00:00Z'),
       ],
     );
     await _pump(tester, repo);

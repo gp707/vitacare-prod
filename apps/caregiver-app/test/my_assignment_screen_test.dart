@@ -73,24 +73,12 @@ OrganisationRequirementModel _assignedRequirement({
   int requirementNumber = 7,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-04T10:00:00Z',
-  String? scheduleType,
-  String? startDate,
-  String? endDate,
-  String? scheduleRepeat,
-  List<int>? specificDays,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
     'requirement_number': requirementNumber,
     'posted_by': 'org-1',
     'type_of_nurse': 'registered_nurse',
-    'frequency_of_care': 'monthly',
-    'salary_amount': 40000,
-    'schedule_type': scheduleType,
-    'start_date': startDate,
-    'end_date': endDate,
-    'schedule_repeat': scheduleRepeat,
-    'specific_days': specificDays,
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
@@ -469,96 +457,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining("now available for new jobs"), findsOneWidget);
-  });
-
-  testWidgets('shows a highlighted red date range next to the salary for an assigned date_range requirement',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(400, 2800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    // ignore: invalid_use_of_visible_for_testing_member
-    SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-          organisationOpeningsRepositoryProvider.overrideWithValue(
-            _FakeOrganisationOpeningsRepository([
-              _assignedRequirement(scheduleType: 'date_range', startDate: '2026-08-25', endDate: '2026-09-05'),
-            ]),
-          ),
-          localStorageProvider.overrideWithValue(await LocalStorage.create()),
-          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
-        ],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    // Not pumpAndSettle: the schedule badge blinks via a repeating
-    // AnimationController by design, so it never "settles".
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    expect(find.text('40000/month'), findsOneWidget);
-    expect(find.text('2026-08-25 – 2026-09-05'), findsOneWidget);
-    final salaryStyle = tester.widget<Text>(find.text('40000/month')).style!;
-    final scheduleStyle = tester.widget<Text>(find.text('2026-08-25 – 2026-09-05')).style!;
-    expect(scheduleStyle.color, AppColors.error);
-    expect(scheduleStyle.fontSize, salaryStyle.fontSize);
-  });
-
-  testWidgets('shows a highlighted red day list for an assigned specific_days/monthly requirement', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(400, 2800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    // ignore: invalid_use_of_visible_for_testing_member
-    SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-          organisationOpeningsRepositoryProvider.overrideWithValue(
-            _FakeOrganisationOpeningsRepository([
-              _assignedRequirement(scheduleType: 'specific_days', scheduleRepeat: 'monthly', specificDays: [5, 15, 25]),
-            ]),
-          ),
-          localStorageProvider.overrideWithValue(await LocalStorage.create()),
-          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
-        ],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    expect(find.text('Days: 5, 15, 25'), findsOneWidget);
-    final scheduleStyle = tester.widget<Text>(find.text('Days: 5, 15, 25')).style!;
-    expect(scheduleStyle.color, AppColors.error);
-  });
-
-  testWidgets('shows a highlighted red weekday list for an assigned specific_days/weekly requirement',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(400, 2800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    // ignore: invalid_use_of_visible_for_testing_member
-    SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          jobsRepositoryProvider.overrideWithValue(_FakeJobsRepository()),
-          organisationOpeningsRepositoryProvider.overrideWithValue(
-            _FakeOrganisationOpeningsRepository([
-              _assignedRequirement(scheduleType: 'specific_days', scheduleRepeat: 'weekly', specificDays: [2, 4]),
-            ]),
-          ),
-          localStorageProvider.overrideWithValue(await LocalStorage.create()),
-          caregiverMessagesRepositoryProvider.overrideWithValue(_FakeCaregiverMessagesRepository()),
-        ],
-        child: const MaterialApp(home: MyAssignmentScreen()),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    expect(find.text('Every: Tue, Thu'), findsOneWidget);
-    final scheduleStyle = tester.widget<Text>(find.text('Every: Tue, Thu')).style!;
-    expect(scheduleStyle.color, AppColors.error);
   });
 }

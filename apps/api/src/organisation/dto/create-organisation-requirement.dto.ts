@@ -10,11 +10,13 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { Gender, TypeOfNurse } from '@vitacare/shared-constants';
+import { Gender, RequirementDuration, TypeOfNurse } from '@vitacare/shared-constants';
 
 /** The "exclusive" org posting form — no care_receiver, no city/area/
- *  duty_type (inherited from the org's own registered location), and no
- *  frequency_of_care/salary_amount/start_date (admin-set on approval). */
+ *  duty_type (inherited from the org's own registered location). Unlike
+ *  Individual, there is no frequency_of_care/salary_amount/schedule at
+ *  all here — admin's approval is a pure approve/reject click, nothing
+ *  for admin to set (see OrganisationRequirementsService.approveRequirement). */
 export class CreateOrganisationRequirementDto {
   @IsIn(Object.values(TypeOfNurse), { message: 'GEN_001' })
   type_of_nurse!: string;
@@ -50,4 +52,9 @@ export class CreateOrganisationRequirementDto {
   @IsOptional()
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
   preferred_gender?: string;
+
+  /** How long the engagement is expected to run — org-owned, org-set at
+   *  creation, distinct from Individual's 4-value care_duration. */
+  @IsIn(Object.values(RequirementDuration), { message: 'GEN_001' })
+  duration_type!: string;
 }

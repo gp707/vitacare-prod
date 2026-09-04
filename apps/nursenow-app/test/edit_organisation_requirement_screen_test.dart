@@ -20,6 +20,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? capturedSpecialSkills;
   int? capturedNumberOfVacancies;
   String? capturedPreferredGender;
+  String? capturedDurationType;
 
   _FakeOrganisationRepository({this.editError}) : super(Dio());
 
@@ -33,6 +34,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
+    required String durationType,
   }) async {
     editCalled = true;
     capturedRequirementId = requirementId;
@@ -43,6 +45,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     capturedSpecialSkills = specialSkills;
     capturedNumberOfVacancies = numberOfVacancies;
     capturedPreferredGender = preferredGender;
+    capturedDurationType = durationType;
     if (editError != null) throw editError!;
     return _requirement(
       typeOfNurse: typeOfNurse,
@@ -52,6 +55,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
       specialSkills: specialSkills,
       numberOfVacancies: numberOfVacancies,
       preferredGender: preferredGender,
+      durationType: durationType,
     );
   }
 }
@@ -65,6 +69,7 @@ OrganisationRequirementModel _requirement({
   String? specialSkills,
   int numberOfVacancies = 3,
   String? preferredGender,
+  String durationType = 'short_term',
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -72,13 +77,12 @@ OrganisationRequirementModel _requirement({
     'posted_by': 'org-1',
     'type_of_nurse': typeOfNurse,
     'type_of_nurse_other': typeOfNurseOther,
-    'frequency_of_care': null,
-    'salary_amount': null,
     'accommodation_provided': accommodationProvided,
     'food_provided': foodProvided,
     'special_skills': specialSkills,
     'number_of_vacancies': numberOfVacancies,
     'preferred_gender': preferredGender,
+    'duration_type': durationType,
     'status': 'pending_review',
     'posted_at': '2026-08-01T10:00:00Z',
   });
@@ -114,6 +118,7 @@ void main() {
         specialSkills: 'Fluent in Kannada',
         numberOfVacancies: 5,
         preferredGender: 'female',
+        durationType: 'long_term',
       ),
     );
 
@@ -122,6 +127,7 @@ void main() {
     expect(find.text('Wound care specialist'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
     expect(find.text('Fluent in Kannada'), findsOneWidget);
+    expect(find.text('Long Term'), findsOneWidget);
 
     final accommodationSwitch =
         tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Accommodation provided?'));

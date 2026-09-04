@@ -485,32 +485,23 @@ class _RequirementCard extends StatelessWidget {
               ].join(' · '),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
-          if (requirement.salaryAmount != null || organisationScheduleLabel(requirement) != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                if (requirement.salaryAmount != null)
-                  Expanded(
-                    child: SalaryBadge(
-                      amount: requirement.salaryAmount!.toString(),
-                      frequencyOfCare: requirement.frequencyOfCare,
-                    ),
-                  ),
-                if (requirement.salaryAmount != null && organisationScheduleLabel(requirement) != null)
-                  const SizedBox(width: AppSpacing.xs),
-                if (organisationScheduleLabel(requirement) != null)
-                  Expanded(child: BlinkingStartDateBadge(label: organisationScheduleLabel(requirement)!)),
-              ],
-            ),
-          ],
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              _Tag(TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
+              _Tag(
+                requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                    ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
+                    : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+              ),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+              _Tag('Vacancies: ${requirement.numberOfVacancies}'),
+              if (requirement.durationType != null)
+                _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+              if (requirement.preferredGender != null)
+                _Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
             ],
           ),
           if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[

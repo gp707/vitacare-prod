@@ -11,18 +11,6 @@ export interface OrganisationRequirementRecord {
   /** Free text elaboration, only ever non-null when type_of_nurse is
    *  'others' — mirrors care_receivers.medical_condition_other. */
   type_of_nurse_other: string | null;
-  frequency_of_care: string | null;
-  salary_amount: number | null;
-  /** Admin-set scheduling — exactly one of two modes, picked via
-   *  schedule_type. date_range uses start_date/end_date; specific_days
-   *  uses schedule_repeat + specific_days (weekdays 1-7 if weekly,
-   *  days-of-month 1-31 if monthly). Null until approved. Organisation-
-   *  only — regular jobs keep a single start_date. */
-  schedule_type: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  schedule_repeat: string | null;
-  specific_days: number[] | null;
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
@@ -32,6 +20,9 @@ export interface OrganisationRequirementRecord {
   /** Org-set at creation. Null = no preference. Mirrors jobs.preferred_gender
    *  exactly (including excluding 'other' as a preference value). */
   preferred_gender: string | null;
+  /** Org-set at creation — 'short_term' or 'long_term'. See
+   *  RequirementDuration in shared-constants. */
+  duration_type: string | null;
   status: string;
   rejection_reason: string | null;
   /** Mirrors jobs.cancelled_at (migration 048) — set by the org's own
@@ -69,12 +60,15 @@ export interface CreateOrganisationRequirementInput {
   special_skills: string | null;
   number_of_vacancies: number;
   preferred_gender: string | null;
+  duration_type: string;
   status: string;
 }
 
 /** Every field the org self-edit endpoint can touch — the org-owned subset
  *  of a requirement's fields, same set as CreateOrganisationRequirementInput
- *  minus posted_by/status. See OrganisationRequirementsRepository.updateOwnFields. */
+ *  minus posted_by/status. See OrganisationRequirementsRepository.updateOwnFields.
+ *  This is every field there is — admin owns none of them; admin's entire
+ *  role is a pure approve/reject click (see activate() below). */
 export interface UpdateOwnOrganisationRequirementInput {
   type_of_nurse: string;
   type_of_nurse_other: string | null;
@@ -83,26 +77,7 @@ export interface UpdateOwnOrganisationRequirementInput {
   special_skills: string | null;
   number_of_vacancies: number;
   preferred_gender: string | null;
-}
-
-export interface UpdateOrganisationRequirementInput {
-  type_of_nurse: string;
-  type_of_nurse_other: string | null;
-  frequency_of_care: string | null;
-  salary_amount: number | null;
-  schedule_type: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  schedule_repeat: string | null;
-  specific_days: number[] | null;
-  accommodation_provided: boolean;
-  food_provided: boolean;
-  special_skills: string | null;
-  number_of_vacancies: number;
-  preferred_gender: string | null;
-  /** Only passed when approving a pending_review requirement — activates
-   *  it and stamps posted_at, same repost semantics as JobsRepository. */
-  activate?: boolean;
+  duration_type: string;
 }
 
 export interface ListOrganisationRequirementsFilters {
@@ -132,8 +107,8 @@ export class OrganisationRequirementsRepository {
     const result = await runner.query<OrganisationRequirementRecord>(
       `INSERT INTO organisation_requirements
          (posted_by, type_of_nurse, type_of_nurse_other, accommodation_provided, food_provided,
-          special_skills, number_of_vacancies, preferred_gender, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          special_skills, number_of_vacancies, preferred_gender, duration_type, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         input.posted_by,
@@ -144,6 +119,7 @@ export class OrganisationRequirementsRepository {
         input.special_skills,
         input.number_of_vacancies,
         input.preferred_gender,
+        input.duration_type,
         input.status,
       ],
     );
@@ -249,61 +225,22 @@ export class OrganisationRequirementsRepository {
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
 
-  /** Full edit — same shape/validation as create. If [activate] is set
-   *  (admin approving a pending_review requirement, or reposting a closed
-   *  one), status flips to active and posted_at is bumped to NOW(). */
-  async update(
-    id: string,
-    input: UpdateOrganisationRequirementInput,
-    client?: PoolClient,
-  ): Promise<OrganisationRequirementRecord> {
+  /** Admin's entire action on a requirement — no fields, just flips it
+   *  live and bumps posted_at, same repost-on-reactivate semantics
+   *  JobsRepository has for jobs. */
+  async activate(id: string, client?: PoolClient): Promise<OrganisationRequirementRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<OrganisationRequirementRecord>(
-      `UPDATE organisation_requirements SET
-         type_of_nurse = $2,
-         type_of_nurse_other = $3,
-         frequency_of_care = $4,
-         salary_amount = $5,
-         schedule_type = $6,
-         start_date = $7,
-         end_date = $8,
-         schedule_repeat = $9,
-         specific_days = $10,
-         accommodation_provided = $11,
-         food_provided = $12,
-         special_skills = $13,
-         number_of_vacancies = $14,
-         preferred_gender = $15,
-         status = CASE WHEN $16::boolean THEN 'active' ELSE status END,
-         posted_at = CASE WHEN $16::boolean THEN NOW() ELSE posted_at END,
-         updated_at = NOW()
+      `UPDATE organisation_requirements SET status = 'active', posted_at = NOW(), updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [
-        id,
-        input.type_of_nurse,
-        input.type_of_nurse_other,
-        input.frequency_of_care,
-        input.salary_amount,
-        input.schedule_type,
-        input.start_date,
-        input.end_date,
-        input.schedule_repeat,
-        input.specific_days,
-        input.accommodation_provided,
-        input.food_provided,
-        input.special_skills,
-        input.number_of_vacancies,
-        input.preferred_gender,
-        input.activate ?? false,
-      ],
+      [id],
     );
     return result.rows[0];
   }
 
-  /** The org's own self-edit — only the org-owned fields, never status/
-   *  posted_at/frequency/salary/schedule (those stay admin-only). Mirrors
-   *  JobsRepository/IndividualService's own self-edit not touching status. */
+  /** The org's own self-edit — every field there is, since admin owns
+   *  none of them. Never touches status/posted_at. */
   async updateOwnFields(
     id: string,
     input: UpdateOwnOrganisationRequirementInput,
@@ -319,6 +256,7 @@ export class OrganisationRequirementsRepository {
          special_skills = $6,
          number_of_vacancies = $7,
          preferred_gender = $8,
+         duration_type = $9,
          updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -331,6 +269,7 @@ export class OrganisationRequirementsRepository {
         input.special_skills,
         input.number_of_vacancies,
         input.preferred_gender,
+        input.duration_type,
       ],
     );
     return result.rows[0];
@@ -361,7 +300,9 @@ export class OrganisationRequirementsRepository {
   }
 
   /** Org self-cancel — mirrors JobsRepository.cancel exactly (migration 048's
-   *  cancelled_at column, org-requirement counterpart). */
+   *  cancelled_at column, org-requirement counterpart). Deliberately does
+   *  NOT touch any application row — see OrganisationRequirementsService.
+   *  cancelRequirement for why. */
   async cancel(id: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(

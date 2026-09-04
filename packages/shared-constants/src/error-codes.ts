@@ -82,10 +82,6 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_015: { status: 400, message: 'This requirement has already been rejected or cancelled' },
   JOB_016: { status: 400, message: 'Another applicant is already accepted for this job' },
 
-  // Organisation errors (NurseNow)
-  ORG_001: { status: 400, message: 'End date cannot be before start date' },
-  ORG_002: { status: 400, message: 'Weekday values must be between 1 (Monday) and 7 (Sunday)' },
-
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
   SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },

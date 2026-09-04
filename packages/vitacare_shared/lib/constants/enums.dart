@@ -544,6 +544,20 @@ class OrganisationType {
   };
 }
 
+/// How long an organisation requirement's engagement is expected to run —
+/// org-set at creation, alongside TypeOfNurse/numberOfVacancies/
+/// preferredGender. Distinct from Individual's 4-value CareDuration.
+class RequirementDuration {
+  static const shortTerm = 'short_term';
+  static const longTerm = 'long_term';
+
+  static const all = [shortTerm, longTerm];
+  static const displayNames = {
+    shortTerm: 'Short Term (Few Days/Weeks Only)',
+    longTerm: 'Long Term',
+  };
+}
+
 /// Distinct from Qualification (a caregiver's own self-reported credential)
 /// — this is the category an organisation requests when posting a
 /// requirement. Replaced wholesale (2026-08-19) with the hospital-facing
@@ -580,48 +594,6 @@ class TypeOfNurse {
   };
 }
 
-/// Organisation requirement scheduling — admin picks exactly one mode on
-/// approval, replacing the old daily-only single start_date. Deliberately
-/// organisation-only; regular jobs (admin/individual postings) keep their
-/// existing single start_date field unchanged.
-class ScheduleType {
-  static const dateRange = 'date_range';
-  static const specificDays = 'specific_days';
-
-  static const all = [dateRange, specificDays];
-
-  static const displayNames = {
-    dateRange: 'Date Range',
-    specificDays: 'Specific Days',
-  };
-}
-
-/// Only meaningful when scheduleType is ScheduleType.specificDays — picks
-/// whether specificDays holds ISO weekday numbers (1=Monday..7=Sunday,
-/// recurring every week) or day-of-month numbers (1-31, recurring every
-/// month).
-class ScheduleRepeat {
-  static const weekly = 'weekly';
-  static const monthly = 'monthly';
-
-  static const all = [weekly, monthly];
-
-  static const displayNames = {
-    weekly: 'Weekly',
-    monthly: 'Monthly',
-  };
-
-  /// 1-indexed (Monday=1..Sunday=7), matching Dart's DateTime.weekday.
-  static const weekdayAbbreviations = {
-    1: 'Mon',
-    2: 'Tue',
-    3: 'Wed',
-    4: 'Thu',
-    5: 'Fri',
-    6: 'Sat',
-    7: 'Sun',
-  };
-}
 
 /// Which app is calling POST /auth/login/code — phone is unique per app
 /// bucket, not globally: NURSEJOBS -> role=caregiver only, NURSENOW ->

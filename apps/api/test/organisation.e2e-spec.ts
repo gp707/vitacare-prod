@@ -89,19 +89,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
-    ...overrides,
-  });
-
-  const approvalPayload = (overrides: Record<string, unknown> = {}) => ({
-    type_of_nurse: 'registered_nurse',
-    frequency_of_care: 'monthly',
-    salary_amount: 40000,
-    schedule_type: 'specific_days',
-    schedule_repeat: 'monthly',
-    specific_days: [3, 12, 20],
-    accommodation_provided: true,
-    food_provided: false,
-    number_of_vacancies: 1,
+    duration_type: 'short_term',
     ...overrides,
   });
 
@@ -238,7 +226,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
   });
 
   describe('POST /v1/organisation/requirements', () => {
-    it('creates a pending_review requirement with no frequency_of_care/salary_amount visible yet', async () => {
+    it('creates a pending_review requirement', async () => {
       const org = await registerOrganisation('0003');
       const res = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -246,8 +234,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .send(requirementPayload())
         .expect(201);
       expect(res.body.data.status).toBe('pending_review');
-      expect(res.body.data.frequency_of_care).toBeNull();
-      expect(res.body.data.salary_amount).toBeNull();
     });
 
     it('allows posting a second (and third) simultaneous requirement — no one-live limit like Individual', async () => {
@@ -281,7 +267,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
   });
 
   describe('Admin approval / rejection of a pending_review requirement', () => {
-    it('approving via PATCH /v1/admin/organisation-requirements/:id sets frequency_of_care/salary_amount and activates it', async () => {
+    it('approving via PATCH /v1/admin/organisation-requirements/:id (no body) activates it', async () => {
       const org = await registerOrganisation('0005');
       const created = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -293,11 +279,32 @@ describe('Organisation (NurseNow) (e2e)', () => {
       const approved = await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
       expect(approved.body.data.status).toBe('active');
-      expect(approved.body.data.salary_amount).toBe(40000);
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
+    });
+
+    it('is a no-op when the requirement is already active', async () => {
+      const org = await registerOrganisation('0019');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      fcmService.sendToAllCaregivers.mockClear();
+
+      const secondApprove = await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(secondApprove.body.data.status).toBe('active');
+      expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
     });
 
     it('GET /v1/admin/organisation-requirements filters by search (org name/ORG-JOB-<n> id), status, organisation_type, and city',
@@ -404,108 +411,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
         expect(blockAudit.body.data[0].target_caregiver_number).toBeNull();
       });
 
-    it('date_range schedule requires start_date/end_date (ORG_001 otherwise) and end_date must not precede start_date', async () => {
-      const org = await registerOrganisation('0006');
-      const created = await request(app.getHttpServer())
-        .post('/v1/organisation/requirements')
-        .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload())
-        .expect(201);
-      const requirementId = created.body.data.id;
-
-      const missingDates = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'date_range', specific_days: undefined }))
-        .expect(400);
-      expect(missingDates.body.error.code).toBe('ORG_001');
-
-      const endBeforeStart = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(
-          approvalPayload({
-            schedule_type: 'date_range',
-            specific_days: undefined,
-            start_date: '2026-09-10',
-            end_date: '2026-09-01',
-          }),
-        )
-        .expect(400);
-      expect(endBeforeStart.body.error.code).toBe('ORG_001');
-
-      const approved = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(
-          approvalPayload({
-            schedule_type: 'date_range',
-            specific_days: undefined,
-            start_date: '2026-09-01',
-            end_date: '2026-09-10',
-          }),
-        )
-        .expect(200);
-      expect(approved.body.data.schedule_type).toBe('date_range');
-      expect(approved.body.data.start_date).toBe('2026-09-01');
-      expect(approved.body.data.end_date).toBe('2026-09-10');
-      expect(approved.body.data.specific_days).toBeNull();
-    });
-
-    it('specific_days schedule requires a non-empty day list (ORG_001 otherwise) and persists it', async () => {
-      const org = await registerOrganisation('0028');
-      const created = await request(app.getHttpServer())
-        .post('/v1/organisation/requirements')
-        .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload())
-        .expect(201);
-      const requirementId = created.body.data.id;
-
-      const missingDays = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'specific_days', specific_days: undefined }))
-        .expect(400);
-      expect(missingDays.body.error.code).toBe('ORG_001');
-
-      const approved = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'monthly', specific_days: [5, 15, 25] }))
-        .expect(200);
-      expect(approved.body.data.schedule_type).toBe('specific_days');
-      expect(approved.body.data.schedule_repeat).toBe('monthly');
-      expect(approved.body.data.specific_days).toEqual([5, 15, 25]);
-      expect(approved.body.data.start_date).toBeNull();
-      expect(approved.body.data.end_date).toBeNull();
-    });
-
-    it('specific_days/weekly schedule stores ISO weekday numbers and rejects a value outside 1-7 (ORG_002)', async () => {
-      const org = await registerOrganisation('0029');
-      const created = await request(app.getHttpServer())
-        .post('/v1/organisation/requirements')
-        .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload())
-        .expect(201);
-      const requirementId = created.body.data.id;
-
-      const invalidWeekday = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 12] }))
-        .expect(400);
-      expect(invalidWeekday.body.error.code).toBe('ORG_002');
-
-      const approved = await request(app.getHttpServer())
-        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload({ schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 3, 5] }))
-        .expect(200);
-      expect(approved.body.data.schedule_type).toBe('specific_days');
-      expect(approved.body.data.schedule_repeat).toBe('weekly');
-      expect(approved.body.data.specific_days).toEqual([1, 3, 5]);
-    });
-
     it('an approved (active) requirement shows up on GET /v1/caregiver/organisation-requirements, and a caregiver can apply', async () => {
       const org = await registerOrganisation('0007', 'Green Valley Clinic');
       const created = await request(app.getHttpServer())
@@ -517,7 +422,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
 
       const caregiver = await registerCaregiver('0107');
@@ -551,7 +455,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
 
       const caregiver = await registerCaregiver('0109');
@@ -622,7 +525,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
 
       const caregiver = await registerCaregiver('0130');
@@ -699,7 +601,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${requirementId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
 
       const caregiver = await registerCaregiver('0113');
@@ -758,7 +659,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${created.body.data.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(approvalPayload())
         .expect(200);
 
       const res = await request(app.getHttpServer())

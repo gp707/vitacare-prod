@@ -106,17 +106,18 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
 
   /// Allowed at any point in the requirement's lifecycle except once it's
   /// already been terminated some other way (admin-rejected or already
-  /// cancelled once) — mirrors the backend's JOB_015. Confirmed first since
-  /// it's irreversible and, when candidates are involved, notifies them by
-  /// rejecting their application.
+  /// cancelled once) — mirrors the backend's JOB_015. Cancelling only stops
+  /// new applications from coming in — every candidate who already applied
+  /// stays exactly as they were: still visible, still contactable, and can
+  /// still be accepted or rejected afterward.
   Future<void> _cancelRequirement(OrganisationRequirementModel requirement) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel this requirement?'),
         content: const Text(
-          'Any candidates who applied or were accepted will have their application declined as '
-          "cancelled. You won't be able to see who applied afterward. This cannot be undone.",
+          'This stops new caregivers from applying. Candidates who already applied stay visible — '
+          'you can still view their profile and accept or reject them afterward. This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No, keep it')),
@@ -383,10 +384,6 @@ class _RequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Text('Reason: ${requirement.rejectionReason}', style: const TextStyle(color: AppColors.error)),
           ],
-          if (requirement.status == JobStatus.active && requirement.salaryAmount != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            SalaryBadge(amount: requirement.salaryAmount!.toString(), frequencyOfCare: requirement.frequencyOfCare),
-          ],
           const SizedBox(height: AppSpacing.sm),
           IconField(
             icon: Icons.medical_services,
@@ -397,7 +394,8 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             children: [
-              if (organisationScheduleLabel(requirement) != null) _Tag(organisationScheduleLabel(requirement)!),
+              if (requirement.durationType != null)
+                _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               _Tag('Vacancies: ${requirement.numberOfVacancies}'),

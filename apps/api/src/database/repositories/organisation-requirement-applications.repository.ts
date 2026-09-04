@@ -115,18 +115,6 @@ export class OrganisationRequirementApplicationsRepository {
     return Number(result.rows[0].count) > 0;
   }
 
-  /** Every applied/accepted application on this requirement — used by
-   *  OrganisationRequirementsService.cancelRequirement to bulk-reject
-   *  everything still live when the org cancels, regardless of how many
-   *  there are. Mirrors JobApplicationsRepository.findActiveForJob. */
-  async findActiveForRequirement(requirementId: string): Promise<OrganisationRequirementApplicationRecord[]> {
-    const result = await this.db.query<OrganisationRequirementApplicationRecord>(
-      `SELECT * FROM organisation_requirement_applications WHERE requirement_id = $1 AND status IN ('applied', 'accepted')`,
-      [requirementId],
-    );
-    return result.rows;
-  }
-
   async findByRequirementAndProfile(
     requirementId: string,
     profileId: string,

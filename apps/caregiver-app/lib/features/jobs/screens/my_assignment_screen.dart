@@ -381,27 +381,11 @@ class _AssignedRequirementCard extends StatelessWidget {
             style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
           ),
           Text(
-            TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+            requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
+                : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
             style: const TextStyle(color: AppColors.textSecondary),
           ),
-          if (requirement.salaryAmount != null || organisationScheduleLabel(requirement) != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                if (requirement.salaryAmount != null)
-                  Expanded(
-                    child: SalaryBadge(
-                      amount: requirement.salaryAmount!.toString(),
-                      frequencyOfCare: requirement.frequencyOfCare,
-                    ),
-                  ),
-                if (requirement.salaryAmount != null && organisationScheduleLabel(requirement) != null)
-                  const SizedBox(width: AppSpacing.xs),
-                if (organisationScheduleLabel(requirement) != null)
-                  Expanded(child: BlinkingStartDateBadge(label: organisationScheduleLabel(requirement)!)),
-              ],
-            ),
-          ],
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(

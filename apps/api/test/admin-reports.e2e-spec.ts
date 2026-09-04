@@ -225,22 +225,17 @@ describe('Admin Reports (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/v1/organisation/requirements')
       .set('Authorization', `Bearer ${org.access_token}`)
-      .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
+      .send({
+        type_of_nurse: 'registered_nurse',
+        accommodation_provided: true,
+        food_provided: false,
+        duration_type: 'short_term',
+      })
       .expect(201);
     const requirementId = created.body.data.id as string;
     await request(app.getHttpServer())
       .patch(`/v1/admin/organisation-requirements/${requirementId}`)
       .set('Authorization', `Bearer ${superAdminToken}`)
-      .send({
-        type_of_nurse: 'registered_nurse',
-        frequency_of_care: 'monthly',
-        salary_amount: 40000,
-        schedule_type: 'specific_days',
-        schedule_repeat: 'monthly',
-        specific_days: [3, 12, 20],
-        accommodation_provided: true,
-        food_provided: false,
-      })
       .expect(200);
     return requirementId;
   }
@@ -773,7 +768,7 @@ describe('Admin Reports (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${hasJobs.access_token}`)
-        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
+        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false, duration_type: 'short_term' })
         .expect(201);
 
       const res = await request(app.getHttpServer())
@@ -800,7 +795,7 @@ describe('Admin Reports (e2e)', () => {
       const created = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
+        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false, duration_type: 'short_term' })
         .expect(201);
       await request(app.getHttpServer())
         .patch(`/v1/admin/organisation-requirements/${created.body.data.id}/reject`)
@@ -906,7 +901,7 @@ describe('Admin Reports (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${active.access_token}`)
-        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
+        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false, duration_type: 'short_term' })
         .expect(201);
       const idle = await registerOrganisation('0110');
 

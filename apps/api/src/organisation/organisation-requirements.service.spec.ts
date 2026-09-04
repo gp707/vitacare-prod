@@ -16,6 +16,7 @@ describe('OrganisationRequirementsService', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
+    duration_type: 'short_term',
   } as any;
 
   beforeEach(() => {
@@ -26,7 +27,7 @@ describe('OrganisationRequirementsService', () => {
       listByPostedBy: jest.fn(),
       listActiveForCaregiver: jest.fn(),
       listForAdmin: jest.fn(),
-      update: jest.fn(),
+      activate: jest.fn(),
       updateOwnFields: jest.fn(),
       reject: jest.fn(),
       close: jest.fn(),
@@ -43,7 +44,6 @@ describe('OrganisationRequirementsService', () => {
       countAcceptedByProfileId: jest.fn(),
       findAssignedByProfileId: jest.fn(),
       hasActiveApplicationForRequirement: jest.fn(),
-      findActiveForRequirement: jest.fn(),
     };
     caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
@@ -162,15 +162,15 @@ describe('OrganisationRequirementsService', () => {
       expect(result).toEqual([{ id: 'app-1' }]);
     });
 
-    it('returns an empty list (not an error) once the requirement is cancelled', async () => {
+    it('still returns applications once the requirement is cancelled — cancelling never hides applicants', async () => {
       requirementsRepo.findById.mockResolvedValue({
         id: 'req-1',
         posted_by: 'org-1',
         cancelled_at: new Date(),
       });
+      applicationsRepo.findByRequirementId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getRequirementApplications('org-1', 'req-1');
-      expect(result).toEqual([]);
-      expect(applicationsRepo.findByRequirementId).not.toHaveBeenCalled();
+      expect(result).toEqual([{ id: 'app-1' }]);
     });
   });
 
@@ -205,12 +205,12 @@ describe('OrganisationRequirementsService', () => {
       expect(result).toEqual({ full_name: 'Nurse Nita' });
     });
 
-    it('throws GEN_002 once the requirement is cancelled', async () => {
+    it('still returns the profile once the requirement is cancelled — cancelling never hides applicants', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', cancelled_at: new Date() });
-      await expect(service.getApplicantProfile('org-1', 'req-1', 'app-1')).rejects.toMatchObject({
-        code: 'GEN_002',
-      });
-      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+      applicationsRepo.findById.mockResolvedValue({ id: 'app-1', requirement_id: 'req-1', profile_id: 'profile-1' });
+      caregiverService.getApplicantProfile.mockResolvedValue({ full_name: 'Nurse Nita' });
+      const result = await service.getApplicantProfile('org-1', 'req-1', 'app-1');
+      expect(result).toEqual({ full_name: 'Nurse Nita' });
     });
   });
 
@@ -237,6 +237,7 @@ describe('OrganisationRequirementsService', () => {
       accommodation_provided: true,
       food_provided: false,
       number_of_vacancies: 2,
+      duration_type: 'long_term',
     } as any;
 
     it('throws GEN_002 when the requirement does not exist', async () => {
@@ -286,6 +287,7 @@ describe('OrganisationRequirementsService', () => {
         special_skills: null,
         number_of_vacancies: 2,
         preferred_gender: null,
+        duration_type: 'long_term',
       });
       expect(result.id).toBe('req-1');
     });
@@ -340,7 +342,7 @@ describe('OrganisationRequirementsService', () => {
       await expect(service.cancelRequirement('org-1', 'req-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
     });
 
-    it('bulk-rejects every active application and cancels the requirement', async () => {
+    it('cancels the requirement without touching any application — cancelling only stops new applications', async () => {
       requirementsRepo.findById.mockResolvedValue({
         id: 'req-1',
         posted_by: 'org-1',
@@ -348,31 +350,13 @@ describe('OrganisationRequirementsService', () => {
         cancelled_at: null,
         rejection_reason: null,
       });
-      applicationsRepo.findActiveForRequirement.mockResolvedValue([
-        { id: 'app-1', status: 'applied', profile_id: 'p-1' },
-        { id: 'app-2', status: 'accepted', profile_id: 'p-2' },
-      ]);
 
       const result = await service.cancelRequirement('org-1', 'req-1', '127.0.0.1');
 
-      expect(applicationsRepo.decide).toHaveBeenCalledWith(
-        'app-1',
-        'rejected',
-        'org-1',
-        {},
-        'This requirement was cancelled.',
-      );
-      expect(applicationsRepo.decide).toHaveBeenCalledWith(
-        'app-2',
-        'rejected',
-        'org-1',
-        {},
-        'This requirement was cancelled.',
-      );
-      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('p-2', {});
-      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalledWith('p-1', {});
-      expect(requirementsRepo.cancel).toHaveBeenCalledWith('req-1', {});
-      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed', rejected_applications: 2 });
+      expect(applicationsRepo.decide).not.toHaveBeenCalled();
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
+      expect(requirementsRepo.cancel).toHaveBeenCalledWith('req-1');
+      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed' });
     });
   });
 
@@ -570,146 +554,47 @@ describe('OrganisationRequirementsService', () => {
     });
   });
 
-  describe('updateRequirement (admin approve-via-edit)', () => {
-    const editDto = {
-      type_of_nurse: 'registered_nurse',
-      frequency_of_care: 'monthly',
-      salary_amount: 40000,
-      schedule_type: 'specific_days',
-      schedule_repeat: 'monthly',
-      specific_days: [3, 12, 20],
-      accommodation_provided: true,
-      food_provided: true,
-    } as any;
-
+  describe('approveRequirement', () => {
     it('throws GEN_002 when the requirement does not exist', async () => {
       requirementsRepo.findById.mockResolvedValue(null);
-      await expect(service.updateRequirement('admin-1', 'req-1', editDto, null)).rejects.toMatchObject({
+      await expect(service.approveRequirement('admin-1', 'req-1', null)).rejects.toMatchObject({
         code: 'GEN_002',
       });
     });
 
-    it('activates a pending_review requirement and broadcasts a push', async () => {
+    it('activates a pending_review requirement, stamps posted_at, and broadcasts a push — no fields involved', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'pending_review' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
+      requirementsRepo.activate.mockResolvedValue({ id: 'req-1', status: 'active' });
 
-      await service.updateRequirement('admin-1', 'req-1', editDto, null);
+      const result = await service.approveRequirement('admin-1', 'req-1', '127.0.0.1');
 
-      expect(requirementsRepo.update).toHaveBeenCalledWith(
-        'req-1',
-        expect.objectContaining({
-          activate: true,
-          schedule_type: 'specific_days',
-          schedule_repeat: 'monthly',
-          specific_days: [3, 12, 20],
-        }),
+      expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'admin-1', action: 'org_requirement_updated', entityId: 'req-1' }),
       );
+      expect(result).toEqual({ id: 'req-1', status: 'active' });
+    });
+
+    it('reactivates (reposts) an already-closed requirement, same as reactivating from pending_review', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'closed' });
+      requirementsRepo.activate.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      await service.approveRequirement('admin-1', 'req-1', null);
+
+      expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
 
-    it('does not re-broadcast a push for a plain edit of an already-active requirement', async () => {
+    it('is a no-op (no repo call, no push, no audit log) when the requirement is already active', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
 
-      await service.updateRequirement('admin-1', 'req-1', editDto, null);
+      const result = await service.approveRequirement('admin-1', 'req-1', null);
 
-      expect(requirementsRepo.update).toHaveBeenCalledWith('req-1', expect.objectContaining({ activate: false }));
+      expect(requirementsRepo.activate).not.toHaveBeenCalled();
       expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
-    });
-
-    it('nulls specific_days when schedule_type is date_range, and persists start_date/end_date', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await service.updateRequirement(
-        'admin-1',
-        'req-1',
-        { ...editDto, schedule_type: 'date_range', start_date: '2026-09-01', end_date: '2026-09-10' },
-        null,
-      );
-
-      expect(requirementsRepo.update).toHaveBeenCalledWith(
-        'req-1',
-        expect.objectContaining({
-          schedule_type: 'date_range',
-          start_date: '2026-09-01',
-          end_date: '2026-09-10',
-          schedule_repeat: null,
-          specific_days: null,
-        }),
-      );
-    });
-
-    it('nulls start_date/end_date when schedule_type is specific_days/monthly, and persists specific_days', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await service.updateRequirement(
-        'admin-1',
-        'req-1',
-        { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'monthly', specific_days: [5, 15, 25] },
-        null,
-      );
-
-      expect(requirementsRepo.update).toHaveBeenCalledWith(
-        'req-1',
-        expect.objectContaining({
-          schedule_type: 'specific_days',
-          start_date: null,
-          end_date: null,
-          schedule_repeat: 'monthly',
-          specific_days: [5, 15, 25],
-        }),
-      );
-    });
-
-    it('persists weekday numbers (1-7) when schedule_repeat is weekly', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-      requirementsRepo.update.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await service.updateRequirement(
-        'admin-1',
-        'req-1',
-        { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 3, 5] },
-        null,
-      );
-
-      expect(requirementsRepo.update).toHaveBeenCalledWith(
-        'req-1',
-        expect.objectContaining({
-          schedule_type: 'specific_days',
-          schedule_repeat: 'weekly',
-          specific_days: [1, 3, 5],
-        }),
-      );
-    });
-
-    it('throws ORG_002 when a weekly specific_days value is outside 1-7', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await expect(
-        service.updateRequirement(
-          'admin-1',
-          'req-1',
-          { ...editDto, schedule_type: 'specific_days', schedule_repeat: 'weekly', specific_days: [1, 12] },
-          null,
-        ),
-      ).rejects.toMatchObject({ code: 'ORG_002' });
-      expect(requirementsRepo.update).not.toHaveBeenCalled();
-    });
-
-    it('throws ORG_001 when end_date is before start_date for a date_range schedule', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
-
-      await expect(
-        service.updateRequirement(
-          'admin-1',
-          'req-1',
-          { ...editDto, schedule_type: 'date_range', start_date: '2026-09-10', end_date: '2026-09-01' },
-          null,
-        ),
-      ).rejects.toMatchObject({ code: 'ORG_001' });
-      expect(requirementsRepo.update).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: 'req-1', status: 'active' });
     });
   });
 

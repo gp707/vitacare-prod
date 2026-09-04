@@ -20,8 +20,9 @@ class OrganisationRepository {
   }
 
   /// The "exclusive" org posting form — no About Patient, no city/area/
-  /// duty_type (inherited from the org's own registered location), no
-  /// frequency_of_care/salary_amount (admin-set on approval).
+  /// duty_type (inherited from the org's own registered location). Admin
+  /// never sets anything on this requirement at all — approval is a pure
+  /// approve/reject click, no frequency_of_care/salary_amount/schedule.
   Future<OrganisationRequirementModel> createRequirement({
     required String typeOfNurse,
     String? typeOfNurseOther,
@@ -30,6 +31,7 @@ class OrganisationRepository {
     String? specialSkills,
     int? numberOfVacancies,
     String? preferredGender,
+    required String durationType,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.organisationRequirements, data: {
@@ -40,6 +42,7 @@ class OrganisationRepository {
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
         if (numberOfVacancies != null) 'number_of_vacancies': numberOfVacancies,
         if (preferredGender != null) 'preferred_gender': preferredGender,
+        'duration_type': durationType,
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -48,9 +51,8 @@ class OrganisationRepository {
   }
 
   /// Edits any org-owned field of the org's own requirement in place — no
-  /// status change, no admin re-review required. Never touches
-  /// frequency_of_care/salary_amount/schedule (those stay admin-only).
-  /// Mirrors IndividualRepository.editRequirement.
+  /// status change, no admin re-review required. Mirrors
+  /// IndividualRepository.editRequirement.
   Future<OrganisationRequirementModel> editRequirement(
     String requirementId, {
     required String typeOfNurse,
@@ -60,6 +62,7 @@ class OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
+    required String durationType,
   }) async {
     try {
       final res = await _dio.patch(ApiRoutes.organisationRequirement(requirementId), data: {
@@ -70,6 +73,7 @@ class OrganisationRepository {
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
         'number_of_vacancies': numberOfVacancies,
         if (preferredGender != null) 'preferred_gender': preferredGender,
+        'duration_type': durationType,
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

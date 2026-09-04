@@ -1,12 +1,11 @@
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { Gender, TypeOfNurse } from '@vitacare/shared-constants';
+import { Gender, RequirementDuration, TypeOfNurse } from '@vitacare/shared-constants';
 
 /** The org's own self-edit body (PATCH /organisation/requirements/:id) —
- *  exactly the org-owned fields set at creation (see
- *  CreateOrganisationRequirementDto), never frequency_of_care/salary_amount/
- *  schedule_type, which stay admin-only (see UpdateOrganisationRequirementDto).
- *  Mirrors UpdateIndividualRequirementDto's "edit any field the poster
- *  controls, none of the admin-set ones" split. */
+ *  every field the org itself controls (see CreateOrganisationRequirementDto).
+ *  There is no admin-set counterpart to any of these — admin's own approval
+ *  is a pure approve/reject click with no fields at all (see
+ *  OrganisationRequirementsService.approveRequirement). */
 export class UpdateMyOrganisationRequirementDto {
   @IsIn(Object.values(TypeOfNurse), { message: 'GEN_001' })
   type_of_nurse!: string;
@@ -35,4 +34,7 @@ export class UpdateMyOrganisationRequirementDto {
   @IsOptional()
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
   preferred_gender?: string;
+
+  @IsIn(Object.values(RequirementDuration), { message: 'GEN_001' })
+  duration_type!: string;
 }

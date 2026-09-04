@@ -7,7 +7,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { OrganisationRequirementsService } from './organisation-requirements.service';
-import { UpdateOrganisationRequirementDto } from './dto/update-organisation-requirement.dto';
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { RejectJobDto } from '../jobs/dto/reject-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
@@ -28,15 +27,13 @@ export class AdminOrganisationRequirementsController {
     return this.requirementsService.getRequirementDetailForAdmin(id);
   }
 
+  /** Admin's entire role on an organisation requirement is a pure click —
+   *  approve (this endpoint, no body) or reject (below, reason only).
+   *  Every field is org-owned; admin never sets or edits any of them. */
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  update(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateOrganisationRequirementDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.requirementsService.updateRequirement(user.sub, id, dto, ip);
+  approve(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.requirementsService.approveRequirement(user.sub, id, ip);
   }
 
   @Patch(':id/reject')

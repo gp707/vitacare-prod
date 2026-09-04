@@ -290,6 +290,15 @@ export const OrganisationType = {
 } as const;
 export type OrganisationType = (typeof OrganisationType)[keyof typeof OrganisationType];
 
+/** How long an organisation requirement's engagement is expected to run —
+ *  org-set at creation, alongside type_of_nurse/number_of_vacancies/
+ *  preferred_gender. Distinct from Individual's 4-value CareDuration. */
+export const RequirementDuration = {
+  SHORT_TERM: 'short_term',
+  LONG_TERM: 'long_term',
+} as const;
+export type RequirementDuration = (typeof RequirementDuration)[keyof typeof RequirementDuration];
+
 // Distinct from Qualification (a caregiver's own self-reported
 // credential) — this is the category an organisation requests when
 // posting a requirement. Replaced wholesale (2026-08-19) with the
@@ -306,25 +315,6 @@ export const TypeOfNurse = {
   OTHERS: 'others',
 } as const;
 export type TypeOfNurse = (typeof TypeOfNurse)[keyof typeof TypeOfNurse];
-
-// Organisation requirement scheduling — admin picks exactly one mode on
-// approval, replacing the old daily-only single start_date. Deliberately
-// organisation-only; regular jobs (admin/individual postings) keep their
-// existing single start_date field unchanged.
-export const ScheduleType = {
-  DATE_RANGE: 'date_range',
-  SPECIFIC_DAYS: 'specific_days',
-} as const;
-export type ScheduleType = (typeof ScheduleType)[keyof typeof ScheduleType];
-
-// Only meaningful when schedule_type is SPECIFIC_DAYS — picks whether
-// specific_days holds ISO weekday numbers (1=Monday..7=Sunday, recurring
-// every week) or day-of-month numbers (1-31, recurring every month).
-export const ScheduleRepeat = {
-  WEEKLY: 'weekly',
-  MONTHLY: 'monthly',
-} as const;
-export type ScheduleRepeat = (typeof ScheduleRepeat)[keyof typeof ScheduleRepeat];
 
 // Which app is calling POST /auth/login/code — phone is unique per app
 // bucket, not globally (migration 045), so the backend needs to know
