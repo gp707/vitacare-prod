@@ -143,6 +143,18 @@ export class OrganisationRequirementApplicationsRepository {
     return Number(result.rows[0].count);
   }
 
+  /** An organisation requirement may have at most one `accepted`
+   *  application at a time (enforced by OrganisationRequirementsService.
+   *  decideApplication's JOB_016 guard, not a DB constraint) — mirrors
+   *  JobApplicationsRepository.findAcceptedForJob. */
+  async findAcceptedForRequirement(requirementId: string): Promise<OrganisationRequirementApplicationRecord | null> {
+    const result = await this.db.query<OrganisationRequirementApplicationRecord>(
+      `SELECT * FROM organisation_requirement_applications WHERE requirement_id = $1 AND status = 'accepted' LIMIT 1`,
+      [requirementId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async findByRequirementId(requirementId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
     const result = await this.db.query<OrganisationRequirementApplicationWithCaregiver>(
       `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name

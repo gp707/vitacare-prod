@@ -37,6 +37,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   // Jobs are never hidden this way — a rejected/completed job can always be
   // re-applied to, so it stays visible with its own "Apply Again" action.
   bool _showAllJobs = false;
+  // Filters the merged list down to organisation (hospital/rehab/clinic)
+  // requirements only, hiding every admin/individual-posted job — a plain
+  // client-side filter over the already-fetched lists, no new endpoint.
+  bool _hospitalJobsOnly = false;
 
   @override
   void initState() {
@@ -103,12 +107,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     await _applyToJob(job, JobApplicationStatus.rejected);
   }
 
-  /// Same as [_rejectJob], for an organisation requirement.
-  Future<void> _rejectRequirement(OrganisationRequirementModel requirement) async {
-    if (!await _confirmReject(organisationJobDisplayId(requirement))) return;
-    await _applyToRequirement(requirement, JobApplicationStatus.rejected);
-  }
-
   Future<bool> _confirmReject(String displayId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -159,29 +157,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     await _applyToJob(job, JobApplicationStatus.rejected);
   }
 
-  /// Same as [_withdrawJob], for an organisation requirement.
-  Future<void> _withdrawRequirement(OrganisationRequirementModel requirement) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reject this requirement?'),
-        content: const Text(
-          "Are you sure you want to reject the job? This withdraws your application — the organisation "
-          "won't be able to accept you for it anymore, and your contact details will no longer be shown to them.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Reject Requirement'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await _applyToRequirement(requirement, JobApplicationStatus.rejected);
-  }
-
   List<_Listing> _mergedListings() {
     final listings = <_Listing>[
       ..._jobs.map(_JobListing.new),
@@ -193,7 +168,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final listings = _mergedListings();
+    final merged = _mergedListings();
+    final listings =
+        _hospitalJobsOnly ? merged.whereType<_RequirementListing>().toList() : merged;
     final hasHiddenJobs = listings.any((l) => l.isHiddenByDefault);
     final visible = _showAllJobs ? listings : listings.where((l) => !l.isHiddenByDefault).toList();
     return Scaffold(
@@ -216,6 +193,15 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   children: [
                     if (_errorMessage != null)
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: FilterChip(
+                        avatar: const Icon(Icons.local_hospital, size: 18),
+                        label: const Text('Hospital Jobs Only'),
+                        selected: _hospitalJobsOnly,
+                        onSelected: (selected) => setState(() => _hospitalJobsOnly = selected),
+                      ),
+                    ),
                     if (hasHiddenJobs)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -227,12 +213,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                         onChanged: (value) => setState(() => _showAllJobs = value),
                       ),
                     if (listings.isEmpty && _errorMessage == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          'No jobs posted right now. Pull down to refresh.',
+                          _hospitalJobsOnly
+                              ? 'No hospital/rehab/clinic jobs posted right now. Pull down to refresh.'
+                              : 'No jobs posted right now. Pull down to refresh.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: const TextStyle(color: AppColors.textSecondary),
                         ),
                       )
                     else if (visible.isEmpty && _errorMessage == null)
@@ -259,8 +247,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                           requirement: listing.requirement,
                           isApplying: _applyingId.contains(listing.requirement.id),
                           onApply: () => _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
-                          onReject: () => _rejectRequirement(listing.requirement),
-                          onWithdraw: () => _withdrawRequirement(listing.requirement),
                         ),
                       const SizedBox(height: AppSpacing.md),
                     ],
@@ -425,19 +411,19 @@ class _RejectButton extends StatelessWidget {
   }
 }
 
+/// Unlike a regular job, an organisation requirement offers no Reject
+/// option at all — a caregiver can only Apply, never decline outright or
+/// withdraw afterward. This is a deliberate difference from _JobCard,
+/// requested explicitly for the organisation flow.
 class _RequirementCard extends StatelessWidget {
   final OrganisationRequirementModel requirement;
   final bool isApplying;
   final VoidCallback onApply;
-  final VoidCallback onReject;
-  final VoidCallback onWithdraw;
 
   const _RequirementCard({
     required this.requirement,
     required this.isApplying,
     required this.onApply,
-    required this.onReject,
-    required this.onWithdraw,
   });
 
   @override
@@ -511,23 +497,10 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (requirement.myApplication != null) ...[
-            ApplicationTimeline(requirement.myApplication!),
-            if (requirement.myApplication!.status == JobApplicationStatus.applied) ...[
-              const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                width: double.infinity,
-                child: _RejectButton(onPressed: onWithdraw, label: 'Reject Requirement'),
-              ),
-            ],
-          ] else
-            Row(
-              children: [
-                Expanded(child: _ApplyButton(onPressed: onApply, label: 'Apply')),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(child: _RejectButton(onPressed: onReject, label: 'Reject')),
-              ],
-            ),
+          else if (requirement.myApplication != null)
+            ApplicationTimeline(requirement.myApplication!)
+          else
+            SizedBox(width: double.infinity, child: _ApplyButton(onPressed: onApply, label: 'Apply')),
         ],
       ),
     );

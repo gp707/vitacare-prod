@@ -47,6 +47,13 @@ describe('Organisation (NurseNow) (e2e)', () => {
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700004%')`,
     );
     await db.query("DELETE FROM organisation_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700004%')");
+    // caregiver_profiles.verified_by can point at a DIFFERENT test user in
+    // this same prefix (the org whose "Accept Anyway"/undo-accept flow set
+    // it — see OrganisationRequirementsService.decideApplication) — must be
+    // deleted before the bulk `users` delete below, or that other user's
+    // row can't be removed (FK violation on caregiver_profiles_verified_by_fkey).
+    // Mirrors individual.e2e-spec.ts's own cleanup() fix for the same issue.
+    await db.query("DELETE FROM caregiver_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700004%')");
     await db.query("DELETE FROM users WHERE phone LIKE '+91700004%'");
   }
 
@@ -513,6 +520,89 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(assigned.body.data[0].id).toBe(requirementId);
       expect(assigned.body.data[0].my_application.status).toBe('completed');
     });
+
+    it('the organisation must give a reason to reject an applicant (JOB_012), and can later "Accept Anyway" '
+      + 'a rejected candidate, blocked only while a different one is already accepted (JOB_016)', async () => {
+      const org = await registerOrganisation('0035');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const caregiverA = await registerCaregiver('0142');
+      const caregiverB = await registerCaregiver('0143');
+      for (const c of [caregiverA, caregiverB]) {
+        await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+          c.user_id,
+        ]);
+        await request(app.getHttpServer())
+          .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+          .set('Authorization', `Bearer ${c.access_token}`)
+          .send({ status: 'applied' })
+          .expect(200);
+      }
+
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const appA = applicants.body.data.find((a: { profile_id: string }) => a.profile_id === caregiverA.profile_id).id;
+      const appB = applicants.body.data.find((a: { profile_id: string }) => a.profile_id === caregiverB.profile_id).id;
+
+      // Rejecting without a reason is a 400 (JOB_012).
+      const missingReason = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appA}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected' })
+        .expect(400);
+      expect(missingReason.body.error.code).toBe('JOB_012');
+
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appA}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected', reason: 'Not enough experience' })
+        .expect(200);
+
+      // Accept caregiver B — while B is accepted, accepting rejected
+      // caregiver A ("Accept Anyway") is blocked (JOB_016).
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appB}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      const blocked = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appA}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(400);
+      expect(blocked.body.error.code).toBe('JOB_016');
+
+      // Undo B's acceptance (reopens the requirement) — now A can be
+      // accepted anyway, even though A was previously rejected.
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appB}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected', reason: 'Reconsidering' })
+        .expect(200);
+      const acceptAnyway = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appA}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      expect(acceptAnyway.body.data.status).toBe('accepted');
+
+      const caregiverAProfile = await db.query(
+        'SELECT verification_status FROM caregiver_profiles WHERE user_id = $1',
+        [caregiverA.user_id],
+      );
+      expect(caregiverAProfile.rows[0].verification_status).toBe('assigned');
+    }, 30000);
 
     it("lets the organisation view an applicant's full profile, ownership-checked, including Aadhaar/qualification-document URLs", async () => {
       const org = await registerOrganisation('0026');

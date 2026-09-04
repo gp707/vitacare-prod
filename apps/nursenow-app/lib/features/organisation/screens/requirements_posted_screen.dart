@@ -61,10 +61,55 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     }
   }
 
-  Future<void> _decide(String requirementId, String applicationId, String status) async {
+  Future<void> _accept(String requirementId, String applicationId) async {
     setState(() => _decidingApplicationId.add(applicationId));
     try {
-      await ref.read(organisationRepositoryProvider).decideApplication(requirementId, applicationId, status);
+      await ref.read(organisationRepositoryProvider).decideApplication(requirementId, applicationId, 'accepted');
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
+    }
+  }
+
+  /// A reason is mandatory (JOB_012 is the server-side backstop) — the
+  /// dialog's Confirm button stays disabled until something is typed, so
+  /// there's no way to submit a reject without one. Used both for declining
+  /// an undecided candidate and for undoing a prior acceptance.
+  Future<void> _rejectWithReason(String requirementId, String applicationId) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Decline this candidate'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 1000,
+            maxLines: 3,
+            onChanged: (_) => setDialogState(() {}),
+            decoration: const InputDecoration(labelText: 'Reason (required, shown to no one but you)'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed:
+                  controller.text.trim().isEmpty ? null : () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || reason.isEmpty) return;
+
+    setState(() => _decidingApplicationId.add(applicationId));
+    try {
+      await ref
+          .read(organisationRepositoryProvider)
+          .decideApplication(requirementId, applicationId, 'rejected', reason: reason);
       await _load();
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -194,7 +239,8 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                           requirement: requirement,
                           applications: _applicationsByRequirementId[requirement.id] ?? const [],
                           decidingApplicationId: _decidingApplicationId,
-                          onDecide: (applicationId, status) => _decide(requirement.id, applicationId, status),
+                          onAccept: (applicationId) => _accept(requirement.id, applicationId),
+                          onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
                           onEdit: () => _editRequirement(requirement),
                           onCancel: () => _cancelRequirement(requirement),
@@ -249,7 +295,8 @@ class _RequirementCard extends StatelessWidget {
   final OrganisationRequirementModel requirement;
   final List<OrganisationRequirementApplicationModel> applications;
   final Set<String> decidingApplicationId;
-  final void Function(String applicationId, String status) onDecide;
+  final void Function(String applicationId) onAccept;
+  final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
@@ -259,7 +306,8 @@ class _RequirementCard extends StatelessWidget {
     required this.requirement,
     required this.applications,
     required this.decidingApplicationId,
-    required this.onDecide,
+    required this.onAccept,
+    required this.onReject,
     required this.onViewProfile,
     required this.onEdit,
     required this.onCancel,
@@ -422,7 +470,16 @@ class _RequirementCard extends StatelessWidget {
                 _ApplicantTile(
                   application: application,
                   isDeciding: decidingApplicationId.contains(application.id),
-                  onDecide: (status) => onDecide(application.id, status),
+                  // Only one applicant can be accepted at a time (JOB_016
+                  // backstops this server-side) — while someone is
+                  // accepted, no one else (including a previously-rejected
+                  // or completed candidate) offers an Accept action until
+                  // that acceptance is undone via Reject.
+                  canAccept: !_hasAcceptedApplicant,
+                  canReject: (application.status == JobApplicationStatus.applied && !_hasAcceptedApplicant) ||
+                      application.status == JobApplicationStatus.accepted,
+                  onAccept: () => onAccept(application.id),
+                  onReject: () => onReject(application.id),
                   onViewProfile: () => onViewProfile(application.id),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -437,17 +494,25 @@ class _RequirementCard extends StatelessWidget {
 class _ApplicantTile extends StatelessWidget {
   final OrganisationRequirementApplicationModel application;
   final bool isDeciding;
-  final void Function(String status) onDecide;
+  final bool canAccept;
+  final bool canReject;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
   final VoidCallback onViewProfile;
 
   const _ApplicantTile({
     required this.application,
     required this.isDeciding,
-    required this.onDecide,
+    required this.canAccept,
+    required this.canReject,
+    required this.onAccept,
+    required this.onReject,
     required this.onViewProfile,
   });
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
+  bool get _isRejected => application.status == JobApplicationStatus.rejected;
+  bool get _isCompleted => application.status == JobApplicationStatus.completed;
 
   @override
   Widget build(BuildContext context) {
@@ -499,23 +564,33 @@ class _ApplicantTile extends StatelessWidget {
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                if (application.status == JobApplicationStatus.applied) ...[
+                // "Accepted" stays visible even while the Reject (undo)
+                // button is also offered — a currently-accepted candidate
+                // is always both, unlike every other status which shows
+                // exactly one of a status word or an action button.
+                if (_isAccepted)
+                  const Text('Accepted', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                if (canAccept)
                   TextButton.icon(
-                    onPressed: () => onDecide(JobApplicationStatus.accepted),
+                    onPressed: onAccept,
                     icon: const Icon(Icons.check, size: 16, color: AppColors.success),
-                    label: const Text('Accept', style: TextStyle(color: AppColors.success)),
+                    label: Text(
+                      (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
+                      style: const TextStyle(color: AppColors.success),
+                    ),
                   ),
+                if (canReject)
                   TextButton.icon(
-                    onPressed: () => onDecide(JobApplicationStatus.rejected),
+                    onPressed: onReject,
                     icon: const Icon(Icons.close, size: 16, color: AppColors.error),
                     label: const Text('Reject', style: TextStyle(color: AppColors.error)),
                   ),
-                ] else
+                if (!canAccept && !canReject && !_isAccepted)
                   Text(
-                    _isAccepted ? 'Accepted' : (application.status[0].toUpperCase() + application.status.substring(1)),
-                    style: TextStyle(
-                      color: _isAccepted ? AppColors.success : AppColors.textSecondary,
-                      fontWeight: _isAccepted ? FontWeight.bold : FontWeight.normal,
+                    application.status[0].toUpperCase() + application.status.substring(1),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
               ],

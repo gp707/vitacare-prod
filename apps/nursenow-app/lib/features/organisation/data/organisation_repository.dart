@@ -129,13 +129,17 @@ class OrganisationRepository {
   }
 
   /// [status] is 'accepted' or 'rejected' — has the exact same effect as
-  /// admin deciding on it. Unlike the individual side, a reason is never
-  /// required here (matches admin's own reject flow).
-  Future<void> decideApplication(String requirementId, String applicationId, String status) async {
+  /// admin deciding on it. Unlike admin's own reject flow, rejecting here
+  /// requires a [reason] (JOB_012, server-side backstop) — mirrors
+  /// IndividualRepository.decideApplication.
+  Future<void> decideApplication(String requirementId, String applicationId, String status, {String? reason}) async {
     try {
       await _dio.patch(
         ApiRoutes.organisationRequirementApplicationDecide(requirementId, applicationId),
-        data: {'status': status},
+        data: {
+          'status': status,
+          if (reason != null) 'reason': reason,
+        },
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

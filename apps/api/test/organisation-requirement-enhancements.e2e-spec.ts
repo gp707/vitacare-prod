@@ -42,6 +42,14 @@ describe('Organisation requirement enhancements (e2e)', () => {
     await db.query(
       "DELETE FROM organisation_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700012%')",
     );
+    // caregiver_profiles.verified_by can point at a DIFFERENT test user in
+    // this same prefix (the org whose "Accept Anyway"/undo-accept flow set
+    // it) — must be deleted before the bulk `users` delete below, or that
+    // other user's row can't be removed (FK violation on
+    // caregiver_profiles_verified_by_fkey). Mirrors organisation.e2e-spec.ts.
+    await db.query(
+      "DELETE FROM caregiver_profiles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700012%')",
+    );
     await db.query("DELETE FROM users WHERE phone LIKE '+91700012%'");
   }
 
@@ -513,12 +521,36 @@ describe('Organisation requirement enhancements (e2e)', () => {
         .expect(200);
       expect(profileRes.body.data.full_name).toBeDefined();
 
-      // Still accept/reject-able after cancellation.
+      // Still accept/reject-able after cancellation — rejecting requires a
+      // reason (JOB_012), same as Individual's own flow.
+      const applicationId = applicationsRes.body.data[0].id;
       await request(app.getHttpServer())
-        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationsRes.body.data[0].id}`)
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationId}`)
         .set('Authorization', `Bearer ${org.access_token}`)
         .send({ status: 'rejected' })
+        .expect(400)
+        .then((res) => expect(res.body.error.code).toBe('JOB_012'));
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected', reason: 'Went with another candidate' })
         .expect(200);
+
+      // Even though the requirement is cancelled AND the candidate was
+      // rejected, the organisation can still reselect ("Accept Anyway")
+      // them — cancellation and rejection never block reconsidering.
+      const acceptAnyway = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      expect(acceptAnyway.body.data.status).toBe('accepted');
+
+      const caregiverProfile = await db.query(
+        'SELECT verification_status FROM caregiver_profiles WHERE user_id = $1',
+        [caregiver.user_id],
+      );
+      expect(caregiverProfile.rows[0].verification_status).toBe('assigned');
     });
 
     it('rejects cancelling a second time (JOB_015)', async () => {

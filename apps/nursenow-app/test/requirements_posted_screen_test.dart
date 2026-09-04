@@ -66,6 +66,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? decidedRequirementId;
   String? decidedApplicationId;
   String? decidedStatus;
+  String? decidedReason;
   String? profileFetchedRequirementId;
   String? profileFetchedApplicationId;
   String? editedRequirementId;
@@ -82,10 +83,11 @@ class _FakeOrganisationRepository extends OrganisationRepository {
       applicationsByRequirementId[requirementId] ?? const [];
 
   @override
-  Future<void> decideApplication(String requirementId, String applicationId, String status) async {
+  Future<void> decideApplication(String requirementId, String applicationId, String status, {String? reason}) async {
     decidedRequirementId = requirementId;
     decidedApplicationId = applicationId;
     decidedStatus = status;
+    decidedReason = reason;
   }
 
   @override
@@ -234,6 +236,72 @@ void main() {
     expect(repo.decidedRequirementId, 'req-1');
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets('rejecting an applicant requires a reason — Confirm stays disabled until something is typed',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement()],
+      applicationsByRequirementId: {
+        'req-1': [_application()],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    final confirmButton =
+        tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
+    expect(confirmButton.onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Not enough experience');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedRequirementId, 'req-1');
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'rejected');
+    expect(repo.decidedReason, 'Not enough experience');
+  });
+
+  testWidgets('a previously-rejected applicant can be re-accepted via "Accept Anyway"', (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement(status: 'closed')],
+      applicationsByRequirementId: {
+        'req-1': [_application(status: 'rejected')],
+      },
+    );
+    await _pump(tester, repo);
+
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    await tester.pumpAndSettle();
+
+    expect(repo.decidedApplicationId, 'app-1');
+    expect(repo.decidedStatus, 'accepted');
+  });
+
+  testWidgets('while one applicant is accepted, an undecided candidate offers no Accept/Reject action',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(id: 'app-1', status: 'accepted'),
+            _application(id: 'app-2', status: 'applied'),
+          ],
+        },
+      ),
+    );
+
+    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
+    // Only the accepted applicant's own Reject (undo) stays available.
+    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
   });
 
   testWidgets('tapping View Profile on an undecided applicant opens their full profile', (tester) async {

@@ -1019,21 +1019,40 @@ void main() {
   });
 
   testWidgets(
-      'tapping Reject on a requirement shows a confirmation dialog; confirming calls the organisation '
-      'repository with rejected', (tester) async {
-    final orgRepo = _FakeOrganisationOpeningsRepository([_requirement()]);
-    await _pump(tester, _FakeJobsRepository([]), orgRepo: orgRepo);
+      'an organisation requirement offers no Reject option at all — only Apply, unlike a regular job',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    expect(find.widgetWithText(ElevatedButton, 'Apply'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Reject'), findsNothing);
+  });
+
+  testWidgets('the "Hospital Jobs Only" filter hides admin/individual jobs, leaving only organisation requirements',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs Only'));
     await tester.pumpAndSettle();
 
-    expect(orgRepo.appliedWith, isNull);
-    expect(find.text('Are you sure you want to reject the job?'), findsOneWidget);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsNothing);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Reject'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs Only'));
     await tester.pumpAndSettle();
 
-    expect(orgRepo.appliedWith, 'rejected');
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
   });
 
   testWidgets('shows the applied timeline instead of buttons for a requirement once already applied',

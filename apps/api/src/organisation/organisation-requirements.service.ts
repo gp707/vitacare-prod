@@ -196,7 +196,10 @@ export class OrganisationRequirementsService {
   }
 
   /** Ownership-checked wrapper for the org's own decision — delegates to
-   *  the same [decideApplication] admin uses. */
+   *  the same [decideApplication] admin uses. Rejecting requires a reason
+   *  (JOB_012) — mirrors IndividualService.decideMyApplication; admin's own
+   *  reject flow (calling decideApplication directly) stays reason-optional,
+   *  same asymmetry as the jobs pipeline. */
   async decideMyApplication(
     orgUserId: string,
     requirementId: string,
@@ -206,12 +209,26 @@ export class OrganisationRequirementsService {
   ) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
+    if (dto.status === JobApplicationStatus.REJECTED && !dto.reason?.trim()) {
+      throw new AppException('JOB_012');
+    }
     return this.decideApplication(orgUserId, requirementId, applicationId, dto, ipAddress);
   }
 
   /** Shared accept/reject logic — used by both the org itself and admin.
    *  Mirrors JobsService.decideApplication exactly (same state machine,
-   *  same caregiver verification_status side effects). */
+   *  same caregiver verification_status side effects). `accepted` is valid
+   *  from `applied` (a normal accept), `rejected` ("Accept Anyway" —
+   *  reconsidering either side's earlier decline), or `completed`
+   *  (re-engaging a caregiver who already closed this same requirement
+   *  themselves). Only one applicant can be `accepted` on a requirement at
+   *  a time — accepting a *different* application while one is already
+   *  accepted is JOB_016. `rejected` on a previously-`accepted` application
+   *  undoes the acceptance and reopens the requirement; `rejected` on a
+   *  still-`applied` application just declines it. Anything else is
+   *  JOB_007. Never checks the requirement's own status (active/closed/
+   *  cancelled) — a rejected candidate can be reselected even after the
+   *  requirement was cancelled, same as the jobs pipeline. */
   async decideApplication(
     actorId: string,
     requirementId: string,
@@ -224,13 +241,25 @@ export class OrganisationRequirementsService {
 
     const isAcceptFromApplied =
       dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.APPLIED;
+    const isAcceptFromRejected =
+      dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.REJECTED;
+    const isAcceptFromCompleted =
+      dto.status === JobApplicationStatus.ACCEPTED && application.status === JobApplicationStatus.COMPLETED;
     const isUndoAccept =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.ACCEPTED;
     const isRejectFromApplied =
       dto.status === JobApplicationStatus.REJECTED && application.status === JobApplicationStatus.APPLIED;
+    const isAccepting = isAcceptFromApplied || isAcceptFromRejected || isAcceptFromCompleted;
 
-    if (!isAcceptFromApplied && !isUndoAccept && !isRejectFromApplied) {
+    if (!isAccepting && !isUndoAccept && !isRejectFromApplied) {
       throw new AppException('JOB_007');
+    }
+
+    if (isAccepting) {
+      const existingAccepted = await this.applicationsRepo.findAcceptedForRequirement(requirementId);
+      if (existingAccepted && existingAccepted.id !== applicationId) {
+        throw new AppException('JOB_016');
+      }
     }
 
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
@@ -238,7 +267,7 @@ export class OrganisationRequirementsService {
 
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.decide(applicationId, dto.status, actorId, client, dto.reason);
-      if (isAcceptFromApplied) {
+      if (isAccepting) {
         await this.requirementsRepo.close(requirementId, client);
         await this.adminCaregiversRepo.updateStatus(
           application.profile_id,
@@ -268,7 +297,7 @@ export class OrganisationRequirementsService {
       beforeValue: { status: application.status },
       afterValue: {
         status: dto.status,
-        ...(isAcceptFromApplied ? { requirement_status: 'closed', caregiver_status: 'assigned' } : {}),
+        ...(isAccepting ? { requirement_status: 'closed', caregiver_status: 'assigned' } : {}),
         ...(isUndoAccept ? { requirement_status: 'active', caregiver_status: 'available' } : {}),
       },
       ipAddress,
