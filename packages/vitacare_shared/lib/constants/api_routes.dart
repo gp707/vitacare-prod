@@ -31,6 +31,9 @@ class ApiRoutes {
   // simultaneous requirements — no one-live-at-a-time limit.
   static const organisationMe = '/organisation/me';
   static const organisationRequirements = '/organisation/requirements';
+  static String organisationRequirement(String requirementId) => '/organisation/requirements/$requirementId';
+  static String organisationRequirementCancel(String requirementId) =>
+      '/organisation/requirements/$requirementId/cancel';
   static const organisationProfilePhone = '/organisation/profile/phone';
   static const organisationProfileCode = '/organisation/profile/code';
   static String organisationRequirementApplications(String requirementId) =>

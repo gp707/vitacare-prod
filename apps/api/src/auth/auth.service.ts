@@ -252,7 +252,7 @@ export class AuthService {
           contact_person_name: dto.contact_person_name,
           organisation_type: dto.organisation_type,
           city: dto.city,
-          area: dto.area,
+          area: dto.area ?? null,
           terms_accepted: dto.terms_accepted,
         },
         client,

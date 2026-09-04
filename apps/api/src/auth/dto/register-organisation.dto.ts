@@ -36,10 +36,10 @@ export class RegisterOrganisationDto {
   @IsIn([...Object.values(City), 'others'], { message: 'GEN_001' })
   city!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'GEN_001' })
   @MaxLength(500, { message: 'GEN_001' })
-  area!: string;
+  area?: string;
 
   /** Same PROFILE_009 code caregiver/individual registration uses —
    *  nursenow-app links out to an Organisation-specific Terms &

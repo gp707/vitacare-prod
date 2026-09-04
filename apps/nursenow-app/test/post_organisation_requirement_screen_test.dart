@@ -13,34 +13,46 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   final ApiException? createError;
   bool createCalled = false;
   String? capturedTypeOfNurse;
+  String? capturedTypeOfNurseOther;
   bool? capturedAccommodation;
   bool? capturedFood;
   String? capturedSpecialSkills;
+  int? capturedNumberOfVacancies;
+  String? capturedPreferredGender;
 
   _FakeOrganisationRepository({this.createError}) : super(Dio());
 
   @override
   Future<OrganisationRequirementModel> createRequirement({
     required String typeOfNurse,
+    String? typeOfNurseOther,
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
+    int? numberOfVacancies,
+    String? preferredGender,
   }) async {
     createCalled = true;
     capturedTypeOfNurse = typeOfNurse;
+    capturedTypeOfNurseOther = typeOfNurseOther;
     capturedAccommodation = accommodationProvided;
     capturedFood = foodProvided;
     capturedSpecialSkills = specialSkills;
+    capturedNumberOfVacancies = numberOfVacancies;
+    capturedPreferredGender = preferredGender;
     if (createError != null) throw createError!;
     return OrganisationRequirementModel.fromJson({
       'id': 'req-1',
       'requirement_number': 1,
       'posted_by': 'org-1',
       'type_of_nurse': typeOfNurse,
+      'type_of_nurse_other': typeOfNurseOther,
       'frequency_of_care': null,
       'salary_amount': null,
       'accommodation_provided': accommodationProvided,
       'food_provided': foodProvided,
+      'number_of_vacancies': numberOfVacancies ?? 1,
+      'preferred_gender': preferredGender,
       'status': 'pending_review',
       'posted_at': '2026-08-01T10:00:00Z',
     });
@@ -97,6 +109,118 @@ void main() {
     expect(repo.capturedAccommodation, isTrue);
     expect(repo.capturedFood, isFalse);
     expect(repo.capturedSpecialSkills, 'Wound care experience');
+  });
+
+  testWidgets('does not show the admin-review banner at the top of the form', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    expect(find.textContaining('An admin reviews every new requirement'), findsNothing);
+  });
+
+  testWidgets('Number of Vacancies defaults to 1 and is sent as-is when untouched', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    expect(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registered Nurse').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.capturedNumberOfVacancies, 1);
+  });
+
+  testWidgets('rejects a Number of Vacancies outside 1-49 without submitting', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registered Nurse').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), '50');
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter a number between 1 and 49'), findsOneWidget);
+    expect(repo.createCalled, isFalse);
+  });
+
+  testWidgets('requires a free-text description when Type of Nurse is Others, and sends it', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Others').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Please specify the type of nurse/caregiver'), findsOneWidget);
+    expect(repo.createCalled, isFalse);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Please specify (Mandatory)'), 'Physiotherapist');
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.capturedTypeOfNurse, 'others');
+    expect(repo.capturedTypeOfNurseOther, 'Physiotherapist');
+  });
+
+  testWidgets('does not show the "Please specify" field for a non-Others type', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registered Nurse').last);
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, 'Please specify (Mandatory)'), findsNothing);
+  });
+
+  testWidgets('defaults Preferred Caregiver Gender to no preference (null) when left untouched', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registered Nurse').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+    expect(repo.capturedPreferredGender, isNull);
+  });
+
+  testWidgets('sends the selected Preferred Caregiver Gender', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registered Nurse').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Gender'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Female').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Submit for Review'));
+    await tester.pumpAndSettle();
+    expect(repo.capturedPreferredGender, 'female');
   });
 
   testWidgets('shows the server error message on submission failure', (tester) async {

@@ -34,12 +34,16 @@ AdminOrganisationRequirement _requirement({
   String? rejectionReason,
   bool accommodationProvided = true,
   bool foodProvided = false,
+  String? typeOfNurseOther,
+  int numberOfVacancies = 1,
+  String? preferredGender,
 }) {
   return AdminOrganisationRequirement(
     id: id,
     requirementNumber: requirementNumber,
     postedBy: 'org-user-1',
     typeOfNurse: TypeOfNurse.auxiliaryNurse,
+    typeOfNurseOther: typeOfNurseOther,
     frequencyOfCare: frequencyOfCare,
     salaryAmount: salaryAmount,
     scheduleType: scheduleType,
@@ -49,6 +53,8 @@ AdminOrganisationRequirement _requirement({
     specificDays: specificDays,
     accommodationProvided: accommodationProvided,
     foodProvided: foodProvided,
+    numberOfVacancies: numberOfVacancies,
+    preferredGender: preferredGender,
     status: status,
     rejectionReason: rejectionReason,
     postedAt: '2026-08-01T10:00:00Z',
@@ -122,6 +128,7 @@ class _FakeAdminOrganisationRequirementsRepository
   Future<void> approve(
     String id, {
     required String typeOfNurse,
+    String? typeOfNurseOther,
     required String frequencyOfCare,
     required int salaryAmount,
     required String scheduleType,
@@ -132,6 +139,8 @@ class _FakeAdminOrganisationRequirementsRepository
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
   }) async {
     approvedId = id;
     approvedFrequency = frequencyOfCare;

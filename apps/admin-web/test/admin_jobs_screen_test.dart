@@ -81,6 +81,7 @@ AdminOrganisationRequirement _requirement({
     typeOfNurse: TypeOfNurse.auxiliaryNurse,
     accommodationProvided: true,
     foodProvided: false,
+    numberOfVacancies: 1,
     status: status,
     postedAt: postedAt,
     organisationName: 'City Rehab Center',
@@ -1899,6 +1900,27 @@ void main() {
       );
       expect(repo.listCallCount, 1,
           reason: 'jobs should not be re-fetched for Hospital');
+      expect(find.text('ADMIN-JOB-542'), findsNothing);
+      expect(find.text('ORG-JOB-101'), findsOneWidget);
+    });
+
+    testWidgets(
+        'selecting "Agency" under Posted By only fetches organisation requirements '
+        '(organisation_type=agency), skipping jobs entirely', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo =
+          _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      await _selectFilterDropdown(tester, 'Posted By', 'Agency');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+      await tester.pumpAndSettle();
+
+      expect(
+        requirementsRepo.lastFilters,
+        isA<OrganisationRequirementListFilters>()
+            .having((f) => f.organisationType, 'organisationType', 'agency'),
+      );
       expect(find.text('ADMIN-JOB-542'), findsNothing);
       expect(find.text('ORG-JOB-101'), findsOneWidget);
     });

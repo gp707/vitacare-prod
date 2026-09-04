@@ -120,6 +120,7 @@ OrganisationRequirementModel _requirement({
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Post-surgery wound care',
+    'number_of_vacancies': 1,
     'status': 'active',
     'posted_at': postedAt ?? '2026-08-01T10:00:00Z',
     'organisation_name': 'City Hospital',

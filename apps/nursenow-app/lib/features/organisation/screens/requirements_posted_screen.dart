@@ -11,6 +11,7 @@ import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import 'post_organisation_requirement_screen.dart';
+import 'edit_organisation_requirement_screen.dart';
 
 /// An organisation's full requirement history — unlike Individual, there is
 /// no one-live-at-a-time limit, so "Post a Requirement" is always
@@ -93,6 +94,59 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     if (posted == true) await _load();
   }
 
+  /// Allowed regardless of the requirement's own status (pending_review/
+  /// active/closed) — only gated on there being no active application, same
+  /// as Individual's own EditRequirementScreen entry point.
+  Future<void> _editRequirement(OrganisationRequirementModel requirement) async {
+    final edited = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EditOrganisationRequirementScreen(requirement: requirement)),
+    );
+    if (edited == true) await _load();
+  }
+
+  /// Allowed at any point in the requirement's lifecycle except once it's
+  /// already been terminated some other way (admin-rejected or already
+  /// cancelled once) — mirrors the backend's JOB_015. Confirmed first since
+  /// it's irreversible and, when candidates are involved, notifies them by
+  /// rejecting their application.
+  Future<void> _cancelRequirement(OrganisationRequirementModel requirement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this requirement?'),
+        content: const Text(
+          'Any candidates who applied or were accepted will have their application declined as '
+          "cancelled. You won't be able to see who applied afterward. This cannot be undone.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No, keep it')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Yes, cancel it', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(organisationRepositoryProvider).cancelRequirement(requirement.id);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// Pre-fills a new posting from a past requirement's fields — unlike
+  /// Individual, there is no one-live-limit to gate this on, so it's always
+  /// offered.
+  Future<void> _postSimilarRequirement(OrganisationRequirementModel requirement) async {
+    final posted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => PostOrganisationRequirementScreen(cloneFrom: requirement)),
+    );
+    if (posted == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
@@ -141,6 +195,9 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                           decidingApplicationId: _decidingApplicationId,
                           onDecide: (applicationId, status) => _decide(requirement.id, applicationId, status),
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
+                          onEdit: () => _editRequirement(requirement),
+                          onCancel: () => _cancelRequirement(requirement),
+                          onPostSimilar: () => _postSimilarRequirement(requirement),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -150,6 +207,20 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
       ),
     );
   }
+}
+
+class _MenuAction {
+  final String label;
+  final bool enabled;
+  final bool destructive;
+  final VoidCallback onSelected;
+
+  const _MenuAction({
+    required this.label,
+    required this.enabled,
+    this.destructive = false,
+    required this.onSelected,
+  });
 }
 
 class _Tag extends StatelessWidget {
@@ -179,6 +250,9 @@ class _RequirementCard extends StatelessWidget {
   final Set<String> decidingApplicationId;
   final void Function(String applicationId, String status) onDecide;
   final void Function(String applicationId) onViewProfile;
+  final VoidCallback onEdit;
+  final VoidCallback onCancel;
+  final VoidCallback onPostSimilar;
 
   const _RequirementCard({
     required this.requirement,
@@ -186,9 +260,23 @@ class _RequirementCard extends StatelessWidget {
     required this.decidingApplicationId,
     required this.onDecide,
     required this.onViewProfile,
+    required this.onEdit,
+    required this.onCancel,
+    required this.onPostSimilar,
   });
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
+
+  /// Mirrors the backend's own JOB_015 check — cancellable at any point in
+  /// the lifecycle except once it's already been terminated some other way
+  /// (admin-rejected or already cancelled once).
+  bool get _canCancel => !requirement.isCancelled && requirement.rejectionReason == null;
+
+  /// Mirrors the backend's own JOB_014 check — editing is blocked once a
+  /// caregiver has responded, regardless of the requirement's own status.
+  /// Rejected/completed applications never count.
+  bool get _hasActiveApplication => applications.any(
+      (a) => a.status == JobApplicationStatus.applied || a.status == JobApplicationStatus.accepted);
 
   String get _statusLabel {
     switch (requirement.status) {
@@ -197,6 +285,7 @@ class _RequirementCard extends StatelessWidget {
       case JobStatus.active:
         return 'Live — visible to caregivers';
       case JobStatus.closed:
+        if (requirement.isCancelled) return 'Cancelled';
         if (requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
@@ -211,6 +300,7 @@ class _RequirementCard extends StatelessWidget {
       case JobStatus.active:
         return AppColors.success;
       case JobStatus.closed:
+        if (requirement.isCancelled) return AppColors.textSecondary;
         return requirement.rejectionReason != null ? AppColors.error : AppColors.textSecondary;
       default:
         return AppColors.textSecondary;
@@ -224,6 +314,27 @@ class _RequirementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locked = _hasActiveApplication;
+    // A fixed 3-item menu, always offered — each item individually
+    // disabled (not hidden) when its own precondition doesn't hold, so the
+    // set of actions is predictable rather than shifting around based on
+    // state. Unlike Individual, Post Similar Requirement is never gated —
+    // an organisation has no one-live-at-a-time limit.
+    final menuActions = <_MenuAction>[
+      _MenuAction(
+        label: locked ? 'Edit the Requirement (Locked)' : 'Edit the Requirement',
+        enabled: !locked,
+        onSelected: onEdit,
+      ),
+      _MenuAction(label: 'Post Similar Requirement', enabled: true, onSelected: onPostSimilar),
+      _MenuAction(
+        label: _canCancel ? 'Cancel the Requirement' : 'Cancel the Requirement (Unavailable)',
+        enabled: _canCancel,
+        destructive: true,
+        onSelected: onCancel,
+      ),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -248,6 +359,24 @@ class _RequirementCard extends StatelessWidget {
                     textAlign: TextAlign.end,
                     style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
               ),
+              PopupMenuButton<_MenuAction>(
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'More options',
+                onSelected: (action) => action.onSelected(),
+                itemBuilder: (context) => [
+                  for (final action in menuActions)
+                    PopupMenuItem<_MenuAction>(
+                      value: action,
+                      enabled: action.enabled,
+                      child: Text(
+                        action.label,
+                        style: action.destructive && action.enabled
+                            ? const TextStyle(color: AppColors.error)
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
           if (requirement.status == JobStatus.closed && requirement.rejectionReason != null) ...[
@@ -261,7 +390,9 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           IconField(
             icon: Icons.medical_services,
-            text: TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+            text: requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
+                : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
           ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
@@ -269,6 +400,9 @@ class _RequirementCard extends StatelessWidget {
               if (organisationScheduleLabel(requirement) != null) _Tag(organisationScheduleLabel(requirement)!),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+              _Tag('Vacancies: ${requirement.numberOfVacancies}'),
+              if (requirement.preferredGender != null)
+                _Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
             ],
           ),
           if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[

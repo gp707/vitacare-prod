@@ -286,6 +286,7 @@ export const OrganisationType = {
   HOSPITAL: 'hospital',
   REHAB: 'rehab',
   CLINIC: 'clinic',
+  AGENCY: 'agency',
 } as const;
 export type OrganisationType = (typeof OrganisationType)[keyof typeof OrganisationType];
 

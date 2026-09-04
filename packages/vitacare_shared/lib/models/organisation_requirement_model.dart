@@ -13,6 +13,9 @@ class OrganisationRequirementModel {
   final int requirementNumber;
   final String postedBy;
   final String typeOfNurse;
+  /// Free text elaboration, only ever non-null when [typeOfNurse] is
+  /// 'others' — mirrors CareReceiverModel's medicalConditionOther.
+  final String? typeOfNurseOther;
   /// Null only while status is pending_review — admin sets it (along with
   /// [salaryAmount]) on approval.
   final String? frequencyOfCare;
@@ -32,8 +35,18 @@ class OrganisationRequirementModel {
   final bool accommodationProvided;
   final bool foodProvided;
   final String? specialSkills;
+  /// Org-set at creation, 1-49, defaults to 1 — how many caregivers this one
+  /// requirement is looking to fill.
+  final int numberOfVacancies;
+  /// Org-set at creation. Null = no preference. Mirrors JobModel's own
+  /// preferredGender exactly (male/female only — never 'other').
+  final String? preferredGender;
   final String status;
   final String? rejectionReason;
+  /// Set once the org cancels this requirement themselves (distinct from
+  /// [rejectionReason], which is an admin decision) — mirrors JobModel's
+  /// own cancelledAt.
+  final String? cancelledAt;
   final String postedAt;
   /// Present on admin-facing and caregiver-facing list/detail responses —
   /// the posting org's own identity/location.
@@ -53,6 +66,7 @@ class OrganisationRequirementModel {
     required this.requirementNumber,
     required this.postedBy,
     required this.typeOfNurse,
+    this.typeOfNurseOther,
     this.frequencyOfCare,
     this.salaryAmount,
     this.scheduleType,
@@ -63,8 +77,11 @@ class OrganisationRequirementModel {
     required this.accommodationProvided,
     required this.foodProvided,
     this.specialSkills,
+    required this.numberOfVacancies,
+    this.preferredGender,
     required this.status,
     this.rejectionReason,
+    this.cancelledAt,
     required this.postedAt,
     this.organisationName,
     this.organisationType,
@@ -78,6 +95,7 @@ class OrganisationRequirementModel {
         requirementNumber: json['requirement_number'] as int,
         postedBy: json['posted_by'] as String,
         typeOfNurse: json['type_of_nurse'] as String,
+        typeOfNurseOther: json['type_of_nurse_other'] as String?,
         frequencyOfCare: json['frequency_of_care'] as String?,
         salaryAmount: json['salary_amount'] as int?,
         scheduleType: json['schedule_type'] as String?,
@@ -89,8 +107,11 @@ class OrganisationRequirementModel {
         accommodationProvided: json['accommodation_provided'] as bool,
         foodProvided: json['food_provided'] as bool,
         specialSkills: json['special_skills'] as String?,
+        numberOfVacancies: json['number_of_vacancies'] as int,
+        preferredGender: json['preferred_gender'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
+        cancelledAt: json['cancelled_at'] as String?,
         postedAt: json['posted_at'] as String,
         organisationName: json['organisation_name'] as String?,
         organisationType: json['organisation_type'] as String?,
@@ -100,6 +121,10 @@ class OrganisationRequirementModel {
             ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
             : null,
       );
+
+  /// Mirrors JobModel.isCancelled — set once the org cancels this
+  /// requirement themselves via the self-cancel endpoint.
+  bool get isCancelled => cancelledAt != null;
 }
 
 /// Human-friendly display id for an organisation requirement —

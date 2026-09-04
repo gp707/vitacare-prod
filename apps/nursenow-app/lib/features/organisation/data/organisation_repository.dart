@@ -24,18 +24,64 @@ class OrganisationRepository {
   /// frequency_of_care/salary_amount (admin-set on approval).
   Future<OrganisationRequirementModel> createRequirement({
     required String typeOfNurse,
+    String? typeOfNurseOther,
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
+    int? numberOfVacancies,
+    String? preferredGender,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.organisationRequirements, data: {
         'type_of_nurse': typeOfNurse,
+        if (typeOfNurseOther != null && typeOfNurseOther.isNotEmpty) 'type_of_nurse_other': typeOfNurseOther,
         'accommodation_provided': accommodationProvided,
         'food_provided': foodProvided,
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
+        if (numberOfVacancies != null) 'number_of_vacancies': numberOfVacancies,
+        if (preferredGender != null) 'preferred_gender': preferredGender,
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Edits any org-owned field of the org's own requirement in place — no
+  /// status change, no admin re-review required. Never touches
+  /// frequency_of_care/salary_amount/schedule (those stay admin-only).
+  /// Mirrors IndividualRepository.editRequirement.
+  Future<OrganisationRequirementModel> editRequirement(
+    String requirementId, {
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+  }) async {
+    try {
+      final res = await _dio.patch(ApiRoutes.organisationRequirement(requirementId), data: {
+        'type_of_nurse': typeOfNurse,
+        if (typeOfNurseOther != null && typeOfNurseOther.isNotEmpty) 'type_of_nurse_other': typeOfNurseOther,
+        'accommodation_provided': accommodationProvided,
+        'food_provided': foodProvided,
+        if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
+        'number_of_vacancies': numberOfVacancies,
+        if (preferredGender != null) 'preferred_gender': preferredGender,
+      });
+      return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Cancels the org's own requirement — allowed at any point in its
+  /// lifecycle. Mirrors IndividualRepository.cancelRequirement.
+  Future<void> cancelRequirement(String requirementId) async {
+    try {
+      await _dio.post(ApiRoutes.organisationRequirementCancel(requirementId));
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

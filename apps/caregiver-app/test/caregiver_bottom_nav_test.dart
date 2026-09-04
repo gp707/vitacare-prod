@@ -46,6 +46,7 @@ OrganisationRequirementModel _requirement({String id = 'req-1', int requirementN
     'salary_amount': 40000,
     'accommodation_provided': true,
     'food_provided': false,
+    'number_of_vacancies': 1,
     'status': 'closed',
     'posted_at': '2026-08-01T10:00:00Z',
     'organisation_name': 'City Hospital',

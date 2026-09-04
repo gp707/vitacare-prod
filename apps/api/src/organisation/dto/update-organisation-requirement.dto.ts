@@ -6,6 +6,7 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Max,
@@ -13,7 +14,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { FrequencyOfCare, ScheduleRepeat, ScheduleType, TypeOfNurse } from '@vitacare/shared-constants';
+import { FrequencyOfCare, Gender, ScheduleRepeat, ScheduleType, TypeOfNurse } from '@vitacare/shared-constants';
 
 /** Admin's approve-via-edit body — same shape as create plus the
  *  admin-set fields. schedule_type picks exactly one scheduling mode —
@@ -30,6 +31,14 @@ import { FrequencyOfCare, ScheduleRepeat, ScheduleType, TypeOfNurse } from '@vit
 export class UpdateOrganisationRequirementDto {
   @IsIn(Object.values(TypeOfNurse), { message: 'GEN_001' })
   type_of_nurse!: string;
+
+  /** Required only when type_of_nurse is 'others' — see the identical
+   *  field on CreateOrganisationRequirementDto (org-owned, just forwarded
+   *  unchanged by admin-web's edit dialog, never actually set by admin). */
+  @ValidateIf((o) => o.type_of_nurse === TypeOfNurse.OTHERS)
+  @IsNotEmpty({ message: 'GEN_001' })
+  @MaxLength(200, { message: 'GEN_001' })
+  type_of_nurse_other?: string;
 
   @IsIn(Object.values(FrequencyOfCare), { message: 'GEN_001' })
   frequency_of_care!: string;
@@ -73,4 +82,15 @@ export class UpdateOrganisationRequirementDto {
   @IsString()
   @MaxLength(1000, { message: 'GEN_001' })
   special_skills?: string;
+
+  /** Org-owned, just forwarded unchanged by admin-web's edit dialog — see
+   *  the identical field on CreateOrganisationRequirementDto. */
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(49, { message: 'GEN_001' })
+  number_of_vacancies!: number;
+
+  @IsOptional()
+  @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
+  preferred_gender?: string;
 }

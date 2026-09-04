@@ -70,6 +70,7 @@ class RequirementRow extends StatelessWidget {
                   Text(
                       '· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
                   Text('· ${requirement.foodProvided ? 'Food' : 'No food'}'),
+                  Text('· Vacancies: ${requirement.numberOfVacancies}'),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -735,8 +736,16 @@ class RequirementReadOnlyDialog extends StatelessWidget {
               const Divider(height: AppSpacing.lg),
               _DetailRow(
                   'Type of Nurse',
-                  TypeOfNurse.displayNames[requirement.typeOfNurse] ??
-                      requirement.typeOfNurse),
+                  requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                      ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
+                      : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
+              _DetailRow('Number of Vacancies', requirement.numberOfVacancies.toString()),
+              _DetailRow(
+                'Preferred Caregiver Gender',
+                requirement.preferredGender != null
+                    ? Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!
+                    : 'No preference',
+              ),
               _DetailRow(
                 'Frequency of Care',
                 requirement.frequencyOfCare != null

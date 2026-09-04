@@ -9,6 +9,7 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { OrganisationService } from './organisation.service';
 import { OrganisationRequirementsService } from './organisation-requirements.service';
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
+import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
@@ -40,6 +41,23 @@ export class OrganisationController {
   @Get('requirements')
   listRequirements(@CurrentUser() user: JwtPayload) {
     return this.requirementsService.listMyRequirements(user.sub);
+  }
+
+  @Patch('requirements/:id')
+  @HttpCode(HttpStatus.OK)
+  editRequirement(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateMyOrganisationRequirementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.requirementsService.editRequirement(user.sub, id, dto, ip);
+  }
+
+  @Post('requirements/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelRequirement(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.requirementsService.cancelRequirement(user.sub, id, ip);
   }
 
   @Get('requirements/:id/applications')

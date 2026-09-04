@@ -61,7 +61,7 @@ class _FakeAuthRepository extends AuthRepository {
     required String contactPersonName,
     required String organisationType,
     required String city,
-    required String area,
+    String? area,
     required bool termsAccepted,
     String? code,
     String? phoneVerificationToken,
@@ -231,7 +231,7 @@ void main() {
     expect(find.text('Organisation name (Mandatory)'), findsOneWidget);
     expect(find.text('Type of organisation (Mandatory)'), findsOneWidget);
     expect(find.text('City (Mandatory)'), findsOneWidget);
-    expect(find.text('Area (Mandatory)'), findsOneWidget);
+    expect(find.text('Area (Optional)'), findsOneWidget);
   });
 
   testWidgets(
@@ -252,7 +252,6 @@ void main() {
     expect(find.text('Organisation name is required'), findsOneWidget);
     expect(find.text('Select a type of organisation'), findsOneWidget);
     expect(find.text('Please select a city'), findsOneWidget);
-    expect(find.text('Area is required'), findsOneWidget);
     expect(authRepo.registerOrganisationCalled, isFalse);
   });
 
@@ -278,7 +277,7 @@ void main() {
     await tester.tap(find.text('Bangalore').last);
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Indiranagar');
     await tester.tap(find.byType(Checkbox));
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
@@ -292,6 +291,40 @@ void main() {
     expect(authRepo.capturedCity, 'bangalore');
     expect(authRepo.capturedArea, 'Indiranagar');
     expect(authRepo.capturedTermsAccepted, isTrue);
+  });
+
+  testWidgets('registers an Organisation account with Area left blank — it is optional, not required',
+      (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo: authRepo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
+    await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
+    await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Ravi Sharma');
+    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of organisation (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agency').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bangalore').last);
+    await tester.pumpAndSettle();
+
+    // Area left untouched.
+    await tester.tap(find.byType(Checkbox));
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+    await tester.pumpAndSettle();
+
+    expect(authRepo.registerOrganisationCalled, isTrue);
+    expect(authRepo.capturedOrganisationType, 'agency');
+    expect(authRepo.capturedArea, isNull);
   });
 
   testWidgets('offers Others as a city option for organisations, distinct from the shared City enum',
@@ -402,7 +435,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Bangalore').last);
       await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Indiranagar');
       await tester.tap(find.byType(Checkbox));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
       await tester.pumpAndSettle();

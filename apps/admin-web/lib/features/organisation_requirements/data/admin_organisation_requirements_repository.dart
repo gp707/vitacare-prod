@@ -7,6 +7,10 @@ class AdminOrganisationRequirement {
   final int requirementNumber;
   final String postedBy;
   final String typeOfNurse;
+  /// Free text elaboration, only ever non-null when [typeOfNurse] is
+  /// 'others' — org-owned, admin never sets this, only ever sees/forwards
+  /// it unchanged on approve/edit.
+  final String? typeOfNurseOther;
   final String? frequencyOfCare;
   final int? salaryAmount;
 
@@ -22,6 +26,11 @@ class AdminOrganisationRequirement {
   final bool accommodationProvided;
   final bool foodProvided;
   final String? specialSkills;
+  /// Org-set at creation, 1-49, defaults to 1 — how many caregivers this
+  /// one requirement is looking to fill. Org-owned, same as above.
+  final int numberOfVacancies;
+  /// Org-set at creation. Null = no preference. Org-owned, same as above.
+  final String? preferredGender;
   final String status;
   final String? rejectionReason;
   final String postedAt;
@@ -35,6 +44,7 @@ class AdminOrganisationRequirement {
     required this.requirementNumber,
     required this.postedBy,
     required this.typeOfNurse,
+    this.typeOfNurseOther,
     this.frequencyOfCare,
     this.salaryAmount,
     this.scheduleType,
@@ -45,6 +55,8 @@ class AdminOrganisationRequirement {
     required this.accommodationProvided,
     required this.foodProvided,
     this.specialSkills,
+    required this.numberOfVacancies,
+    this.preferredGender,
     required this.status,
     this.rejectionReason,
     required this.postedAt,
@@ -60,6 +72,7 @@ class AdminOrganisationRequirement {
         requirementNumber: json['requirement_number'] as int,
         postedBy: json['posted_by'] as String,
         typeOfNurse: json['type_of_nurse'] as String,
+        typeOfNurseOther: json['type_of_nurse_other'] as String?,
         frequencyOfCare: json['frequency_of_care'] as String?,
         salaryAmount: json['salary_amount'] as int?,
         scheduleType: json['schedule_type'] as String?,
@@ -72,6 +85,8 @@ class AdminOrganisationRequirement {
         accommodationProvided: json['accommodation_provided'] as bool,
         foodProvided: json['food_provided'] as bool,
         specialSkills: json['special_skills'] as String?,
+        numberOfVacancies: json['number_of_vacancies'] as int,
+        preferredGender: json['preferred_gender'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
         postedAt: json['posted_at'] as String,
@@ -169,6 +184,7 @@ class AdminOrganisationRequirementsRepository {
   Future<void> approve(
     String id, {
     required String typeOfNurse,
+    String? typeOfNurseOther,
     required String frequencyOfCare,
     required int salaryAmount,
     required String scheduleType,
@@ -179,10 +195,13 @@ class AdminOrganisationRequirementsRepository {
     required bool accommodationProvided,
     required bool foodProvided,
     String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
   }) async {
     try {
       await _dio.patch('/admin/organisation-requirements/$id', data: {
         'type_of_nurse': typeOfNurse,
+        if (typeOfNurseOther != null && typeOfNurseOther.isNotEmpty) 'type_of_nurse_other': typeOfNurseOther,
         'frequency_of_care': frequencyOfCare,
         'salary_amount': salaryAmount,
         'schedule_type': scheduleType,
@@ -194,6 +213,8 @@ class AdminOrganisationRequirementsRepository {
         'food_provided': foodProvided,
         if (specialSkills != null && specialSkills.isNotEmpty)
           'special_skills': specialSkills,
+        'number_of_vacancies': numberOfVacancies,
+        if (preferredGender != null) 'preferred_gender': preferredGender,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

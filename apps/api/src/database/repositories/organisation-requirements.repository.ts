@@ -8,6 +8,9 @@ export interface OrganisationRequirementRecord {
   requirement_number: number;
   posted_by: string;
   type_of_nurse: string;
+  /** Free text elaboration, only ever non-null when type_of_nurse is
+   *  'others' — mirrors care_receivers.medical_condition_other. */
+  type_of_nurse_other: string | null;
   frequency_of_care: string | null;
   salary_amount: number | null;
   /** Admin-set scheduling — exactly one of two modes, picked via
@@ -23,8 +26,18 @@ export interface OrganisationRequirementRecord {
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
+  /** Org-set at creation, 1-49, defaults to 1 — how many caregivers this
+   *  one requirement is looking to fill. */
+  number_of_vacancies: number;
+  /** Org-set at creation. Null = no preference. Mirrors jobs.preferred_gender
+   *  exactly (including excluding 'other' as a preference value). */
+  preferred_gender: string | null;
   status: string;
   rejection_reason: string | null;
+  /** Mirrors jobs.cancelled_at (migration 048) — set by the org's own
+   *  self-cancel endpoint (OrganisationRequirementsService.cancelRequirement),
+   *  never by admin's reject (that uses rejection_reason instead). */
+  cancelled_at: Date | null;
   posted_at: Date;
   created_at: Date;
   updated_at: Date;
@@ -50,14 +63,31 @@ export interface OrganisationRequirementWithMyApplication extends OrganisationRe
 export interface CreateOrganisationRequirementInput {
   posted_by: string;
   type_of_nurse: string;
+  type_of_nurse_other: string | null;
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
+  number_of_vacancies: number;
+  preferred_gender: string | null;
   status: string;
+}
+
+/** Every field the org self-edit endpoint can touch — the org-owned subset
+ *  of a requirement's fields, same set as CreateOrganisationRequirementInput
+ *  minus posted_by/status. See OrganisationRequirementsRepository.updateOwnFields. */
+export interface UpdateOwnOrganisationRequirementInput {
+  type_of_nurse: string;
+  type_of_nurse_other: string | null;
+  accommodation_provided: boolean;
+  food_provided: boolean;
+  special_skills: string | null;
+  number_of_vacancies: number;
+  preferred_gender: string | null;
 }
 
 export interface UpdateOrganisationRequirementInput {
   type_of_nurse: string;
+  type_of_nurse_other: string | null;
   frequency_of_care: string | null;
   salary_amount: number | null;
   schedule_type: string | null;
@@ -68,6 +98,8 @@ export interface UpdateOrganisationRequirementInput {
   accommodation_provided: boolean;
   food_provided: boolean;
   special_skills: string | null;
+  number_of_vacancies: number;
+  preferred_gender: string | null;
   /** Only passed when approving a pending_review requirement — activates
    *  it and stamps posted_at, same repost semantics as JobsRepository. */
   activate?: boolean;
@@ -99,15 +131,19 @@ export class OrganisationRequirementsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<OrganisationRequirementRecord>(
       `INSERT INTO organisation_requirements
-         (posted_by, type_of_nurse, accommodation_provided, food_provided, special_skills, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (posted_by, type_of_nurse, type_of_nurse_other, accommodation_provided, food_provided,
+          special_skills, number_of_vacancies, preferred_gender, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         input.posted_by,
         input.type_of_nurse,
+        input.type_of_nurse_other,
         input.accommodation_provided,
         input.food_provided,
         input.special_skills,
+        input.number_of_vacancies,
+        input.preferred_gender,
         input.status,
       ],
     );
@@ -131,9 +167,15 @@ export class OrganisationRequirementsRepository {
   }
 
   /** Every active requirement, joined with its org's identity/location —
-   *  the caregiver-facing browse list (no per-caregiver filtering yet,
-   *  unlike GET /caregiver/jobs's preference filters). */
-  async listActiveForCaregiver(profileId: string): Promise<OrganisationRequirementWithMyApplication[]> {
+   *  the caregiver-facing browse list. [gender] mirrors
+   *  JobsRepository.listActiveForCaregiver's own preferred_gender
+   *  enforcement exactly: a requirement with no preference (NULL) is
+   *  visible to everyone, one with a preference is only visible to a
+   *  caregiver whose own gender matches. */
+  async listActiveForCaregiver(
+    profileId: string,
+    gender: string,
+  ): Promise<OrganisationRequirementWithMyApplication[]> {
     const result = await this.db.query<OrganisationRequirementWithMyApplication>(
       `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
          CASE WHEN ora.id IS NULL THEN NULL ELSE jsonb_build_object(
@@ -148,9 +190,9 @@ export class OrganisationRequirementsRepository {
        FROM organisation_requirements r
        JOIN organisation_profiles op ON op.user_id = r.posted_by
        LEFT JOIN organisation_requirement_applications ora ON ora.requirement_id = r.id AND ora.profile_id = $1
-       WHERE r.status = 'active'
+       WHERE r.status = 'active' AND (r.preferred_gender IS NULL OR r.preferred_gender = $2)
        ORDER BY r.posted_at DESC`,
-      [profileId],
+      [profileId, gender],
     );
     return result.rows;
   }
@@ -219,24 +261,28 @@ export class OrganisationRequirementsRepository {
     const result = await runner.query<OrganisationRequirementRecord>(
       `UPDATE organisation_requirements SET
          type_of_nurse = $2,
-         frequency_of_care = $3,
-         salary_amount = $4,
-         schedule_type = $5,
-         start_date = $6,
-         end_date = $7,
-         schedule_repeat = $8,
-         specific_days = $9,
-         accommodation_provided = $10,
-         food_provided = $11,
-         special_skills = $12,
-         status = CASE WHEN $13::boolean THEN 'active' ELSE status END,
-         posted_at = CASE WHEN $13::boolean THEN NOW() ELSE posted_at END,
+         type_of_nurse_other = $3,
+         frequency_of_care = $4,
+         salary_amount = $5,
+         schedule_type = $6,
+         start_date = $7,
+         end_date = $8,
+         schedule_repeat = $9,
+         specific_days = $10,
+         accommodation_provided = $11,
+         food_provided = $12,
+         special_skills = $13,
+         number_of_vacancies = $14,
+         preferred_gender = $15,
+         status = CASE WHEN $16::boolean THEN 'active' ELSE status END,
+         posted_at = CASE WHEN $16::boolean THEN NOW() ELSE posted_at END,
          updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [
         id,
         input.type_of_nurse,
+        input.type_of_nurse_other,
         input.frequency_of_care,
         input.salary_amount,
         input.schedule_type,
@@ -247,7 +293,44 @@ export class OrganisationRequirementsRepository {
         input.accommodation_provided,
         input.food_provided,
         input.special_skills,
+        input.number_of_vacancies,
+        input.preferred_gender,
         input.activate ?? false,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  /** The org's own self-edit — only the org-owned fields, never status/
+   *  posted_at/frequency/salary/schedule (those stay admin-only). Mirrors
+   *  JobsRepository/IndividualService's own self-edit not touching status. */
+  async updateOwnFields(
+    id: string,
+    input: UpdateOwnOrganisationRequirementInput,
+    client?: PoolClient,
+  ): Promise<OrganisationRequirementRecord> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<OrganisationRequirementRecord>(
+      `UPDATE organisation_requirements SET
+         type_of_nurse = $2,
+         type_of_nurse_other = $3,
+         accommodation_provided = $4,
+         food_provided = $5,
+         special_skills = $6,
+         number_of_vacancies = $7,
+         preferred_gender = $8,
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        id,
+        input.type_of_nurse,
+        input.type_of_nurse_other,
+        input.accommodation_provided,
+        input.food_provided,
+        input.special_skills,
+        input.number_of_vacancies,
+        input.preferred_gender,
       ],
     );
     return result.rows[0];
@@ -273,6 +356,16 @@ export class OrganisationRequirementsRepository {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(
       `UPDATE organisation_requirements SET status = 'active', updated_at = NOW() WHERE id = $1`,
+      [id],
+    );
+  }
+
+  /** Org self-cancel — mirrors JobsRepository.cancel exactly (migration 048's
+   *  cancelled_at column, org-requirement counterpart). */
+  async cancel(id: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE organisation_requirements SET status = 'closed', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1`,
       [id],
     );
   }

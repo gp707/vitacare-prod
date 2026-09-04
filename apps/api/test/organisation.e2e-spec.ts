@@ -101,6 +101,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
     specific_days: [3, 12, 20],
     accommodation_provided: true,
     food_provided: false,
+    number_of_vacancies: 1,
     ...overrides,
   });
 

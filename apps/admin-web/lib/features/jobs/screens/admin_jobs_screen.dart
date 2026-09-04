@@ -59,10 +59,7 @@ class JobsScreenInitialFilter {
 /// organisation_type; Patients maps to jobs.posted_by_role='individual';
 /// null (All jobs) fetches and merges both sources unfiltered by poster
 /// type.
-bool _isOrganisationPosterType(String? posterType) =>
-    posterType == OrganisationType.hospital ||
-    posterType == OrganisationType.clinic ||
-    posterType == OrganisationType.rehab;
+bool _isOrganisationPosterType(String? posterType) => OrganisationType.all.contains(posterType);
 
 /// A single entry in the merged Jobs list — either a `jobs` row or an
 /// organisation_requirements row, too different in shape to unify beyond
@@ -391,6 +388,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               .approve(
                 requirement.id,
                 typeOfNurse: requirement.typeOfNurse,
+                typeOfNurseOther: requirement.typeOfNurseOther,
                 frequencyOfCare: frequency,
                 salaryAmount: salary,
                 scheduleType: scheduleType,
@@ -401,6 +399,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 accommodationProvided: requirement.accommodationProvided,
                 foodProvided: requirement.foodProvided,
                 specialSkills: requirement.specialSkills,
+                numberOfVacancies: requirement.numberOfVacancies,
+                preferredGender: requirement.preferredGender,
               );
           await _load();
         },
@@ -579,15 +579,11 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 labelText: 'Posted By',
                 border: OutlineInputBorder(),
                 isDense: true),
-            items: const [
-              DropdownMenuItem<String?>(value: null, child: Text('All jobs')),
-              DropdownMenuItem<String?>(
-                  value: OrganisationType.hospital, child: Text('Hospital')),
-              DropdownMenuItem<String?>(
-                  value: OrganisationType.clinic, child: Text('Clinic')),
-              DropdownMenuItem<String?>(
-                  value: OrganisationType.rehab, child: Text('Rehab')),
-              DropdownMenuItem<String?>(
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All jobs')),
+              ...OrganisationType.all.map((t) => DropdownMenuItem<String?>(
+                  value: t, child: Text(OrganisationType.displayNames[t] ?? t))),
+              const DropdownMenuItem<String?>(
                   value: UserRole.individual, child: Text('Patients')),
             ],
             onChanged: (value) => setState(() => _filterPosterType = value),

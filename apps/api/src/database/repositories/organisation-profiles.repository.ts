@@ -12,7 +12,7 @@ export interface OrganisationProfileRecord {
   contact_person_name: string;
   organisation_type: string;
   city: string;
-  area: string;
+  area: string | null;
   is_job_posting_blocked: boolean;
   block_reason: string | null;
   terms_accepted: boolean;
@@ -25,7 +25,7 @@ export interface CreateOrganisationProfileInput {
   contact_person_name: string;
   organisation_type: string;
   city: string;
-  area: string;
+  area: string | null;
   terms_accepted: boolean;
 }
 

@@ -20,17 +20,23 @@ OrganisationRequirementModel _requirement({
   int? salaryAmount = 40000,
   String? frequencyOfCare = 'monthly',
   String? rejectionReason,
+  String? cancelledAt,
   String? scheduleType,
   String? startDate,
   String? endDate,
   String? scheduleRepeat,
   List<int>? specificDays,
+  String typeOfNurse = 'registered_nurse',
+  String? typeOfNurseOther,
+  int numberOfVacancies = 1,
+  String? preferredGender,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
     'requirement_number': requirementNumber,
     'posted_by': 'org-1',
-    'type_of_nurse': 'registered_nurse',
+    'type_of_nurse': typeOfNurse,
+    'type_of_nurse_other': typeOfNurseOther,
     'frequency_of_care': frequencyOfCare,
     'salary_amount': salaryAmount,
     'schedule_type': scheduleType,
@@ -41,8 +47,11 @@ OrganisationRequirementModel _requirement({
     'accommodation_provided': true,
     'food_provided': false,
     'special_skills': 'Wound care',
+    'number_of_vacancies': numberOfVacancies,
+    'preferred_gender': preferredGender,
     'status': status,
     'rejection_reason': rejectionReason,
+    'cancelled_at': cancelledAt,
     'posted_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -71,6 +80,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? decidedStatus;
   String? profileFetchedRequirementId;
   String? profileFetchedApplicationId;
+  String? editedRequirementId;
+  String? cancelledRequirementId;
 
   _FakeOrganisationRepository({this.requirements = const [], this.applicationsByRequirementId = const {}})
       : super(Dio());
@@ -87,6 +98,26 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     decidedRequirementId = requirementId;
     decidedApplicationId = applicationId;
     decidedStatus = status;
+  }
+
+  @override
+  Future<OrganisationRequirementModel> editRequirement(
+    String requirementId, {
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+  }) async {
+    editedRequirementId = requirementId;
+    return _requirement(id: requirementId);
+  }
+
+  @override
+  Future<void> cancelRequirement(String requirementId) async {
+    cancelledRequirementId = requirementId;
   }
 
   @override
@@ -289,5 +320,155 @@ void main() {
     final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post a Requirement'));
     expect(button.onPressed, isNull);
     expect(find.textContaining('Posting is currently blocked'), findsOneWidget);
+  });
+
+  testWidgets('shows Number of Vacancies, Preferred Gender, and Type of Nurse "Others" free text on the card',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [
+        _requirement(
+          typeOfNurse: 'others',
+          typeOfNurseOther: 'Physiotherapist',
+          numberOfVacancies: 7,
+          preferredGender: 'female',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    expect(find.textContaining('Physiotherapist'), findsOneWidget);
+    expect(find.text('Vacancies: 7'), findsOneWidget);
+    expect(find.text('Preferred: Female'), findsOneWidget);
+  });
+
+  testWidgets('the More options menu always offers exactly 3 actions: Edit, Post Similar, Cancel', (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit the Requirement'), findsOneWidget);
+    expect(find.text('Post Similar Requirement'), findsOneWidget);
+    expect(find.text('Cancel the Requirement'), findsOneWidget);
+  });
+
+  testWidgets('Edit the Requirement is disabled (locked) while there is an active (applied) application',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement()],
+      applicationsByRequirementId: {
+        'req-1': [_application(status: 'applied')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
+  });
+
+  testWidgets('rejected/completed applications do not lock editing — Edit the Requirement stays enabled',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement()],
+      applicationsByRequirementId: {
+        'req-1': [_application(status: 'rejected')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit the Requirement'), findsOneWidget);
+    expect(find.text('Edit the Requirement (Locked)'), findsNothing);
+  });
+
+  testWidgets('Cancel the Requirement is disabled once the requirement was admin-rejected', (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [
+        _requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, rejectionReason: 'Not needed'),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
+  });
+
+  testWidgets('Cancel the Requirement is disabled once already cancelled, and shows a Cancelled status',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [
+        _requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, cancelledAt: '2026-08-05T10:00:00Z'),
+      ],
+    );
+    await _pump(tester, repo);
+
+    expect(find.text('Cancelled'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
+  });
+
+  testWidgets('confirming Cancel the Requirement calls cancelRequirement and reloads', (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel the Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel this requirement?'), findsOneWidget);
+    await tester.tap(find.text('Yes, cancel it'));
+    await tester.pumpAndSettle();
+
+    expect(repo.cancelledRequirementId, 'req-1');
+  });
+
+  testWidgets('cancelling the cancel-requirement confirmation dialog does not call cancelRequirement',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel the Requirement'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No, keep it'));
+    await tester.pumpAndSettle();
+
+    expect(repo.cancelledRequirementId, isNull);
+  });
+
+  testWidgets('tapping Edit the Requirement opens the edit screen pre-filled with current values', (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement(typeOfNurse: 'auxiliary_nurse')]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit the Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Requirement'), findsOneWidget);
+    expect(find.text('Auxiliary Nurse'), findsOneWidget);
+  });
+
+  testWidgets('Post Similar Requirement is always enabled — no one-live limit like Individual', (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Post Similar Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post a Requirement'), findsOneWidget);
   });
 }

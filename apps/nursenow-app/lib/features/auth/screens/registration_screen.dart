@@ -71,7 +71,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _codeFocusNode = FocusNode();
   final _fullNameFocusNode = FocusNode();
   final _organisationNameFocusNode = FocusNode();
-  final _areaFocusNode = FocusNode();
 
   final _phoneKey = GlobalKey();
   final _codeKey = GlobalKey();
@@ -80,7 +79,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _organisationNameKey = GlobalKey();
   final _organisationTypeKey = GlobalKey();
   final _cityKey = GlobalKey();
-  final _areaKey = GlobalKey();
   final _termsKey = GlobalKey();
 
   // Only turns true once Register has been pressed with something missing —
@@ -104,7 +102,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _codeFocusNode.dispose();
     _fullNameFocusNode.dispose();
     _organisationNameFocusNode.dispose();
-    _areaFocusNode.dispose();
     super.dispose();
   }
 
@@ -154,7 +151,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool get _isOrganisationNameValid => !_isOrganisation || _organisationNameController.text.trim().isNotEmpty;
   bool get _isOrganisationTypeValid => !_isOrganisation || _organisationType != null;
   bool get _isCityValid => !_isOrganisation || _city != null;
-  bool get _isAreaValid => !_isOrganisation || _areaController.text.trim().isNotEmpty;
   bool get _isTermsValid => _termsAccepted;
 
   String get _termsUrl => _isOrganisation ? _organisationTermsUrl : _individualTermsUrl;
@@ -170,7 +166,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _isOrganisationNameValid &&
       _isOrganisationTypeValid &&
       _isCityValid &&
-      _isAreaValid &&
       _isTermsValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
@@ -184,7 +179,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_organisationNameKey, _isOrganisationNameValid, focusNode: _organisationNameFocusNode),
           _MandatoryField(_organisationTypeKey, _isOrganisationTypeValid),
           _MandatoryField(_cityKey, _isCityValid),
-          _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         ],
         _MandatoryField(_termsKey, _isTermsValid),
       ];
@@ -239,7 +233,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               contactPersonName: _fullNameController.text.trim(),
               organisationType: _organisationType!,
               city: _city!,
-              area: _areaController.text.trim(),
+              area: _areaController.text.trim().isEmpty ? null : _areaController.text.trim(),
               termsAccepted: _termsAccepted,
             )
           : await authRepo.register(
@@ -389,14 +383,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
-                key: _areaKey,
                 controller: _areaController,
-                focusNode: _areaFocusNode,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Area (Mandatory)',
-                  border: const OutlineInputBorder(),
-                  errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Area (Optional)',
+                  border: OutlineInputBorder(),
                 ),
               ),
             ],

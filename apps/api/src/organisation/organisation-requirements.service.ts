@@ -5,6 +5,7 @@ import {
   JobStatus,
   ScheduleRepeat,
   ScheduleType,
+  TypeOfNurse,
   VerificationStatus,
 } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
@@ -24,6 +25,7 @@ import { FcmService } from '../fcm/fcm.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
 import { UpdateOrganisationRequirementDto } from './dto/update-organisation-requirement.dto';
+import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation-requirement.dto';
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
@@ -56,7 +58,18 @@ export class OrganisationRequirementsService {
     private readonly caregiverService: CaregiverService,
   ) {}
 
+  /** class-validator's @IsNotEmpty only rejects an empty string (''), not a
+   *  whitespace-only one — the same gap DUTY_001/SCOPE_001 exist for
+   *  elsewhere in this codebase. Checked here instead, on every path that
+   *  accepts type_of_nurse_other (create, org self-edit, admin edit). */
+  private validateTypeOfNurseOther(typeOfNurse: string, typeOfNurseOther: string | undefined): void {
+    if (typeOfNurse === TypeOfNurse.OTHERS && !typeOfNurseOther?.trim()) {
+      throw new AppException('GEN_001');
+    }
+  }
+
   async createRequirement(orgUserId: string, dto: CreateOrganisationRequirementDto, ipAddress: string | null) {
+    this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
     const profile = await this.organisationProfilesRepo.findByUserId(orgUserId);
     if (!profile) throw new AppException('GEN_002');
     if (profile.is_job_posting_blocked) throw new AppException('JOB_010');
@@ -64,9 +77,12 @@ export class OrganisationRequirementsService {
     const requirement = await this.requirementsRepo.create({
       posted_by: orgUserId,
       type_of_nurse: dto.type_of_nurse,
+      type_of_nurse_other: dto.type_of_nurse === TypeOfNurse.OTHERS ? (dto.type_of_nurse_other ?? null) : null,
       accommodation_provided: dto.accommodation_provided,
       food_provided: dto.food_provided,
       special_skills: dto.special_skills ?? null,
+      number_of_vacancies: dto.number_of_vacancies ?? 1,
+      preferred_gender: dto.preferred_gender ?? null,
       status: JobStatus.PENDING_REVIEW,
     });
 
@@ -86,9 +102,103 @@ export class OrganisationRequirementsService {
     return this.requirementsRepo.listByPostedBy(orgUserId);
   }
 
+  /** Edits any org-owned field of the org's own requirement in place — no
+   *  status change, no posted_at bump, no re-broadcast push, and no admin
+   *  re-review required, same as IndividualService.editRequirement.
+   *  Allowed regardless of the requirement's current status (pending_review,
+   *  active, or closed) — the only gate is whether a caregiver has already
+   *  responded (JOB_014). Never touches frequency_of_care/salary_amount/
+   *  schedule — those stay admin-only, unaffected by this call. */
+  async editRequirement(
+    orgUserId: string,
+    id: string,
+    dto: UpdateMyOrganisationRequirementDto,
+    ipAddress: string | null,
+  ) {
+    const existing = await this.requirementsRepo.findById(id);
+    if (!existing || existing.posted_by !== orgUserId) throw new AppException('GEN_002');
+
+    this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
+
+    const hasActiveApplication = await this.applicationsRepo.hasActiveApplicationForRequirement(id);
+    if (hasActiveApplication) throw new AppException('JOB_014');
+
+    const requirement = await this.requirementsRepo.updateOwnFields(id, {
+      type_of_nurse: dto.type_of_nurse,
+      type_of_nurse_other: dto.type_of_nurse === TypeOfNurse.OTHERS ? (dto.type_of_nurse_other ?? null) : null,
+      accommodation_provided: dto.accommodation_provided,
+      food_provided: dto.food_provided,
+      special_skills: dto.special_skills ?? null,
+      number_of_vacancies: dto.number_of_vacancies,
+      preferred_gender: dto.preferred_gender ?? null,
+    });
+
+    await this.auditService.log({
+      userId: orgUserId,
+      action: AuditAction.ORG_REQUIREMENT_UPDATED,
+      entityType: 'organisation_requirements',
+      entityId: requirement.id,
+      beforeValue: { type_of_nurse: existing.type_of_nurse, status: existing.status },
+      afterValue: { type_of_nurse: requirement.type_of_nurse, status: requirement.status },
+      ipAddress,
+    });
+
+    return requirement;
+  }
+
+  /** Cancels the org's own requirement — allowed at any point in its
+   *  lifecycle, regardless of whether anyone has applied. The only
+   *  requirements that can't be cancelled are ones already terminated some
+   *  other way — admin-rejected (rejection_reason set) or already cancelled
+   *  once (JOB_015 either way). Every still applied/accepted application is
+   *  bulk-rejected with a fixed system reason and, for any that was
+   *  accepted, that caregiver is flipped back to available. Mirrors
+   *  IndividualService.cancelRequirement exactly. */
+  async cancelRequirement(orgUserId: string, id: string, ipAddress: string | null) {
+    const existing = await this.requirementsRepo.findById(id);
+    if (!existing || existing.posted_by !== orgUserId) throw new AppException('GEN_002');
+    if (existing.cancelled_at != null || existing.rejection_reason != null) {
+      throw new AppException('JOB_015');
+    }
+
+    const activeApplications = await this.applicationsRepo.findActiveForRequirement(id);
+
+    await this.db.withTransaction(async (client) => {
+      for (const application of activeApplications) {
+        await this.applicationsRepo.decide(
+          application.id,
+          JobApplicationStatus.REJECTED,
+          orgUserId,
+          client,
+          'This requirement was cancelled.',
+        );
+        if (application.status === JobApplicationStatus.ACCEPTED) {
+          await this.caregiverProfilesRepo.markAvailable(application.profile_id, client);
+        }
+      }
+      await this.requirementsRepo.cancel(id, client);
+    });
+
+    await this.auditService.log({
+      userId: orgUserId,
+      action: AuditAction.ORG_REQUIREMENT_UPDATED,
+      entityType: 'organisation_requirements',
+      entityId: id,
+      beforeValue: { status: existing.status },
+      afterValue: { status: 'closed', cancelled: true, rejected_applications: activeApplications.length },
+      ipAddress,
+    });
+
+    return { message: 'Requirement cancelled', status: 'closed', rejected_applications: activeApplications.length };
+  }
+
+  /** Once cancelled (see cancelRequirement above), the org can no longer see
+   *  who applied or their phone numbers — an empty list rather than an
+   *  error, matching IndividualService.getMyRequirementApplications. */
   async getRequirementApplications(orgUserId: string, requirementId: string) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
+    if (requirement.cancelled_at != null) return [];
     return this.applicationsRepo.findByRequirementId(requirementId);
   }
 
@@ -102,6 +212,7 @@ export class OrganisationRequirementsService {
   async getApplicantProfile(orgUserId: string, requirementId: string, applicationId: string) {
     const requirement = await this.requirementsRepo.findById(requirementId);
     if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
+    if (requirement.cancelled_at != null) throw new AppException('GEN_002');
     const application = await this.applicationsRepo.findById(applicationId);
     if (!application || application.requirement_id !== requirementId) throw new AppException('GEN_002');
     return this.caregiverService.getApplicantProfile(application.profile_id);
@@ -194,7 +305,7 @@ export class OrganisationRequirementsService {
   async listActiveForCaregiver(userId: string) {
     const profile = await this.caregiverProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
-    return this.requirementsRepo.listActiveForCaregiver(profile.id);
+    return this.requirementsRepo.listActiveForCaregiver(profile.id, profile.gender);
   }
 
   async listMyAssignedRequirements(userId: string) {
@@ -324,6 +435,8 @@ export class OrganisationRequirementsService {
     const existing = await this.requirementsRepo.findById(id);
     if (!existing) throw new AppException('GEN_002');
 
+    this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
+
     const shouldActivate = existing.status === JobStatus.CLOSED || existing.status === JobStatus.PENDING_REVIEW;
 
     const isDateRange = dto.schedule_type === ScheduleType.DATE_RANGE;
@@ -339,6 +452,7 @@ export class OrganisationRequirementsService {
 
     const requirement = await this.requirementsRepo.update(id, {
       type_of_nurse: dto.type_of_nurse,
+      type_of_nurse_other: dto.type_of_nurse === TypeOfNurse.OTHERS ? (dto.type_of_nurse_other ?? null) : null,
       frequency_of_care: dto.frequency_of_care,
       salary_amount: dto.salary_amount,
       schedule_type: dto.schedule_type,
@@ -349,6 +463,8 @@ export class OrganisationRequirementsService {
       accommodation_provided: dto.accommodation_provided,
       food_provided: dto.food_provided,
       special_skills: dto.special_skills ?? null,
+      number_of_vacancies: dto.number_of_vacancies,
+      preferred_gender: dto.preferred_gender ?? null,
       activate: shouldActivate,
     });
 

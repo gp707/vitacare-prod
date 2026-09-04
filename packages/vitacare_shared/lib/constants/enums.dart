@@ -533,12 +533,14 @@ class OrganisationType {
   static const hospital = 'hospital';
   static const rehab = 'rehab';
   static const clinic = 'clinic';
+  static const agency = 'agency';
 
-  static const all = [hospital, rehab, clinic];
+  static const all = [hospital, rehab, clinic, agency];
   static const displayNames = {
     hospital: 'Hospital',
     rehab: 'Rehab',
     clinic: 'Clinic',
+    agency: 'Agency',
   };
 }
 

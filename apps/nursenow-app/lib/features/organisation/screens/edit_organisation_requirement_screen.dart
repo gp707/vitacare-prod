@@ -6,33 +6,33 @@ import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 
-/// The "exclusive" org posting form — this is the whole form. No About
-/// Patient section, no city/area/duty_type (every requirement inherits the
-/// org's own registered location); no frequency_of_care/salary_amount
-/// (admin-set on approval). See "NurseNow" in CLAUDE.md.
-///
-/// [cloneFrom], when supplied, pre-fills every org-owned field from a past
-/// requirement (e.g. one that was just cancelled and the org wants to
-/// repost) — same "Post Similar Requirement" convenience Individual's own
-/// PostRequirementScreen offers. Always creates a brand-new requirement
-/// with its own id and its own pending_review admin review.
-class PostOrganisationRequirementScreen extends ConsumerStatefulWidget {
-  final OrganisationRequirementModel? cloneFrom;
+/// Edits the org-owned fields of the org's own requirement — never
+/// frequency_of_care/salary_amount/schedule, which stay admin-only (see
+/// UpdateOrganisationRequirementDto vs UpdateMyOrganisationRequirementDto
+/// on the backend). Allowed regardless of the requirement's own status
+/// (pending_review/active/closed) — only gated on there being no active
+/// application (JOB_014), matching Individual's own EditRequirementScreen.
+class EditOrganisationRequirementScreen extends ConsumerStatefulWidget {
+  final OrganisationRequirementModel requirement;
 
-  const PostOrganisationRequirementScreen({super.key, this.cloneFrom});
+  const EditOrganisationRequirementScreen({super.key, required this.requirement});
 
   @override
-  ConsumerState<PostOrganisationRequirementScreen> createState() => _PostOrganisationRequirementScreenState();
+  ConsumerState<EditOrganisationRequirementScreen> createState() =>
+      _EditOrganisationRequirementScreenState();
 }
 
-class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisationRequirementScreen> {
-  String? _typeOfNurse;
-  final _typeOfNurseOtherController = TextEditingController();
-  bool _accommodationProvided = false;
-  bool _foodProvided = false;
-  final _specialSkillsController = TextEditingController();
-  final _numberOfVacanciesController = TextEditingController(text: '1');
-  String? _preferredGender;
+class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisationRequirementScreen> {
+  late String? _typeOfNurse;
+  late final _typeOfNurseOtherController =
+      TextEditingController(text: widget.requirement.typeOfNurseOther ?? '');
+  late bool _accommodationProvided;
+  late bool _foodProvided;
+  late final _specialSkillsController =
+      TextEditingController(text: widget.requirement.specialSkills ?? '');
+  late final _numberOfVacanciesController =
+      TextEditingController(text: widget.requirement.numberOfVacancies.toString());
+  late String? _preferredGender;
 
   bool _saving = false;
   String? _error;
@@ -45,16 +45,10 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   @override
   void initState() {
     super.initState();
-    final source = widget.cloneFrom;
-    if (source != null) {
-      _typeOfNurse = source.typeOfNurse;
-      _typeOfNurseOtherController.text = source.typeOfNurseOther ?? '';
-      _accommodationProvided = source.accommodationProvided;
-      _foodProvided = source.foodProvided;
-      _specialSkillsController.text = source.specialSkills ?? '';
-      _numberOfVacanciesController.text = source.numberOfVacancies.toString();
-      _preferredGender = source.preferredGender;
-    }
+    _typeOfNurse = widget.requirement.typeOfNurse;
+    _accommodationProvided = widget.requirement.accommodationProvided;
+    _foodProvided = widget.requirement.foodProvided;
+    _preferredGender = widget.requirement.preferredGender;
   }
 
   bool get _isTypeOfNurseValid => _typeOfNurse != null;
@@ -68,8 +62,6 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   bool get _canSubmit =>
       !_saving && _isTypeOfNurseValid && _isTypeOfNurseOtherValid && _isNumberOfVacanciesValid;
 
-  /// In on-form order, so the first invalid one found here is genuinely the
-  /// first one seen when Submit scrolls/focuses to it.
   List<GlobalKey> get _mandatoryFieldKeysInOrder => [
         _typeOfNurseKey,
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
@@ -107,7 +99,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _error = null;
     });
     try {
-      await ref.read(organisationRepositoryProvider).createRequirement(
+      await ref.read(organisationRepositoryProvider).editRequirement(
+            widget.requirement.id,
             typeOfNurse: _typeOfNurse!,
             typeOfNurseOther:
                 _typeOfNurse == TypeOfNurse.others ? _typeOfNurseOtherController.text.trim() : null,
@@ -128,7 +121,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const VitaAppBarTitle('Post a Requirement'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(title: const VitaAppBarTitle('Edit Requirement'), actions: const [WhatsAppHelpButton()]),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
@@ -233,8 +226,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.send, size: 18),
-              label: const Text('Submit for Review'),
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Save Changes'),
             ),
           ],
         ),

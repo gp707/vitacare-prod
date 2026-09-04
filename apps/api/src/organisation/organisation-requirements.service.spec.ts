@@ -27,9 +27,11 @@ describe('OrganisationRequirementsService', () => {
       listActiveForCaregiver: jest.fn(),
       listForAdmin: jest.fn(),
       update: jest.fn(),
+      updateOwnFields: jest.fn(),
       reject: jest.fn(),
       close: jest.fn(),
       reopen: jest.fn(),
+      cancel: jest.fn(),
     };
     applicationsRepo = {
       findById: jest.fn(),
@@ -40,6 +42,8 @@ describe('OrganisationRequirementsService', () => {
       markCompleted: jest.fn(),
       countAcceptedByProfileId: jest.fn(),
       findAssignedByProfileId: jest.fn(),
+      hasActiveApplicationForRequirement: jest.fn(),
+      findActiveForRequirement: jest.fn(),
     };
     caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
@@ -86,6 +90,49 @@ describe('OrganisationRequirementsService', () => {
       );
       expect(result.id).toBe('req-1');
     });
+
+    it('defaults number_of_vacancies to 1 when omitted', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1' });
+
+      await service.createRequirement('org-1', createDto, null);
+
+      expect(requirementsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ number_of_vacancies: 1, preferred_gender: null, type_of_nurse_other: null }),
+      );
+    });
+
+    it('persists number_of_vacancies/preferred_gender/type_of_nurse_other when provided', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1' });
+
+      await service.createRequirement(
+        'org-1',
+        { ...createDto, type_of_nurse: 'others', type_of_nurse_other: 'Wound care specialist', number_of_vacancies: 5, preferred_gender: 'female' },
+        null,
+      );
+
+      expect(requirementsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type_of_nurse_other: 'Wound care specialist',
+          number_of_vacancies: 5,
+          preferred_gender: 'female',
+        }),
+      );
+    });
+
+    it('nulls type_of_nurse_other when type_of_nurse is not others, even if sent', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1' });
+
+      await service.createRequirement(
+        'org-1',
+        { ...createDto, type_of_nurse: 'registered_nurse', type_of_nurse_other: 'should be ignored' },
+        null,
+      );
+
+      expect(requirementsRepo.create).toHaveBeenCalledWith(expect.objectContaining({ type_of_nurse_other: null }));
+    });
   });
 
   describe('listMyRequirements', () => {
@@ -109,10 +156,21 @@ describe('OrganisationRequirementsService', () => {
     });
 
     it('returns applications for a requirement the caller owns', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', cancelled_at: null });
       applicationsRepo.findByRequirementId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getRequirementApplications('org-1', 'req-1');
       expect(result).toEqual([{ id: 'app-1' }]);
+    });
+
+    it('returns an empty list (not an error) once the requirement is cancelled', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        cancelled_at: new Date(),
+      });
+      const result = await service.getRequirementApplications('org-1', 'req-1');
+      expect(result).toEqual([]);
+      expect(applicationsRepo.findByRequirementId).not.toHaveBeenCalled();
     });
   });
 
@@ -139,12 +197,182 @@ describe('OrganisationRequirementsService', () => {
     });
 
     it("delegates to CaregiverService.getApplicantProfile with the application's profile_id", async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', cancelled_at: null });
       applicationsRepo.findById.mockResolvedValue({ id: 'app-1', requirement_id: 'req-1', profile_id: 'profile-1' });
       caregiverService.getApplicantProfile.mockResolvedValue({ full_name: 'Nurse Nita' });
       const result = await service.getApplicantProfile('org-1', 'req-1', 'app-1');
       expect(caregiverService.getApplicantProfile).toHaveBeenCalledWith('profile-1');
       expect(result).toEqual({ full_name: 'Nurse Nita' });
+    });
+
+    it('throws GEN_002 once the requirement is cancelled', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', cancelled_at: new Date() });
+      await expect(service.getApplicantProfile('org-1', 'req-1', 'app-1')).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listActiveForCaregiver', () => {
+    it('throws PROFILE_019 when no caregiver profile exists', async () => {
+      caregiverProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.listActiveForCaregiver('user-1')).rejects.toMatchObject({ code: 'PROFILE_019' });
+    });
+
+    it("passes the caregiver's own gender through, so preferred_gender filtering matches jobs' own behavior", async () => {
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1', gender: 'female' });
+      requirementsRepo.listActiveForCaregiver.mockResolvedValue([{ id: 'req-1' }]);
+
+      const result = await service.listActiveForCaregiver('user-1');
+
+      expect(requirementsRepo.listActiveForCaregiver).toHaveBeenCalledWith('profile-1', 'female');
+      expect(result).toEqual([{ id: 'req-1' }]);
+    });
+  });
+
+  describe('editRequirement', () => {
+    const editDto = {
+      type_of_nurse: 'registered_nurse',
+      accommodation_provided: true,
+      food_provided: false,
+      number_of_vacancies: 2,
+    } as any;
+
+    it('throws GEN_002 when the requirement does not exist', async () => {
+      requirementsRepo.findById.mockResolvedValue(null);
+      await expect(service.editRequirement('org-1', 'req-1', editDto, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws GEN_002 when the requirement belongs to someone else', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'someone-else' });
+      await expect(service.editRequirement('org-1', 'req-1', editDto, null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_014 when there is an active application', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      applicationsRepo.hasActiveApplicationForRequirement.mockResolvedValue(true);
+      await expect(service.editRequirement('org-1', 'req-1', editDto, null)).rejects.toMatchObject({
+        code: 'JOB_014',
+      });
+      expect(requirementsRepo.updateOwnFields).not.toHaveBeenCalled();
+    });
+
+    it('updates only the org-owned fields, regardless of the requirement status', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        status: 'active',
+        type_of_nurse: 'nursing_completed',
+      });
+      applicationsRepo.hasActiveApplicationForRequirement.mockResolvedValue(false);
+      requirementsRepo.updateOwnFields.mockResolvedValue({
+        id: 'req-1',
+        status: 'active',
+        type_of_nurse: 'registered_nurse',
+      });
+
+      const result = await service.editRequirement('org-1', 'req-1', editDto, '127.0.0.1');
+
+      expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith('req-1', {
+        type_of_nurse: 'registered_nurse',
+        type_of_nurse_other: null,
+        accommodation_provided: true,
+        food_provided: false,
+        special_skills: null,
+        number_of_vacancies: 2,
+        preferred_gender: null,
+      });
+      expect(result.id).toBe('req-1');
+    });
+
+    it('persists type_of_nurse_other only when type_of_nurse is others', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
+      applicationsRepo.hasActiveApplicationForRequirement.mockResolvedValue(false);
+      requirementsRepo.updateOwnFields.mockResolvedValue({ id: 'req-1' });
+
+      await service.editRequirement(
+        'org-1',
+        'req-1',
+        { ...editDto, type_of_nurse: 'others', type_of_nurse_other: 'Physiotherapist' },
+        null,
+      );
+
+      expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ type_of_nurse: 'others', type_of_nurse_other: 'Physiotherapist' }),
+      );
+    });
+  });
+
+  describe('cancelRequirement', () => {
+    it('throws GEN_002 when the requirement does not exist', async () => {
+      requirementsRepo.findById.mockResolvedValue(null);
+      await expect(service.cancelRequirement('org-1', 'req-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('throws GEN_002 when the requirement belongs to someone else', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'someone-else' });
+      await expect(service.cancelRequirement('org-1', 'req-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('throws JOB_015 when already cancelled', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        cancelled_at: new Date(),
+        rejection_reason: null,
+      });
+      await expect(service.cancelRequirement('org-1', 'req-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
+    });
+
+    it('throws JOB_015 when already admin-rejected', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        cancelled_at: null,
+        rejection_reason: 'Not needed',
+      });
+      await expect(service.cancelRequirement('org-1', 'req-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
+    });
+
+    it('bulk-rejects every active application and cancels the requirement', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        status: 'active',
+        cancelled_at: null,
+        rejection_reason: null,
+      });
+      applicationsRepo.findActiveForRequirement.mockResolvedValue([
+        { id: 'app-1', status: 'applied', profile_id: 'p-1' },
+        { id: 'app-2', status: 'accepted', profile_id: 'p-2' },
+      ]);
+
+      const result = await service.cancelRequirement('org-1', 'req-1', '127.0.0.1');
+
+      expect(applicationsRepo.decide).toHaveBeenCalledWith(
+        'app-1',
+        'rejected',
+        'org-1',
+        {},
+        'This requirement was cancelled.',
+      );
+      expect(applicationsRepo.decide).toHaveBeenCalledWith(
+        'app-2',
+        'rejected',
+        'org-1',
+        {},
+        'This requirement was cancelled.',
+      );
+      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('p-2', {});
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalledWith('p-1', {});
+      expect(requirementsRepo.cancel).toHaveBeenCalledWith('req-1', {});
+      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed', rejected_applications: 2 });
     });
   });
 
