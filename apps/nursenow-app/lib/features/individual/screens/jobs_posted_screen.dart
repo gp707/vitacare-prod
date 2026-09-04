@@ -628,14 +628,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          _FieldLine(
-            label: 'Salary Guidance Range',
-            value: requirement.salaryAmount != null
-                ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
-                : 'Not set',
-            valueColor: AppColors.error,
-          ),
-          const SizedBox(height: AppSpacing.xs),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -671,6 +663,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _FieldLine(
+            label: 'Salary Guidance Range',
+            value: requirement.salaryAmount != null
+                ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
+                : 'Not set',
+            valueColor: AppColors.error,
           ),
           const SizedBox(height: AppSpacing.sm),
           Align(
@@ -1194,10 +1194,20 @@ class _ApplicantTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Flexible(
+              // Capped (not a competing-flex Expanded/Flexible) so it's
+              // processed as a plain trailing child — Row gives the
+              // Expanded name above ALL remaining space once this is
+              // subtracted, which pins the status flush to the tile's
+              // right edge rather than splitting the row 50/50. The cap
+              // itself is what keeps this safe on a narrow tile: without
+              // one, a long label (e.g. "Awaiting your decision") has no
+              // bound at all in a Row and can overflow outright.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 130),
                 child: Text(
                   _statusLabel,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
                   style: TextStyle(
                     color: _statusColor,
                     fontWeight: (_isAccepted || _isRejected)
@@ -1221,30 +1231,56 @@ class _ApplicantTile extends StatelessWidget {
             const SizedBox(
                 height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
           else
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.xs,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 OutlinedButton.icon(
                   onPressed: onViewProfile,
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                if (canAccept)
-                  TextButton.icon(
-                    onPressed: onAccept,
-                    icon: const Icon(Icons.check, size: 16, color: AppColors.success),
-                    label: Text(
-                      (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
-                      style: const TextStyle(color: AppColors.success),
+                // Expanded + Align(centerRight), not a Spacer()+Flexible
+                // pair — a Spacer and a Flexible are BOTH flex children, so
+                // Flutter splits the leftover space 50/50 between them
+                // regardless of how little the button group actually
+                // needs, leaving it short of the tile's true right edge
+                // (the same bug the status label above had before it was
+                // fixed). A single Expanded absorbing everything, with
+                // Align pinning its child to that region's right edge,
+                // lines this group up with the status label directly above
+                // it. Align also gives the Wrap inside a real bounded
+                // width, so it still drops Accept/Reject to their own
+                // second line rather than overflow if the tile is too
+                // narrow to fit everything on one line.
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        if (canAccept)
+                          TextButton.icon(
+                            onPressed: onAccept,
+                            icon: const Icon(Icons.check, size: 16, color: AppColors.success),
+                            label: Text(
+                              (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
+                              softWrap: false,
+                              overflow: TextOverflow.visible,
+                              style: const TextStyle(color: AppColors.success),
+                            ),
+                          ),
+                        if (canReject)
+                          TextButton.icon(
+                            onPressed: onReject,
+                            icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                            label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                          ),
+                      ],
                     ),
                   ),
-                if (canReject)
-                  TextButton.icon(
-                    onPressed: onReject,
-                    icon: const Icon(Icons.close, size: 16, color: AppColors.error),
-                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
-                  ),
+                ),
               ],
             ),
         ],
