@@ -148,7 +148,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Image.asset(
-                'packages/vitacare_ui/assets/branding/logo_icon.png',
+                'packages/vitacare_ui/assets/branding/logo_icon.webp',
                 width: 120,
                 height: 120,
               ),

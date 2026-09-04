@@ -34,7 +34,11 @@ class VitaAppBarTitle extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (showLogo) ...[
-              Image.asset('packages/vitacare_ui/assets/branding/logo_icon.png', width: logoSize, height: logoSize),
+              Image.asset(
+                'packages/vitacare_ui/assets/branding/logo_icon.webp',
+                width: logoSize,
+                height: logoSize,
+              ),
               const SizedBox(width: AppSpacing.sm),
             ],
             Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),

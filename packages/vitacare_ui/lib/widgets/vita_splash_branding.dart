@@ -19,7 +19,7 @@ class VitaSplashBranding extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset('packages/vitacare_ui/assets/branding/logo_lockup.png', width: logoWidth),
+        Image.asset('packages/vitacare_ui/assets/branding/logo_lockup.webp', width: logoWidth),
         const SizedBox(height: AppSpacing.sm),
         Text(
           appLabel,

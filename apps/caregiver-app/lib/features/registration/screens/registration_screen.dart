@@ -11,6 +11,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../core/utils/image_compression.dart';
 import '../../profile/data/profile_repository.dart';
 
 const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0';
@@ -190,8 +191,17 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   Future<void> _takeSelfie() async {
     final picker = ImagePicker();
-    // Camera capture only — CLAUDE.md: never offer ImageSource.gallery for the selfie.
-    final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    // Camera capture only — CLAUDE.md: never offer ImageSource.gallery for
+    // the selfie. maxWidth/maxHeight cap the resolution the camera plugin
+    // itself downsamples to (a profile/identity photo never needs full
+    // 12MP+ camera resolution) — combined with imageQuality this keeps a
+    // typical selfie in the tens-of-KB range instead of several hundred.
+    final photo = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
     if (photo != null) {
       // Image.file doesn't work on Flutter Web (no dart:io filesystem access
       // in the browser) — read bytes once, used for both the Image.memory
@@ -211,10 +221,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    // Compressed first, then size-checked against the compressed bytes —
+    // a high-res photo that's over the limit uncompressed can still
+    // succeed once shrunk. Non-image files pass through untouched.
+    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    if (_rejectIfTooLarge(compressed.bytes.length)) return;
     setState(() {
-      _aadhaarBytes = picked.bytes;
-      _aadhaarFilename = picked.name;
+      _aadhaarBytes = compressed.bytes;
+      _aadhaarFilename = compressed.filename;
       _errorMessage = null;
     });
   }
@@ -223,10 +237,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    if (_rejectIfTooLarge(compressed.bytes.length)) return;
     setState(() {
-      _qualificationDocBytes = picked.bytes;
-      _qualificationDocFilename = picked.name;
+      _qualificationDocBytes = compressed.bytes;
+      _qualificationDocFilename = compressed.filename;
       _errorMessage = null;
     });
   }
@@ -235,9 +250,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    if (_rejectIfTooLarge(compressed.bytes.length)) return;
     setState(() {
-      _otherDocs.add(picked);
+      _otherDocs.add(PlatformFile(
+        name: compressed.filename,
+        size: compressed.bytes.length,
+        bytes: compressed.bytes,
+      ));
       _errorMessage = null;
     });
   }

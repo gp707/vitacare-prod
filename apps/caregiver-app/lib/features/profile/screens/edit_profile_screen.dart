@@ -6,6 +6,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../core/utils/image_compression.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../../app/rate_card_button.dart';
 
@@ -191,7 +192,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _pickAndUploadSelfie() async {
     final picker = ImagePicker();
-    final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    // maxWidth/maxHeight cap the resolution the camera plugin itself
+    // downsamples to — a profile/identity photo never needs full camera
+    // resolution, and this keeps a typical re-uploaded selfie in the
+    // tens-of-KB range instead of several hundred.
+    final photo = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
     if (photo == null) return;
     final bytes = await photo.readAsBytes();
     if (_rejectIfTooLarge(bytes.length)) return;
@@ -214,7 +224,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final result = await FilePicker.platform.pickFiles(withData: true);
     final picked = result?.files.single;
     if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    // Compressed first, then size-checked against the compressed bytes —
+    // a high-res photo that's over the limit uncompressed can still
+    // succeed once shrunk. Non-image files pass through untouched.
+    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    if (_rejectIfTooLarge(compressed.bytes.length)) return;
 
     setState(() {
       _uploadingDocType.add(documentType);
@@ -223,7 +237,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     });
     try {
       final wasReReviewed = documentType == DocumentType.aadhaar && _willTriggerReview;
-      await ref.read(profileRepositoryProvider).uploadDocument(picked.bytes!, picked.name, documentType);
+      await ref.read(profileRepositoryProvider).uploadDocument(compressed.bytes, compressed.filename, documentType);
       await ref.read(sessionProvider.notifier).refreshStatus();
       await _load();
       if (wasReReviewed && mounted) {
