@@ -13,6 +13,7 @@ import 'duty_requirements/duty_requirements_repository.dart';
 import 'job_settings/job_settings_repository.dart';
 import 'caregiver_messages/caregiver_messages_repository.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/auth/state/session_notifier.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/jobs/data/jobs_repository.dart';
 import '../features/organisation_openings/data/organisation_openings_repository.dart';
@@ -22,8 +23,14 @@ final localStorageProvider = Provider<LocalStorage>((ref) {
   throw UnimplementedError('localStorageProvider must be overridden in main.dart');
 });
 
-final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(ref.watch(localStorageProvider));
+// Explicit type annotation needed to break a type-inference cycle:
+// apiClientProvider -> sessionProvider -> profileRepositoryProvider (and
+// others) -> apiClientProvider.
+final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
+  return ApiClient(
+    ref.watch(localStorageProvider),
+    onUnauthorized: () => ref.read(sessionProvider.notifier).logout(),
+  );
 });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

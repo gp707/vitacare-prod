@@ -1,6 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+/// Error codes that mean the token itself is no longer good for anything —
+/// a genuinely invalid/expired token, or the account behind it deleted or
+/// deactivated (see JwtAuthGuard, apps/api). Lives here (not
+/// session_notifier.dart, which also uses it) to avoid a circular import
+/// between core/network and features/auth.
+const tokenInvalidErrorCodes = {'AUTH_004', 'AUTH_005'};
+
 /// Wraps the API's { success: false, error: { code, message } } envelope so
 /// screens can branch on [code] and fall back to the server's [message].
 class ApiException implements Exception {
