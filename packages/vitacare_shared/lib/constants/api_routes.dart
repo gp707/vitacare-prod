@@ -34,6 +34,9 @@ class ApiRoutes {
   static String organisationRequirement(String requirementId) => '/organisation/requirements/$requirementId';
   static String organisationRequirementCancel(String requirementId) =>
       '/organisation/requirements/$requirementId/cancel';
+  static String organisationRequirementReactivate(String requirementId) =>
+      '/organisation/requirements/$requirementId/reactivate';
+  static const organisationProfile = '/organisation/profile';
   static const organisationProfilePhone = '/organisation/profile/phone';
   static const organisationProfileCode = '/organisation/profile/code';
   static String organisationRequirementApplications(String requirementId) =>

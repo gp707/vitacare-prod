@@ -91,6 +91,18 @@ class OrganisationRepository {
     }
   }
 
+  /// Brings a requirement the org previously cancelled back to active — no
+  /// admin re-review needed (only valid from a cancelled requirement,
+  /// JOB_017 otherwise).
+  Future<OrganisationRequirementModel> reactivateRequirement(String requirementId) async {
+    try {
+      final res = await _dio.post(ApiRoutes.organisationRequirementReactivate(requirementId));
+      return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Full requirement history — an org can have many simultaneously, so
   /// unlike Individual this realistically returns more than one/zero.
   Future<List<OrganisationRequirementModel>> listMyRequirements() async {
@@ -141,6 +153,29 @@ class OrganisationRepository {
           if (reason != null) 'reason': reason,
         },
       );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Self-service edit of every org-owned profile field (contact person
+  /// name, organisation name, type, city, area) — previously only admin
+  /// could change these. Any field left null is left untouched server-side.
+  Future<void> updateProfile({
+    String? fullName,
+    String? organisationName,
+    String? organisationType,
+    String? city,
+    String? area,
+  }) async {
+    try {
+      await _dio.patch(ApiRoutes.organisationProfile, data: {
+        if (fullName != null) 'full_name': fullName,
+        if (organisationName != null) 'organisation_name': organisationName,
+        if (organisationType != null) 'organisation_type': organisationType,
+        if (city != null) 'city': city,
+        if (area != null) 'area': area,
+      });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

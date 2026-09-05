@@ -183,6 +183,20 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     }
   }
 
+  /// Only offered once a requirement has actually been cancelled (mirrors
+  /// the backend's own JOB_017 check) — brings it back to active without
+  /// needing admin to re-review, since admin's original approval already
+  /// vetted the content and cancelling never meant more than "stop taking
+  /// new applications for now".
+  Future<void> _reactivateRequirement(OrganisationRequirementModel requirement) async {
+    try {
+      await ref.read(organisationRepositoryProvider).reactivateRequirement(requirement.id);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   /// Pre-fills a new posting from a past requirement's fields — unlike
   /// Individual, there is no one-live-limit to gate this on, so it's always
   /// offered.
@@ -244,6 +258,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
                           onEdit: () => _editRequirement(requirement),
                           onCancel: () => _cancelRequirement(requirement),
+                          onReactivate: () => _reactivateRequirement(requirement),
                           onPostSimilar: () => _postSimilarRequirement(requirement),
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -300,6 +315,7 @@ class _RequirementCard extends StatelessWidget {
   final void Function(String applicationId) onViewProfile;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
+  final VoidCallback onReactivate;
   final VoidCallback onPostSimilar;
 
   const _RequirementCard({
@@ -311,6 +327,7 @@ class _RequirementCard extends StatelessWidget {
     required this.onViewProfile,
     required this.onEdit,
     required this.onCancel,
+    required this.onReactivate,
     required this.onPostSimilar,
   });
 
@@ -364,7 +381,7 @@ class _RequirementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locked = _hasActiveApplication;
-    // A fixed 3-item menu, always offered — each item individually
+    // A fixed 4-item menu, always offered — each item individually
     // disabled (not hidden) when its own precondition doesn't hold, so the
     // set of actions is predictable rather than shifting around based on
     // state. Unlike Individual, Post Similar Requirement is never gated —
@@ -381,6 +398,16 @@ class _RequirementCard extends StatelessWidget {
         enabled: _canCancel,
         destructive: true,
         onSelected: onCancel,
+      ),
+      // Only enabled once actually cancelled (mirrors the backend's own
+      // JOB_017 check) — brings it back to active without needing admin to
+      // re-review, since admin's original approval already vetted the
+      // content and cancelling never meant more than "stop taking new
+      // applications for now".
+      _MenuAction(
+        label: requirement.isCancelled ? 'Reactivate the Requirement' : 'Reactivate the Requirement (Unavailable)',
+        enabled: requirement.isCancelled,
+        onSelected: onReactivate,
       ),
     ];
 

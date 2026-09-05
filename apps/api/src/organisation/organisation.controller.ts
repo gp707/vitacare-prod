@@ -13,6 +13,7 @@ import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
+import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
 
 @Controller('organisation')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -60,6 +61,12 @@ export class OrganisationController {
     return this.requirementsService.cancelRequirement(user.sub, id, ip);
   }
 
+  @Post('requirements/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  reactivateRequirement(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.requirementsService.reactivateRequirement(user.sub, id, ip);
+  }
+
   @Get('requirements/:id/applications')
   listApplications(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.requirementsService.getRequirementApplications(user.sub, id);
@@ -84,6 +91,16 @@ export class OrganisationController {
     @ClientIp() ip: string | null,
   ) {
     return this.requirementsService.decideMyApplication(user.sub, requirementId, applicationId, dto, ip);
+  }
+
+  @Patch('profile')
+  @HttpCode(HttpStatus.OK)
+  updateProfile(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateOrganisationProfileDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.organisationService.updateProfile(user.sub, dto, ip);
   }
 
   @Patch('profile/phone')

@@ -67,4 +67,29 @@ export class OrganisationProfilesRepository {
     );
     return result.rows[0] ?? null;
   }
+
+  /** Org's own self-edit of its profile fields — mirrors
+   *  AdminOrganisationsRepository.adminUpdate exactly (same dynamic
+   *  set-only-what's-provided shape), just scoped to the self-service
+   *  repository instead of the admin one. */
+  async update(
+    userId: string,
+    input: {
+      organisation_name?: string;
+      contact_person_name?: string;
+      organisation_type?: string;
+      city?: string;
+      area?: string;
+    },
+  ): Promise<void> {
+    const entries = Object.entries(input).filter(([, value]) => value !== undefined);
+    if (entries.length === 0) return;
+
+    const setClauses = entries.map(([key], i) => `${key} = $${i + 2}`);
+    const values = entries.map(([, value]) => value);
+    await this.db.query(
+      `UPDATE organisation_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+      [userId, ...values],
+    );
+  }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
 import 'package:nursenow_app/features/auth/state/session_notifier.dart';
@@ -71,6 +72,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? profileFetchedApplicationId;
   String? editedRequirementId;
   String? cancelledRequirementId;
+  String? reactivatedRequirementId;
+  ApiException? reactivateError;
 
   _FakeOrganisationRepository({this.requirements = const [], this.applicationsByRequirementId = const {}})
       : super(Dio());
@@ -109,6 +112,13 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   @override
   Future<void> cancelRequirement(String requirementId) async {
     cancelledRequirementId = requirementId;
+  }
+
+  @override
+  Future<OrganisationRequirementModel> reactivateRequirement(String requirementId) async {
+    if (reactivateError != null) throw reactivateError!;
+    reactivatedRequirementId = requirementId;
+    return _requirement(id: requirementId, status: 'active');
   }
 
   @override
@@ -364,7 +374,9 @@ void main() {
     expect(find.text('Preferred: Female'), findsOneWidget);
   });
 
-  testWidgets('the More options menu always offers exactly 3 actions: Edit, Post Similar, Cancel', (tester) async {
+  testWidgets(
+      'the More options menu always offers exactly 4 actions: Edit, Post Similar, Cancel, Reactivate',
+      (tester) async {
     final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
     await _pump(tester, repo);
 
@@ -374,6 +386,7 @@ void main() {
     expect(find.text('Edit the Requirement'), findsOneWidget);
     expect(find.text('Post Similar Requirement'), findsOneWidget);
     expect(find.text('Cancel the Requirement'), findsOneWidget);
+    expect(find.text('Reactivate the Requirement (Unavailable)'), findsOneWidget);
   });
 
   testWidgets('Edit the Requirement is disabled (locked) while there is an active (applied) application',
@@ -437,6 +450,49 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
     expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
+    // Reactivate is the mirror image — disabled everywhere except once
+    // actually cancelled.
+    expect(find.text('Reactivate the Requirement'), findsOneWidget);
+  });
+
+  testWidgets('Reactivate the Requirement is disabled (Unavailable) for a live requirement', (tester) async {
+    final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Reactivate the Requirement (Unavailable)'), findsOneWidget);
+  });
+
+  testWidgets('tapping Reactivate the Requirement calls reactivateRequirement and reloads, no confirmation needed',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-05T10:00:00Z')],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reactivate the Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(repo.reactivatedRequirementId, 'req-1');
+  });
+
+  testWidgets('shows the server error message if reactivating fails (e.g. JOB_010, job posting blocked)',
+      (tester) async {
+    final repo = _FakeOrganisationRepository(
+      requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-05T10:00:00Z')],
+    )..reactivateError = const ApiException(
+        code: 'JOB_010', message: 'Your account is blocked from posting new requirements');
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reactivate the Requirement'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your account is blocked from posting new requirements'), findsOneWidget);
   });
 
   testWidgets('confirming Cancel the Requirement calls cancelRequirement and reloads', (tester) async {

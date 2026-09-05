@@ -30,6 +30,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _nameError;
   String? _nameSuccess;
 
+  // Organisation-only — every other org-owned profile field (contact
+  // person name reuses _fullNameController above; the rest need their own
+  // controllers/state). Previously only admin could edit these.
+  final _orgNameController = TextEditingController();
+  final _orgAreaController = TextEditingController();
+  String? _orgType;
+  String? _orgCity;
+  bool _savingOrgProfile = false;
+  String? _orgProfileError;
+  String? _orgProfileSuccess;
+  bool _orgProfilePrefilled = false;
+
   final _phoneController = TextEditingController();
   bool _savingPhone = false;
   String? _phoneError;
@@ -46,6 +58,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void dispose() {
     _fullNameController.dispose();
+    _orgNameController.dispose();
+    _orgAreaController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -75,6 +89,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (mounted) setState(() => _nameError = e.message);
     } finally {
       if (mounted) setState(() => _savingName = false);
+    }
+  }
+
+  /// Organisation-only — every org-owned profile field, saved together in
+  /// one call. Previously only admin could change these
+  /// (PUT /admin/organisations/:id); phone/PIN stay on their own separate
+  /// sections below, unaffected.
+  Future<void> _saveOrgProfile() async {
+    final contactPersonName = _fullNameController.text.trim();
+    final organisationName = _orgNameController.text.trim();
+    if (!Validators.isValidName(contactPersonName)) {
+      setState(() => _orgProfileError = 'Enter a valid contact person name (letters and spaces only)');
+      return;
+    }
+    if (organisationName.isEmpty) {
+      setState(() => _orgProfileError = 'Organisation name is required');
+      return;
+    }
+    if (_orgType == null) {
+      setState(() => _orgProfileError = 'Select a type of organisation');
+      return;
+    }
+    if (_orgCity == null) {
+      setState(() => _orgProfileError = 'Select a city');
+      return;
+    }
+    setState(() {
+      _savingOrgProfile = true;
+      _orgProfileError = null;
+      _orgProfileSuccess = null;
+    });
+    try {
+      final area = _orgAreaController.text.trim();
+      await ref.read(organisationRepositoryProvider).updateProfile(
+            fullName: contactPersonName,
+            organisationName: organisationName,
+            organisationType: _orgType,
+            city: _orgCity,
+            area: area.isEmpty ? null : area,
+          );
+      await ref.read(sessionProvider.notifier).loadSession();
+      if (mounted) setState(() => _orgProfileSuccess = 'Organisation details updated.');
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _orgProfileError = e.message);
+    } finally {
+      if (mounted) setState(() => _savingOrgProfile = false);
     }
   }
 
@@ -154,6 +214,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (authenticated != null && !_phonePrefilled) {
       _phonePrefilled = true;
       _phoneController.text = authenticated.phone;
+    }
+    if (authenticated != null && authenticated.isOrganisation && !_orgProfilePrefilled) {
+      _orgProfilePrefilled = true;
+      _orgNameController.text = authenticated.organisationName ?? '';
+      _orgAreaController.text = authenticated.area ?? '';
+      _orgType = authenticated.organisationType;
+      _orgCity = authenticated.city;
     }
 
     return Scaffold(
@@ -239,6 +306,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
                           : const Icon(Icons.check, size: 16),
                       label: const Text('Save Name'),
+                    ),
+                  ] else ...[
+                    const Divider(height: AppSpacing.xxl),
+                    const Row(
+                      children: [
+                        Icon(Icons.business, size: 18, color: AppColors.primaryDark),
+                        SizedBox(width: AppSpacing.xs),
+                        Text('Organisation Details',
+                            style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _fullNameController,
+                      decoration: const InputDecoration(labelText: 'Contact person name'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _orgNameController,
+                      decoration: const InputDecoration(labelText: 'Organisation name'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _orgType,
+                      decoration: const InputDecoration(labelText: 'Type of organisation'),
+                      items: OrganisationType.all
+                          .map((t) => DropdownMenuItem(value: t, child: Text(OrganisationType.displayNames[t] ?? t)))
+                          .toList(),
+                      onChanged: (value) => setState(() => _orgType = value),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _orgCity,
+                      decoration: const InputDecoration(labelText: 'City'),
+                      items: [
+                        ...City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))),
+                        const DropdownMenuItem(value: 'others', child: Text('Others')),
+                      ],
+                      onChanged: (value) => setState(() => _orgCity = value),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _orgAreaController,
+                      decoration: const InputDecoration(labelText: 'Area (Optional)'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (_orgProfileError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Text(_orgProfileError!, style: const TextStyle(color: AppColors.error)),
+                      ),
+                    if (_orgProfileSuccess != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Text(_orgProfileSuccess!, style: const TextStyle(color: AppColors.success)),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: _savingOrgProfile ? null : _saveOrgProfile,
+                      icon: _savingOrgProfile
+                          ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
+                          : const Icon(Icons.check, size: 16),
+                      label: const Text('Save Organisation Details'),
                     ),
                   ],
                   const Divider(height: AppSpacing.xxl),

@@ -361,6 +361,66 @@ describe('OrganisationRequirementsService', () => {
     });
   });
 
+  describe('reactivateRequirement', () => {
+    it('throws GEN_002 when the requirement does not exist', async () => {
+      requirementsRepo.findById.mockResolvedValue(null);
+      await expect(service.reactivateRequirement('org-1', 'req-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws GEN_002 when the requirement belongs to someone else', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'someone-else', cancelled_at: new Date() });
+      await expect(service.reactivateRequirement('org-1', 'req-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_017 when the requirement was never cancelled', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', cancelled_at: null });
+      await expect(service.reactivateRequirement('org-1', 'req-1', null)).rejects.toMatchObject({
+        code: 'JOB_017',
+      });
+      expect(requirementsRepo.activate).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_010 when the account is job-posting-blocked — reactivating makes it appliable again, '
+      + 'same as posting new', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        status: 'closed',
+        cancelled_at: new Date(),
+      });
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: true });
+
+      await expect(service.reactivateRequirement('org-1', 'req-1', null)).rejects.toMatchObject({
+        code: 'JOB_010',
+      });
+      expect(requirementsRepo.activate).not.toHaveBeenCalled();
+    });
+
+    it('reactivates a cancelled requirement, stamps posted_at, and broadcasts a push', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        id: 'req-1',
+        posted_by: 'org-1',
+        status: 'closed',
+        cancelled_at: new Date(),
+      });
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.activate.mockResolvedValue({ id: 'req-1', status: 'active' });
+
+      const result = await service.reactivateRequirement('org-1', 'req-1', '127.0.0.1');
+
+      expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'org-1', action: 'org_requirement_updated', entityId: 'req-1' }),
+      );
+      expect(result).toEqual({ id: 'req-1', status: 'active' });
+    });
+  });
+
   describe('decideMyApplication', () => {
     it('throws GEN_002 when the requirement belongs to someone else', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'someone-else' });

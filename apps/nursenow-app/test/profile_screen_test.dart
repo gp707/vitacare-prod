@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import 'package:nursenow_app/features/auth/state/session_state.dart';
 import 'package:nursenow_app/features/individual/data/individual_model.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/screens/profile_screen.dart';
+import 'package:nursenow_app/features/organisation/data/organisation_model.dart';
 import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 
 class _FakeIndividualRepository extends IndividualRepository {
@@ -73,6 +76,54 @@ class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
   Future<List<IndividualMessageModel>> get() async => const [];
 }
 
+class _FakeOrganisationRepository extends OrganisationRepository {
+  String? updatedFullName;
+  String? updatedOrganisationName;
+  String? updatedOrganisationType;
+  String? updatedCity;
+  String? updatedArea;
+  final ApiException? profileError;
+
+  _FakeOrganisationRepository({this.profileError}) : super(Dio());
+
+  // Overridden so a post-save session refresh (loadSession() -> getMe())
+  // never makes a real, unmocked Dio call in a widget test — reflects
+  // whatever updateProfile() was last called with, same pattern as
+  // _FakeIndividualRepository.getMe() above.
+  @override
+  Future<OrganisationModel> getMe() async => OrganisationModel(
+        userId: 'org-1',
+        organisationName: updatedOrganisationName ?? 'City Hospital',
+        contactPersonName: updatedFullName ?? 'Ravi Sharma',
+        organisationType: updatedOrganisationType ?? 'hospital',
+        city: updatedCity ?? 'bangalore',
+        area: updatedArea ?? 'Indiranagar',
+        phone: '+919876543210',
+        isJobPostingBlocked: false,
+      );
+
+  @override
+  Future<void> updateProfile({
+    String? fullName,
+    String? organisationName,
+    String? organisationType,
+    String? city,
+    String? area,
+  }) async {
+    if (profileError != null) throw profileError!;
+    updatedFullName = fullName;
+    updatedOrganisationName = organisationName;
+    updatedOrganisationType = organisationType;
+    updatedCity = city;
+    updatedArea = area;
+  }
+
+  // Only exercised via a post-save session refresh — irrelevant to what
+  // this file tests, so it returns empty rather than hitting the network.
+  @override
+  Future<List<OrganisationRequirementModel>> listMyRequirements() async => const [];
+}
+
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
   // Now 3 full form sections (Full Name/Phone Number/Login PIN) plus
   // Logout — taller than the default 800x600 surface's viewport + cache
@@ -111,6 +162,58 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
       ],
       // Stub route so a real "Save Phone Number" -> session-refresh doesn't
       // need /home registered — this screen itself never navigates there.
+      child: const MaterialApp(home: ProfileScreen()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// A minimal JWT-shaped (but unsigned) token with a `role` claim —
+/// SessionNotifier.loadSession() decodes this client-side (no signature
+/// verification) purely to decide whether to hydrate via
+/// OrganisationRepository or IndividualRepository. A plain non-JWT string
+/// like 'test-token' (fine for Individual, since decode failure falls back
+/// to the individual path) would silently take the WRONG branch here and
+/// hit the unmocked IndividualRepository, hanging the test.
+String _fakeJwt(Map<String, dynamic> payload) {
+  String segment(Object o) => base64Url.encode(utf8.encode(jsonEncode(o))).replaceAll('=', '');
+  return '${segment({'alg': 'none'})}.${segment(payload)}.signature';
+}
+
+Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository repo) async {
+  // Organisation Details (5 fields) + Phone/PIN sections + Logout — taller
+  // than the default viewport, same reasoning as _pump above.
+  await tester.binding.setSurfaceSize(const Size(400, 1800));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  // ignore: invalid_use_of_visible_for_testing_member
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
+  await localStorage.saveTokens(
+    accessToken: _fakeJwt({'role': 'organisation'}),
+    refreshToken: 'test-refresh',
+  );
+  final individualRepo = IndividualRepository(Dio());
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        localStorageProvider.overrideWithValue(localStorage),
+        organisationRepositoryProvider.overrideWithValue(repo),
+        sessionProvider.overrideWith(
+          (ref) => SessionNotifier(localStorage, individualRepo, repo)
+            ..state = const SessionAuthenticated(
+              role: 'organisation',
+              fullName: 'Ravi Sharma',
+              phone: '+919876543210',
+              isJobPostingBlocked: false,
+              organisationName: 'City Hospital',
+              organisationType: 'hospital',
+              city: 'bangalore',
+              area: 'Indiranagar',
+            ),
+        ),
+      ],
       child: const MaterialApp(home: ProfileScreen()),
     ),
   );
@@ -284,5 +387,90 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('login screen'), findsOneWidget);
+  });
+
+  group('Organisation account — Organisation Details self-edit', () {
+    testWidgets('prefills every field from the session, and shows no Full Name section (that\'s Individual-only)',
+        (tester) async {
+      await _pumpOrganisation(tester, _FakeOrganisationRepository());
+
+      expect(find.text('Organisation Details'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Contact person name'), findsOneWidget);
+      final contactField = tester.widget<TextField>(find.widgetWithText(TextField, 'Contact person name'));
+      expect(contactField.controller?.text, 'Ravi Sharma');
+      final orgNameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Organisation name'));
+      expect(orgNameField.controller?.text, 'City Hospital');
+      final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Optional)'));
+      expect(areaField.controller?.text, 'Indiranagar');
+      expect(find.text('Hospital'), findsWidgets);
+      expect(find.text('Bangalore'), findsWidgets);
+      expect(find.widgetWithText(TextField, 'Full name'), findsNothing);
+    });
+
+    testWidgets('saving every field calls updateProfile with all of them and shows a success message',
+        (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Contact person name'), 'Priya Iyer');
+      await tester.enterText(find.widgetWithText(TextField, 'Organisation name'), 'Green Valley Clinic');
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Whitefield');
+
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of organisation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clinic').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mumbai').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
+      await tester.pumpAndSettle();
+
+      expect(repo.updatedFullName, 'Priya Iyer');
+      expect(repo.updatedOrganisationName, 'Green Valley Clinic');
+      expect(repo.updatedOrganisationType, 'clinic');
+      expect(repo.updatedCity, 'mumbai');
+      expect(repo.updatedArea, 'Whitefield');
+      expect(find.text('Organisation details updated.'), findsOneWidget);
+    });
+
+    testWidgets('rejects an invalid contact person name without calling the repository', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Contact person name'), 'Priya123');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
+      await tester.pumpAndSettle();
+
+      expect(repo.updatedFullName, isNull);
+      expect(find.text('Enter a valid contact person name (letters and spaces only)'), findsOneWidget);
+    });
+
+    testWidgets('rejects a blank organisation name without calling the repository', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Organisation name'), '');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
+      await tester.pumpAndSettle();
+
+      expect(repo.updatedFullName, isNull);
+      expect(find.text('Organisation name is required'), findsOneWidget);
+    });
+
+    testWidgets('shows a server error message when the org profile save fails', (tester) async {
+      final repo = _FakeOrganisationRepository(
+        profileError: const ApiException(code: 'GEN_001', message: 'Invalid or missing field'),
+      );
+      await _pumpOrganisation(tester, repo);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid or missing field'), findsOneWidget);
+    });
   });
 }

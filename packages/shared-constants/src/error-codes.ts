@@ -81,6 +81,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_014: { status: 400, message: 'This requirement cannot be edited while it has an active application' },
   JOB_015: { status: 400, message: 'This requirement has already been rejected or cancelled' },
   JOB_016: { status: 400, message: 'Another applicant is already accepted for this job' },
+  JOB_017: { status: 400, message: 'Only a cancelled requirement can be reactivated' },
 
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },

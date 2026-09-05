@@ -64,6 +64,7 @@ class ErrorCodes {
     'JOB_014': 'This requirement cannot be edited while it has an active application',
     'JOB_015': 'This requirement has already been rejected or cancelled',
     'JOB_016': 'Another applicant is already accepted for this job',
+    'JOB_017': 'Only a cancelled requirement can be reactivated',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
     'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',

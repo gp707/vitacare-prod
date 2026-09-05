@@ -7,12 +7,13 @@ describe('OrganisationService', () => {
   let auditService: any;
 
   beforeEach(() => {
-    organisationProfilesRepo = { findByUserId: jest.fn() };
+    organisationProfilesRepo = { findByUserId: jest.fn(), update: jest.fn() };
     usersRepo = {
       findById: jest.fn(),
       findByPhoneAndRoles: jest.fn(),
       updatePhone: jest.fn(),
       updateCodeHash: jest.fn(),
+      updateFullName: jest.fn(),
     };
     auditService = { log: jest.fn() };
     service = new OrganisationService(organisationProfilesRepo, usersRepo, auditService);
@@ -98,6 +99,110 @@ describe('OrganisationService', () => {
         }),
       );
       expect(result).toEqual({ message: 'Phone number updated' });
+    });
+  });
+
+  describe('updateProfile', () => {
+    const profile = {
+      id: 'op-1',
+      organisation_name: 'City Hospital',
+      organisation_type: 'hospital',
+      city: 'bangalore',
+      area: 'Indiranagar',
+    };
+    const user = { id: 'user-1', full_name: 'Ravi Sharma', phone: '+919876543210' };
+
+    it('throws GEN_002 when no organisation profile exists', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(
+        service.updateProfile('user-1', { organisation_name: 'New Name' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('throws GEN_002 when the user does not exist', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(profile);
+      usersRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.updateProfile('user-1', { organisation_name: 'New Name' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('updates every provided field, keeps full_name in sync across users and organisation_profiles, and '
+      + 'audit-logs only what changed', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(profile);
+      usersRepo.findById.mockResolvedValue(user);
+
+      const result = await service.updateProfile(
+        'user-1',
+        {
+          full_name: 'Priya Iyer',
+          organisation_name: 'Green Valley Clinic',
+          organisation_type: 'clinic',
+          city: 'mumbai',
+          area: 'Andheri',
+        } as any,
+        '127.0.0.1',
+      );
+
+      expect(usersRepo.updateFullName).toHaveBeenCalledWith('user-1', 'Priya Iyer');
+      expect(organisationProfilesRepo.update).toHaveBeenCalledWith('user-1', {
+        organisation_name: 'Green Valley Clinic',
+        contact_person_name: 'Priya Iyer',
+        organisation_type: 'clinic',
+        city: 'mumbai',
+        area: 'Andheri',
+      });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          action: 'profile_updated',
+          entityType: 'organisation_profiles',
+          entityId: 'op-1',
+          beforeValue: {
+            full_name: 'Ravi Sharma',
+            organisation_name: 'City Hospital',
+            organisation_type: 'hospital',
+            city: 'bangalore',
+            area: 'Indiranagar',
+          },
+          afterValue: {
+            full_name: 'Priya Iyer',
+            organisation_name: 'Green Valley Clinic',
+            organisation_type: 'clinic',
+            city: 'mumbai',
+            area: 'Andheri',
+          },
+        }),
+      );
+      expect(result).toEqual({ message: 'Profile updated' });
+    });
+
+    it('updates only the one field provided, leaving the rest untouched', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(profile);
+      usersRepo.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-1', { area: 'Whitefield' } as any, null);
+
+      expect(usersRepo.updateFullName).not.toHaveBeenCalled();
+      expect(organisationProfilesRepo.update).toHaveBeenCalledWith('user-1', {
+        organisation_name: undefined,
+        contact_person_name: undefined,
+        organisation_type: undefined,
+        city: undefined,
+        area: 'Whitefield',
+      });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ beforeValue: { area: 'Indiranagar' }, afterValue: { area: 'Whitefield' } }),
+      );
+    });
+
+    it('does not audit-log when every provided value is unchanged', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(profile);
+      usersRepo.findById.mockResolvedValue(user);
+
+      await service.updateProfile('user-1', { organisation_name: 'City Hospital' } as any, null);
+
+      expect(auditService.log).not.toHaveBeenCalled();
     });
   });
 

@@ -171,6 +171,47 @@ export class OrganisationRequirementsService {
     return { message: 'Requirement cancelled', status: 'closed' };
   }
 
+  /** Org self-service — brings a requirement it previously cancelled back
+   *  to active, without needing admin to re-review (admin's original
+   *  approval already vetted the content; cancelling only ever meant "stop
+   *  taking new applications for now", not "this needs re-approval").
+   *  Only valid from a requirement the org itself cancelled (cancelled_at
+   *  set) — an admin-rejected requirement (rejection_reason set) can never
+   *  be self-reactivated, same as it can never be self-cancelled either
+   *  (JOB_015 covers that case; JOB_017 covers this one). Re-broadcasts
+   *  the "New Organisation Opening" push and stamps a fresh posted_at,
+   *  same as admin's approveRequirement — reuses the same activate() repo
+   *  method, which also clears cancelled_at. Blocked the same as a brand
+   *  new posting (JOB_010) while the account is job-posting-blocked —
+   *  reactivating makes it visible/appliable again, same as posting new. */
+  async reactivateRequirement(orgUserId: string, id: string, ipAddress: string | null) {
+    const existing = await this.requirementsRepo.findById(id);
+    if (!existing || existing.posted_by !== orgUserId) throw new AppException('GEN_002');
+    if (existing.cancelled_at == null) throw new AppException('JOB_017');
+
+    const profile = await this.organisationProfilesRepo.findByUserId(orgUserId);
+    if (profile?.is_job_posting_blocked) throw new AppException('JOB_010');
+
+    const requirement = await this.requirementsRepo.activate(id);
+
+    await this.fcmService.sendToAllCaregivers(
+      'New Organisation Opening',
+      `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
+    );
+
+    await this.auditService.log({
+      userId: orgUserId,
+      action: AuditAction.ORG_REQUIREMENT_UPDATED,
+      entityType: 'organisation_requirements',
+      entityId: id,
+      beforeValue: { status: existing.status, cancelled: true },
+      afterValue: { status: requirement.status, cancelled: false },
+      ipAddress,
+    });
+
+    return requirement;
+  }
+
   /** Applicants (and their profiles/contact details) always stay visible,
    *  regardless of whether the requirement was later cancelled — cancelling
    *  only stops new applications, it never hides who already applied. */

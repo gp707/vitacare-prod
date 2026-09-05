@@ -7,6 +7,7 @@ import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
+import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
 
 /** Organisation account identity + self-service (phone/PIN change) — the
  *  requirement-posting/applicant-review surface lives in
@@ -63,6 +64,64 @@ export class OrganisationService {
       ipAddress,
     });
     return { message: 'Phone number updated' };
+  }
+
+  /** Org self-service edit of every org-owned profile field (name, contact
+   *  person, type, city, area) — previously only admin could change these
+   *  (PUT /admin/organisations/:id). Mirrors AdminOrganisationsService.
+   *  editProfile's diff-only-what-changed-then-audit-log pattern exactly,
+   *  including keeping full_name in sync across both users.full_name and
+   *  organisation_profiles.contact_person_name. No re-review pipeline to
+   *  trigger either way, same as phone/code changes. */
+  async updateProfile(userId: string, dto: UpdateOrganisationProfileDto, ipAddress: string | null) {
+    const profile = await this.organisationProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new AppException('GEN_002');
+
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    const trackedFields = ['full_name', 'organisation_name', 'organisation_type', 'city', 'area'] as const;
+    const current: Record<string, unknown> = {
+      full_name: user.full_name,
+      organisation_name: profile.organisation_name,
+      organisation_type: profile.organisation_type,
+      city: profile.city,
+      area: profile.area,
+    };
+    for (const field of trackedFields) {
+      const nextValue = dto[field];
+      if (nextValue === undefined) continue;
+      if (current[field] !== nextValue) {
+        before[field] = current[field];
+        after[field] = nextValue;
+      }
+    }
+
+    if (dto.full_name !== undefined) {
+      await this.usersRepo.updateFullName(userId, dto.full_name);
+    }
+    await this.organisationProfilesRepo.update(userId, {
+      organisation_name: dto.organisation_name,
+      contact_person_name: dto.full_name,
+      organisation_type: dto.organisation_type,
+      city: dto.city,
+      area: dto.area,
+    });
+
+    if (Object.keys(after).length > 0) {
+      await this.auditService.log({
+        userId,
+        action: AuditAction.PROFILE_UPDATED,
+        entityType: 'organisation_profiles',
+        entityId: profile.id,
+        beforeValue: before,
+        afterValue: after,
+        ipAddress,
+      });
+    }
+
+    return { message: 'Profile updated' };
   }
 
   async updateCode(userId: string, dto: UpdateCodeDto, ipAddress: string | null) {

@@ -590,4 +590,177 @@ describe('Organisation requirement enhancements (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_002');
     });
   });
+
+  describe('POST /v1/organisation/requirements/:id/reactivate — org self-reactivate', () => {
+    it('rejects reactivating a requirement that was never cancelled (JOB_017)', async () => {
+      const org = await registerOrganisation('0095');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/organisation/requirements/${create.body.data.id}/reactivate`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_017');
+    });
+
+    it('rejects reactivating a requirement owned by a different organisation (GEN_002)', async () => {
+      const orgA = await registerOrganisation('0096');
+      const orgB = await registerOrganisation('0097');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${orgA.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/v1/organisation/requirements/${create.body.data.id}/cancel`)
+        .set('Authorization', `Bearer ${orgA.access_token}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/organisation/requirements/${create.body.data.id}/reactivate`)
+        .set('Authorization', `Bearer ${orgB.access_token}`)
+        .expect(404);
+      expect(res.body.error.code).toBe('GEN_002');
+    });
+
+    it('reactivates a cancelled requirement back to active, clearing the Cancelled state, without admin re-review',
+      async () => {
+        const org = await registerOrganisation('0098');
+        const create = await request(app.getHttpServer())
+          .post('/v1/organisation/requirements')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .send(requirementPayload())
+          .expect(201);
+        const requirementId = create.body.data.id;
+        await db.query(`UPDATE organisation_requirements SET status = 'active', posted_at = NOW() WHERE id = $1`, [
+          requirementId,
+        ]);
+
+        await request(app.getHttpServer())
+          .post(`/v1/organisation/requirements/${requirementId}/cancel`)
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .expect(200);
+        const cancelledRow = await db.query(
+          'SELECT status, cancelled_at FROM organisation_requirements WHERE id = $1',
+          [requirementId],
+        );
+        expect(cancelledRow.rows[0].status).toBe('closed');
+        expect(cancelledRow.rows[0].cancelled_at).not.toBeNull();
+
+        const reactivated = await request(app.getHttpServer())
+          .post(`/v1/organisation/requirements/${requirementId}/reactivate`)
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .expect(200);
+        expect(reactivated.body.data.status).toBe('active');
+
+        const row = await db.query('SELECT status, cancelled_at FROM organisation_requirements WHERE id = $1', [
+          requirementId,
+        ]);
+        expect(row.rows[0].status).toBe('active');
+        expect(row.rows[0].cancelled_at).toBeNull();
+
+        // Now visible to caregivers again, same as a brand-new posting.
+        const caregiver = await registerCaregiver('0195', 'female');
+        await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+          caregiver.user_id,
+        ]);
+        const list = await request(app.getHttpServer())
+          .get('/v1/caregiver/organisation-requirements')
+          .set('Authorization', `Bearer ${caregiver.access_token}`)
+          .expect(200);
+        expect(list.body.data.some((r: { id: string }) => r.id === requirementId)).toBe(true);
+      });
+
+    it('rejects reactivating while the account is job-posting-blocked (JOB_010)', async () => {
+      const org = await registerOrganisation('0099');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = create.body.data.id;
+      await request(app.getHttpServer())
+        .post(`/v1/organisation/requirements/${requirementId}/cancel`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+
+      await db.query('UPDATE organisation_profiles SET is_job_posting_blocked = true WHERE user_id = $1', [
+        org.user_id,
+      ]);
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/organisation/requirements/${requirementId}/reactivate`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(403);
+      expect(res.body.error.code).toBe('JOB_010');
+    });
+  });
+
+  describe('PATCH /v1/organisation/profile — org self-edit of every profile field', () => {
+    it('updates every provided field, keeping users.full_name and organisation_profiles.contact_person_name '
+      + 'in sync', async () => {
+        const org = await registerOrganisation('0100');
+
+        await request(app.getHttpServer())
+          .patch('/v1/organisation/profile')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .send({
+            full_name: 'New Contact Person',
+            organisation_name: 'New Organisation Name',
+            organisation_type: 'clinic',
+            city: 'mumbai',
+            area: 'Andheri',
+          })
+          .expect(200);
+
+        const me = await request(app.getHttpServer())
+          .get('/v1/organisation/me')
+          .set('Authorization', `Bearer ${org.access_token}`)
+          .expect(200);
+        expect(me.body.data.contact_person_name).toBe('New Contact Person');
+        expect(me.body.data.organisation_name).toBe('New Organisation Name');
+        expect(me.body.data.organisation_type).toBe('clinic');
+        expect(me.body.data.city).toBe('mumbai');
+        expect(me.body.data.area).toBe('Andheri');
+
+        const userRow = await db.query('SELECT full_name FROM users WHERE id = $1', [org.user_id]);
+        expect(userRow.rows[0].full_name).toBe('New Contact Person');
+      });
+
+    it('updates only the one field provided, leaving the rest untouched', async () => {
+      const org = await registerOrganisation('0101');
+
+      await request(app.getHttpServer())
+        .patch('/v1/organisation/profile')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ area: 'Koramangala' })
+        .expect(200);
+
+      const me = await request(app.getHttpServer())
+        .get('/v1/organisation/me')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      expect(me.body.data.area).toBe('Koramangala');
+      expect(me.body.data.organisation_name).toBe('Enhancements Test Org');
+      expect(me.body.data.contact_person_name).toBe('Test Contact');
+    });
+
+    it('rejects an unrecognized organisation_type (GEN_001)', async () => {
+      const org = await registerOrganisation('0102');
+      const res = await request(app.getHttpServer())
+        .patch('/v1/organisation/profile')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ organisation_type: 'not-a-real-type' })
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it('rejects an unauthenticated request', async () => {
+      await request(app.getHttpServer()).patch('/v1/organisation/profile').send({ area: 'X' }).expect(401);
+    });
+  });
 });

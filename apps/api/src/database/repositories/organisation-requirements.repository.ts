@@ -225,13 +225,17 @@ export class OrganisationRequirementsRepository {
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };
   }
 
-  /** Admin's entire action on a requirement — no fields, just flips it
-   *  live and bumps posted_at, same repost-on-reactivate semantics
-   *  JobsRepository has for jobs. */
+  /** Flips a requirement live and bumps posted_at — used both by admin's
+   *  approve (from pending_review or any closed requirement) and by the
+   *  org's own self-service reactivate (from a requirement it previously
+   *  cancelled). Clears cancelled_at/rejection_reason unconditionally: once
+   *  active, a requirement is neither cancelled nor rejected, regardless of
+   *  which closed state it's coming from. */
   async activate(id: string, client?: PoolClient): Promise<OrganisationRequirementRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<OrganisationRequirementRecord>(
-      `UPDATE organisation_requirements SET status = 'active', posted_at = NOW(), updated_at = NOW()
+      `UPDATE organisation_requirements
+       SET status = 'active', cancelled_at = NULL, rejection_reason = NULL, posted_at = NOW(), updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [id],
