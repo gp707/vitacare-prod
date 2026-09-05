@@ -193,6 +193,7 @@ export const AuditAction = {
   AUDIT_LOG_RETENTION_UPDATED: 'audit_log_retention_updated',
   AUDIT_LOGS_PURGED: 'audit_logs_purged',
   APP_MAINTENANCE_UPDATED: 'app_maintenance_updated',
+  JOBS_BULK_DELETED: 'jobs_bulk_deleted',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

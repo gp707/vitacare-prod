@@ -338,6 +338,45 @@ export class JobsRepository {
     return result.rows;
   }
 
+  /** Applications that will disappear (via job_applications.job_id's own
+   *  ON DELETE CASCADE) the moment these jobs are deleted — counted
+   *  beforehand purely so the caller can report/audit-log an accurate
+   *  number, since the cascade itself doesn't return one. */
+  async countApplicationsForJobs(ids: string[], client?: PoolClient): Promise<number> {
+    if (ids.length === 0) return 0;
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<{ count: string }>(
+      'SELECT COUNT(*) FROM job_applications WHERE job_id = ANY($1::uuid[])',
+      [ids],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  /** Permanently deletes every job in [ids] — job_applications cascade-
+   *  delete automatically (ON DELETE CASCADE), but care_receivers doesn't
+   *  (the FK points the other way, jobs.care_receiver_id -> care_receivers,
+   *  with NO ACTION), so this deletes the now-orphaned care_receiver rows
+   *  explicitly, right after, in the same statement via a data-modifying
+   *  CTE — atomic, no separate round trip. Silently ignores any id that no
+   *  longer exists (already deleted / never existed) rather than erroring,
+   *  same idempotent-delete convention as the rest of this codebase.
+   *  Must be called inside a transaction (see AdminBulkDeleteService) since
+   *  it's always paired with the organisation-requirements side of the
+   *  same bulk operation. */
+  async bulkDelete(ids: string[], client: PoolClient): Promise<JobRecord[]> {
+    if (ids.length === 0) return [];
+    const result = await client.query<JobRecord>(
+      `WITH deleted_jobs AS (
+         DELETE FROM jobs WHERE id = ANY($1::uuid[]) RETURNING *
+       ), deleted_care_receivers AS (
+         DELETE FROM care_receivers WHERE id IN (SELECT care_receiver_id FROM deleted_jobs)
+       )
+       SELECT * FROM deleted_jobs`,
+      [ids],
+    );
+    return result.rows;
+  }
+
   /** Active jobs only, with the caregiver's own application status (if any)
    *  and the full care_receiver joined in — lets the caregiver-app show
    *  "already applied" state and the About Patient / About Patient

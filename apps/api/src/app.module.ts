@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { AdminModule } from './admin/admin.module';
 import { JobsModule } from './jobs/jobs.module';
+import { AdminBulkDeleteModule } from './admin-bulk-delete/admin-bulk-delete.module';
 import { IndividualModule } from './individual/individual.module';
 import { OrganisationModule } from './organisation/organisation.module';
 import { AppConfigModule } from './app-config/app-config.module';
@@ -37,6 +38,7 @@ import { validateEnv } from './config/env.validation';
     CaregiverModule,
     AdminModule,
     JobsModule,
+    AdminBulkDeleteModule,
     IndividualModule,
     OrganisationModule,
     AppConfigModule,

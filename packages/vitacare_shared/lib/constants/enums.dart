@@ -475,6 +475,7 @@ class AuditAction {
   static const auditLogRetentionUpdated = 'audit_log_retention_updated';
   static const auditLogsPurged = 'audit_logs_purged';
   static const appMaintenanceUpdated = 'app_maintenance_updated';
+  static const jobsBulkDeleted = 'jobs_bulk_deleted';
 
   static const all = [
     registration,
@@ -518,6 +519,7 @@ class AuditAction {
     auditLogRetentionUpdated,
     auditLogsPurged,
     appMaintenanceUpdated,
+    jobsBulkDeleted,
   ];
 }
 

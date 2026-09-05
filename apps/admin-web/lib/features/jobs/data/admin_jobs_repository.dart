@@ -115,6 +115,36 @@ class JobPosterOption {
       );
 }
 
+/// One row selected for bulk delete — [type] says which table/delete-path
+/// it takes server-side, since the merged Jobs screen shows rows from two
+/// entirely separate tables (jobs vs organisation_requirements).
+class BulkDeleteItem {
+  final String id;
+  final String type;
+
+  const BulkDeleteItem({required this.id, required this.type});
+
+  Map<String, dynamic> toJson() => {'id': id, 'type': type};
+}
+
+class BulkDeleteResult {
+  final int jobsDeleted;
+  final int requirementsDeleted;
+  final int applicationsDeleted;
+
+  const BulkDeleteResult({
+    required this.jobsDeleted,
+    required this.requirementsDeleted,
+    required this.applicationsDeleted,
+  });
+
+  factory BulkDeleteResult.fromJson(Map<String, dynamic> json) => BulkDeleteResult(
+        jobsDeleted: json['jobs_deleted'] as int,
+        requirementsDeleted: json['requirements_deleted'] as int,
+        applicationsDeleted: json['applications_deleted'] as int,
+      );
+}
+
 class AdminJobsRepository {
   final Dio _dio;
 
@@ -156,6 +186,24 @@ class AdminJobsRepository {
               JobApplicationModel.fromJson(item as Map<String, dynamic>))
           .toList();
       return (job, applications);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Super-admin-only permanent delete — [items] can mix both row types
+  /// the merged Jobs screen shows (jobs and organisation_requirements),
+  /// since a single selection spans both. Cascades server-side to each
+  /// item's applications (and, for a job, its care_receiver) — see
+  /// AdminBulkDeleteService. [confirm] must be the literal string
+  /// 'DELETE', matching admin-web's own type-to-confirm dialog gate.
+  Future<BulkDeleteResult> bulkDelete(List<BulkDeleteItem> items) async {
+    try {
+      final res = await _dio.post('/admin/jobs/bulk-delete', data: {
+        'items': items.map((item) => item.toJson()).toList(),
+        'confirm': 'DELETE',
+      });
+      return BulkDeleteResult.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

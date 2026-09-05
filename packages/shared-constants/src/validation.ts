@@ -26,4 +26,10 @@ export const Validation = {
   PAGINATION_DEFAULT_LIMIT: 20,
   PAGINATION_MAX_LIMIT: 100,
   PASSWORD_MIN_LENGTH: 6,
+  // Hard cap on one admin-web "bulk delete" call (jobs + organisation
+  // requirements combined) — a safety guardrail against an accidentally
+  // too-broad "select all matching filter" wiping out far more than
+  // intended in one irreversible action. An admin who genuinely needs to
+  // delete more narrows their filter and repeats.
+  BULK_DELETE_MAX_ITEMS: 500,
 } as const;

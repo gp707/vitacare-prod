@@ -5,6 +5,8 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../auth/state/session_notifier.dart';
+import '../../auth/state/session_state.dart';
 import '../../organisation_requirements/data/admin_organisation_requirements_repository.dart';
 import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
@@ -66,6 +68,8 @@ bool _isOrganisationPosterType(String? posterType) => OrganisationType.all.conta
 /// sharing a sort key. See _AdminJobsScreenState._mergedEntries.
 sealed class _JobsListEntry {
   DateTime get postedAt;
+  _SelectionKey get selectionKey;
+  String get displayId;
 }
 
 class _JobEntry extends _JobsListEntry {
@@ -74,6 +78,12 @@ class _JobEntry extends _JobsListEntry {
 
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
+
+  @override
+  _SelectionKey get selectionKey => _SelectionKey(id: job.id, type: 'job');
+
+  @override
+  String get displayId => jobDisplayId(job);
 }
 
 class _RequirementEntry extends _JobsListEntry {
@@ -82,6 +92,28 @@ class _RequirementEntry extends _JobsListEntry {
 
   @override
   DateTime get postedAt => DateTime.parse(requirement.postedAt);
+
+  @override
+  _SelectionKey get selectionKey => _SelectionKey(id: requirement.id, type: 'organisation_requirement');
+
+  @override
+  String get displayId => requirementDisplayId(requirement);
+}
+
+/// Identifies one selected row for bulk delete — [type] matches
+/// BulkDeleteItem's own 'job'/'organisation_requirement' values exactly,
+/// since a selection is sent to the server as-is.
+class _SelectionKey {
+  final String id;
+  final String type;
+
+  const _SelectionKey({required this.id, required this.type});
+
+  @override
+  bool operator ==(Object other) => other is _SelectionKey && other.id == id && other.type == type;
+
+  @override
+  int get hashCode => Object.hash(id, type);
 }
 
 class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
@@ -89,6 +121,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   List<AdminOrganisationRequirement> _requirements = [];
   bool _loading = true;
   String? _errorMessage;
+
+  // Super-admin-only permanent bulk delete — see AdminBulkDeleteService.
+  // Both _jobs and _requirements are already unpaginated single fetches
+  // (limit 100 each, see JobListFilters.toQueryParameters), so "Select All
+  // Matching Filters" is simply every row currently loaded — there's no
+  // separate multi-page traversal to do.
+  final Set<_SelectionKey> _selected = {};
+  bool _bulkDeleting = false;
 
   List<JobPosterOption> _posters = [];
   final _searchController = TextEditingController();
@@ -161,6 +201,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     setState(() {
       _loading = true;
       _errorMessage = null;
+      // A reload (initial load, filter change, or post-delete refresh)
+      // always invalidates whatever was previously selected — the list
+      // it referred to is about to change.
+      _selected.clear();
     });
     final search = _searchController.text.trim().isEmpty
         ? null
@@ -503,6 +547,65 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     return entries;
   }
 
+  void _toggleSelected(_SelectionKey key, bool? checked) {
+    setState(() {
+      if (checked == true) {
+        _selected.add(key);
+      } else {
+        _selected.remove(key);
+      }
+    });
+  }
+
+  /// Selects every row currently loaded — already exactly "every row
+  /// matching the current filters" (see _mergedEntries's own note on the
+  /// two sources being unpaginated single fetches), so this needs no
+  /// separate page-by-page traversal.
+  void _selectAllMatchingFilters() {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(_mergedEntries.map((entry) => entry.selectionKey));
+    });
+  }
+
+  void _clearSelection() => setState(() => _selected.clear());
+
+  Future<void> _confirmAndBulkDelete() async {
+    final selectedEntries =
+        _mergedEntries.where((entry) => _selected.contains(entry.selectionKey)).toList();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _BulkDeleteConfirmDialog(
+        count: selectedEntries.length,
+        sampleDisplayIds: selectedEntries.take(5).map((entry) => entry.displayId).toList(),
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _bulkDeleting = true);
+    try {
+      final result = await ref.read(adminJobsRepositoryProvider).bulkDelete(
+            selectedEntries.map((entry) => BulkDeleteItem(id: entry.selectionKey.id, type: entry.selectionKey.type)).toList(),
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Permanently deleted ${result.jobsDeleted + result.requirementsDeleted} posting(s) '
+              'and ${result.applicationsDeleted} application(s).',
+            ),
+          ),
+        );
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _bulkDeleting = false);
+    }
+  }
+
   Widget _buildFilterPanel() {
     return Wrap(
       spacing: AppSpacing.sm,
@@ -693,6 +796,48 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
   }
 
+  /// Super-admin-only — a regular admin token would 403 on the endpoint
+  /// itself, so the bar isn't even shown to avoid offering an action that
+  /// can't succeed. Hidden entirely (not just disabled) when there's
+  /// nothing loaded to select.
+  Widget _buildBulkActionsBar() {
+    final session = ref.watch(sessionProvider);
+    final isSuperAdmin = session is AdminSessionAuthenticated && session.isSuperAdmin;
+    if (!isSuperAdmin || _mergedEntries.isEmpty) return const SizedBox.shrink();
+
+    final allSelected = _selected.length == _mergedEntries.length;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          TextButton.icon(
+            onPressed: allSelected ? _clearSelection : _selectAllMatchingFilters,
+            icon: Icon(allSelected ? Icons.deselect : Icons.select_all, size: 18),
+            label: Text(
+              allSelected ? 'Clear Selection' : 'Select All ${_mergedEntries.length} Matching Filters',
+            ),
+          ),
+          if (_selected.isNotEmpty)
+            ElevatedButton.icon(
+              onPressed: _bulkDeleting ? null : _confirmAndBulkDelete,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+              ),
+              icon: _bulkDeleting
+                  ? const SizedBox(
+                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.delete_forever, size: 18),
+              label: Text('Delete Selected (${_selected.length})'),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
@@ -728,6 +873,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               _buildFilterPanel(),
+              _buildBulkActionsBar(),
               if (_filterPostedByLabel != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 _SinglePosterBanner(
@@ -755,7 +901,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final entry = _mergedEntries[index];
-                      return switch (entry) {
+                      final row = switch (entry) {
                         _JobEntry(:final job) => _JobRow(
                             job: job,
                             onTap: () => _openDetailDialog(job),
@@ -786,6 +932,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                 _viewRequirementApplicants(requirement),
                           ),
                       };
+                      final session = ref.watch(sessionProvider);
+                      final isSuperAdmin =
+                          session is AdminSessionAuthenticated && session.isSuperAdmin;
+                      if (!isSuperAdmin) return row;
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Checkbox(
+                            value: _selected.contains(entry.selectionKey),
+                            onChanged: (checked) => _toggleSelected(entry.selectionKey, checked),
+                          ),
+                          Expanded(child: row),
+                        ],
+                      );
                     },
                   ),
                 ),
@@ -1941,6 +2101,88 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 )
               : const Icon(Icons.check, size: 16),
           label: Text(_isEditing ? 'Save Changes' : 'Post'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Guards the permanent bulk delete — this destroys rows and, via cascade,
+/// every candidate application against them, with no undo. Confirm stays
+/// disabled until the admin types the literal word DELETE, the highest-
+/// friction confirmation pattern already used in this codebase (see e.g.
+/// admin-web's other irreversible actions) — a stray click can't trigger it.
+class _BulkDeleteConfirmDialog extends StatefulWidget {
+  final int count;
+  final List<String> sampleDisplayIds;
+
+  const _BulkDeleteConfirmDialog({required this.count, required this.sampleDisplayIds});
+
+  @override
+  State<_BulkDeleteConfirmDialog> createState() => _BulkDeleteConfirmDialogState();
+}
+
+class _BulkDeleteConfirmDialogState extends State<_BulkDeleteConfirmDialog> {
+  final _confirmController = TextEditingController();
+  bool _canConfirm = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _confirmController.addListener(() {
+      final matches = _confirmController.text.trim() == 'DELETE';
+      if (matches != _canConfirm) setState(() => _canConfirm = matches);
+    });
+  }
+
+  @override
+  void dispose() {
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = widget.count - widget.sampleDisplayIds.length;
+    return AlertDialog(
+      title: Text('Permanently delete ${widget.count} posting(s)?'),
+      content: SizedBox(
+        width: context.dialogWidth(420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This cannot be undone. Every candidate application against these '
+              'postings will also be permanently deleted from the database, as if '
+              'they had never applied.',
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              widget.sampleDisplayIds.join(', ') + (remaining > 0 ? ', and $remaining more' : ''),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Type DELETE to confirm:', style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: AppSpacing.xs),
+            TextField(
+              controller: _confirmController,
+              autofocus: true,
+              decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+              onSubmitted: (_) {
+                if (_canConfirm) Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: _canConfirm ? () => Navigator.of(context).pop(true) : null,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+          child: const Text('Delete Permanently'),
         ),
       ],
     );

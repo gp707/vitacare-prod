@@ -26,4 +26,10 @@ class Validation {
   static const paginationDefaultLimit = 20;
   static const paginationMaxLimit = 100;
   static const passwordMinLength = 6;
+  // Hard cap on one admin-web "bulk delete" call (jobs + organisation
+  // requirements combined) — a safety guardrail against an accidentally
+  // too-broad "select all matching filter" wiping out far more than
+  // intended in one irreversible action. An admin who genuinely needs to
+  // delete more narrows their filter and repeats.
+  static const bulkDeleteMaxItems = 500;
 }

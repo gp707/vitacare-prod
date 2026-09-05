@@ -182,7 +182,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
             controller: _searchController,
             decoration: const InputDecoration(
               labelText: 'Search',
-              hintText: 'Name, phone, or display id',
+              hintText: 'Actor/target name, phone, entity, or display id',
               border: OutlineInputBorder(),
               isDense: true,
               prefixIcon: Icon(Icons.search, size: 18),

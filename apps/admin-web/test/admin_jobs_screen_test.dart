@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:admin_web/core/network/api_exception.dart';
 import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
@@ -112,6 +113,8 @@ class _FakeAdminOrganisationRequirementsRepository
 }
 
 JobModel _job({
+  String id = 'job-1',
+  int adminJobNumber = 542,
   String status = 'active',
   String? salaryAmount = '30000',
   String? frequencyOfCare = 'daily',
@@ -121,8 +124,8 @@ JobModel _job({
   List<String> languages = const ['hindi'],
 }) {
   return JobModel.fromJson({
-    'id': 'job-1',
-    'admin_job_number': 542,
+    'id': id,
+    'admin_job_number': adminJobNumber,
     'city': 'bangalore',
     'area': 'Indiranagar',
     'description': 'Need a caregiver',
@@ -349,6 +352,18 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
             a.id == applicationId ? _application(status: status, id: a.id) : a)
         .toList();
   }
+
+  List<BulkDeleteItem>? bulkDeletedItems;
+  BulkDeleteResult bulkDeleteResult =
+      const BulkDeleteResult(jobsDeleted: 0, requirementsDeleted: 0, applicationsDeleted: 0);
+  Object? bulkDeleteError;
+
+  @override
+  Future<BulkDeleteResult> bulkDelete(List<BulkDeleteItem> items) async {
+    if (bulkDeleteError != null) throw bulkDeleteError!;
+    bulkDeletedItems = items;
+    return bulkDeleteResult;
+  }
 }
 
 Future<void> _pump(
@@ -358,6 +373,7 @@ Future<void> _pump(
   JobsScreenInitialFilter? initialFilter,
   List<RateCardWithUpdater>? rateCards,
   Object? rateCardError,
+  String role = 'super_admin',
 }) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -370,8 +386,7 @@ Future<void> _pump(
         localStorageProvider.overrideWithValue(localStorage),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)
-            ..state =
-                AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+            ..state = AdminSessionAuthenticated(userId: 'u1', role: role),
         ),
         adminJobsRepositoryProvider.overrideWithValue(repo),
         adminOrganisationRequirementsRepositoryProvider.overrideWithValue(
@@ -2004,6 +2019,156 @@ void main() {
       expect(find.text('Showing postings by: Rahul Bajaj'), findsOneWidget);
       expect(find.text('ORG-JOB-101'), findsNothing);
       expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    });
+  });
+
+  group('Bulk delete (super_admin only)', () {
+    testWidgets('hides the bulk actions bar and checkboxes entirely for a regular admin', (tester) async {
+      await _pump(tester, _FakeAdminJobsRepository([_job()]), role: 'admin');
+
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.textContaining('Select All'), findsNothing);
+    });
+
+    testWidgets('hides the bulk actions bar when there is nothing loaded', (tester) async {
+      await _pump(tester, _FakeAdminJobsRepository([]));
+
+      expect(find.textContaining('Select All'), findsNothing);
+    });
+
+    testWidgets('checking a row shows Delete Selected (1); unchecking hides it again', (tester) async {
+      await _pump(tester, _FakeAdminJobsRepository([_job()]));
+
+      expect(find.textContaining('Delete Selected'), findsNothing);
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete Selected (1)'), findsOneWidget);
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Delete Selected'), findsNothing);
+    });
+
+    testWidgets('Select All Matching Filters selects every loaded row across both sources, and flips to Clear Selection',
+        (tester) async {
+      await _pump(
+        tester,
+        _FakeAdminJobsRepository([_job(id: 'job-1'), _job(id: 'job-2')]),
+        requirementsRepo: _FakeAdminOrganisationRequirementsRepository([_requirement(id: 'r1')]),
+      );
+
+      expect(find.text('Select All 3 Matching Filters'), findsOneWidget);
+
+      await tester.tap(find.text('Select All 3 Matching Filters'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete Selected (3)'), findsOneWidget);
+      expect(find.text('Clear Selection'), findsOneWidget);
+      // All 3 checkboxes are now checked.
+      final checkboxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
+      expect(checkboxes.every((c) => c.value == true), isTrue);
+
+      await tester.tap(find.text('Clear Selection'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Delete Selected'), findsNothing);
+      expect(find.text('Select All 3 Matching Filters'), findsOneWidget);
+    });
+
+    testWidgets('Confirm stays disabled until the admin types DELETE, then submits the selected items', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job(id: 'job-1')]);
+      repo.bulkDeleteResult =
+          const BulkDeleteResult(jobsDeleted: 1, requirementsDeleted: 0, applicationsDeleted: 2);
+      await _pump(
+        tester,
+        repo,
+        requirementsRepo: _FakeAdminOrganisationRequirementsRepository([_requirement(id: 'r1')]),
+      );
+
+      await tester.tap(find.text('Select All 2 Matching Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Selected (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Permanently delete 2 posting(s)?'), findsOneWidget);
+      final confirmButton = find.widgetWithText(ElevatedButton, 'Delete Permanently');
+      expect(tester.widget<ElevatedButton>(confirmButton).onPressed, isNull);
+
+      await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'delete');
+      await tester.pumpAndSettle();
+      expect(tester.widget<ElevatedButton>(confirmButton).onPressed, isNull,
+          reason: 'must match the exact case "DELETE"');
+
+      await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'DELETE');
+      await tester.pumpAndSettle();
+      expect(tester.widget<ElevatedButton>(confirmButton).onPressed, isNotNull);
+
+      await tester.tap(confirmButton);
+      await tester.pumpAndSettle();
+
+      expect(
+        repo.bulkDeletedItems?.map((i) => (i.id, i.type)).toSet(),
+        {('job-1', 'job'), ('r1', 'organisation_requirement')},
+      );
+      expect(find.text('Permanently deleted 1 posting(s) and 2 application(s).'), findsOneWidget);
+      // Selection is cleared and the bar resets after a successful delete.
+      expect(find.textContaining('Delete Selected'), findsNothing);
+    });
+
+    testWidgets('Cancel closes the dialog without calling bulkDelete', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      await _pump(tester, repo);
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Selected (1)'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(repo.bulkDeletedItems, isNull);
+      expect(find.text('Delete Selected (1)'), findsOneWidget,
+          reason: 'cancelling must leave the selection intact');
+    });
+
+    testWidgets('a failed bulk delete shows the error message via snackbar', (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      repo.bulkDeleteError = const ApiException(code: 'JOB_018', message: 'Too many items selected for bulk delete');
+      await _pump(tester, repo);
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Selected (1)'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'DELETE');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Delete Permanently'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Too many items selected for bulk delete'), findsOneWidget);
+    });
+
+    testWidgets('the confirmation dialog lists a sample of display ids and the remaining count', (tester) async {
+      await _pump(
+        tester,
+        _FakeAdminJobsRepository([
+          _job(id: 'job-1', adminJobNumber: 501),
+          _job(id: 'job-2', adminJobNumber: 502),
+        ]),
+      );
+
+      await tester.tap(find.byType(Checkbox).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).at(1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Selected (2)'));
+      await tester.pumpAndSettle();
+
+      // Matched as the exact joined sample line inside the dialog — a
+      // plain textContaining('ADMIN-JOB-501') would also match the row's
+      // own id label still present (but obscured) behind the dialog.
+      expect(find.text('ADMIN-JOB-501, ADMIN-JOB-502'), findsOneWidget);
     });
   });
 }

@@ -314,4 +314,32 @@ export class OrganisationRequirementsRepository {
       [id],
     );
   }
+
+  /** Applications that will disappear (via organisation_requirement_applications
+   *  .requirement_id's own ON DELETE CASCADE) the moment these requirements
+   *  are deleted — counted beforehand purely so the caller can report/
+   *  audit-log an accurate number. Mirrors JobsRepository.countApplicationsForJobs. */
+  async countApplicationsForRequirements(ids: string[], client?: PoolClient): Promise<number> {
+    if (ids.length === 0) return 0;
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<{ count: string }>(
+      'SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = ANY($1::uuid[])',
+      [ids],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  /** Permanently deletes every requirement in [ids] — applications cascade-
+   *  delete automatically (ON DELETE CASCADE). Unlike jobs, organisation
+   *  requirements have no care_receiver equivalent to clean up afterward.
+   *  Silently ignores any id that no longer exists. Must be called inside
+   *  a transaction (see AdminBulkDeleteService). */
+  async bulkDelete(ids: string[], client: PoolClient): Promise<OrganisationRequirementRecord[]> {
+    if (ids.length === 0) return [];
+    const result = await client.query<OrganisationRequirementRecord>(
+      'DELETE FROM organisation_requirements WHERE id = ANY($1::uuid[]) RETURNING *',
+      [ids],
+    );
+    return result.rows;
+  }
 }
