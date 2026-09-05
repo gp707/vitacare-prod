@@ -20,7 +20,10 @@ class AppVersionRepository {
   /// takes no token). Returns null when no update is required. Deliberately
   /// fails open on any error (network down, backend unreachable, unexpected
   /// response shape): a broken version check must never be the thing that
-  /// locks every caregiver out of the app.
+  /// locks every Individual/Organisation account out of the app.
+  /// Mirrors caregiver-app's own AppVersionRepository exactly, except this
+  /// app identifies itself as LoginApp.nursenow so admin can force-upgrade
+  /// NurseNow independently of NurseJobs (see migration 068).
   Future<UpdateRequiredInfo?> checkForUpdate() async {
     try {
       // defaultTargetPlatform (not dart:io Platform) so this still compiles
@@ -29,7 +32,7 @@ class AppVersionRepository {
       final packageInfo = await PackageInfo.fromPlatform();
 
       final res = await _dio.get(ApiRoutes.appVersionCheck, queryParameters: {
-        'app': LoginApp.nursejobs,
+        'app': LoginApp.nursenow,
         'platform': platform,
         'version': packageInfo.version,
       });

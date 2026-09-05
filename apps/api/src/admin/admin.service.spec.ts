@@ -271,10 +271,11 @@ describe('AdminService', () => {
         order: 'asc',
         user_id: 'admin-1',
         action: 'status_changed',
+        search: 'NUR-500',
       } as any);
 
       expect(auditLogsRepo.list).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'admin-1', action: 'status_changed' }),
+        expect.objectContaining({ userId: 'admin-1', action: 'status_changed', search: 'NUR-500' }),
         expect.objectContaining({ order: 'asc', page: 2, limit: 20 }),
       );
       expect(result.meta).toEqual({ page: 2, limit: 20, total: 45, totalPages: 3 });

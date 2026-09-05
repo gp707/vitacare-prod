@@ -8,6 +8,11 @@ class AuditLogListFilters {
   final String? action;
   final String? fromDate;
   final String? toDate;
+  // Free-text — matches actor/target name/phone, the target's own display
+  // id (NUR-/PAT-/ORG-<n>), entity_type, or the affected job/requirement's
+  // display id (ADMIN-JOB-/PAT-JOB-/ORG-JOB-<n>). Same convention as every
+  // other admin-web list screen's search filter.
+  final String? search;
   final String order;
   final int page;
   final int limit;
@@ -18,6 +23,7 @@ class AuditLogListFilters {
     this.action,
     this.fromDate,
     this.toDate,
+    this.search,
     this.order = 'desc',
     this.page = 1,
     this.limit = 20,
@@ -33,6 +39,7 @@ class AuditLogListFilters {
       if (action != null) 'action': action,
       if (fromDate != null) 'from_date': fromDate,
       if (toDate != null) 'to_date': toDate,
+      if (search != null && search!.isNotEmpty) 'search': search,
     };
   }
 }

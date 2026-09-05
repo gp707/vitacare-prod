@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
 import 'package:nursenow_app/core/storage/local_storage.dart';
+import 'package:nursenow_app/core/version/app_version_repository.dart';
+import 'package:nursenow_app/core/version/app_maintenance_repository.dart';
 import 'package:nursenow_app/features/auth/screens/splash_screen.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/data/individual_model.dart';
@@ -27,11 +29,33 @@ class _FakeIndividualRepository extends IndividualRepository {
   }
 }
 
+class _FakeAppVersionRepository extends AppVersionRepository {
+  final UpdateRequiredInfo? result;
+  _FakeAppVersionRepository(this.result) : super(Dio());
+
+  @override
+  Future<UpdateRequiredInfo?> checkForUpdate() async => result;
+}
+
+class _FakeAppMaintenanceRepository extends AppMaintenanceRepository {
+  final MaintenanceInfo? result;
+  int callCount = 0;
+  _FakeAppMaintenanceRepository(this.result) : super(Dio());
+
+  @override
+  Future<MaintenanceInfo?> checkForMaintenance() async {
+    callCount++;
+    return result;
+  }
+}
+
 Future<void> _pumpSplash(
   WidgetTester tester, {
   String? initialDeepLinkRoute,
   bool authenticated = true,
   ApiException? getMeError,
+  AppVersionRepository? appVersionRepo,
+  AppMaintenanceRepository? maintenanceRepo,
 }) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues(authenticated ? {'access_token': 'fake-token'} : {});
@@ -42,6 +66,8 @@ Future<void> _pumpSplash(
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(_FakeIndividualRepository(error: getMeError)),
+        appVersionRepositoryProvider.overrideWithValue(appVersionRepo ?? _FakeAppVersionRepository(null)),
+        appMaintenanceRepositoryProvider.overrideWithValue(maintenanceRepo ?? _FakeAppMaintenanceRepository(null)),
       ],
       child: MaterialApp(
         home: SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
@@ -112,5 +138,62 @@ void main() {
     expect(find.text('Login Page'), findsNothing);
     expect(find.text('Could not reach the server.'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+  });
+
+  testWidgets('blocks with Update Required and never navigates when an update is required', (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(
+        const UpdateRequiredInfo(
+          storeUrl: 'https://play.google.com/store/apps/details?id=com.vitacasahealth.nursenow',
+          message: 'Critical update needed',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Update Required'), findsOneWidget);
+    expect(find.text('Critical update needed'), findsOneWidget);
+    expect(find.text('Home Page'), findsNothing);
+  });
+
+  testWidgets('blocks with Under Maintenance and never navigates when maintenance is enabled', (tester) async {
+    await _pumpSplash(
+      tester,
+      maintenanceRepo: _FakeAppMaintenanceRepository(
+        const MaintenanceInfo(message: 'App is in maintenance mode, it will be available after 10am IST.'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Under Maintenance'), findsOneWidget);
+    expect(find.text('App is in maintenance mode, it will be available after 10am IST.'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+    expect(find.text('Home Page'), findsNothing);
+  });
+
+  testWidgets('maintenance takes priority over Update Required when both are true', (tester) async {
+    await _pumpSplash(
+      tester,
+      appVersionRepo: _FakeAppVersionRepository(const UpdateRequiredInfo(message: 'Please update.')),
+      maintenanceRepo: _FakeAppMaintenanceRepository(const MaintenanceInfo(message: 'Down for maintenance.')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Under Maintenance'), findsOneWidget);
+    expect(find.text('Update Required'), findsNothing);
+  });
+
+  testWidgets('tapping Retry on the maintenance screen re-runs the check', (tester) async {
+    final maintenanceRepo = _FakeAppMaintenanceRepository(const MaintenanceInfo(message: 'Down for maintenance.'));
+    await _pumpSplash(tester, maintenanceRepo: maintenanceRepo);
+    await tester.pumpAndSettle();
+    expect(maintenanceRepo.callCount, 1);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
+    await tester.pumpAndSettle();
+
+    expect(maintenanceRepo.callCount, 2);
+    expect(find.text('Under Maintenance'), findsOneWidget);
   });
 }

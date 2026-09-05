@@ -64,6 +64,7 @@ class AuditLogsScreen extends ConsumerStatefulWidget {
 }
 
 class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
+  final _searchController = TextEditingController();
   String? _action;
   DateTime? _fromDate;
   DateTime? _toDate;
@@ -80,6 +81,12 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -92,6 +99,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
               action: _action,
               fromDate: _fromDate?.toIso8601String().split('T').first,
               toDate: _toDate?.toIso8601String().split('T').first,
+              search: _searchController.text.trim(),
               page: _page,
             ),
           );
@@ -168,6 +176,20 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
       runSpacing: AppSpacing.sm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        SizedBox(
+          width: 280,
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search',
+              hintText: 'Name, phone, or display id',
+              border: OutlineInputBorder(),
+              isDense: true,
+              prefixIcon: Icon(Icons.search, size: 18),
+            ),
+            onSubmitted: (_) => _applyFilters(),
+          ),
+        ),
         SizedBox(
           width: 240,
           child: DropdownButtonFormField<String?>(

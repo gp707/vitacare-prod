@@ -456,6 +456,7 @@ class AuditAction {
   static const jobUpdated = 'job_updated';
   static const jobCompleted = 'job_completed';
   static const jobReapplied = 'job_reapplied';
+  static const appVersionUpdated = 'app_version_updated';
   static const orgRequirementPosted = 'org_requirement_posted';
   static const orgRequirementUpdated = 'org_requirement_updated';
   static const orgRequirementRejected = 'org_requirement_rejected';
@@ -473,6 +474,7 @@ class AuditAction {
   static const caregiverMessageDeleted = 'caregiver_message_deleted';
   static const auditLogRetentionUpdated = 'audit_log_retention_updated';
   static const auditLogsPurged = 'audit_logs_purged';
+  static const appMaintenanceUpdated = 'app_maintenance_updated';
 
   static const all = [
     registration,
@@ -497,6 +499,7 @@ class AuditAction {
     jobUpdated,
     jobCompleted,
     jobReapplied,
+    appVersionUpdated,
     orgRequirementPosted,
     orgRequirementUpdated,
     orgRequirementRejected,
@@ -514,6 +517,7 @@ class AuditAction {
     caregiverMessageDeleted,
     auditLogRetentionUpdated,
     auditLogsPurged,
+    appMaintenanceUpdated,
   ];
 }
 

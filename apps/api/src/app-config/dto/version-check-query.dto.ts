@@ -1,7 +1,13 @@
 import { IsIn, Matches } from 'class-validator';
-import { AppPlatform } from '@vitacare/shared-constants';
+import { AppPlatform, LoginApp } from '@vitacare/shared-constants';
 
 export class VersionCheckQueryDto {
+  // Which app is asking — NurseJobs and NurseNow have independent
+  // min_version rows per platform (see migration 068), same "which app am
+  // I" bucket LoginApp already models for POST /auth/login/code.
+  @IsIn(Object.values(LoginApp), { message: 'GEN_001' })
+  app!: LoginApp;
+
   @IsIn(Object.values(AppPlatform), { message: 'GEN_001' })
   platform!: AppPlatform;
 

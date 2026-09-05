@@ -87,10 +87,12 @@ JobModel _jobWithCareReceiver() {
 
 class _FakeAuditLogsRepository extends AuditLogsRepository {
   final List<AuditLogEntry> items;
+  AuditLogListFilters? lastFilters;
   _FakeAuditLogsRepository(this.items) : super(Dio());
 
   @override
   Future<AuditLogListResult> list(AuditLogListFilters filters) async {
+    lastFilters = filters;
     return AuditLogListResult(
       items: items,
       meta: const PaginationMeta(page: 1, limit: 20, total: 1, totalPages: 1),
@@ -263,6 +265,30 @@ void main() {
     expect(find.text('req-1'), findsOneWidget,
         reason:
             'the exact requirement id (UUID) must be visible, not just ORG-JOB-<n>');
+  });
+
+  testWidgets('typing into Search and tapping Apply Filters re-fetches with the search term',
+      (tester) async {
+    final repo = _FakeAuditLogsRepository([_entry()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Search'), 'NUR-500');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Filters'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastFilters?.search, 'NUR-500');
+  });
+
+  testWidgets('submitting the Search field (Enter) also re-fetches, without needing Apply Filters',
+      (tester) async {
+    final repo = _FakeAuditLogsRepository([_entry()]);
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Search'), 'ADMIN-JOB-512');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(repo.lastFilters?.search, 'ADMIN-JOB-512');
   });
 
   testWidgets(

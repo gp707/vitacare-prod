@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { AppPlatform, AuditAction } from '@vitacare/shared-constants';
+import { AppPlatform, AuditAction, LoginApp } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AuditService } from '../audit/audit.service';
 import { AppMinVersionsRepository } from '../database/repositories/app-min-versions.repository';
+import { AppMaintenanceRepository } from '../database/repositories/app-maintenance.repository';
 import { UpdateAppVersionDto } from './dto/update-app-version.dto';
+import { UpdateAppMaintenanceDto } from './dto/update-app-maintenance.dto';
 
 export interface VersionCheckResult {
   update_required: boolean;
@@ -12,19 +14,26 @@ export interface VersionCheckResult {
   update_message: string | null;
 }
 
+export interface MaintenanceCheckResult {
+  enabled: boolean;
+  message: string | null;
+}
+
 @Injectable()
 export class AppConfigService {
   constructor(
     private readonly appMinVersionsRepo: AppMinVersionsRepository,
+    private readonly appMaintenanceRepo: AppMaintenanceRepository,
     private readonly auditService: AuditService,
   ) {}
 
-  /** Public — called by the caregiver app on every launch, before login.
-   *  An unrecognized platform 404s (GEN_002) rather than silently passing,
-   *  since a malformed/unexpected client is exactly the case we don't want
-   *  to fail open on the "does this row exist" check for. */
-  async checkVersion(platform: AppPlatform, version: string): Promise<VersionCheckResult> {
-    const row = await this.appMinVersionsRepo.findByPlatform(platform);
+  /** Public — called by each app on every launch, before login. An
+   *  unrecognized app/platform combination 404s (GEN_002) rather than
+   *  silently passing, since a malformed/unexpected client is exactly the
+   *  case we don't want to fail open on the "does this row exist" check
+   *  for. */
+  async checkVersion(app: LoginApp, platform: AppPlatform, version: string): Promise<VersionCheckResult> {
+    const row = await this.appMinVersionsRepo.findByAppAndPlatform(app, platform);
     if (!row) throw new AppException('GEN_002');
 
     const updateRequired = this.isBelowMinVersion(version, row.min_version);
@@ -40,21 +49,71 @@ export class AppConfigService {
     return this.appMinVersionsRepo.findAll();
   }
 
-  /** platform comes from an unvalidated @Param — an invalid value simply
-   *  won't match a row (findByPlatform returns null), which we turn into
-   *  the same GEN_002 as a legitimate platform that's somehow missing. */
-  async adminUpdate(adminId: string, platform: string, dto: UpdateAppVersionDto, ipAddress: string | null) {
-    const existing = await this.appMinVersionsRepo.findByPlatform(platform);
+  /** app/platform come from unvalidated @Param segments — an invalid
+   *  value simply won't match a row (findByAppAndPlatform returns null),
+   *  which we turn into the same GEN_002 as a legitimate combination
+   *  that's somehow missing. */
+  async adminUpdate(
+    adminId: string,
+    app: string,
+    platform: string,
+    dto: UpdateAppVersionDto,
+    ipAddress: string | null,
+  ) {
+    const existing = await this.appMinVersionsRepo.findByAppAndPlatform(app, platform);
     if (!existing) throw new AppException('GEN_002');
 
-    const updated = await this.appMinVersionsRepo.update(platform, dto, adminId);
+    const updated = await this.appMinVersionsRepo.update(app, platform, dto, adminId);
 
     await this.auditService.log({
       userId: adminId,
       action: AuditAction.APP_VERSION_UPDATED,
       entityType: 'app_min_versions',
-      beforeValue: { platform, min_version: existing.min_version, store_url: existing.store_url },
-      afterValue: { platform, min_version: dto.min_version, store_url: dto.store_url ?? null },
+      beforeValue: { app, platform, min_version: existing.min_version, store_url: existing.store_url },
+      afterValue: { app, platform, min_version: dto.min_version, store_url: dto.store_url ?? null },
+      ipAddress,
+    });
+
+    return updated;
+  }
+
+  /** Public — called by each app on every launch, before login, alongside
+   *  checkVersion. An unrecognized app 404s (GEN_002), same reasoning as
+   *  checkVersion above. */
+  async checkMaintenance(app: LoginApp): Promise<MaintenanceCheckResult> {
+    const row = await this.appMaintenanceRepo.findByApp(app);
+    if (!row) throw new AppException('GEN_002');
+
+    return {
+      enabled: row.enabled,
+      message: row.enabled ? row.message : null,
+    };
+  }
+
+  adminMaintenanceList() {
+    return this.appMaintenanceRepo.findAll();
+  }
+
+  /** app comes from an unvalidated @Param — an invalid value simply won't
+   *  match a row, turned into GEN_002 the same way adminUpdate above
+   *  handles it. */
+  async adminMaintenanceUpdate(
+    adminId: string,
+    app: string,
+    dto: UpdateAppMaintenanceDto,
+    ipAddress: string | null,
+  ) {
+    const existing = await this.appMaintenanceRepo.findByApp(app);
+    if (!existing) throw new AppException('GEN_002');
+
+    const updated = await this.appMaintenanceRepo.update(app, dto, adminId);
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.APP_MAINTENANCE_UPDATED,
+      entityType: 'app_maintenance',
+      beforeValue: { app, enabled: existing.enabled, message: existing.message },
+      afterValue: { app, enabled: dto.enabled, message: dto.message ?? null },
       ipAddress,
     });
 

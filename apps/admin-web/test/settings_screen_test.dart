@@ -18,6 +18,7 @@ import 'package:admin_web/features/rate_card/data/rate_card_repository.dart';
 import 'package:admin_web/features/scope_of_work/data/scope_of_work_repository.dart';
 import 'package:admin_web/features/duty_requirements/data/duty_requirements_repository.dart';
 import 'package:admin_web/features/app_versions/data/app_versions_repository.dart';
+import 'package:admin_web/features/app_maintenance/data/app_maintenance_repository.dart';
 import 'package:admin_web/features/login_settings/data/otp_settings_repository.dart';
 
 RateCardModel _rateCard({required String frequency, required String title}) {
@@ -168,8 +169,9 @@ class _FakeDutyRequirementsRepository extends DutyRequirementsRepository {
   }
 }
 
-AppMinVersion _version({String platform = 'android', String minVersion = '1.0.0'}) {
+AppMinVersion _version({String app = 'nursejobs', String platform = 'android', String minVersion = '1.0.0'}) {
   return AppMinVersion.fromJson({
+    'app': app,
     'platform': platform,
     'min_version': minVersion,
     'store_url': null,
@@ -188,8 +190,39 @@ class _FakeAppVersionsRepository extends AppVersionsRepository {
   Future<List<AppMinVersion>> list() async => versions;
 
   @override
-  Future<void> update(String platform, {required String minVersion, String? storeUrl, String? updateMessage}) async {
-    versions = versions.map((v) => v.platform == platform ? _version(platform: platform, minVersion: minVersion) : v).toList();
+  Future<void> update(String app, String platform,
+      {required String minVersion, String? storeUrl, String? updateMessage}) async {
+    versions = versions
+        .map((v) => v.app == app && v.platform == platform
+            ? _version(app: app, platform: platform, minVersion: minVersion)
+            : v)
+        .toList();
+  }
+}
+
+AppMaintenance _maintenance({String app = 'nursejobs', bool enabled = false, String? message}) {
+  return AppMaintenance.fromJson({
+    'app': app,
+    'enabled': enabled,
+    'message': message,
+    'updated_by_name': null,
+    'updated_at': '2026-08-17T10:00:00Z',
+  });
+}
+
+class _FakeAppMaintenanceRepository extends AppMaintenanceRepository {
+  List<AppMaintenance> rows;
+
+  _FakeAppMaintenanceRepository(this.rows) : super(Dio());
+
+  @override
+  Future<List<AppMaintenance>> list() async => rows;
+
+  @override
+  Future<void> update(String app, {required bool enabled, String? message}) async {
+    rows = rows
+        .map((r) => r.app == app ? _maintenance(app: app, enabled: enabled, message: message) : r)
+        .toList();
   }
 }
 
@@ -228,6 +261,7 @@ class _Repos {
   final _FakeScopeOfWorkRepository scopeOfWork;
   final _FakeDutyRequirementsRepository dutyRequirements;
   final _FakeAppVersionsRepository appVersions;
+  final _FakeAppMaintenanceRepository appMaintenance;
   final _FakeOtpSettingsRepository otpSettings;
 
   _Repos({
@@ -238,6 +272,7 @@ class _Repos {
     _FakeScopeOfWorkRepository? scopeOfWork,
     _FakeDutyRequirementsRepository? dutyRequirements,
     _FakeAppVersionsRepository? appVersions,
+    _FakeAppMaintenanceRepository? appMaintenance,
     _FakeOtpSettingsRepository? otpSettings,
   })  : jobSettings = jobSettings ??
             _FakeJobSettingsRepository(const JobSettingsWithUpdater(applyByWindowDays: 3)),
@@ -251,7 +286,10 @@ class _Repos {
             }),
         scopeOfWork = scopeOfWork ?? _FakeScopeOfWorkRepository(_scopeOfWork()),
         dutyRequirements = dutyRequirements ?? _FakeDutyRequirementsRepository(_dutyRequirements()),
-        appVersions = appVersions ?? _FakeAppVersionsRepository([_version(platform: 'android', minVersion: '1.2.0')]),
+        appVersions = appVersions ??
+            _FakeAppVersionsRepository([_version(app: 'nursejobs', platform: 'android', minVersion: '1.2.0')]),
+        appMaintenance = appMaintenance ??
+            _FakeAppMaintenanceRepository([_maintenance(app: 'nursejobs'), _maintenance(app: 'nursenow')]),
         otpSettings = otpSettings ?? _FakeOtpSettingsRepository([_setting(app: 'nursejobs')]);
 }
 
@@ -276,6 +314,7 @@ Future<void> _pump(WidgetTester tester, _Repos repos) async {
         scopeOfWorkRepositoryProvider.overrideWithValue(repos.scopeOfWork),
         dutyRequirementsRepositoryProvider.overrideWithValue(repos.dutyRequirements),
         appVersionsRepositoryProvider.overrideWithValue(repos.appVersions),
+        appMaintenanceRepositoryProvider.overrideWithValue(repos.appMaintenance),
         otpSettingsRepositoryProvider.overrideWithValue(repos.otpSettings),
       ],
       child: const MaterialApp(home: SettingsScreen()),
@@ -285,12 +324,18 @@ Future<void> _pump(WidgetTester tester, _Repos repos) async {
 }
 
 Future<void> _selectTab(WidgetTester tester, String label) async {
-  await tester.tap(find.widgetWithText(Tab, label));
+  // The tab strip is scrollable (isScrollable: true) and now has 7 tabs —
+  // Login Settings can sit off the 1400px test surface, so scroll it into
+  // view before tapping rather than relying on it already being visible.
+  final finder = find.widgetWithText(Tab, label);
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('shows all 6 tabs and defaults to General', (tester) async {
+  testWidgets('shows all 7 tabs and defaults to General', (tester) async {
     await _pump(tester, _Repos());
 
     for (final label in [
@@ -299,6 +344,7 @@ void main() {
       'Scope of Work',
       'Duty Requirements',
       'App Versions',
+      'Maintenance Mode',
       'Login Settings',
     ]) {
       expect(find.widgetWithText(Tab, label), findsOneWidget);
@@ -476,20 +522,63 @@ void main() {
   });
 
   group('App Versions tab', () {
-    testWidgets('lists platforms and saves an edit', (tester) async {
-      final repos = _Repos();
+    testWidgets('groups rows under their own app and saves an edit', (tester) async {
+      final repos = _Repos(
+        appVersions: _FakeAppVersionsRepository([
+          _version(app: 'nursejobs', platform: 'android', minVersion: '1.2.0'),
+          _version(app: 'nursejobs', platform: 'ios', minVersion: '1.2.0'),
+          _version(app: 'nursenow', platform: 'android', minVersion: '2.0.0'),
+          _version(app: 'nursenow', platform: 'ios', minVersion: '2.0.0'),
+        ]),
+      );
       await _pump(tester, repos);
       await _selectTab(tester, 'App Versions');
 
-      expect(find.text('Minimum version: 1.2.0'), findsOneWidget);
+      expect(find.text('NurseJobs'), findsOneWidget);
+      expect(find.text('NurseNow'), findsOneWidget);
+      expect(find.text('Minimum version: 1.2.0'), findsNWidgets(2));
+      expect(find.text('Minimum version: 2.0.0'), findsNWidgets(2));
 
-      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      // Edit the first row (NurseJobs/android) and confirm only that row
+      // changes — NurseNow's own 2.0.0 rows are untouched.
+      await tester.tap(find.widgetWithText(TextButton, 'Edit').first);
       await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Minimum version (e.g. 1.2.0)'), '1.3.0');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
       await tester.pumpAndSettle();
 
       expect(find.text('Minimum version: 1.3.0'), findsOneWidget);
+      expect(find.text('Minimum version: 1.2.0'), findsOneWidget);
+      expect(find.text('Minimum version: 2.0.0'), findsNWidgets(2));
+    });
+  });
+
+  group('Maintenance Mode tab', () {
+    testWidgets('lists both apps, enables one, and saves the message', (tester) async {
+      final repos = _Repos();
+      await _pump(tester, repos);
+      await _selectTab(tester, 'Maintenance Mode');
+
+      expect(find.text('NurseJobs'), findsOneWidget);
+      expect(find.text('NurseNow'), findsOneWidget);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Message shown to users').first,
+        'App is in maintenance mode, it will be available after 10am IST.',
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
+      await tester.pumpAndSettle();
+
+      expect(repos.appMaintenance.rows.firstWhere((r) => r.app == 'nursejobs').enabled, isTrue);
+      expect(
+        repos.appMaintenance.rows.firstWhere((r) => r.app == 'nursejobs').message,
+        'App is in maintenance mode, it will be available after 10am IST.',
+      );
+      // NurseNow's own row is untouched.
+      expect(repos.appMaintenance.rows.firstWhere((r) => r.app == 'nursenow').enabled, isFalse);
+      expect(find.text('NurseJobs maintenance settings saved'), findsOneWidget);
     });
   });
 

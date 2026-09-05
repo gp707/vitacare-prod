@@ -223,6 +223,7 @@ export class AdminService {
         action: query.action,
         fromDate: query.from_date,
         toDate: query.to_date,
+        search: query.search,
       },
       { order: query.order, page: query.page, limit: query.limit },
     );

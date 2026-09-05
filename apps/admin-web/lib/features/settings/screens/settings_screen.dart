@@ -6,6 +6,7 @@ import '../widgets/rate_card_settings_section.dart';
 import '../widgets/scope_of_work_settings_section.dart';
 import '../widgets/duty_requirements_settings_section.dart';
 import '../widgets/app_versions_settings_section.dart';
+import '../widgets/maintenance_settings_section.dart';
 import '../widgets/login_settings_section.dart';
 
 /// A single consolidated Settings hub — folds what used to be 5 separate
@@ -23,6 +24,7 @@ class SettingsScreen extends StatelessWidget {
     Tab(icon: Icon(Icons.checklist), text: 'Scope of Work'),
     Tab(icon: Icon(Icons.assignment_outlined), text: 'Duty Requirements'),
     Tab(icon: Icon(Icons.system_update), text: 'App Versions'),
+    Tab(icon: Icon(Icons.build_circle_outlined), text: 'Maintenance Mode'),
     Tab(icon: Icon(Icons.password), text: 'Login Settings'),
   ];
 
@@ -62,6 +64,7 @@ class SettingsScreen extends StatelessWidget {
                     ScopeOfWorkSettingsSection(),
                     DutyRequirementsSettingsSection(),
                     AppVersionsSettingsSection(),
+                    MaintenanceSettingsSection(),
                     LoginSettingsSection(),
                   ],
                 ),

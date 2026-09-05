@@ -18,6 +18,7 @@ import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
 import { CareReceiversRepository } from './repositories/care-receivers.repository';
 import { AppMinVersionsRepository } from './repositories/app-min-versions.repository';
+import { AppMaintenanceRepository } from './repositories/app-maintenance.repository';
 import { AdminReportsRepository } from './repositories/admin-reports.repository';
 import { OtpAuthSettingsRepository } from './repositories/otp-auth-settings.repository';
 import { OtpVerificationsRepository } from './repositories/otp-verifications.repository';
@@ -48,6 +49,7 @@ const repositories = [
   JobApplicationsRepository,
   CareReceiversRepository,
   AppMinVersionsRepository,
+  AppMaintenanceRepository,
   AdminReportsRepository,
   OtpAuthSettingsRepository,
   OtpVerificationsRepository,

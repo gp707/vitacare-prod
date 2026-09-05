@@ -9,6 +9,7 @@ import '../features/admin_management/data/admin_users_repository.dart';
 import '../features/audit_logs/data/audit_logs_repository.dart';
 import '../features/jobs/data/admin_jobs_repository.dart';
 import '../features/app_versions/data/app_versions_repository.dart';
+import '../features/app_maintenance/data/app_maintenance_repository.dart';
 import '../features/individuals/data/admin_individuals_repository.dart';
 import '../features/organisations/data/admin_organisations_repository.dart';
 import '../features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
@@ -60,6 +61,10 @@ final adminJobsRepositoryProvider = Provider<AdminJobsRepository>((ref) {
 
 final appVersionsRepositoryProvider = Provider<AppVersionsRepository>((ref) {
   return AppVersionsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final appMaintenanceRepositoryProvider = Provider<AppMaintenanceRepository>((ref) {
+  return AppMaintenanceRepository(ref.watch(apiClientProvider).dio);
 });
 
 final otpSettingsRepositoryProvider = Provider<OtpSettingsRepository>((ref) {

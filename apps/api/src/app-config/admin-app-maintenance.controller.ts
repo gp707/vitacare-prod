@@ -7,27 +7,26 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { AppConfigService } from './app-config.service';
-import { UpdateAppVersionDto } from './dto/update-app-version.dto';
+import { UpdateAppMaintenanceDto } from './dto/update-app-maintenance.dto';
 
-@Controller('admin/app-versions')
+@Controller('admin/app-maintenance')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-export class AdminAppVersionsController {
+export class AdminAppMaintenanceController {
   constructor(private readonly appConfigService: AppConfigService) {}
 
   @Get()
   list() {
-    return this.appConfigService.adminList();
+    return this.appConfigService.adminMaintenanceList();
   }
 
-  @Patch(':app/:platform')
+  @Patch(':app')
   update(
     @CurrentUser() user: JwtPayload,
     @Param('app') app: string,
-    @Param('platform') platform: string,
-    @Body() dto: UpdateAppVersionDto,
+    @Body() dto: UpdateAppMaintenanceDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.appConfigService.adminUpdate(user.sub, app, platform, dto, ip);
+    return this.appConfigService.adminMaintenanceUpdate(user.sub, app, dto, ip);
   }
 }

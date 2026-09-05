@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
+import '../../../app/update_required_screen.dart';
+import '../../../app/maintenance_screen.dart';
 import '../../../core/providers.dart';
+import '../../../core/version/app_version_repository.dart';
+import '../../../core/version/app_maintenance_repository.dart';
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's buildRoutes() map except the pre-auth ones
@@ -33,25 +37,63 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  UpdateRequiredInfo? _updateInfo;
+  MaintenanceInfo? _maintenanceInfo;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAuthConfigThenLoadSession());
   }
 
-  /// Unlike caregiver-app, nursenow-app has no existing pre-check to
-  /// extend (no app-version-check here) — this is new wiring, not an
-  /// extension. Unauthenticated and fails open to false (PIN mode), same
-  /// contract as AuthConfigRepository.isOtpEnabled itself.
+  /// All three calls (maintenance/version check, OTP config) are
+  /// unauthenticated and fail open, so they're safe to run in parallel —
+  /// same convention as caregiver-app's own splash screen.
   Future<void> _checkAuthConfigThenLoadSession() async {
-    final otpEnabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+    final results = await Future.wait([
+      ref.read(appMaintenanceRepositoryProvider).checkForMaintenance(),
+      ref.read(appVersionRepositoryProvider).checkForUpdate(),
+      ref.read(authConfigRepositoryProvider).isOtpEnabled(),
+    ]);
     if (!mounted) return;
+
+    final maintenanceInfo = results[0] as MaintenanceInfo?;
+    final updateInfo = results[1] as UpdateRequiredInfo?;
+    final otpEnabled = results[2] as bool;
     ref.read(otpModeProvider.notifier).state = otpEnabled;
+
+    // Maintenance takes priority over a stale-build nag — if the app is
+    // down entirely, telling the user to update first would be pointless.
+    if (maintenanceInfo != null) {
+      setState(() {
+        _maintenanceInfo = maintenanceInfo;
+        _updateInfo = null;
+      });
+      return;
+    }
+    if (updateInfo != null) {
+      setState(() {
+        _maintenanceInfo = null;
+        _updateInfo = updateInfo;
+      });
+      return;
+    }
+    setState(() {
+      _maintenanceInfo = null;
+      _updateInfo = null;
+    });
     ref.read(sessionProvider.notifier).loadSession();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_maintenanceInfo != null) {
+      return MaintenanceScreen(message: _maintenanceInfo!.message, onRetry: _checkAuthConfigThenLoadSession);
+    }
+    if (_updateInfo != null) {
+      return UpdateRequiredScreen(storeUrl: _updateInfo!.storeUrl, message: _updateInfo!.message);
+    }
+
     ref.listen<SessionState>(sessionProvider, (previous, next) {
       if (next is SessionUnauthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);

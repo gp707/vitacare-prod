@@ -55,6 +55,7 @@ export interface AuditLogListFilters {
   action?: AuditAction;
   fromDate?: string;
   toDate?: string;
+  search?: string;
 }
 
 export interface AuditLogListSort {
@@ -87,12 +88,58 @@ function buildWhereClause(filters: AuditLogListFilters): { clause: string; param
     params.push(filters.toDate);
     conditions.push(`al.created_at <= $${params.length}::date + INTERVAL '1 day'`);
   }
+  // Matches ANY of: actor name/phone, target name/phone, target's own
+  // display id, the entry's entity_type, or the affected job/requirement's
+  // display id — one search box covering everything an admin might already
+  // know about the entry they're looking for. Reuses the same param
+  // placeholder for every branch of the OR (identical %term% value), so
+  // this only ever costs one entry in params regardless of how many
+  // columns it's matched against.
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    const p = params.length;
+    conditions.push(`(
+      actor.full_name ILIKE $${p} OR
+      actor.phone ILIKE $${p} OR
+      target.full_name ILIKE $${p} OR
+      target.phone ILIKE $${p} OR
+      ('NUR-' || target_cp.caregiver_number::text) ILIKE $${p} OR
+      ('PAT-' || target_ip.patient_number::text) ILIKE $${p} OR
+      ('ORG-' || target_op.org_number::text) ILIKE $${p} OR
+      al.entity_type ILIKE $${p} OR
+      ('ADMIN-JOB-' || COALESCE(job_direct.admin_job_number, job_via_app.admin_job_number)::text) ILIKE $${p} OR
+      ('PAT-JOB-' || COALESCE(job_direct.patient_job_number, job_via_app.patient_job_number)::text) ILIKE $${p} OR
+      ('ORG-JOB-' || COALESCE(org_req_direct.requirement_number, org_req_via_app.requirement_number)::text) ILIKE $${p}
+    )`);
+  }
 
   return {
     clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
     params,
   };
 }
+
+// Shared by both the list query and the count query — a search-filter
+// condition references these joined tables' columns (actor/target names,
+// display-id-backing numbers, job/requirement numbers), so both queries
+// need the exact same JOINs or the count query 500s at runtime the moment
+// a search term is supplied. See CLAUDE.md's admin-web filters note on
+// this exact gotcha.
+const AUDIT_LOG_JOINS = `
+  LEFT JOIN users actor ON actor.id = al.user_id
+  LEFT JOIN users target ON target.id = al.target_user_id
+  LEFT JOIN caregiver_profiles target_cp ON target_cp.user_id = al.target_user_id
+  LEFT JOIN individual_profiles target_ip ON target_ip.user_id = al.target_user_id
+  LEFT JOIN organisation_profiles target_op ON target_op.user_id = al.target_user_id
+  LEFT JOIN jobs job_direct ON al.entity_type = 'jobs' AND job_direct.id = al.entity_id
+  LEFT JOIN job_applications ja ON al.entity_type = 'job_applications' AND ja.id = al.entity_id
+  LEFT JOIN jobs job_via_app ON job_via_app.id = ja.job_id
+  LEFT JOIN organisation_requirements org_req_direct
+    ON al.entity_type = 'organisation_requirements' AND org_req_direct.id = al.entity_id
+  LEFT JOIN organisation_requirement_applications ora
+    ON al.entity_type = 'organisation_requirement_applications' AND ora.id = al.entity_id
+  LEFT JOIN organisation_requirements org_req_via_app ON org_req_via_app.id = ora.requirement_id
+`;
 
 @Injectable()
 export class AuditLogsRepository {
@@ -126,25 +173,16 @@ export class AuditLogsRepository {
                 COALESCE(org_req_direct.requirement_number, org_req_via_app.requirement_number) AS requirement_number,
                 COALESCE(org_req_direct.id, org_req_via_app.id) AS requirement_id
          FROM audit_logs al
-         LEFT JOIN users actor ON actor.id = al.user_id
-         LEFT JOIN users target ON target.id = al.target_user_id
-         LEFT JOIN caregiver_profiles target_cp ON target_cp.user_id = al.target_user_id
-         LEFT JOIN individual_profiles target_ip ON target_ip.user_id = al.target_user_id
-         LEFT JOIN organisation_profiles target_op ON target_op.user_id = al.target_user_id
-         LEFT JOIN jobs job_direct ON al.entity_type = 'jobs' AND job_direct.id = al.entity_id
-         LEFT JOIN job_applications ja ON al.entity_type = 'job_applications' AND ja.id = al.entity_id
-         LEFT JOIN jobs job_via_app ON job_via_app.id = ja.job_id
-         LEFT JOIN organisation_requirements org_req_direct
-           ON al.entity_type = 'organisation_requirements' AND org_req_direct.id = al.entity_id
-         LEFT JOIN organisation_requirement_applications ora
-           ON al.entity_type = 'organisation_requirement_applications' AND ora.id = al.entity_id
-         LEFT JOIN organisation_requirements org_req_via_app ON org_req_via_app.id = ora.requirement_id
+         ${AUDIT_LOG_JOINS}
          ${clause}
          ORDER BY al.created_at ${orderDirection}
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),
-      this.db.query<{ count: string }>(`SELECT COUNT(*) FROM audit_logs al ${clause}`, params),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*) FROM audit_logs al ${AUDIT_LOG_JOINS} ${clause}`,
+        params,
+      ),
     ]);
 
     return { items: listResult.rows, total: Number(countResult.rows[0].count) };

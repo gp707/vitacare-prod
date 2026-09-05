@@ -613,6 +613,73 @@ describe('Admin (e2e)', () => {
         .expect(400);
       expect(res.body.error.code).toBe('GEN_005');
     });
+
+    it('search matches the target caregiver by name, without needing target_user_id/action', async () => {
+      const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
+        '0041',
+        'Audit Search Unique Subject',
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/caregivers/${profileId}/status`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'available' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ search: 'Audit Search Unique Subject' })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      // Matches both the admin's status_changed entry (target_user_id ==
+      // targetUserId) and the caregiver's own self-registration entry
+      // (they're the actor there, target_user_id is null) — search matches
+      // on actor OR target, so both are legitimately returned.
+      const statusChangedEntry = res.body.data.find(
+        (e: { action: string; target_user_id: string }) =>
+          e.action === 'status_changed' && e.target_user_id === targetUserId,
+      );
+      expect(statusChangedEntry).toBeDefined();
+    });
+
+    it('search matches the target caregiver by their own NUR-<n> display id', async () => {
+      const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
+        '0042',
+        'Audit Search Display Id Subject',
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/caregivers/${profileId}/status`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'available' })
+        .expect(200);
+
+      const byName = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ target_user_id: targetUserId })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const displayId = `NUR-${byName.body.data[0].target_caregiver_number}`;
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ search: displayId })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.data.every((e: { target_user_id: string }) => e.target_user_id === targetUserId)).toBe(true);
+    });
+
+    it('search finds no results for a term that matches nothing, without erroring (the count query shares the search JOINs)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ search: 'no-such-entry-xyz-123' })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(res.body.data).toEqual([]);
+      expect(res.body.meta.total).toBe(0);
+    });
   });
 
   describe('PUT /v1/admin/caregivers/:id (generic edit)', () => {

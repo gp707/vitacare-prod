@@ -5,8 +5,10 @@ import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 import '../../../app/route_for_status.dart';
 import '../../../app/update_required_screen.dart';
+import '../../../app/maintenance_screen.dart';
 import '../../../core/providers.dart';
 import '../../../core/version/app_version_repository.dart';
+import '../../../core/version/app_maintenance_repository.dart';
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's buildRoutes() map except the pre-auth ones
@@ -28,6 +30,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   UpdateRequiredInfo? _updateInfo;
+  MaintenanceInfo? _maintenanceInfo;
 
   @override
   void initState() {
@@ -36,30 +39,52 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkVersionThenLoadSession() async {
-    // All three calls are unauthenticated and fail open, so they're safe to
+    // All four calls are unauthenticated and fail open, so they're safe to
     // run in parallel rather than sequentially.
     final results = await Future.wait([
+      ref.read(appMaintenanceRepositoryProvider).checkForMaintenance(),
       ref.read(appVersionRepositoryProvider).checkForUpdate(),
       ref.read(authConfigRepositoryProvider).isOtpEnabled(),
       ref.read(jobSettingsRepositoryProvider).getApplyByWindowDays(),
     ]);
     if (!mounted) return;
 
-    final updateInfo = results[0] as UpdateRequiredInfo?;
-    final otpEnabled = results[1] as bool;
-    final applyByWindowDays = results[2] as int;
+    final maintenanceInfo = results[0] as MaintenanceInfo?;
+    final updateInfo = results[1] as UpdateRequiredInfo?;
+    final otpEnabled = results[2] as bool;
+    final applyByWindowDays = results[3] as int;
     ref.read(otpModeProvider.notifier).state = otpEnabled;
     ref.read(applyByWindowDaysProvider.notifier).state = applyByWindowDays;
 
-    if (updateInfo != null) {
-      setState(() => _updateInfo = updateInfo);
+    // Maintenance takes priority over a stale-build nag — if the app is
+    // down entirely, telling the caregiver to update first would be
+    // pointless.
+    if (maintenanceInfo != null) {
+      setState(() {
+        _maintenanceInfo = maintenanceInfo;
+        _updateInfo = null;
+      });
       return;
     }
+    if (updateInfo != null) {
+      setState(() {
+        _maintenanceInfo = null;
+        _updateInfo = updateInfo;
+      });
+      return;
+    }
+    setState(() {
+      _maintenanceInfo = null;
+      _updateInfo = null;
+    });
     ref.read(sessionProvider.notifier).loadSession();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_maintenanceInfo != null) {
+      return MaintenanceScreen(message: _maintenanceInfo!.message, onRetry: _checkVersionThenLoadSession);
+    }
     if (_updateInfo != null) {
       return UpdateRequiredScreen(storeUrl: _updateInfo!.storeUrl, message: _updateInfo!.message);
     }
