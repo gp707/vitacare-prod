@@ -12,6 +12,7 @@ import '../../../app/rate_card_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/utils/image_compression.dart';
+import '../../../core/utils/upload_size_limit.dart';
 import '../../profile/data/profile_repository.dart';
 
 const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0';
@@ -179,13 +180,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
   }
 
-  /// True (and sets a friendly error) if [sizeBytes] exceeds the shared
-  /// 10MB limit — checked immediately on pick so an oversized file never
-  /// even reaches the upload step, rather than failing later with the
-  /// backend's own less specific error.
-  bool _rejectIfTooLarge(int sizeBytes) {
-    if (sizeBytes <= Validation.fileMaxSizeBytes) return false;
-    setState(() => _errorMessage = 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
+  /// True (and sets a friendly error) if [sizeBytes] exceeds [maxBytes]
+  /// (the shared 10MB limit by default; Selfie/Aadhaar pass the tighter
+  /// 4MB [photoAadhaarMaxSizeBytes] instead) — checked immediately on pick
+  /// so an oversized file never even reaches the upload step, rather than
+  /// failing later with the backend's own less specific error.
+  bool _rejectIfTooLarge(int sizeBytes, {int? maxBytes, String? message}) {
+    final limit = maxBytes ?? Validation.fileMaxSizeBytes;
+    if (sizeBytes <= limit) return false;
+    setState(() => _errorMessage =
+        message ?? 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
     return true;
   }
 
@@ -208,7 +212,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       // preview and the actual upload (ProfileRepository.uploadSelfie takes
       // bytes too, for the same reason).
       final bytes = await photo.readAsBytes();
-      if (_rejectIfTooLarge(bytes.length)) return;
+      if (_rejectIfTooLarge(bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
+        return;
+      }
       setState(() {
         _selfieBytes = bytes;
         _selfieFilename = photo.name;
@@ -225,7 +231,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     // a high-res photo that's over the limit uncompressed can still
     // succeed once shrunk. Non-image files pass through untouched.
     final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
-    if (_rejectIfTooLarge(compressed.bytes.length)) return;
+    if (_rejectIfTooLarge(compressed.bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
+      return;
+    }
     setState(() {
       _aadhaarBytes = compressed.bytes;
       _aadhaarFilename = compressed.filename;
@@ -504,7 +512,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const SizedBox(height: AppSpacing.lg),
             const Text('Documents', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
             Text(
-              'Each file must be under ${Validation.fileMaxSizeMb}MB',
+              'Selfie and Aadhaar Card must each be under ${photoAadhaarMaxSizeMb}MB. '
+              'Qualification Document and Other Documents must each be under ${Validation.fileMaxSizeMb}MB.',
               style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
             const SizedBox(height: AppSpacing.sm),

@@ -8,6 +8,7 @@ import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { OrganisationRequirementsService } from './organisation-requirements.service';
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
+import { CompleteRequirementDto } from './dto/complete-requirement.dto';
 
 /** A deliberately separate section from GET /caregiver/jobs — organisation
  *  openings are NOT merged into the regular Jobs tab (explicit product
@@ -41,7 +42,12 @@ export class CaregiverOrganisationRequirementsController {
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  complete(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
-    return this.requirementsService.completeRequirement(user.sub, id, ip);
+  complete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CompleteRequirementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.requirementsService.completeRequirement(user.sub, id, dto, ip);
   }
 }

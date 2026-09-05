@@ -84,6 +84,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_016: { status: 400, message: 'Another applicant is already accepted for this job' },
   JOB_017: { status: 400, message: 'Only a cancelled requirement can be reactivated' },
   JOB_018: { status: 400, message: 'Too many items selected for bulk delete — narrow your search first' },
+  JOB_019: { status: 400, message: 'All vacancies for this requirement have already been filled' },
+  JOB_020: { status: 400, message: 'Invalid close reason value' },
 
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },

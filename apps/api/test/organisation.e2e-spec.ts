@@ -532,7 +532,8 @@ describe('Organisation (NurseNow) (e2e)', () => {
     });
 
     it('the organisation must give a reason to reject an applicant (JOB_012), and can later "Accept Anyway" '
-      + 'a rejected candidate, blocked only while a different one is already accepted (JOB_016)', async () => {
+      + 'a rejected candidate, blocked only while every vacancy is already filled (JOB_019, single-vacancy '
+      + 'requirement here)', async () => {
       const org = await registerOrganisation('0035');
       const created = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -579,8 +580,9 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .send({ status: 'rejected', reason: 'Not enough experience' })
         .expect(200);
 
-      // Accept caregiver B — while B is accepted, accepting rejected
-      // caregiver A ("Accept Anyway") is blocked (JOB_016).
+      // Accept caregiver B — this requirement's default number_of_vacancies
+      // is 1, so with that one slot filled, accepting rejected caregiver A
+      // ("Accept Anyway") is blocked (JOB_019).
       await request(app.getHttpServer())
         .patch(`/v1/organisation/requirements/${requirementId}/applications/${appB}`)
         .set('Authorization', `Bearer ${org.access_token}`)
@@ -591,7 +593,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .set('Authorization', `Bearer ${org.access_token}`)
         .send({ status: 'accepted' })
         .expect(400);
-      expect(blocked.body.error.code).toBe('JOB_016');
+      expect(blocked.body.error.code).toBe('JOB_019');
 
       // Undo B's acceptance (reopens the requirement) — now A can be
       // accepted anyway, even though A was previously rejected.
@@ -612,6 +614,80 @@ describe('Organisation (NurseNow) (e2e)', () => {
         [caregiverA.user_id],
       );
       expect(caregiverAProfile.rows[0].verification_status).toBe('assigned');
+    }, 30000);
+
+    it('allows accepting multiple candidates onto one requirement, up to number_of_vacancies', async () => {
+      const org = await registerOrganisation('0036');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ number_of_vacancies: 2 }))
+        .expect(201);
+      const requirementId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const caregiverA = await registerCaregiver('0144');
+      const caregiverB = await registerCaregiver('0145');
+      const caregiverC = await registerCaregiver('0146');
+      for (const c of [caregiverA, caregiverB, caregiverC]) {
+        await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+          c.user_id,
+        ]);
+        await request(app.getHttpServer())
+          .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+          .set('Authorization', `Bearer ${c.access_token}`)
+          .send({ status: 'applied' })
+          .expect(200);
+      }
+
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const appId = (userId: string) =>
+        applicants.body.data.find((a: { profile_id: string }) => a.profile_id === userId).id;
+      const appA = appId(caregiverA.profile_id);
+      const appB = appId(caregiverB.profile_id);
+      const appC = appId(caregiverC.profile_id);
+
+      // Both vacancy slots can be filled — accepting A and B both succeed.
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appA}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appB}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      // The requirement stays active/live throughout — accepting never
+      // closes it, so caregiver C's own application can still be decided.
+      const requirement = await db.query('SELECT status FROM organisation_requirements WHERE id = $1', [
+        requirementId,
+      ]);
+      expect(requirement.rows[0].status).toBe('active');
+
+      // A third accept beyond the 2 vacancies is JOB_019.
+      const blocked = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${appC}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'accepted' })
+        .expect(400);
+      expect(blocked.body.error.code).toBe('JOB_019');
+
+      const profiles = await db.query(
+        'SELECT user_id, verification_status FROM caregiver_profiles WHERE user_id = ANY($1)',
+        [[caregiverA.user_id, caregiverB.user_id, caregiverC.user_id]],
+      );
+      const statusByUser = Object.fromEntries(profiles.rows.map((r) => [r.user_id, r.verification_status]));
+      expect(statusByUser[caregiverA.user_id]).toBe('assigned');
+      expect(statusByUser[caregiverB.user_id]).toBe('assigned');
+      expect(statusByUser[caregiverC.user_id]).toBe('available');
     }, 30000);
 
     it("lets the organisation view an applicant's full profile, ownership-checked, including Aadhaar/qualification-document URLs", async () => {

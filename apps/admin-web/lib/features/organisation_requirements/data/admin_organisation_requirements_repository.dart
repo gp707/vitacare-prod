@@ -29,6 +29,12 @@ class AdminOrganisationRequirement {
   final String? organisationType;
   final String? city;
   final String? area;
+  /// The org's own contact person name (users.full_name) and phone —
+  /// present on both the list and detail responses, mirrors
+  /// AdminJobModel's posted_by_name/posted_by_phone for an individual-
+  /// posted job.
+  final String? contactPersonName;
+  final String? organisationPhone;
 
   const AdminOrganisationRequirement({
     required this.id,
@@ -49,6 +55,8 @@ class AdminOrganisationRequirement {
     this.organisationType,
     this.city,
     this.area,
+    this.contactPersonName,
+    this.organisationPhone,
   });
 
   factory AdminOrganisationRequirement.fromJson(Map<String, dynamic> json) =>
@@ -71,6 +79,8 @@ class AdminOrganisationRequirement {
         organisationType: json['organisation_type'] as String?,
         city: json['city'] as String?,
         area: json['area'] as String?,
+        contactPersonName: json['contact_person_name'] as String?,
+        organisationPhone: json['organisation_phone'] as String?,
       );
 }
 

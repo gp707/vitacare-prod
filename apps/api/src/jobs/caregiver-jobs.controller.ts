@@ -9,6 +9,7 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { JobsService } from './jobs.service';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
+import { CompleteJobDto } from './dto/complete-job.dto';
 
 @Controller('caregiver/jobs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -43,10 +44,17 @@ export class CaregiverJobsController {
   }
 
   // Caregiver self-service "I finished this job" — the only way out of
-  // `assigned` once they may hold several accepted jobs at once.
+  // `assigned` once they may hold several accepted jobs at once. dto is
+  // optional-bodied (close_reason defaults to NO_REASON server-side when
+  // omitted/blank) — see CompleteJobDto.
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  complete(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
-    return this.jobsService.completeJob(user.sub, id, ip);
+  complete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CompleteJobDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.completeJob(user.sub, id, dto, ip);
   }
 }

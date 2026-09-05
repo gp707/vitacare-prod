@@ -159,16 +159,17 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancel this requirement?'),
+        title: const Text('Hide this job for new applications?'),
         content: const Text(
           'This stops new caregivers from applying. Candidates who already applied stay visible — '
-          'you can still view their profile and accept or reject them afterward. This cannot be undone.',
+          'you can still view their profile and accept or reject them afterward. You can unhide and make '
+          'it live again anytime.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No, keep it')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No, keep it live')),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Yes, cancel it', style: TextStyle(color: AppColors.error)),
+            child: const Text('Yes, hide it', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -394,6 +395,14 @@ class _RequirementCard extends StatelessWidget {
 
   bool get _hasAcceptedApplicant => applications.any((a) => a.status == JobApplicationStatus.accepted);
 
+  int get _acceptedCount => applications.where((a) => a.status == JobApplicationStatus.accepted).length;
+
+  /// Mirrors the backend's own JOB_019 check — up to `number_of_vacancies`
+  /// candidates can be accepted onto the same requirement at once, not
+  /// just one (an org posting for several openings can hire several
+  /// different caregivers onto the same posting).
+  bool get _vacanciesFull => _acceptedCount >= requirement.numberOfVacancies;
+
   /// Mirrors the backend's own JOB_015 check — cancellable at any point in
   /// the lifecycle except once it's already been terminated some other way
   /// (admin-rejected or already cancelled once).
@@ -413,7 +422,7 @@ class _RequirementCard extends StatelessWidget {
       case JobStatus.active:
         return 'Live — visible to caregivers';
       case JobStatus.closed:
-        if (requirement.isCancelled) return 'Cancelled';
+        if (requirement.isCancelled) return 'Hidden';
         if (requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
@@ -447,30 +456,32 @@ class _RequirementCard extends StatelessWidget {
     // disabled (not hidden) when its own precondition doesn't hold, so the
     // set of actions is predictable rather than shifting around based on
     // state. Unlike Individual, Post Similar Requirement is never gated —
-    // an organisation has no one-live-at-a-time limit.
+    // an organisation has no one-live-at-a-time limit. Hide/Unhide are
+    // listed first — the two most commonly reached-for actions — above
+    // Edit and Post Similar Requirement.
     final menuActions = <_MenuAction>[
+      _MenuAction(
+        label: _canCancel ? 'Hide Job for New Applications' : 'Hide Job for New Applications (Unavailable)',
+        enabled: _canCancel,
+        destructive: true,
+        onSelected: onCancel,
+      ),
+      // Only enabled once actually hidden (mirrors the backend's own
+      // JOB_017 check) — brings it back to active without needing admin to
+      // re-review, since admin's original approval already vetted the
+      // content and hiding never meant more than "stop taking new
+      // applications for now".
+      _MenuAction(
+        label: requirement.isCancelled ? 'Unhide and Make it Live' : 'Unhide and Make it Live (Unavailable)',
+        enabled: requirement.isCancelled,
+        onSelected: onReactivate,
+      ),
       _MenuAction(
         label: locked ? 'Edit the Requirement (Locked)' : 'Edit the Requirement',
         enabled: !locked,
         onSelected: onEdit,
       ),
       _MenuAction(label: 'Post Similar Requirement', enabled: true, onSelected: onPostSimilar),
-      _MenuAction(
-        label: _canCancel ? 'Cancel the Requirement' : 'Cancel the Requirement (Unavailable)',
-        enabled: _canCancel,
-        destructive: true,
-        onSelected: onCancel,
-      ),
-      // Only enabled once actually cancelled (mirrors the backend's own
-      // JOB_017 check) — brings it back to active without needing admin to
-      // re-review, since admin's original approval already vetted the
-      // content and cancelling never meant more than "stop taking new
-      // applications for now".
-      _MenuAction(
-        label: requirement.isCancelled ? 'Reactivate the Requirement' : 'Reactivate the Requirement (Unavailable)',
-        enabled: requirement.isCancelled,
-        onSelected: onReactivate,
-      ),
     ];
 
     return Container(
@@ -550,7 +561,8 @@ class _RequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
             const SizedBox(height: AppSpacing.sm),
-            Text('Applicants (${applications.length})',
+            Text('Applicants (${applications.length}) — ${requirement.numberOfVacancies} vacanc'
+                '${requirement.numberOfVacancies == 1 ? 'y' : 'ies'}, $_acceptedCount accepted',
                 style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
             const SizedBox(height: AppSpacing.sm),
             if (applications.isEmpty)
@@ -560,13 +572,14 @@ class _RequirementCard extends StatelessWidget {
                 _ApplicantTile(
                   application: application,
                   isDeciding: decidingApplicationId.contains(application.id),
-                  // Only one applicant can be accepted at a time (JOB_016
-                  // backstops this server-side) — while someone is
-                  // accepted, no one else (including a previously-rejected
-                  // or completed candidate) offers an Accept action until
-                  // that acceptance is undone via Reject.
-                  canAccept: !_hasAcceptedApplicant,
-                  canReject: (application.status == JobApplicationStatus.applied && !_hasAcceptedApplicant) ||
+                  // Up to number_of_vacancies applicants can be accepted at
+                  // once (JOB_019 backstops this server-side) — once every
+                  // vacancy is filled, no one else (including a previously-
+                  // rejected or completed candidate) offers an Accept
+                  // action until a slot is freed up via Reject on one of
+                  // the currently-accepted candidates.
+                  canAccept: !_vacanciesFull,
+                  canReject: (application.status == JobApplicationStatus.applied && !_vacanciesFull) ||
                       application.status == JobApplicationStatus.accepted,
                   onAccept: () => onAccept(application.id),
                   onReject: () => onReject(application.id),
@@ -722,7 +735,11 @@ class _ApplicantTimeline extends StatelessWidget {
     }
     if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
-      entries.add(MapEntry(at, 'Closed by Caregiver: ${_formatDateTime(at)}'));
+      var text = 'Closed by Caregiver: ${_formatDateTime(at)}';
+      if (application.closeReason != null) {
+        text = '$text\nReason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}';
+      }
+      entries.add(MapEntry(at, text));
     }
     if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
       final at = DateTime.parse(application.rejectedAt!).toLocal();

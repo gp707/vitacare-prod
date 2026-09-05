@@ -62,6 +62,7 @@ export interface JobRecord {
 export interface JobListItemForAdmin extends JobRecord {
   posted_by_role: string;
   posted_by_name: string;
+  posted_by_phone: string;
 }
 
 /** The caregiver's own application to this job, if any — includes the
@@ -85,6 +86,10 @@ export interface MyApplicationSummary {
   /** Only ever set when status is 'rejected' — surfaced so the caregiver
    *  can see why, not just that they were declined. */
   decline_reason: string | null;
+  /** Only ever set once status is 'completed' — the caregiver's own reason
+   *  for closing this job (CaregiverCloseReason), defaults to 'no_reason'
+   *  server-side rather than staying null. */
+  close_reason: string | null;
 }
 
 export interface JobWithMyApplication extends JobRecord {
@@ -304,7 +309,7 @@ export class JobsRepository {
 
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobListItemForAdmin>(
-        `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name
+        `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name, u.phone AS posted_by_phone
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          JOIN users u ON u.id = j.posted_by
@@ -405,7 +410,8 @@ export class JobsRepository {
              'completed_at', ja.completed_at,
              'reapplied_at', ja.reapplied_at,
              'decided_by_admin', ja.decided_by IS NOT NULL,
-             'decline_reason', ja.decline_reason
+             'decline_reason', ja.decline_reason,
+             'close_reason', ja.close_reason
            ) END AS my_application
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
@@ -440,7 +446,8 @@ export class JobsRepository {
            'completed_at', ja.completed_at,
            'reapplied_at', ja.reapplied_at,
            'decided_by_admin', ja.decided_by IS NOT NULL,
-           'decline_reason', ja.decline_reason
+           'decline_reason', ja.decline_reason,
+           'close_reason', ja.close_reason
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja

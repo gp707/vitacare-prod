@@ -116,6 +116,20 @@ export const ToiletAssistance = {
 } as const;
 export type ToiletAssistance = (typeof ToiletAssistance)[keyof typeof ToiletAssistance];
 
+/** A caregiver's own reason for closing an accepted job/requirement
+ *  (POST .../complete) — a fixed dropdown, visible to both the caregiver
+ *  themselves and the job/requirement poster. Defaults to NO_REASON when
+ *  the caregiver submits without picking anything else. */
+export const CaregiverCloseReason = {
+  DUTY_COMPLETE: 'duty_complete',
+  NO_REASON: 'no_reason',
+  DID_NOT_LIKE_WORK: 'did_not_like_work',
+  TEMPORARILY_NOT_AVAILABLE: 'temporarily_not_available',
+  FAMILY_PROBLEMS: 'family_problems',
+  NEED_TO_GO_HOMETOWN: 'need_to_go_hometown',
+} as const;
+export type CaregiverCloseReason = (typeof CaregiverCloseReason)[keyof typeof CaregiverCloseReason];
+
 export const VitalMonitoringType = {
   BLOOD_PRESSURE: 'blood_pressure',
   BLOOD_SUGAR: 'blood_sugar',

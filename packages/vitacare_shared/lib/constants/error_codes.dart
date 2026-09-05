@@ -27,6 +27,7 @@ class ErrorCodes {
     'PROFILE_019': 'Caregiver profile not found',
     'PROFILE_020': 'Name must contain only alphabetic characters and spaces',
     'PROFILE_021': 'FCM token is required',
+    'PROFILE_022': 'Name must be 24 characters or fewer',
 
     // Upload
     'UPLOAD_001': 'File is required',
@@ -65,6 +66,9 @@ class ErrorCodes {
     'JOB_015': 'This requirement has already been rejected or cancelled',
     'JOB_016': 'Another applicant is already accepted for this job',
     'JOB_017': 'Only a cancelled requirement can be reactivated',
+    'JOB_018': 'Too many items selected for bulk delete — narrow your search first',
+    'JOB_019': 'All vacancies for this requirement have already been filled',
+    'JOB_020': 'Invalid close reason value',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
     'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',

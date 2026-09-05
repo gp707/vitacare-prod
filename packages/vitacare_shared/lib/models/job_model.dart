@@ -43,6 +43,10 @@ class MyApplicationModel {
   /// flow, optional for admin's). Null for a caregiver's own self-decline,
   /// which never collects a reason.
   final String? declineReason;
+  /// Only ever set once [status] is 'completed' — the caregiver's own
+  /// reason for closing this job/requirement (CaregiverCloseReason),
+  /// defaults to 'no_reason' server-side rather than staying null.
+  final String? closeReason;
 
   const MyApplicationModel({
     required this.status,
@@ -53,6 +57,7 @@ class MyApplicationModel {
     this.reappliedAt,
     required this.decidedByAdmin,
     this.declineReason,
+    this.closeReason,
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -64,6 +69,7 @@ class MyApplicationModel {
         reappliedAt: json['reapplied_at'] as String?,
         decidedByAdmin: json['decided_by_admin'] as bool,
         declineReason: json['decline_reason'] as String?,
+        closeReason: json['close_reason'] as String?,
       );
 }
 
@@ -127,6 +133,7 @@ class JobModel {
   /// caregiver-facing responses.
   final String? postedByRole;
   final String? postedByName;
+  final String? postedByPhone;
 
   const JobModel({
     required this.id,
@@ -156,6 +163,7 @@ class JobModel {
     this.cancelledAt,
     this.postedByRole,
     this.postedByName,
+    this.postedByPhone,
   });
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
@@ -192,6 +200,7 @@ class JobModel {
         cancelledAt: json['cancelled_at'] as String?,
         postedByRole: json['posted_by_role'] as String?,
         postedByName: json['posted_by_name'] as String?,
+        postedByPhone: json['posted_by_phone'] as String?,
       );
 
   /// The apply-by urgency window, always computed from [postedAt] (not
@@ -262,6 +271,12 @@ class JobApplicationModel {
   /// 'completed' row — see MyApplicationModel.reappliedAt.
   final String? reappliedAt;
   final String? declineReason;
+  /// Only ever set once [status] is 'completed' — the caregiver's own
+  /// reason for closing this job/requirement (CaregiverCloseReason),
+  /// defaults to 'no_reason' server-side rather than staying null. Visible
+  /// to the job/requirement poster here, same as MyApplicationModel shows
+  /// it to the caregiver themselves.
+  final String? closeReason;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -279,6 +294,7 @@ class JobApplicationModel {
     this.completedAt,
     this.reappliedAt,
     this.declineReason,
+    this.closeReason,
     required this.updatedAt,
   });
 
@@ -297,6 +313,7 @@ class JobApplicationModel {
         completedAt: json['completed_at'] as String?,
         reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
+        closeReason: json['close_reason'] as String?,
         updatedAt: json['updated_at'] as String,
       );
 }

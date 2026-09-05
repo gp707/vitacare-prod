@@ -124,6 +124,19 @@ Future<void> _selectQualification(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('shows the split file-size hint — Selfie/Aadhaar 4MB, Qualification/Other 10MB', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    expect(
+      find.text(
+        'Selfie and Aadhaar Card must each be under 4MB. '
+        'Qualification Document and Other Documents must each be under 10MB.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('Full Name is capped at 24 characters', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);

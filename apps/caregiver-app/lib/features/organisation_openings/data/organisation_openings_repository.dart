@@ -48,10 +48,14 @@ class OrganisationOpeningsRepository {
     }
   }
 
-  /// Caregiver self-service "I finished this requirement".
-  Future<String> complete(String requirementId) async {
+  /// Caregiver self-service "I finished this requirement". [closeReason]
+  /// defaults server-side to CaregiverCloseReason.noReason when omitted.
+  Future<String> complete(String requirementId, {String? closeReason}) async {
     try {
-      final res = await _dio.post('${ApiRoutes.caregiverOrganisationRequirements}/$requirementId/complete');
+      final res = await _dio.post(
+        '${ApiRoutes.caregiverOrganisationRequirements}/$requirementId/complete',
+        data: {if (closeReason != null) 'close_reason': closeReason},
+      );
       return res.data['data']['verification_status'] as String;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

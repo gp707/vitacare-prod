@@ -1013,14 +1013,17 @@ class _JobRow extends StatelessWidget {
             _JobStatusBadge(status: job.status),
           ],
         ),
-        if (job.postedByRole == UserRole.individual) ...[
+        if (job.postedByRole != null) ...[
           const SizedBox(height: 2),
-          Text(
-            'Posted by patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
-            style: const TextStyle(
-                color: AppColors.primaryDark,
-                fontSize: AppTypography.small,
-                fontWeight: FontWeight.w600),
+          _PosterLine(
+            label: job.postedByRole == UserRole.individual ? 'Posted by patient/family' : 'Posted by Admin',
+            name: job.postedByName,
+            phone: job.postedByPhone,
+            // Only a patient/family poster has a profile screen to link to
+            // — there's no equivalent detail screen for an admin account.
+            onTap: job.postedByRole == UserRole.individual
+                ? () => Navigator.of(context).pushNamed('/individual-detail', arguments: job.postedBy)
+                : null,
           ),
         ],
         const SizedBox(height: AppSpacing.xs),
@@ -1133,6 +1136,37 @@ class _JobRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Renders "Posted by {role} — {name} · {phone}", optionally tappable when
+/// [onTap] is provided (i.e. there's an actual profile screen to open —
+/// an admin poster has none). Nested inside a row that's itself already
+/// wrapped in its own InkWell (open the read-only detail dialog), so this
+/// is its own InkWell rather than a plain GestureDetector, matching how
+/// the row's action buttons already coexist with the outer tap target.
+class _PosterLine extends StatelessWidget {
+  final String label;
+  final String? name;
+  final String? phone;
+  final VoidCallback? onTap;
+
+  const _PosterLine({required this.label, this.name, this.phone, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final labelAndName = name != null ? '$label — $name' : label;
+    final text = Text(
+      phone != null ? '$labelAndName · $phone' : labelAndName,
+      style: TextStyle(
+        color: AppColors.primaryDark,
+        fontSize: AppTypography.small,
+        fontWeight: FontWeight.w600,
+        decoration: onTap != null ? TextDecoration.underline : null,
+      ),
+    );
+    if (onTap == null) return text;
+    return InkWell(onTap: onTap, child: text);
   }
 }
 

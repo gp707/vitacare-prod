@@ -43,6 +43,15 @@ export interface OrganisationRequirementWithOrg extends OrganisationRequirementR
   area: string;
 }
 
+/** listForAdmin's shape — adds the org's own contact person name and phone
+ *  (via a users join) so admin-web can show who to call about this
+ *  requirement without a second round trip, mirroring
+ *  JobListItemForAdmin's posted_by_name/posted_by_phone. */
+export interface OrganisationRequirementListItemForAdmin extends OrganisationRequirementWithOrg {
+  contact_person_name: string;
+  organisation_phone: string;
+}
+
 /** GET /caregiver/organisation-requirements' shape — mirrors
  *  JobWithMyApplication's per-caregiver my_application join, so
  *  caregiver-app's merged Jobs list can render "already applied" state
@@ -161,7 +170,8 @@ export class OrganisationRequirementsRepository {
            'rejected_at', ora.rejected_at,
            'completed_at', ora.completed_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
-           'decline_reason', ora.decline_reason
+           'decline_reason', ora.decline_reason,
+           'close_reason', ora.close_reason
          ) END AS my_application
        FROM organisation_requirements r
        JOIN organisation_profiles op ON op.user_id = r.posted_by
@@ -176,7 +186,7 @@ export class OrganisationRequirementsRepository {
   async listForAdmin(
     filters: ListOrganisationRequirementsFilters,
     page: ListPage,
-  ): Promise<{ items: OrganisationRequirementWithOrg[]; total: number }> {
+  ): Promise<{ items: OrganisationRequirementListItemForAdmin[]; total: number }> {
     const conditions: string[] = [];
     const params: unknown[] = [];
     if (filters.status) {
@@ -206,10 +216,12 @@ export class OrganisationRequirementsRepository {
     const listParams = [...params, page.limit, offset];
 
     const [listResult, countResult] = await Promise.all([
-      this.db.query<OrganisationRequirementWithOrg>(
-        `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area
+      this.db.query<OrganisationRequirementListItemForAdmin>(
+        `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
+                op.contact_person_name, u.phone AS organisation_phone
          FROM organisation_requirements r
          JOIN organisation_profiles op ON op.user_id = r.posted_by
+         JOIN users u ON u.id = r.posted_by
          ${clause}
          ORDER BY r.created_at DESC
          LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,

@@ -602,7 +602,11 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
     // 'completed', so this is always "by you", never the employer's doing.
     if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
-      entries.add(MapEntry(at, 'Closed by you: ${formatDateTime(at)}'));
+      var text = 'Closed by you: ${formatDateTime(at)}';
+      if (application.closeReason != null) {
+        text = '$text\nReason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}';
+      }
+      entries.add(MapEntry(at, text));
     }
     if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
       final at = DateTime.parse(application.rejectedAt!).toLocal();

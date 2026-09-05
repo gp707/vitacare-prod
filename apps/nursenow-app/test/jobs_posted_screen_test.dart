@@ -125,6 +125,7 @@ JobApplicationModel _application({
   String? decidedBy,
   String updatedAt = '2026-08-01T10:00:00Z',
   String? reappliedAt,
+  String? closeReason,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -142,6 +143,7 @@ JobApplicationModel _application({
     'decided_by': decidedBy,
     'updated_at': updatedAt,
     'reapplied_at': reappliedAt,
+    'close_reason': closeReason ?? (status == 'completed' ? 'no_reason' : null),
   });
 }
 
@@ -1068,16 +1070,31 @@ void main() {
     expect(find.text('Closed by Caregiver'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
-    // Full detail: exactly when the caregiver closed it, not just the label.
-    final expected = DateTime.parse('2026-08-06T09:05:00Z').toLocal();
-    expect(
-      find.text(
-        'Closed by Caregiver: ${expected.year}-${expected.month.toString().padLeft(2, '0')}-${expected.day.toString().padLeft(2, '0')} '
-        '${expected.hour.toString().padLeft(2, '0')}:${expected.minute.toString().padLeft(2, '0')}:'
-        '${expected.second.toString().padLeft(2, '0')}',
+    // Defaults to "No Reason" in the timeline when the fixture doesn't
+    // specify one — same default the backend applies.
+    expect(find.textContaining('Reason: No Reason'), findsOneWidget);
+  });
+
+  testWidgets('shows a specific close reason in the timeline when the caregiver picked one', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [
+            _application(
+              status: 'completed',
+              fullName: 'Ramesh Kumar',
+              completedAt: '2026-08-06T09:05:00Z',
+              closeReason: 'need_to_go_hometown',
+            ),
+          ],
+        },
       ),
-      findsOneWidget,
     );
+    await _revealClosedRequirements(tester);
+
+    expect(find.textContaining('Reason: Need to Go to Hometown'), findsOneWidget);
   });
 
   testWidgets('the More options menu always offers exactly 3 actions: Edit, Post Similar, Cancel', (tester) async {

@@ -45,10 +45,15 @@ class JobsRepository {
 
   /// Caregiver self-service "I finished this job" — the only way out of
   /// `assigned` now that they may hold several accepted jobs at once.
-  /// Returns whether the caregiver is still assigned to any other job.
-  Future<bool> completeJob(String jobId) async {
+  /// [closeReason] defaults server-side to CaregiverCloseReason.noReason
+  /// when omitted. Returns whether the caregiver is still assigned to any
+  /// other job.
+  Future<bool> completeJob(String jobId, {String? closeReason}) async {
     try {
-      final res = await _dio.post('/caregiver/jobs/$jobId/complete');
+      final res = await _dio.post(
+        '/caregiver/jobs/$jobId/complete',
+        data: {if (closeReason != null) 'close_reason': closeReason},
+      );
       return res.data['data']['still_assigned'] as bool;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

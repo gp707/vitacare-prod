@@ -16,6 +16,7 @@ export interface OrganisationRequirementApplicationRecord {
   rejected_at: Date | null;
   completed_at: Date | null;
   decline_reason: string | null;
+  close_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -135,11 +136,13 @@ export class OrganisationRequirementApplicationsRepository {
     return result.rows[0] ?? null;
   }
 
-  async markCompleted(id: string, client?: PoolClient): Promise<void> {
+  /** closeReason defaults to NO_REASON in the service layer before this is
+   *  called, so it's always a real value here, never null/undefined. */
+  async markCompleted(id: string, closeReason: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(
-      `UPDATE organisation_requirement_applications SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id],
+      `UPDATE organisation_requirement_applications SET status = 'completed', completed_at = NOW(), close_reason = $2, updated_at = NOW() WHERE id = $1`,
+      [id, closeReason],
     );
   }
 
@@ -152,16 +155,18 @@ export class OrganisationRequirementApplicationsRepository {
     return Number(result.rows[0].count);
   }
 
-  /** An organisation requirement may have at most one `accepted`
-   *  application at a time (enforced by OrganisationRequirementsService.
-   *  decideApplication's JOB_016 guard, not a DB constraint) — mirrors
-   *  JobApplicationsRepository.findAcceptedForJob. */
-  async findAcceptedForRequirement(requirementId: string): Promise<OrganisationRequirementApplicationRecord | null> {
-    const result = await this.db.query<OrganisationRequirementApplicationRecord>(
-      `SELECT * FROM organisation_requirement_applications WHERE requirement_id = $1 AND status = 'accepted' LIMIT 1`,
+  /** An organisation requirement may have up to `number_of_vacancies`
+   *  `accepted` applications at once (enforced by
+   *  OrganisationRequirementsService.decideApplication's JOB_019 guard,
+   *  not a DB constraint) — unlike the regular jobs pipeline
+   *  (JobApplicationsRepository.findAcceptedForJob), which stays
+   *  single-accept only. */
+  async countAcceptedForRequirement(requirementId: string): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = $1 AND status = 'accepted'`,
       [requirementId],
     );
-    return result.rows[0] ?? null;
+    return Number(result.rows[0].count);
   }
 
   async findByRequirementId(requirementId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
@@ -188,7 +193,8 @@ export class OrganisationRequirementApplicationsRepository {
            'rejected_at', ora.rejected_at,
            'completed_at', ora.completed_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
-           'decline_reason', ora.decline_reason
+           'decline_reason', ora.decline_reason,
+           'close_reason', ora.close_reason
          ) AS my_application
        FROM organisation_requirement_applications ora
        JOIN organisation_requirements r ON r.id = ora.requirement_id

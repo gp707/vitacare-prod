@@ -74,11 +74,14 @@ AdminOrganisationRequirement _requirement({
   int requirementNumber = 101,
   String status = JobStatus.pendingReview,
   String postedAt = '2026-08-01T10:00:00Z',
+  String postedBy = 'org-user-1',
+  String? contactPersonName,
+  String? organisationPhone,
 }) {
   return AdminOrganisationRequirement(
     id: id,
     requirementNumber: requirementNumber,
-    postedBy: 'org-user-1',
+    postedBy: postedBy,
     typeOfNurse: TypeOfNurse.auxiliaryNurse,
     accommodationProvided: true,
     foodProvided: false,
@@ -89,6 +92,8 @@ AdminOrganisationRequirement _requirement({
     organisationType: OrganisationType.rehab,
     city: City.bangalore,
     area: 'Whitefield',
+    contactPersonName: contactPersonName,
+    organisationPhone: organisationPhone,
   );
 }
 
@@ -120,6 +125,8 @@ JobModel _job({
   String? frequencyOfCare = 'daily',
   String? postedByRole,
   String? postedByName,
+  String? postedByPhone,
+  String postedBy = 'admin-1',
   String postedAt = '2026-08-01T10:00:00Z',
   List<String> languages = const ['hindi'],
 }) {
@@ -136,11 +143,12 @@ JobModel _job({
     'salary_amount': salaryAmount,
     'preferred_gender': 'female',
     'status': status,
-    'posted_by': 'admin-1',
+    'posted_by': postedBy,
     'posted_at': postedAt,
     'created_at': '2026-08-01T10:00:00Z',
     if (postedByRole != null) 'posted_by_role': postedByRole,
     if (postedByName != null) 'posted_by_name': postedByName,
+    if (postedByPhone != null) 'posted_by_phone': postedByPhone,
   });
 }
 
@@ -193,8 +201,10 @@ JobApplicationModel _application({
   String? appliedAt = '2026-08-01T10:00:00Z',
   String? acceptedAt,
   String? rejectedAt,
+  String? completedAt,
   String? decidedByName,
   String? declineReason,
+  String? closeReason,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -206,8 +216,10 @@ JobApplicationModel _application({
     'applied_at': appliedAt,
     'accepted_at': acceptedAt,
     'rejected_at': rejectedAt,
+    'completed_at': completedAt,
     'decided_by_name': decidedByName,
     'decline_reason': declineReason,
+    'close_reason': closeReason ?? (status == 'completed' ? 'no_reason' : null),
     'updated_at': '2026-08-01T10:00:00Z',
   });
 }
@@ -374,6 +386,7 @@ Future<void> _pump(
   List<RateCardWithUpdater>? rateCards,
   Object? rateCardError,
   String role = 'super_admin',
+  Map<String, WidgetBuilder>? extraRoutes,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -396,7 +409,10 @@ Future<void> _pump(
           _FakeRateCardRepository(result: rateCards ?? const [], error: rateCardError),
         ),
       ],
-      child: MaterialApp(home: AdminJobsScreen(initialFilter: initialFilter)),
+      child: MaterialApp(
+        home: AdminJobsScreen(initialFilter: initialFilter),
+        routes: extraRoutes ?? const {},
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -762,21 +778,77 @@ void main() {
   });
 
   testWidgets(
-      'shows who posted a NurseNow individual requirement, but not an admin-posted job',
-      (tester) async {
+      'shows who posted a job — name and phone — for both a NurseNow individual requirement and an '
+      'admin-posted job', (tester) async {
     final repo = _FakeAdminJobsRepository([
       _job(
+        id: 'job-individual',
         status: 'pending_review',
         salaryAmount: null,
         frequencyOfCare: null,
         postedByRole: 'individual',
         postedByName: 'Asha Patel',
+        postedByPhone: '+919876543210',
       ),
-      _job(status: 'active', postedByRole: 'admin'),
+      _job(
+        id: 'job-admin',
+        status: 'active',
+        postedByRole: 'admin',
+        postedByName: 'Admin One',
+        postedByPhone: '+919876500000',
+      ),
     ]);
     await _pump(tester, repo);
 
-    expect(find.text('Posted by patient/family — Asha Patel'), findsOneWidget);
+    expect(find.text('Posted by patient/family — Asha Patel · +919876543210'), findsOneWidget);
+    expect(find.text('Posted by Admin — Admin One · +919876500000'), findsOneWidget);
+  });
+
+  testWidgets('tapping the poster line for a NurseNow individual job opens that patient\'s profile screen',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(
+        postedBy: 'individual-user-1',
+        postedByRole: 'individual',
+        postedByName: 'Asha Patel',
+        postedByPhone: '+919876543210',
+      ),
+    ]);
+    String? openedRoute;
+    Object? openedArguments;
+    await _pump(
+      tester,
+      repo,
+      extraRoutes: {
+        '/individual-detail': (context) {
+          openedRoute = '/individual-detail';
+          openedArguments = ModalRoute.of(context)!.settings.arguments;
+          return const Scaffold(body: Text('individual detail screen'));
+        },
+      },
+    );
+
+    await tester.tap(find.text('Posted by patient/family — Asha Patel · +919876543210'));
+    await tester.pumpAndSettle();
+
+    expect(openedRoute, '/individual-detail');
+    expect(openedArguments, 'individual-user-1');
+    expect(find.text('individual detail screen'), findsOneWidget);
+  });
+
+  testWidgets('the poster line for an admin-posted job is not tappable — there is no admin detail screen',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(postedByRole: 'admin', postedByName: 'Admin One', postedByPhone: '+919876500000'),
+    ]);
+    await _pump(tester, repo);
+
+    // A plain Text, not wrapped in an InkWell — tapping it must not throw
+    // trying to navigate to a route that doesn't exist.
+    await tester.tap(find.text('Posted by Admin — Admin One · +919876500000'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AdminJobsScreen), findsOneWidget);
   });
 
   testWidgets('tapping Reject opens a reason dialog and calls the repository',
@@ -1726,6 +1798,55 @@ void main() {
   });
 
   testWidgets(
+      'Applicants dialog shows when and why the caregiver closed a completed engagement',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      applications: [
+        _application(
+          status: 'completed',
+          appliedAt: '2026-08-01T10:00:00Z',
+          acceptedAt: '2026-08-02T11:30:00Z',
+          completedAt: '2026-08-05T18:00:00Z',
+          closeReason: 'temporarily_not_available',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Closed by Caregiver: ${_expectedDateTime('2026-08-05T18:00:00Z')}'),
+      findsOneWidget,
+    );
+    expect(find.text('Reason: Temporarily Not Available'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Applicants dialog defaults to "No Reason" in the timeline when the caregiver didn\'t pick one',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job()],
+      applications: [
+        _application(
+          status: 'completed',
+          appliedAt: '2026-08-01T10:00:00Z',
+          acceptedAt: '2026-08-02T11:30:00Z',
+          completedAt: '2026-08-05T18:00:00Z',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reason: No Reason'), findsOneWidget);
+  });
+
+  testWidgets(
       'tapping the job row opens a read-only detail view, not the editable form',
       (tester) async {
     final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: null);
@@ -1835,6 +1956,36 @@ void main() {
     // Exactly one dialog on screen — the read-only one was popped first,
     // not left stacked underneath the editable form.
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets('shows the organisation\'s contact person and phone on a requirement row, linking to its '
+      'profile screen', (tester) async {
+    final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+      _requirement(postedBy: 'org-user-1', contactPersonName: 'Ravi Sharma', organisationPhone: '+919876500000'),
+    ]);
+    String? openedRoute;
+    Object? openedArguments;
+    await _pump(
+      tester,
+      _FakeAdminJobsRepository([]),
+      requirementsRepo: requirementsRepo,
+      extraRoutes: {
+        '/organisation-detail': (context) {
+          openedRoute = '/organisation-detail';
+          openedArguments = ModalRoute.of(context)!.settings.arguments;
+          return const Scaffold(body: Text('organisation detail screen'));
+        },
+      },
+    );
+
+    expect(find.text('Posted by — Ravi Sharma · +919876500000'), findsOneWidget);
+
+    await tester.tap(find.text('Posted by — Ravi Sharma · +919876500000'));
+    await tester.pumpAndSettle();
+
+    expect(openedRoute, '/organisation-detail');
+    expect(openedArguments, 'org-user-1');
+    expect(find.text('organisation detail screen'), findsOneWidget);
   });
 
   group('merged with organisation requirements', () {

@@ -77,28 +77,18 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   /// "Closed by Caregiver" on their side too (nursenow-app's
   /// _ApplicantTile), so the terminology matches on both apps.
   Future<void> _completeJob(JobModel job) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this job?'),
-        content: Text(
+    final reason = await _showCloseReasonDialog(
+      title: 'Close this job?',
+      message:
           "This marks ${jobDisplayId(job)} as closed — work completed. You can apply again later if it's still "
           "open. If you don't have any other accepted jobs, you'll be shown as available for new ones again.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Job'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Close Job',
     );
-    if (confirmed != true || !mounted) return;
+    if (reason == null || !mounted) return;
 
     setState(() => _completingId = job.id);
     try {
-      final stillAssigned = await ref.read(jobsRepositoryProvider).completeJob(job.id);
+      final stillAssigned = await ref.read(jobsRepositoryProvider).completeJob(job.id, closeReason: reason);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,29 +112,20 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
 
   /// Same as [_completeJob], for an organisation requirement.
   Future<void> _completeRequirement(OrganisationRequirementModel requirement) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Close this requirement?'),
-        content: Text(
+    final reason = await _showCloseReasonDialog(
+      title: 'Close this requirement?',
+      message:
           "This marks ${organisationJobDisplayId(requirement)} as closed — work completed. You can apply again "
           "later if it's still open. If you don't have any other accepted jobs or requirements, you'll be shown "
           "as available for new ones again.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Close Requirement'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Close Requirement',
     );
-    if (confirmed != true || !mounted) return;
+    if (reason == null || !mounted) return;
 
     setState(() => _completingId = requirement.id);
     try {
-      final verificationStatus = await ref.read(organisationOpeningsRepositoryProvider).complete(requirement.id);
+      final verificationStatus =
+          await ref.read(organisationOpeningsRepositoryProvider).complete(requirement.id, closeReason: reason);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -164,6 +145,53 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     } finally {
       if (mounted) setState(() => _completingId = null);
     }
+  }
+
+  /// Shared confirmation dialog for closing an accepted job/requirement —
+  /// a fixed dropdown of reasons, defaulting to CaregiverCloseReason.
+  /// noReason so a caregiver who confirms without picking anything else
+  /// still always submits a real, explicit value. Returns the selected
+  /// reason on confirm, or null if cancelled.
+  Future<String?> _showCloseReasonDialog({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) {
+    String selectedReason = CaregiverCloseReason.noReason;
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(message),
+              const SizedBox(height: AppSpacing.md),
+              const Text('Reason for closing', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.xs),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: selectedReason,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: CaregiverCloseReason.all
+                    .map((r) => DropdownMenuItem(value: r, child: Text(CaregiverCloseReason.displayNames[r] ?? r)))
+                    .toList(),
+                onChanged: (value) => setDialogState(() => selectedReason = value ?? selectedReason),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(selectedReason),
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<_Assignment> _mergedAssignments() {

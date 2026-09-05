@@ -6,6 +6,13 @@ import 'scope_of_work_button.dart';
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+/// "{role} — {name} · {phone}", tolerating either name or phone being
+/// absent — mirrors AdminJobsScreen's own _PosterLine text construction.
+String _posterValueText({required String role, String? name, String? phone}) {
+  final roleAndName = name != null ? '$role — $name' : role;
+  return phone != null ? '$roleAndName · $phone' : roleAndName;
+}
+
 /// Salary's unit follows Frequency of Care — same convention as the Jobs
 /// list row and the Post/Edit form.
 String _salaryUnit(String? frequencyOfCare) =>
@@ -48,10 +55,23 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (job.postedByRole == UserRole.individual)
+              if (job.postedByRole != null)
                 _DetailRow(
                   'Posted by',
-                  'Patient/family${job.postedByName != null ? ' — ${job.postedByName}' : ''}',
+                  _posterValueText(
+                    role: job.postedByRole == UserRole.individual ? 'Patient/family' : 'Admin',
+                    name: job.postedByName,
+                    phone: job.postedByPhone,
+                  ),
+                  // Only a patient/family poster has a profile screen to
+                  // open — there's no equivalent detail screen for an
+                  // admin account.
+                  onTap: job.postedByRole == UserRole.individual
+                      ? () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pushNamed('/individual-detail', arguments: job.postedBy);
+                        }
+                      : null,
                 ),
               if (job.rejectionReason != null)
                 _DetailRow('Rejection Reason', job.rejectionReason!),
@@ -213,11 +233,20 @@ class _StatusChip extends StatelessWidget {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+  /// When provided, [value] becomes a tappable, underlined link (e.g. to
+  /// the poster's own profile screen) instead of plain text.
+  final VoidCallback? onTap;
 
-  const _DetailRow(this.label, this.value);
+  const _DetailRow(this.label, this.value, {this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final valueText = Text(
+      value,
+      style: onTap != null
+          ? const TextStyle(color: AppColors.primaryDark, decoration: TextDecoration.underline)
+          : null,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
@@ -228,7 +257,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(label,
                 style: const TextStyle(color: AppColors.textSecondary)),
           ),
-          Expanded(child: Text(value)),
+          Expanded(child: onTap != null ? InkWell(onTap: onTap, child: valueText) : valueText),
         ],
       ),
     );

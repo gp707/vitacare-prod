@@ -212,6 +212,17 @@ class _ApplicationTimeline extends StatelessWidget {
         lines.add('Reason: ${application.declineReason!}');
       }
     }
+    // A caregiver-initiated close of an accepted job — always "by the
+    // caregiver" themselves, admin is never the one who closes it.
+    if (application.status == JobApplicationStatus.completed &&
+        application.completedAt != null) {
+      lines.add(
+          'Closed by Caregiver: ${_formatDateTime(DateTime.parse(application.completedAt!).toLocal())}');
+      if (application.closeReason != null) {
+        lines.add(
+            'Reason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}');
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

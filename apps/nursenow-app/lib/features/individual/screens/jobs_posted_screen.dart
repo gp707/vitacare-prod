@@ -1319,7 +1319,11 @@ class _ApplicantTimeline extends StatelessWidget {
     if (application.status == JobApplicationStatus.completed &&
         application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
-      entries.add(MapEntry(at, 'Closed by Caregiver: ${_formatDateTime(at)}'));
+      var text = 'Closed by Caregiver: ${_formatDateTime(at)}';
+      if (application.closeReason != null) {
+        text = '$text\nReason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}';
+      }
+      entries.add(MapEntry(at, text));
     }
     if (application.status == JobApplicationStatus.rejected &&
         application.rejectedAt != null) {

@@ -15,6 +15,7 @@ export interface JobApplicationRecord {
   completed_at: Date | null;
   reapplied_at: Date | null;
   decline_reason: string | null;
+  close_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -140,12 +141,14 @@ export class JobApplicationsRepository {
   }
 
   /** Caregiver self-service "I finished this job" — distinct from an admin
-   *  rejecting/undoing an acceptance, which lands on 'rejected' instead. */
-  async markCompleted(id: string, client?: PoolClient): Promise<void> {
+   *  rejecting/undoing an acceptance, which lands on 'rejected' instead.
+   *  closeReason defaults to NO_REASON in the service layer before this is
+   *  called, so it's always a real value here, never null/undefined. */
+  async markCompleted(id: string, closeReason: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(
-      `UPDATE job_applications SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id],
+      `UPDATE job_applications SET status = 'completed', completed_at = NOW(), close_reason = $2, updated_at = NOW() WHERE id = $1`,
+      [id, closeReason],
     );
   }
 

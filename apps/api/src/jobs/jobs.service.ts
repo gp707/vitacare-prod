@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   AuditAction,
+  CaregiverCloseReason,
   City,
   DutyType,
   JobApplicationStatus,
@@ -26,6 +27,7 @@ import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { DecideApplicationDto } from './dto/decide-application.dto';
+import { CompleteJobDto } from './dto/complete-job.dto';
 
 // Only these two can apply to a job — same rule as availability itself:
 // unavailable caregivers must toggle back to available first.
@@ -185,6 +187,7 @@ export class JobsService {
       applications,
       posted_by_role: poster?.role ?? null,
       posted_by_name: poster?.full_name ?? null,
+      posted_by_phone: poster?.phone ?? null,
     };
   }
 
@@ -408,7 +411,7 @@ export class JobsService {
    *  there's nothing to check before reopening — whether other `applied`
    *  candidates remain or none at all, it goes straight back to `active`
    *  and stays visible/postable again. */
-  async completeJob(userId: string, jobId: string, ipAddress: string | null) {
+  async completeJob(userId: string, jobId: string, dto: CompleteJobDto, ipAddress: string | null) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
 
@@ -417,9 +420,11 @@ export class JobsService {
       throw new AppException('JOB_008');
     }
 
+    const closeReason = dto.close_reason?.trim() || CaregiverCloseReason.NO_REASON;
+
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
-      await this.jobApplicationsRepo.markCompleted(application.id, client);
+      await this.jobApplicationsRepo.markCompleted(application.id, closeReason, client);
       await this.jobsRepo.reopen(jobId, client);
       const remaining = await this.jobApplicationsRepo.countAcceptedByProfileId(profile.id, client);
       stillAssigned = remaining > 0;
@@ -438,6 +443,7 @@ export class JobsService {
         status: 'completed',
         job_status: 'active',
         verification_status: stillAssigned ? 'assigned' : 'available',
+        close_reason: closeReason,
       },
       ipAddress,
     });

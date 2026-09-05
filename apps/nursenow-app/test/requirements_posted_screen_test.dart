@@ -85,6 +85,7 @@ OrganisationRequirementApplicationModel _application({
   String? declineReason,
   String? decidedBy,
   String updatedAt = '2026-08-01T10:00:00Z',
+  String? closeReason,
 }) {
   return OrganisationRequirementApplicationModel.fromJson({
     'id': id,
@@ -101,6 +102,7 @@ OrganisationRequirementApplicationModel _application({
     'decline_reason': declineReason,
     'decided_by': decidedBy,
     'updated_at': updatedAt,
+    'close_reason': closeReason ?? (status == 'completed' ? 'no_reason' : null),
   });
 }
 
@@ -368,6 +370,29 @@ void main() {
       find.textContaining('Closed by Caregiver: ${_localDate('2026-08-05T18:00:00Z')}'),
       findsOneWidget,
     );
+    // Defaults to "No Reason" when the fixture doesn't specify one.
+    expect(find.textContaining('Reason: No Reason'), findsOneWidget);
+  });
+
+  testWidgets('shows a specific close reason in the timeline when the caregiver picked one', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(status: 'active')],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(
+              status: 'completed',
+              acceptedAt: '2026-08-02T09:00:00Z',
+              completedAt: '2026-08-05T18:00:00Z',
+              closeReason: 'temporarily_not_available',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Reason: Temporarily Not Available'), findsOneWidget);
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right requirement and application id',
@@ -515,18 +540,27 @@ void main() {
   });
 
   testWidgets(
-      'the More options menu always offers exactly 4 actions: Edit, Post Similar, Cancel, Reactivate',
-      (tester) async {
+      'the More options menu always offers exactly 4 actions, Hide/Unhide listed first: Hide, Unhide, Edit, '
+      'Post Similar', (tester) async {
     final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
 
+    expect(find.text('Hide Job for New Applications'), findsOneWidget);
+    expect(find.text('Unhide and Make it Live (Unavailable)'), findsOneWidget);
     expect(find.text('Edit the Requirement'), findsOneWidget);
     expect(find.text('Post Similar Requirement'), findsOneWidget);
-    expect(find.text('Cancel the Requirement'), findsOneWidget);
-    expect(find.text('Reactivate the Requirement (Unavailable)'), findsOneWidget);
+
+    // Hide/Unhide are listed first, above Edit/Post Similar.
+    final hideY = tester.getTopLeft(find.text('Hide Job for New Applications')).dy;
+    final unhideY = tester.getTopLeft(find.text('Unhide and Make it Live (Unavailable)')).dy;
+    final editY = tester.getTopLeft(find.text('Edit the Requirement')).dy;
+    final postSimilarY = tester.getTopLeft(find.text('Post Similar Requirement')).dy;
+    expect(hideY, lessThan(unhideY));
+    expect(unhideY, lessThan(editY));
+    expect(editY, lessThan(postSimilarY));
   });
 
   testWidgets('Edit the Requirement is disabled (locked) while there is an active (applied) application',
@@ -562,10 +596,19 @@ void main() {
 
       expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
       expect(find.text('Edit the Requirement'), findsNothing);
+
+      // Dismiss the popup menu before the next iteration re-pumps — the
+      // widget tree shape is identical across iterations (same
+      // ProviderScope/MaterialApp/RequirementsPostedScreen structure, only
+      // the repo's data differs), so Flutter's element reconciliation can
+      // otherwise carry the still-open PopupMenuButton route over into the
+      // next iteration's fresh pump, intercepting its more_vert tap.
+      await tester.tapAt(const Offset(10, 10));
+      await _settle(tester);
     }
   });
 
-  testWidgets('Cancel the Requirement is disabled once the requirement was admin-rejected', (tester) async {
+  testWidgets('Hide Job for New Applications is disabled once the requirement was admin-rejected', (tester) async {
     final repo = _FakeOrganisationRepository(
       requirements: [
         _requirement(status: 'closed', rejectionReason: 'Not needed'),
@@ -576,10 +619,10 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
 
-    expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
+    expect(find.text('Hide Job for New Applications (Unavailable)'), findsOneWidget);
   });
 
-  testWidgets('Cancel the Requirement is disabled once already cancelled, and shows a Cancelled status',
+  testWidgets('Hide Job for New Applications is disabled once already hidden, and shows a Hidden status',
       (tester) async {
     final repo = _FakeOrganisationRepository(
       requirements: [
@@ -588,26 +631,26 @@ void main() {
     );
     await _pump(tester, repo);
 
-    expect(find.text('Cancelled'), findsOneWidget);
+    expect(find.text('Hidden'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
-    // Reactivate is the mirror image — disabled everywhere except once
-    // actually cancelled.
-    expect(find.text('Reactivate the Requirement'), findsOneWidget);
+    expect(find.text('Hide Job for New Applications (Unavailable)'), findsOneWidget);
+    // Unhide is the mirror image — disabled everywhere except once
+    // actually hidden.
+    expect(find.text('Unhide and Make it Live'), findsOneWidget);
   });
 
-  testWidgets('Reactivate the Requirement is disabled (Unavailable) for a live requirement', (tester) async {
+  testWidgets('Unhide and Make it Live is disabled (Unavailable) for a live requirement', (tester) async {
     final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Reactivate the Requirement (Unavailable)'), findsOneWidget);
+    expect(find.text('Unhide and Make it Live (Unavailable)'), findsOneWidget);
   });
 
-  testWidgets('tapping Reactivate the Requirement calls reactivateRequirement and reloads, no confirmation needed',
+  testWidgets('tapping Unhide and Make it Live calls reactivateRequirement and reloads, no confirmation needed',
       (tester) async {
     final repo = _FakeOrganisationRepository(
       requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-05T10:00:00Z')],
@@ -616,7 +659,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Reactivate the Requirement'));
+    await tester.tap(find.text('Unhide and Make it Live'));
     await _settle(tester);
 
     expect(repo.reactivatedRequirementId, 'req-1');
@@ -632,38 +675,42 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Reactivate the Requirement'));
+    await tester.tap(find.text('Unhide and Make it Live'));
     await _settle(tester);
 
     expect(find.text('Your account is blocked from posting new requirements'), findsOneWidget);
   });
 
-  testWidgets('confirming Cancel the Requirement calls cancelRequirement and reloads', (tester) async {
+  testWidgets('confirming Hide Job for New Applications calls cancelRequirement and reloads', (tester) async {
     final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Cancel the Requirement'));
+    await tester.tap(find.text('Hide Job for New Applications'));
     await _settle(tester);
 
-    expect(find.text('Cancel this requirement?'), findsOneWidget);
-    await tester.tap(find.text('Yes, cancel it'));
+    expect(find.text('Hide this job for new applications?'), findsOneWidget);
+    expect(
+      find.textContaining('You can unhide and make it live again anytime'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Yes, hide it'));
     await _settle(tester);
 
     expect(repo.cancelledRequirementId, 'req-1');
   });
 
-  testWidgets('cancelling the cancel-requirement confirmation dialog does not call cancelRequirement',
+  testWidgets('cancelling the hide-job confirmation dialog does not call cancelRequirement',
       (tester) async {
     final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Cancel the Requirement'));
+    await tester.tap(find.text('Hide Job for New Applications'));
     await _settle(tester);
-    await tester.tap(find.text('No, keep it'));
+    await tester.tap(find.text('No, keep it live'));
     await _settle(tester);
 
     expect(repo.cancelledRequirementId, isNull);

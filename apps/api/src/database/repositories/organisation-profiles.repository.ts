@@ -68,6 +68,22 @@ export class OrganisationProfilesRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Same as findByUserId, plus the org's own phone (users.phone — not a
+   *  column on this table) — used only where the caller needs to surface a
+   *  callable contact number for the org (e.g. admin's requirement detail
+   *  view), so the plain findByUserId above stays untouched for every
+   *  other caller. */
+  async findByUserIdWithPhone(userId: string): Promise<(OrganisationProfileRecord & { phone: string }) | null> {
+    const result = await this.db.query<OrganisationProfileRecord & { phone: string }>(
+      `SELECT op.*, u.phone
+       FROM organisation_profiles op
+       JOIN users u ON u.id = op.user_id
+       WHERE op.user_id = $1`,
+      [userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   /** Org's own self-edit of its profile fields — mirrors
    *  AdminOrganisationsRepository.adminUpdate exactly (same dynamic
    *  set-only-what's-provided shape), just scoped to the self-service

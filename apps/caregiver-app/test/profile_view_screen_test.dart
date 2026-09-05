@@ -377,6 +377,19 @@ void main() {
   });
 
   group('Documents', () {
+    testWidgets('shows the split file-size hint — Selfie/Aadhaar 4MB, Qualification/Other 10MB', (tester) async {
+      final fakeRepo = _FakeProfileRepository(_profile());
+      await _pumpTall(tester, fakeRepo);
+
+      expect(
+        find.text(
+          'Selfie and Aadhaar Card must each be under 4MB. '
+          'Qualification Document and Other Documents must each be under 10MB.',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows Upload for missing documents and Replace for already-uploaded ones', (tester) async {
       final profile = CaregiverProfileModel.fromJson({
         'user_id': 'u1',

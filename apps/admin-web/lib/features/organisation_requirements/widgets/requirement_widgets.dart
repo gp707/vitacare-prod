@@ -3,6 +3,14 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 
+/// "{role} — {name} · {phone}", tolerating either name or phone being
+/// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
+/// job_read_only_detail_dialog.dart's _posterValueText construction.
+String _posterValueText({required String role, String? name, String? phone}) {
+  final roleAndName = name != null ? '$role — $name' : role;
+  return phone != null ? '$roleAndName · $phone' : roleAndName;
+}
+
 /// Row/dialog widgets for an organisation requirement, extracted out of the
 /// former standalone AdminOrganisationRequirementsScreen so AdminJobsScreen
 /// can render organisation requirements merged into its single Jobs list.
@@ -56,6 +64,24 @@ class RequirementRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(requirement.organisationName ?? '',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              InkWell(
+                onTap: () => Navigator.of(context)
+                    .pushNamed('/organisation-detail', arguments: requirement.postedBy),
+                child: Text(
+                  _posterValueText(
+                    role: 'Posted by',
+                    name: requirement.contactPersonName,
+                    phone: requirement.organisationPhone,
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: AppTypography.small,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
               if (requirement.rejectionReason != null)
                 Text('Reason: ${requirement.rejectionReason}',
                     style: const TextStyle(color: AppColors.error)),
@@ -216,10 +242,17 @@ class _RequirementApplicantsDialogState
         .pushNamed('/caregiver-detail', arguments: application.profileId);
   }
 
+  int get _acceptedCount =>
+      widget.applications.where((a) => a.status == JobApplicationStatus.accepted).length;
+
   @override
   Widget build(BuildContext context) {
+    final vacancies = widget.requirement.numberOfVacancies;
     return AlertDialog(
-      title: Text('Applicants — ${requirementDisplayId(widget.requirement)}'),
+      title: Text(
+        'Applicants — ${requirementDisplayId(widget.requirement)} '
+        '($_acceptedCount / $vacancies vacanc${vacancies == 1 ? 'y' : 'ies'} filled)',
+      ),
       content: SizedBox(
         width: context.dialogWidth(400),
         child: widget.applications.isEmpty
@@ -318,6 +351,16 @@ class RequirementReadOnlyDialog extends StatelessWidget {
             children: [
               _DetailRow('Organisation', requirement.organisationName ?? '—'),
               _DetailRow(
+                'Contact Person',
+                requirement.organisationPhone != null
+                    ? '${requirement.contactPersonName ?? '—'} · ${requirement.organisationPhone}'
+                    : requirement.contactPersonName ?? '—',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed('/organisation-detail', arguments: requirement.postedBy);
+                },
+              ),
+              _DetailRow(
                 'Type',
                 OrganisationType.displayNames[requirement.organisationType] ??
                     requirement.organisationType ??
@@ -384,11 +427,20 @@ class RequirementReadOnlyDialog extends StatelessWidget {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+  /// When provided, [value] becomes a tappable, underlined link (e.g. to
+  /// the organisation's own profile screen) instead of plain text.
+  final VoidCallback? onTap;
 
-  const _DetailRow(this.label, this.value);
+  const _DetailRow(this.label, this.value, {this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final valueText = Text(
+      value,
+      style: onTap != null
+          ? const TextStyle(color: AppColors.primaryDark, decoration: TextDecoration.underline)
+          : null,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
@@ -399,7 +451,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(label,
                 style: const TextStyle(color: AppColors.textSecondary)),
           ),
-          Expanded(child: Text(value)),
+          Expanded(child: onTap != null ? InkWell(onTap: onTap, child: valueText) : valueText),
         ],
       ),
     );

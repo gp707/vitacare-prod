@@ -364,6 +364,37 @@ class ToiletAssistance {
   };
 }
 
+/// A caregiver's own reason for closing an accepted job/requirement
+/// (POST .../complete) — a fixed dropdown, visible to both the caregiver
+/// themselves and the job/requirement poster. Defaults to noReason when
+/// the caregiver submits without picking anything else.
+class CaregiverCloseReason {
+  static const dutyComplete = 'duty_complete';
+  static const noReason = 'no_reason';
+  static const didNotLikeWork = 'did_not_like_work';
+  static const temporarilyNotAvailable = 'temporarily_not_available';
+  static const familyProblems = 'family_problems';
+  static const needToGoHometown = 'need_to_go_hometown';
+
+  static const all = [
+    dutyComplete,
+    noReason,
+    didNotLikeWork,
+    temporarilyNotAvailable,
+    familyProblems,
+    needToGoHometown,
+  ];
+
+  static const displayNames = {
+    dutyComplete: 'Duty Complete',
+    noReason: 'No Reason',
+    didNotLikeWork: 'Did Not Like the Work',
+    temporarilyNotAvailable: 'Temporarily Not Available',
+    familyProblems: 'Self Family Problems',
+    needToGoHometown: 'Need to Go to Hometown',
+  };
+}
+
 class VitalMonitoringType {
   static const bloodPressure = 'blood_pressure';
   static const bloodSugar = 'blood_sugar';

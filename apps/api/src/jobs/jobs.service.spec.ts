@@ -410,7 +410,7 @@ describe('JobsService', () => {
     it('returns the job with its care receiver, applications, and poster info', async () => {
       jobsRepo.findById.mockResolvedValue(job);
       jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1', status: 'applied' }]);
-      usersRepo.findById.mockResolvedValue({ role: 'admin', full_name: 'Admin One' });
+      usersRepo.findById.mockResolvedValue({ role: 'admin', full_name: 'Admin One', phone: '+919876543210' });
       const result = await service.getJobDetailForAdmin('job-1');
       expect(result).toEqual({
         ...job,
@@ -418,6 +418,7 @@ describe('JobsService', () => {
         applications: [{ id: 'app-1', status: 'applied' }],
         posted_by_role: 'admin',
         posted_by_name: 'Admin One',
+        posted_by_phone: '+919876543210',
       });
     });
   });
@@ -669,7 +670,7 @@ describe('JobsService', () => {
   describe('completeJob', () => {
     it('throws PROFILE_019 when no profile exists', async () => {
       profilesRepo.findByUserId.mockResolvedValue(null);
-      await expect(service.completeJob('user-1', 'job-1', null)).rejects.toMatchObject({
+      await expect(service.completeJob('user-1', 'job-1', {}, null)).rejects.toMatchObject({
         code: 'PROFILE_019',
       });
     });
@@ -679,7 +680,7 @@ describe('JobsService', () => {
       async (application) => {
         profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
         jobApplicationsRepo.findByJobAndProfile.mockResolvedValue(application);
-        await expect(service.completeJob('user-1', 'job-1', null)).rejects.toMatchObject({
+        await expect(service.completeJob('user-1', 'job-1', {}, null)).rejects.toMatchObject({
           code: 'JOB_008',
         });
         expect(jobApplicationsRepo.markCompleted).not.toHaveBeenCalled();
@@ -691,9 +692,9 @@ describe('JobsService', () => {
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
       jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
 
-      const result = await service.completeJob('user-1', 'job-1', null);
+      const result = await service.completeJob('user-1', 'job-1', {}, null);
 
-      expect(jobApplicationsRepo.markCompleted).toHaveBeenCalledWith('app-1', expect.anything());
+      expect(jobApplicationsRepo.markCompleted).toHaveBeenCalledWith('app-1', 'no_reason', expect.anything());
       expect(profilesRepo.markAvailable).toHaveBeenCalledWith('profile-1', expect.anything());
       expect(result).toEqual({ message: 'Job marked complete', still_assigned: false });
     });
@@ -703,7 +704,7 @@ describe('JobsService', () => {
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
       jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
 
-      await service.completeJob('user-1', 'job-1', null);
+      await service.completeJob('user-1', 'job-1', {}, null);
 
       expect(jobsRepo.reopen).toHaveBeenCalledWith('job-1', expect.anything());
     });
@@ -713,10 +714,30 @@ describe('JobsService', () => {
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
       jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(1);
 
-      const result = await service.completeJob('user-1', 'job-1', null);
+      const result = await service.completeJob('user-1', 'job-1', {}, null);
 
       expect(profilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(result).toEqual({ message: 'Job marked complete', still_assigned: true });
+    });
+
+    it('defaults close_reason to no_reason when omitted, and persists a specific one when provided', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+
+      await service.completeJob('user-1', 'job-1', { close_reason: 'duty_complete' }, null);
+
+      expect(jobApplicationsRepo.markCompleted).toHaveBeenCalledWith('app-1', 'duty_complete', expect.anything());
+    });
+
+    it('treats a blank/whitespace-only close_reason the same as omitted — defaults to no_reason', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+
+      await service.completeJob('user-1', 'job-1', { close_reason: '   ' }, null);
+
+      expect(jobApplicationsRepo.markCompleted).toHaveBeenCalledWith('app-1', 'no_reason', expect.anything());
     });
 
     it('audit-logs the completion with the resulting verification_status', async () => {
@@ -724,7 +745,7 @@ describe('JobsService', () => {
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
       jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(1);
 
-      await service.completeJob('user-1', 'job-1', '127.0.0.1');
+      await service.completeJob('user-1', 'job-1', {}, '127.0.0.1');
 
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -733,7 +754,12 @@ describe('JobsService', () => {
           entityType: 'job_applications',
           entityId: 'app-1',
           beforeValue: { status: 'accepted' },
-          afterValue: { status: 'completed', job_status: 'active', verification_status: 'assigned' },
+          afterValue: {
+            status: 'completed',
+            job_status: 'active',
+            verification_status: 'assigned',
+            close_reason: 'no_reason',
+          },
           ipAddress: '127.0.0.1',
         }),
       );

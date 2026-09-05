@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction, JobApplicationStatus, JobStatus, TypeOfNurse, VerificationStatus } from '@vitacare/shared-constants';
+import {
+  AuditAction,
+  CaregiverCloseReason,
+  JobApplicationStatus,
+  JobStatus,
+  TypeOfNurse,
+  VerificationStatus,
+} from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { DatabaseService } from '../database/database.service';
@@ -20,6 +27,7 @@ import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { CompleteRequirementDto } from './dto/complete-requirement.dto';
 
 // Only these two can apply — same rule as the jobs pipeline: unavailable
 // caregivers must toggle back to available first.
@@ -263,10 +271,12 @@ export class OrganisationRequirementsService {
    *  `accepted` is valid from `applied` (a normal accept), `rejected`
    *  ("Accept Anyway" — reconsidering either side's earlier decline), or
    *  `completed` (re-engaging a caregiver who already closed this same
-   *  requirement themselves). Only one applicant can be `accepted` on a
-   *  requirement at a time — accepting a *different* application while one
-   *  is already accepted is JOB_016. `rejected` on a previously-`accepted`
-   *  application undoes the acceptance; `rejected` on a still-`applied`
+   *  requirement themselves). Up to `number_of_vacancies` applicants can
+   *  be `accepted` on a requirement at once (an org posting for, say, 3
+   *  vacancies can hire 3 different caregivers onto the same requirement)
+   *  — accepting one more than that is JOB_019. `rejected` on a
+   *  previously-`accepted` application undoes that one acceptance,
+   *  freeing a vacancy slot back up; `rejected` on a still-`applied`
    *  application just declines it. Anything else is JOB_007. Never checks
    *  or changes the requirement's own status (active/closed/cancelled) —
    *  unlike JobsService's own decideApplication, accepting a candidate here
@@ -301,9 +311,11 @@ export class OrganisationRequirementsService {
     }
 
     if (isAccepting) {
-      const existingAccepted = await this.applicationsRepo.findAcceptedForRequirement(requirementId);
-      if (existingAccepted && existingAccepted.id !== applicationId) {
-        throw new AppException('JOB_016');
+      const requirement = await this.requirementsRepo.findById(requirementId);
+      if (!requirement) throw new AppException('GEN_002');
+      const acceptedCount = await this.applicationsRepo.countAcceptedForRequirement(requirementId);
+      if (acceptedCount >= requirement.number_of_vacancies) {
+        throw new AppException('JOB_019');
       }
     }
 
@@ -395,7 +407,12 @@ export class OrganisationRequirementsService {
    *  above), regardless of whether other `applied` candidates remain or
    *  none at all. See JobsService.completeJob for the caregiver-status
    *  side of this reasoning (identical shape, mirrored table). */
-  async completeRequirement(userId: string, requirementId: string, ipAddress: string | null) {
+  async completeRequirement(
+    userId: string,
+    requirementId: string,
+    dto: CompleteRequirementDto,
+    ipAddress: string | null,
+  ) {
     const profile = await this.caregiverProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
 
@@ -404,9 +421,11 @@ export class OrganisationRequirementsService {
       throw new AppException('JOB_008');
     }
 
+    const closeReason = dto.close_reason?.trim() || CaregiverCloseReason.NO_REASON;
+
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
-      await this.applicationsRepo.markCompleted(application.id, client);
+      await this.applicationsRepo.markCompleted(application.id, closeReason, client);
       const remaining = await this.applicationsRepo.countAcceptedByProfileId(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
@@ -423,6 +442,7 @@ export class OrganisationRequirementsService {
       afterValue: {
         status: 'completed',
         verification_status: stillAssigned ? 'assigned' : 'available',
+        close_reason: closeReason,
       },
       ipAddress,
     });
@@ -457,7 +477,7 @@ export class OrganisationRequirementsService {
     if (!requirement) throw new AppException('GEN_002');
     const [applications, organisation] = await Promise.all([
       this.applicationsRepo.findByRequirementId(id),
-      this.organisationProfilesRepo.findByUserId(requirement.posted_by),
+      this.organisationProfilesRepo.findByUserIdWithPhone(requirement.posted_by),
     ]);
     return {
       ...requirement,
@@ -466,6 +486,8 @@ export class OrganisationRequirementsService {
       organisation_type: organisation?.organisation_type ?? null,
       city: organisation?.city ?? null,
       area: organisation?.area ?? null,
+      contact_person_name: organisation?.contact_person_name ?? null,
+      organisation_phone: organisation?.phone ?? null,
     };
   }
 

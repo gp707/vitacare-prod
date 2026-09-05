@@ -136,6 +136,12 @@ class OrganisationRequirementApplicationModel {
   /// — mirrors JobApplicationModel's own completedAt.
   final String? completedAt;
   final String? declineReason;
+  /// Only ever set once [status] is 'completed' — the caregiver's own
+  /// reason for closing this requirement (CaregiverCloseReason), defaults
+  /// to 'no_reason' server-side rather than staying null. Visible to the
+  /// organisation here, same as MyApplicationModel shows it to the
+  /// caregiver themselves.
+  final String? closeReason;
   final String updatedAt;
 
   const OrganisationRequirementApplicationModel({
@@ -152,6 +158,7 @@ class OrganisationRequirementApplicationModel {
     this.rejectedAt,
     this.completedAt,
     this.declineReason,
+    this.closeReason,
     required this.updatedAt,
   });
 
@@ -170,6 +177,7 @@ class OrganisationRequirementApplicationModel {
         rejectedAt: json['rejected_at'] as String?,
         completedAt: json['completed_at'] as String?,
         declineReason: json['decline_reason'] as String?,
+        closeReason: json['close_reason'] as String?,
         updatedAt: json['updated_at'] as String,
       );
 }

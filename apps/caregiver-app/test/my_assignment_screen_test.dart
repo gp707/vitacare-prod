@@ -25,6 +25,7 @@ JobModel _assignedJob({
   int adminJobNumber = 542,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-02T10:00:00Z',
+  String? closeReason,
 }) {
   return JobModel.fromJson({
     'id': id,
@@ -48,6 +49,7 @@ JobModel _assignedJob({
       'rejected_at': null,
       'completed_at': applicationStatus == 'completed' ? '2026-08-03T10:00:00Z' : null,
       'decided_by_admin': true,
+      'close_reason': applicationStatus == 'completed' ? (closeReason ?? 'no_reason') : null,
     },
     'care_receiver': {
       'id': 'cr-1',
@@ -106,6 +108,7 @@ OrganisationRequirementModel _assignedRequirement({
 class _FakeJobsRepository extends JobsRepository {
   List<JobModel> jobs;
   String? completedJobId;
+  String? completedCloseReason;
   bool completeStillAssigned;
   _FakeJobsRepository([this.jobs = const [], this.completeStillAssigned = false]) : super(Dio());
 
@@ -116,8 +119,9 @@ class _FakeJobsRepository extends JobsRepository {
   Future<List<JobModel>> getAssignedJobs() async => jobs;
 
   @override
-  Future<bool> completeJob(String jobId) async {
+  Future<bool> completeJob(String jobId, {String? closeReason}) async {
     completedJobId = jobId;
+    completedCloseReason = closeReason;
     jobs = jobs
         .map((j) => j.id == jobId
             ? _assignedJob(id: j.id, adminJobNumber: j.adminJobNumber!, applicationStatus: 'completed')
@@ -130,6 +134,7 @@ class _FakeJobsRepository extends JobsRepository {
 class _FakeOrganisationOpeningsRepository extends OrganisationOpeningsRepository {
   List<OrganisationRequirementModel> requirements;
   String? completedRequirementId;
+  String? completedCloseReason;
   String completeReturnsVerificationStatus;
   _FakeOrganisationOpeningsRepository([
     this.requirements = const [],
@@ -140,8 +145,9 @@ class _FakeOrganisationOpeningsRepository extends OrganisationOpeningsRepository
   Future<List<OrganisationRequirementModel>> getAssigned() async => requirements;
 
   @override
-  Future<String> complete(String requirementId) async {
+  Future<String> complete(String requirementId, {String? closeReason}) async {
     completedRequirementId = requirementId;
+    completedCloseReason = closeReason;
     requirements = requirements
         .map((r) => r.id == requirementId
             ? _assignedRequirement(id: r.id, requirementNumber: r.requirementNumber, applicationStatus: 'completed')
@@ -214,11 +220,25 @@ void main() {
     expect(find.textContaining('Accepted by employer:'), findsOneWidget);
   });
 
-  testWidgets('shows "Closed by you" in the timeline once the job is completed', (tester) async {
+  testWidgets('shows "Closed by you" in the timeline once the job is completed, with the close reason underneath',
+      (tester) async {
     await _pump(tester, jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed')]));
     await _showCompletedJobs(tester);
 
     expect(find.textContaining('Closed by you:'), findsOneWidget);
+    // Defaults to "No Reason" when the fixture doesn't specify one — same
+    // default the backend applies when the caregiver doesn't pick anything.
+    expect(find.textContaining('Reason: No Reason'), findsOneWidget);
+  });
+
+  testWidgets('shows a specific close reason in the timeline when one was given', (tester) async {
+    await _pump(
+      tester,
+      jobsRepo: _FakeJobsRepository([_assignedJob(applicationStatus: 'completed', closeReason: 'duty_complete')]),
+    );
+    await _showCompletedJobs(tester);
+
+    expect(find.textContaining('Reason: Duty Complete'), findsOneWidget);
   });
 
   testWidgets("shows an empty state when there are no accepted jobs or requirements", (tester) async {
@@ -319,15 +339,37 @@ void main() {
 
     // Confirmation dialog appears first — tapping outside/Cancel wouldn't call the API.
     expect(find.text('Close this job?'), findsOneWidget);
+    // Reason dropdown defaults to "No Reason" — confirming without
+    // touching it still submits an explicit reason.
+    expect(find.text('No Reason'), findsOneWidget);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
     await tester.pumpAndSettle();
 
     expect(fakeRepo.completedJobId, 'job-1');
+    expect(fakeRepo.completedCloseReason, 'no_reason');
     // Now completed — hidden by default; reveal it to check the resulting
     // badge/button state.
     await _showCompletedJobs(tester);
     expect(find.text('You closed this job — work completed'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsNothing);
+  });
+
+  testWidgets('picking a specific reason before confirming Close Job submits that reason', (tester) async {
+    final fakeRepo = _FakeJobsRepository([_assignedJob()]);
+    await _pump(tester, jobsRepo: fakeRepo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Close Job'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'No Reason'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Duty Complete').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Close Job'));
+    await tester.pumpAndSettle();
+
+    expect(fakeRepo.completedCloseReason, 'duty_complete');
   });
 
   testWidgets('cancelling the confirmation dialog does not call completeJob', (tester) async {
