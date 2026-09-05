@@ -287,22 +287,6 @@ export class OrganisationRequirementsRepository {
     );
   }
 
-  async close(id: string, client?: PoolClient): Promise<void> {
-    const runner: QueryRunner = client ?? this.db;
-    await runner.query(
-      `UPDATE organisation_requirements SET status = 'closed', updated_at = NOW() WHERE id = $1`,
-      [id],
-    );
-  }
-
-  async reopen(id: string, client?: PoolClient): Promise<void> {
-    const runner: QueryRunner = client ?? this.db;
-    await runner.query(
-      `UPDATE organisation_requirements SET status = 'active', updated_at = NOW() WHERE id = $1`,
-      [id],
-    );
-  }
-
   /** Org self-cancel — mirrors JobsRepository.cancel exactly (migration 048's
    *  cancelled_at column, org-requirement counterpart). Deliberately does
    *  NOT touch any application row — see OrganisationRequirementsService.

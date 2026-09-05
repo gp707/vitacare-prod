@@ -260,19 +260,20 @@ export class OrganisationRequirementsService {
   }
 
   /** Shared accept/reject logic — used by both the org itself and admin.
-   *  Mirrors JobsService.decideApplication exactly (same state machine,
-   *  same caregiver verification_status side effects). `accepted` is valid
-   *  from `applied` (a normal accept), `rejected` ("Accept Anyway" —
-   *  reconsidering either side's earlier decline), or `completed`
-   *  (re-engaging a caregiver who already closed this same requirement
-   *  themselves). Only one applicant can be `accepted` on a requirement at
-   *  a time — accepting a *different* application while one is already
-   *  accepted is JOB_016. `rejected` on a previously-`accepted` application
-   *  undoes the acceptance and reopens the requirement; `rejected` on a
-   *  still-`applied` application just declines it. Anything else is
-   *  JOB_007. Never checks the requirement's own status (active/closed/
-   *  cancelled) — a rejected candidate can be reselected even after the
-   *  requirement was cancelled, same as the jobs pipeline. */
+   *  `accepted` is valid from `applied` (a normal accept), `rejected`
+   *  ("Accept Anyway" — reconsidering either side's earlier decline), or
+   *  `completed` (re-engaging a caregiver who already closed this same
+   *  requirement themselves). Only one applicant can be `accepted` on a
+   *  requirement at a time — accepting a *different* application while one
+   *  is already accepted is JOB_016. `rejected` on a previously-`accepted`
+   *  application undoes the acceptance; `rejected` on a still-`applied`
+   *  application just declines it. Anything else is JOB_007. Never checks
+   *  or changes the requirement's own status (active/closed/cancelled) —
+   *  unlike JobsService's own decideApplication, accepting a candidate here
+   *  deliberately does NOT close the requirement (an org may want more than
+   *  one caregiver for the same posting), so it stays active/live and
+   *  visible to other caregivers throughout, and a rejected candidate can
+   *  be reselected even after the requirement was separately cancelled. */
   async decideApplication(
     actorId: string,
     requirementId: string,
@@ -312,7 +313,6 @@ export class OrganisationRequirementsService {
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.decide(applicationId, dto.status, actorId, client, dto.reason);
       if (isAccepting) {
-        await this.requirementsRepo.close(requirementId, client);
         await this.adminCaregiversRepo.updateStatus(
           application.profile_id,
           VerificationStatus.ASSIGNED,
@@ -321,7 +321,6 @@ export class OrganisationRequirementsService {
           client,
         );
       } else if (isUndoAccept) {
-        await this.requirementsRepo.reopen(requirementId, client);
         await this.adminCaregiversRepo.updateStatus(
           application.profile_id,
           VerificationStatus.AVAILABLE,
@@ -341,8 +340,8 @@ export class OrganisationRequirementsService {
       beforeValue: { status: application.status },
       afterValue: {
         status: dto.status,
-        ...(isAccepting ? { requirement_status: 'closed', caregiver_status: 'assigned' } : {}),
-        ...(isUndoAccept ? { requirement_status: 'active', caregiver_status: 'available' } : {}),
+        ...(isAccepting ? { caregiver_status: 'assigned' } : {}),
+        ...(isUndoAccept ? { caregiver_status: 'available' } : {}),
       },
       ipAddress,
     });
@@ -391,10 +390,11 @@ export class OrganisationRequirementsService {
 
   /** Caregiver self-service "I'm done with this requirement" — effectively
    *  rejecting it for herself, not a statement that the org's need is
-   *  over, so the requirement is always reopened to `active` (mirrors
-   *  decideApplication's isUndoAccept) regardless of whether other
-   *  `applied` candidates remain or none at all. See JobsService.completeJob
-   *  for the full reasoning (identical shape, mirrored table). */
+   *  over. The requirement's own status is never touched here (it was
+   *  never closed by acceptance in the first place — see decideApplication
+   *  above), regardless of whether other `applied` candidates remain or
+   *  none at all. See JobsService.completeJob for the caregiver-status
+   *  side of this reasoning (identical shape, mirrored table). */
   async completeRequirement(userId: string, requirementId: string, ipAddress: string | null) {
     const profile = await this.caregiverProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');
@@ -407,7 +407,6 @@ export class OrganisationRequirementsService {
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.markCompleted(application.id, client);
-      await this.requirementsRepo.reopen(requirementId, client);
       const remaining = await this.applicationsRepo.countAcceptedByProfileId(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
@@ -423,7 +422,6 @@ export class OrganisationRequirementsService {
       beforeValue: { status: 'accepted' },
       afterValue: {
         status: 'completed',
-        requirement_status: 'active',
         verification_status: stillAssigned ? 'assigned' : 'available',
       },
       ipAddress,

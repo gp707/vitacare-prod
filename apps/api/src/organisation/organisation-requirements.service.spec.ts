@@ -460,7 +460,7 @@ describe('OrganisationRequirementsService', () => {
       );
 
       expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'org-1', {}, undefined);
-      expect(requirementsRepo.close).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.close).not.toHaveBeenCalled();
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
 
@@ -557,7 +557,7 @@ describe('OrganisationRequirementsService', () => {
       ).rejects.toMatchObject({ code: 'JOB_007' });
     });
 
-    it('accepts an applied application: closes the requirement and assigns the caregiver', async () => {
+    it('accepts an applied application: assigns the caregiver, and never touches the requirement\'s own status', async () => {
       applicationsRepo.findById.mockResolvedValue(application);
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
 
@@ -570,18 +570,18 @@ describe('OrganisationRequirementsService', () => {
       );
 
       expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', {}, undefined);
-      expect(requirementsRepo.close).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.close).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'assigned', null, 'admin-1', {});
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
 
-    it('rejecting a previously-accepted application reopens the requirement and un-assigns the caregiver', async () => {
+    it('rejecting a previously-accepted application un-assigns the caregiver without touching the requirement\'s own status', async () => {
       applicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
 
       await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'rejected' } as any, null);
 
-      expect(requirementsRepo.reopen).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.reopen).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'available', null, 'admin-1', {});
     });
 
@@ -603,8 +603,8 @@ describe('OrganisationRequirementsService', () => {
       expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
     });
 
-    it('accepts a previously-rejected application ("Accept Anyway" — either side can reconsider), closing the '
-      + 'requirement and assigning the caregiver same as a fresh accept', async () => {
+    it('accepts a previously-rejected application ("Accept Anyway" — either side can reconsider), assigning '
+      + 'the caregiver same as a fresh accept, without touching the requirement\'s own status', async () => {
       applicationsRepo.findById.mockResolvedValue({ ...application, status: 'rejected' });
       applicationsRepo.findAcceptedForRequirement.mockResolvedValue(null);
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
@@ -618,13 +618,13 @@ describe('OrganisationRequirementsService', () => {
       );
 
       expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', {}, undefined);
-      expect(requirementsRepo.close).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.close).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'assigned', null, 'admin-1', {});
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
 
     it('accepts a previously-completed application ("Accept Anyway" after the caregiver closed the requirement '
-      + 'themselves), closing the requirement and assigning the caregiver same as a fresh accept', async () => {
+      + 'themselves), assigning the caregiver same as a fresh accept, without touching the requirement\'s own status', async () => {
       applicationsRepo.findById.mockResolvedValue({ ...application, status: 'completed' });
       applicationsRepo.findAcceptedForRequirement.mockResolvedValue(null);
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
@@ -638,7 +638,7 @@ describe('OrganisationRequirementsService', () => {
       );
 
       expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', {}, undefined);
-      expect(requirementsRepo.close).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.close).not.toHaveBeenCalled();
       expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
     });
 
@@ -727,14 +727,14 @@ describe('OrganisationRequirementsService', () => {
       expect(result.verification_status).toBe('available');
     });
 
-    it('always reopens the requirement to active — a caregiver-initiated close is a self-rejection, not a statement the org\'s need is over', async () => {
+    it('never touches the requirement\'s own status — it was never closed by acceptance in the first place', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
       applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
 
       await service.completeRequirement('user-1', 'req-1', null);
 
-      expect(requirementsRepo.reopen).toHaveBeenCalledWith('req-1', {});
+      expect(requirementsRepo.reopen).not.toHaveBeenCalled();
     });
 
     it('leaves the caregiver assigned when another accepted requirement remains', async () => {

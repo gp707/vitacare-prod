@@ -454,7 +454,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .expect(200);
     });
 
-    it('the organisation can accept an applicant themselves, closing the requirement and assigning the caregiver', async () => {
+    it('the organisation can accept an applicant themselves, assigning the caregiver while the requirement stays active/live', async () => {
       const org = await registerOrganisation('0008');
       const created = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -495,10 +495,14 @@ describe('Organisation (NurseNow) (e2e)', () => {
       );
       expect(caregiverProfile.rows[0].verification_status).toBe('assigned');
 
+      // Unlike the jobs pipeline, accepting a candidate on an organisation
+      // requirement deliberately does NOT close it — an org may want more
+      // than one caregiver for the same posting, so it stays active/live
+      // and visible to other caregivers throughout.
       const requirementRow = await db.query('SELECT status FROM organisation_requirements WHERE id = $1', [
         requirementId,
       ]);
-      expect(requirementRow.rows[0].status).toBe('closed');
+      expect(requirementRow.rows[0].status).toBe('active');
 
       // Caregiver can now mark it complete, dropping back to available.
       const completion = await request(app.getHttpServer())
@@ -507,8 +511,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .expect(200);
       expect(completion.body.data.verification_status).toBe('available');
 
-      // Completing is a self-rejection, not the end of the org's need — the
-      // requirement reopens to active immediately, same as jobs.
+      // Still active — completing never touched it either.
       const requirementRowAfterComplete = await db.query(
         'SELECT status FROM organisation_requirements WHERE id = $1',
         [requirementId],
