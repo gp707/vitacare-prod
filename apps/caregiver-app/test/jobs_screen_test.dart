@@ -667,6 +667,32 @@ void main() {
     expect(find.textContaining('Reason:'), findsNothing);
   });
 
+  testWidgets(
+      'shows the same full timeline (actor, action, date/time, reason) for an organisation requirement '
+      'too — not just for a regular job', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([
+        _requirement(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-17T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': '2026-08-17T09:05:00Z',
+          'decided_by_admin': true,
+          'decline_reason': 'Position already filled.',
+        }),
+      ]),
+    );
+    // Rejected requirements are hidden by default (see _showAllJobs) — the
+    // timeline itself is what this test is about, not that hiding rule.
+    await _showAllJobs(tester);
+
+    expect(find.text('Applied by you: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Declined by employer: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Reason: Position already filled.'), findsOneWidget);
+  });
+
   testWidgets('tapping Apply calls applyToJob with applied', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pump(tester, fakeRepo);

@@ -642,6 +642,10 @@ class _ApplicantTile extends StatelessWidget {
               if (isDeciding) const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
             ],
           ),
+          const SizedBox(height: 2),
+          // The full per-transition log — actor, action, date/time, and
+          // reason (if any) — not just the bare current status word.
+          _ApplicantTimeline(application),
           if (!isDeciding) ...[
             const SizedBox(height: AppSpacing.xs),
             Wrap(
@@ -675,19 +679,79 @@ class _ApplicantTile extends StatelessWidget {
                     icon: const Icon(Icons.close, size: 16, color: AppColors.error),
                     label: const Text('Reject', style: TextStyle(color: AppColors.error)),
                   ),
-                if (!canAccept && !canReject && !_isAccepted)
-                  Text(
-                    application.status[0].toUpperCase() + application.status.substring(1),
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
               ],
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+String _formatDate(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+// Seconds are included (not just hours:minutes) so two actions taken within
+// the same minute — e.g. the org rejecting right after another applied —
+// still display in a visibly distinguishable, correctly ordered sequence.
+String _formatDateTime(DateTime date) =>
+    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
+    '${date.second.toString().padLeft(2, '0')}';
+
+/// The full per-transition log for one applicant — actor, action, date/
+/// time, and reason (if any), not just the bare current status word.
+/// Mirrors Individual's own _ApplicantTimeline in jobs_posted_screen.dart
+/// exactly (same entries/ordering), duplicated here since the two screens'
+/// widgets aren't shared.
+class _ApplicantTimeline extends StatelessWidget {
+  final OrganisationRequirementApplicationModel application;
+
+  const _ApplicantTimeline(this.application);
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <MapEntry<DateTime, String>>[];
+    if (application.appliedAt != null) {
+      final at = DateTime.parse(application.appliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Applied: ${_formatDateTime(at)}'));
+    }
+    if (application.acceptedAt != null) {
+      final at = DateTime.parse(application.acceptedAt!).toLocal();
+      final by = application.decidedByName != null ? ' by ${application.decidedByName}' : '';
+      entries.add(MapEntry(at, 'Accepted$by: ${_formatDateTime(at)}'));
+    }
+    if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
+      final at = DateTime.parse(application.completedAt!).toLocal();
+      entries.add(MapEntry(at, 'Closed by Caregiver: ${_formatDateTime(at)}'));
+    }
+    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+      final at = DateTime.parse(application.rejectedAt!).toLocal();
+      final label = application.decidedByName != null ? 'Rejected by ${application.decidedByName}' : 'Rejected by Caregiver';
+      var text = '$label: ${_formatDateTime(at)}';
+      if (application.declineReason != null && application.declineReason!.isNotEmpty) {
+        text = '$text\nReason: ${application.declineReason!}';
+      }
+      entries.add(MapEntry(at, text));
+    }
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    // Newest first — the current status is the one worth seeing without
+    // having to scroll for it, same convention as Individual's own
+    // _ApplicantTimeline and caregiver-app's ApplicationTimeline.
+    entries.sort((a, b) => b.key.compareTo(a.key));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in entries)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              entry.value,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+            ),
+          ),
+      ],
     );
   }
 }

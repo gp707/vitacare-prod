@@ -131,6 +131,10 @@ class OrganisationRequirementApplicationModel {
   final String? appliedAt;
   final String? acceptedAt;
   final String? rejectedAt;
+  /// Set once the caregiver closes this same requirement themselves after
+  /// being accepted (POST /caregiver/organisation-requirements/:id/complete)
+  /// — mirrors JobApplicationModel's own completedAt.
+  final String? completedAt;
   final String? declineReason;
   final String updatedAt;
 
@@ -146,6 +150,7 @@ class OrganisationRequirementApplicationModel {
     this.appliedAt,
     this.acceptedAt,
     this.rejectedAt,
+    this.completedAt,
     this.declineReason,
     required this.updatedAt,
   });
@@ -163,6 +168,7 @@ class OrganisationRequirementApplicationModel {
         appliedAt: json['applied_at'] as String?,
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
+        completedAt: json['completed_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         updatedAt: json['updated_at'] as String,
       );

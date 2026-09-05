@@ -28,6 +28,20 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 500));
 }
 
+/// Mirrors _ApplicantTimeline's own toLocal()-then-format logic, so
+/// assertions about the rendered date/time stay correct regardless of the
+/// test runner's own timezone.
+String _localDate(String isoUtc) {
+  final d = DateTime.parse(isoUtc).toLocal();
+  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
+
+String _localDateTime(String isoUtc) {
+  final d = DateTime.parse(isoUtc).toLocal();
+  return '${_localDate(isoUtc)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:'
+      '${d.second.toString().padLeft(2, '0')}';
+}
+
 OrganisationRequirementModel _requirement({
   String id = 'req-1',
   int requirementNumber = 5,
@@ -63,6 +77,14 @@ OrganisationRequirementApplicationModel _application({
   String id = 'app-1',
   String requirementId = 'req-1',
   String status = 'applied',
+  String appliedAt = '2026-08-01T10:00:00Z',
+  String? acceptedAt,
+  String? rejectedAt,
+  String? completedAt,
+  String? decidedByName,
+  String? declineReason,
+  String? decidedBy,
+  String updatedAt = '2026-08-01T10:00:00Z',
 }) {
   return OrganisationRequirementApplicationModel.fromJson({
     'id': id,
@@ -71,7 +93,14 @@ OrganisationRequirementApplicationModel _application({
     'status': status,
     'full_name': 'Test Caregiver',
     'phone': '+919876543210',
-    'updated_at': '2026-08-01T10:00:00Z',
+    'applied_at': appliedAt,
+    'accepted_at': acceptedAt,
+    'rejected_at': rejectedAt,
+    'completed_at': completedAt,
+    'decided_by_name': decidedByName,
+    'decline_reason': declineReason,
+    'decided_by': decidedBy,
+    'updated_at': updatedAt,
   });
 }
 
@@ -257,6 +286,88 @@ void main() {
     expect(find.text('Closed — caregiver assigned'), findsOneWidget);
     expect(find.text('Test Caregiver'), findsOneWidget);
     expect(find.text('Accepted'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows the full per-candidate log — actor, action, date/time, and reason — not just the bare status',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(
+              status: 'rejected',
+              appliedAt: '2026-08-01T10:00:00Z',
+              rejectedAt: '2026-08-02T11:30:15Z',
+              decidedByName: 'Ravi Sharma',
+              declineReason: 'Not enough experience',
+            ),
+          ],
+        },
+      ),
+    );
+
+    // Computed via toLocal() same as the widget under test, since the
+    // runner's own timezone can shift the displayed date/hour away from
+    // the UTC literals above.
+    expect(find.textContaining('Applied: ${_localDate('2026-08-01T10:00:00Z')}'), findsOneWidget);
+    expect(
+      find.textContaining('Rejected by Ravi Sharma: ${_localDateTime('2026-08-02T11:30:15Z')}'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Reason: Not enough experience'), findsOneWidget);
+  });
+
+  testWidgets('shows "Rejected by Caregiver" (no reason) when the caregiver withdrew their own application',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement()],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(status: 'rejected', rejectedAt: '2026-08-02T11:30:15Z', decidedByName: null),
+          ],
+        },
+      ),
+    );
+
+    expect(
+      find.textContaining('Rejected by Caregiver: ${_localDate('2026-08-02T11:30:15Z')}'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Reason:'), findsNothing);
+  });
+
+  testWidgets('shows "Accepted by <name>" and "Closed by Caregiver" for an accepted-then-completed candidate',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(status: 'active')],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(
+              status: 'completed',
+              acceptedAt: '2026-08-02T09:00:00Z',
+              completedAt: '2026-08-05T18:00:00Z',
+              decidedByName: 'Ravi Sharma',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(
+      find.textContaining('Accepted by Ravi Sharma: ${_localDate('2026-08-02T09:00:00Z')}'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Closed by Caregiver: ${_localDate('2026-08-05T18:00:00Z')}'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('accepting an applicant calls decideApplication with the right requirement and application id',
