@@ -60,20 +60,26 @@ class SessionNotifier extends StateNotifier<SessionState> {
     }
   }
 
-  /// Cheap re-check used by pull-to-refresh (Pending Call / Verification
-  /// Status screens) — avoids re-fetching the whole profile.
-  Future<void> refreshStatus() async {
+  /// Cheap re-check used by pull-to-refresh and PendingCallScreen's own
+  /// periodic auto-poll (avoids re-fetching the whole profile). Returns
+  /// whether the check actually reached the server — pull-to-refresh uses
+  /// this to tell the caregiver their attempt genuinely failed (e.g. poor
+  /// mobile signal) instead of leaving them guessing why the status still
+  /// looks unchanged; the periodic auto-poll ignores the return value
+  /// entirely (a background tick failing silently and just trying again
+  /// in another few seconds is the whole point of polling).
+  Future<bool> refreshStatus() async {
     final current = state;
-    if (current is! SessionAuthenticated) return;
+    if (current is! SessionAuthenticated) return false;
     try {
       final status = await _profileRepository.getVerificationStatus();
       state = current.copyWith(
         verificationStatus: status.verificationStatus,
         rejectionMessage: status.rejectionMessage,
       );
+      return true;
     } catch (_) {
-      // Transient network errors on pull-to-refresh are silently ignored;
-      // the user can just try again.
+      return false;
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -11,11 +12,59 @@ import '../../../app/messages_bell.dart';
 /// SPEC.md section 12.3: waiting screen shown while verification_status is
 /// pending_call. No back navigation to Registration — this is a dead end
 /// until the office calls and an admin marks the caregiver call-verified.
-class PendingCallScreen extends ConsumerWidget {
+///
+/// Admin's approval does send an FCM push ("Profile approved"), but this
+/// app has no foreground/background message listener wired up to react to
+/// it — so without something else driving a refresh, a caregiver sitting
+/// on this exact screen could stay stuck here long after being approved,
+/// with nothing telling them to pull down and check again. Rather than
+/// build out full FCM message handling, this screen polls
+/// refreshStatus() on its own every [_pollInterval] while it's the one
+/// showing — cheap (a single small GET, see SessionNotifier.refreshStatus)
+/// and self-contained, so approval is picked up automatically within a
+/// few seconds without the caregiver needing to do anything.
+class PendingCallScreen extends ConsumerStatefulWidget {
   const PendingCallScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PendingCallScreen> createState() => _PendingCallScreenState();
+}
+
+class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
+  static const _pollInterval = Duration(seconds: 15);
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      // Silently ignored either way — a failed background tick just tries
+      // again next interval, same fail-open contract as loadSession.
+      ref.read(sessionProvider.notifier).refreshStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handlePullToRefresh() async {
+    final succeeded = await ref.read(sessionProvider.notifier).refreshStatus();
+    // Only a manual pull gets error feedback — the caregiver actively
+    // asked for a check just now and deserves to know it didn't reach the
+    // server, rather than silently seeing nothing happen and wondering
+    // whether their pull even registered.
+    if (!succeeded && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not check for updates. Please check your connection and try again.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
 
     ref.listen<SessionState>(sessionProvider, (previous, next) {
@@ -43,7 +92,7 @@ class PendingCallScreen extends ConsumerWidget {
         bottomNavigationBar: const CaregiverBottomNav(currentIndex: 0),
         body: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () => ref.read(sessionProvider.notifier).refreshStatus(),
+            onRefresh: _handlePullToRefresh,
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [

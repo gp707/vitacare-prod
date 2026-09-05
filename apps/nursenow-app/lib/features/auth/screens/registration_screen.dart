@@ -60,7 +60,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _sendingOtp = false;
   bool _verifyingOtp = false;
   String? _verificationToken;
-  _AccountType? _accountType;
+  // Unchecked (the default) = Individual, checked = Organisation — see the
+  // "Register as Organisation" checkbox below. Not nullable/mandatory the
+  // way a two-radio-button choice was: a checkbox always has a definite
+  // state, so there's no "account type" validation left to do.
+  _AccountType _accountType = _AccountType.individual;
   String? _organisationType;
   String? _city;
   bool _termsAccepted = false;
@@ -75,7 +79,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _phoneKey = GlobalKey();
   final _codeKey = GlobalKey();
   final _fullNameKey = GlobalKey();
-  final _accountTypeKey = GlobalKey();
   final _organisationNameKey = GlobalKey();
   final _organisationTypeKey = GlobalKey();
   final _cityKey = GlobalKey();
@@ -147,7 +150,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool get _isPhoneValid => Validators.isValidPhone(_phone);
   bool get _isCodeValid => _otpMode ? _verificationToken != null : Validators.isValidCode(_codeController.text.trim());
   bool get _isFullNameValid => Validators.isValidName(_fullNameController.text.trim());
-  bool get _isAccountTypeValid => _accountType != null;
   bool get _isOrganisationNameValid => !_isOrganisation || _organisationNameController.text.trim().isNotEmpty;
   bool get _isOrganisationTypeValid => !_isOrganisation || _organisationType != null;
   bool get _isCityValid => !_isOrganisation || _city != null;
@@ -162,7 +164,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _isPhoneValid &&
       _isCodeValid &&
       _isFullNameValid &&
-      _isAccountTypeValid &&
       _isOrganisationNameValid &&
       _isOrganisationTypeValid &&
       _isCityValid &&
@@ -174,7 +175,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         _MandatoryField(_phoneKey, _isPhoneValid, focusNode: _phoneFocusNode),
         _MandatoryField(_codeKey, _isCodeValid, focusNode: _codeFocusNode),
         _MandatoryField(_fullNameKey, _isFullNameValid, focusNode: _fullNameFocusNode),
-        _MandatoryField(_accountTypeKey, _isAccountTypeValid),
         if (_isOrganisation) ...[
           _MandatoryField(_organisationNameKey, _isOrganisationNameValid, focusNode: _organisationNameFocusNode),
           _MandatoryField(_organisationTypeKey, _isOrganisationTypeValid),
@@ -297,39 +297,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            KeyedSubtree(
-              key: _accountTypeKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Account type (Mandatory)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _showValidationErrors && !_isAccountTypeValid ? AppColors.error : null,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  RadioListTile<_AccountType>(
-                    title: const Text('Individual'),
-                    subtitle: const Text('Patient, or a family member/caregiver acting on their behalf'),
-                    value: _AccountType.individual,
-                    groupValue: _accountType,
-                    onChanged: (value) => setState(() => _accountType = value),
-                  ),
-                  RadioListTile<_AccountType>(
-                    title: const Text('Hospital / Rehab'),
-                    subtitle: const Text('Post care requirements on behalf of your organisation'),
-                    value: _AccountType.organisation,
-                    groupValue: _accountType,
-                    onChanged: (value) => setState(() => _accountType = value),
-                  ),
-                  if (_showValidationErrors && !_isAccountTypeValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4, left: 12),
-                      child: Text('Select an account type', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
-                    ),
-                ],
+            CheckboxListTile(
+              key: const Key('registerAsOrganisationCheckbox'),
+              title: const Text('Register as Organisation'),
+              subtitle: const Text(
+                'Hospital / Rehab — post care requirements on behalf of your organisation. '
+                'Leave unchecked to register as an Individual (patient, or a family '
+                'member/caregiver acting on their behalf).',
+              ),
+              value: _isOrganisation,
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (checked) => setState(
+                () => _accountType = checked == true ? _AccountType.organisation : _AccountType.individual,
               ),
             ),
             if (_isOrganisation) ...[
@@ -397,6 +377,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CheckboxListTile(
+                    key: const Key('termsCheckbox'),
                     value: _termsAccepted,
                     onChanged: (value) => setState(() => _termsAccepted = value ?? false),
                     title: RichText(

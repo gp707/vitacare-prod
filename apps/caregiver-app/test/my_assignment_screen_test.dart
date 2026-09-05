@@ -189,18 +189,22 @@ void main() {
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('You were accepted for this job'), findsOneWidget);
 
-    // JobDetailCard's About Patient/Requirement detail is collapsed by
-    // default — expand it to check the care receiver's info renders.
-    await tester.tap(find.text('Click for More Details about Patient Requirements'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('About Patient'), findsOneWidget);
-    expect(find.text('78 yrs'), findsOneWidget);
+    // Poster contact info and actions live on the assigned card itself, not
+    // inside JobDetailCard's full-screen detail view.
     expect(find.text('Admin Kumar'), findsOneWidget);
     expect(find.text('+919876500000'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
+
+    // JobDetailCard's About Patient/Requirement detail lives on the
+    // full-screen detail view — open it to check the care receiver's info
+    // renders.
+    await tester.tap(find.text('View Full Details about Patient Requirements'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('About Patient'), findsOneWidget);
+    expect(find.text('78 yrs'), findsOneWidget);
   });
 
   testWidgets('shows the full action timeline (applied, accepted) on an accepted job in MyJobs', (tester) async {

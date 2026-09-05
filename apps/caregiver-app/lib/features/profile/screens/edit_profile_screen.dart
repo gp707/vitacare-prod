@@ -9,6 +9,7 @@ import '../../../core/providers.dart';
 import '../../../core/utils/image_compression.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../../app/rate_card_button.dart';
+import '../../../app/whatsapp_help_button.dart';
 
 const _reReviewStatuses = [
   VerificationStatus.available,
@@ -43,11 +44,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _profileError;
   String? _profileSuccess;
 
-  final _phoneController = TextEditingController();
-  bool _savingPhone = false;
-  String? _phoneError;
-  String? _phoneSuccess;
-
   final _codeController = TextEditingController();
   bool _savingCode = false;
   String? _codeError;
@@ -66,7 +62,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   void dispose() {
     _ageController.dispose();
-    _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
   }
@@ -82,7 +77,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ..clear()
         ..addAll(profile.languages);
       _qualification = profile.highestQualification;
-      _phoneController.text = profile.phone.replaceFirst('+91', '');
       _loading = false;
     });
   }
@@ -125,34 +119,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       setState(() => _profileError = e.message);
     } finally {
       if (mounted) setState(() => _savingProfile = false);
-    }
-  }
-
-  Future<void> _savePhone() async {
-    final phone = '+91${_phoneController.text.trim()}';
-    if (!Validators.isValidPhone(phone)) {
-      setState(() => _phoneError = 'Enter a valid 10-digit mobile number');
-      return;
-    }
-    setState(() {
-      _savingPhone = true;
-      _phoneError = null;
-      _phoneSuccess = null;
-    });
-    try {
-      final wasReReviewed = _willTriggerReview;
-      await ref.read(profileRepositoryProvider).updatePhone(phone);
-      await ref.read(sessionProvider.notifier).refreshStatus();
-      setState(() {
-        _phoneSuccess = wasReReviewed
-            ? 'Phone updated. Your profile has been sent back for re-review.'
-            : 'Phone updated.';
-      });
-      await _load();
-    } on ApiException catch (e) {
-      setState(() => _phoneError = e.message);
-    } finally {
-      if (mounted) setState(() => _savingPhone = false);
     }
   }
 
@@ -255,7 +221,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const VitaAppBarTitle('Edit Profile'),
-        actions: const [RateCardButton()],
+        actions: const [RateCardButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -271,7 +237,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(AppSpacing.sm),
                     ),
                     child: const Text(
-                      "Changes here will be reviewed by admin. Your current verification status is not affected — except changing your phone number or Aadhaar card, which sends an available/unavailable profile back for re-review (a rejected profile is always resubmitted by any change here). Looking for your preferred city, shift, or minimum salary? That's now under the gear icon on the Jobs tab.",
+                      "Changes here will be reviewed by admin. Your current verification status is not affected — except re-uploading your Aadhaar card, which sends an available/unavailable profile back for re-review (a rejected profile is always resubmitted by any change here). Looking for your preferred city, shift, or minimum salary? That's now under the gear icon on the Jobs tab.",
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -350,44 +316,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   ElevatedButton(
                     onPressed: _savingProfile ? null : _saveProfile,
                     child: _savingProfile ? const _ButtonSpinner() : const Text('Save'),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  const Text('Phone Number', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: AppSpacing.sm),
-                  if (_willTriggerReview)
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(AppSpacing.sm),
-                      ),
-                      child: const Text(
-                        'Changing your phone number will send your profile back for re-review.',
-                        style: TextStyle(color: AppColors.error),
-                      ),
-                    ),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      prefixText: '+91 ',
-                      labelText: 'Phone number',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (_phoneError != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(_phoneError!, style: const TextStyle(color: AppColors.error)),
-                  ],
-                  if (_phoneSuccess != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(_phoneSuccess!, style: const TextStyle(color: AppColors.success)),
-                  ],
-                  const SizedBox(height: AppSpacing.sm),
-                  ElevatedButton(
-                    onPressed: _savingPhone ? null : _savePhone,
-                    child: _savingPhone ? const _ButtonSpinner() : const Text('Save Phone Number'),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   const Text('Login PIN', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),

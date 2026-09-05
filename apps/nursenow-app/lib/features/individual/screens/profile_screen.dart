@@ -42,25 +42,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _orgProfileSuccess;
   bool _orgProfilePrefilled = false;
 
-  final _phoneController = TextEditingController();
-  bool _savingPhone = false;
-  String? _phoneError;
-  String? _phoneSuccess;
-
   final _codeController = TextEditingController();
   bool _savingCode = false;
   String? _codeError;
   String? _codeSuccess;
 
   bool _namePrefilled = false;
-  bool _phonePrefilled = false;
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _orgNameController.dispose();
     _orgAreaController.dispose();
-    _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
   }
@@ -138,32 +131,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Future<void> _savePhone(bool isOrganisation) async {
-    final phone = _phoneController.text.trim();
-    if (!Validators.isValidPhone(phone)) {
-      setState(() => _phoneError = 'Enter a valid phone number, e.g. +919876543210');
-      return;
-    }
-    setState(() {
-      _savingPhone = true;
-      _phoneError = null;
-      _phoneSuccess = null;
-    });
-    try {
-      if (isOrganisation) {
-        await ref.read(organisationRepositoryProvider).updatePhone(phone);
-      } else {
-        await ref.read(individualRepositoryProvider).updatePhone(phone);
-      }
-      await ref.read(sessionProvider.notifier).loadSession();
-      if (mounted) setState(() => _phoneSuccess = 'Phone number updated.');
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _phoneError = e.message);
-    } finally {
-      if (mounted) setState(() => _savingPhone = false);
-    }
-  }
-
   Future<void> _saveCode(bool isOrganisation) async {
     final code = _codeController.text.trim();
     if (!Validators.isValidCode(code)) {
@@ -210,10 +177,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (authenticated != null && !_namePrefilled) {
       _namePrefilled = true;
       _fullNameController.text = authenticated.fullName;
-    }
-    if (authenticated != null && !_phonePrefilled) {
-      _phonePrefilled = true;
-      _phoneController.text = authenticated.phone;
     }
     if (authenticated != null && authenticated.isOrganisation && !_orgProfilePrefilled) {
       _orgProfilePrefilled = true;
@@ -272,6 +235,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(width: 4),
                       Text(authenticated.phone, style: const TextStyle(color: AppColors.textSecondary)),
                     ],
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "To change the mobile number linked to your account, tap the Help button above to chat "
+                    "with us on WhatsApp and let us know.",
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   if (authenticated.isJobPostingBlocked) ...[
                     const SizedBox(height: AppSpacing.sm),
@@ -372,33 +341,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: const Text('Save Organisation Details'),
                     ),
                   ],
-                  const Divider(height: AppSpacing.xxl),
-                  const Row(
-                    children: [
-                      Icon(Icons.phone, size: 18, color: AppColors.primaryDark),
-                      SizedBox(width: AppSpacing.xs),
-                      Text('Phone Number', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(labelText: 'Phone number', errorText: _phoneError),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  if (_phoneSuccess != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: Text(_phoneSuccess!, style: const TextStyle(color: AppColors.success)),
-                    ),
-                  ElevatedButton.icon(
-                    onPressed: _savingPhone ? null : () => _savePhone(authenticated.isOrganisation),
-                    icon: _savingPhone
-                        ? const SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
-                        : const Icon(Icons.check, size: 16),
-                    label: const Text('Save Phone Number'),
-                  ),
                   const Divider(height: AppSpacing.xxl),
                   const Row(
                     children: [

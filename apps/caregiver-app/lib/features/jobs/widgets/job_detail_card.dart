@@ -240,21 +240,62 @@ class _FieldLine extends StatelessWidget {
 /// number, urgency, salary, start date, duty type + city, posted date) shows
 /// up front; the patient/requirement detail is a tap away, one card at a
 /// time, so scanning the list stays fast.
-class JobDetailCard extends ConsumerStatefulWidget {
+class JobDetailCard extends ConsumerWidget {
   final JobModel job;
 
   const JobDetailCard({super.key, required this.job});
 
   @override
-  ConsumerState<JobDetailCard> createState() => _JobDetailCardState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _JobHeaderContent(job: job),
+        const SizedBox(height: AppSpacing.xs),
+        // Pushes a dedicated full-screen page rather than expanding inline —
+        // on a small phone the About Patient/Requirement tags and free-text
+        // description used to wrap into a cramped card-width column; a full
+        // screen gives them room to breathe. Getting back out is just the
+        // standard AppBar back button there (see JobFullDetailScreen).
+        InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => JobFullDetailScreen(job: job)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  'View Full Details about Patient Requirements',
+                  style: TextStyle(
+                    fontSize: AppTypography.small,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              Icon(Icons.open_in_full, size: 15, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _JobDetailCardState extends ConsumerState<JobDetailCard> {
-  bool _expanded = false;
+/// The header content every job listing shows up front — display id,
+/// urgency, salary, start date, duty type + city, posted date — shared
+/// between the collapsed [JobDetailCard] (a preview, so a caregiver can
+/// decide whether to open the full page) and [JobFullDetailScreen] (a
+/// self-contained full page, so it doesn't read as missing the basics
+/// once you're actually on it).
+class _JobHeaderContent extends ConsumerWidget {
+  final JobModel job;
+
+  const _JobHeaderContent({required this.job});
 
   @override
-  Widget build(BuildContext context) {
-    final job = widget.job;
+  Widget build(BuildContext context, WidgetRef ref) {
     final applyByWindowDays = ref.watch(applyByWindowDaysProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,98 +431,107 @@ class _JobDetailCardState extends ConsumerState<JobDetailCard> {
           'Posted: ${formatDate(DateTime.parse(job.postedAt))}',
           style: const TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+      ],
+    );
+  }
+}
+
+/// The full-screen "everything about this job" page — reached by tapping
+/// "View Full Details" on the (deliberately compact) [JobDetailCard]. Full
+/// width and free to scroll as long as it needs, so the About Patient /
+/// About Nurse-Caregiver Requirement tag sections and the free-text
+/// description — the parts most likely to wrap awkwardly in a card on a
+/// small phone — have room to read clearly. Getting back out is just the
+/// AppBar's own standard back button, same as leaving any other screen in
+/// this app.
+class JobFullDetailScreen extends StatelessWidget {
+  final JobModel job;
+
+  const JobFullDetailScreen({super.key, required this.job});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(jobDisplayId(job))),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                child: Text(
-                  _expanded
-                      ? 'Hide More Details about Patient Requirements'
-                      : 'Click for More Details about Patient Requirements',
-                  style: const TextStyle(
-                    fontSize: AppTypography.small,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
+              _JobHeaderContent(job: job),
+              if (job.careReceiver != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                const Divider(height: 1),
+                const SizedBox(height: AppSpacing.sm),
+                const SectionLabel('About Patient'),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  children: [
+                    Tag('${job.careReceiver!.age} yrs'),
+                    Tag(capitalize(job.careReceiver!.gender), highlighted: true),
+                    Tag('${job.careReceiver!.weightKg} kg'),
+                    Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
+                    for (final t in job.careReceiver!.toiletAssistance)
+                      Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
+                    if (job.careReceiver!.hasMedicalCondition)
+                      for (final c in job.careReceiver!.medicalConditions)
+                        Tag('Medical Condition: ${MedicalCondition.displayNames[c] ?? c}')
+                    else
+                      const Tag('Medical Condition: None'),
+                    if (job.careReceiver!.requiresVitalMonitoring)
+                      for (final v in job.careReceiver!.vitalMonitoringTypes)
+                        Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
+                  ],
                 ),
+                if (job.careReceiver!.medicalConditionOther != null &&
+                    job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Other condition: ${job.careReceiver!.medicalConditionOther!}',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
+                  ),
+                ],
+                if (job.careReceiver!.toiletAssistanceOther != null &&
+                    job.careReceiver!.toiletAssistanceOther!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
+                  ),
+                ],
+              ],
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.sm),
+              const SectionLabel('About Nurse/Caregiver Requirement'),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                children: [
+                  // Only ever set on a NurseNow individual's own posting —
+                  // null for an admin-posted job.
+                  if (job.careDuration != null)
+                    Tag(CareDuration.displayNames[job.careDuration!] ?? job.careDuration!),
+                  for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
+                  if (job.preferredGender != null)
+                    Tag('Preferred Gender: ${capitalize(job.preferredGender!)}', highlighted: true),
+                  if (job.preferredReligion != null)
+                    Tag('Preferred Religion: ${Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!}'),
+                ],
               ),
-              Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                size: 18,
-                color: AppColors.primary,
-              ),
+              if (job.description != null && job.description!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const SectionLabel('More Details'),
+                const SizedBox(height: AppSpacing.xs),
+                Text(job.description!),
+              ],
             ],
           ),
         ),
-        if (_expanded) ...[
-          if (job.careReceiver != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1),
-            const SizedBox(height: AppSpacing.sm),
-            const SectionLabel('About Patient'),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              children: [
-                Tag('${job.careReceiver!.age} yrs'),
-                Tag(capitalize(job.careReceiver!.gender), highlighted: true),
-                Tag('${job.careReceiver!.weightKg} kg'),
-                Tag(FeedingType.displayNames[job.careReceiver!.feedingType] ?? job.careReceiver!.feedingType),
-                for (final t in job.careReceiver!.toiletAssistance)
-                  Tag('Toilet: ${ToiletAssistance.displayNames[t] ?? t}'),
-                if (job.careReceiver!.hasMedicalCondition)
-                  for (final c in job.careReceiver!.medicalConditions)
-                    Tag('Medical Condition: ${MedicalCondition.displayNames[c] ?? c}')
-                else
-                  const Tag('Medical Condition: None'),
-                if (job.careReceiver!.requiresVitalMonitoring)
-                  for (final v in job.careReceiver!.vitalMonitoringTypes)
-                    Tag('Monitor: ${VitalMonitoringType.displayNames[v] ?? v}'),
-              ],
-            ),
-            if (job.careReceiver!.medicalConditionOther != null &&
-                job.careReceiver!.medicalConditionOther!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Other condition: ${job.careReceiver!.medicalConditionOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
-              ),
-            ],
-            if (job.careReceiver!.toiletAssistanceOther != null &&
-                job.careReceiver!.toiletAssistanceOther!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Other toilet assistance: ${job.careReceiver!.toiletAssistanceOther!}',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small, fontStyle: FontStyle.italic),
-              ),
-            ],
-          ],
-          const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.sm),
-          const SectionLabel('About Nurse/Caregiver Requirement'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            children: [
-              // Only ever set on a NurseNow individual's own posting — null
-              // for an admin-posted job.
-              if (job.careDuration != null)
-                Tag(CareDuration.displayNames[job.careDuration!] ?? job.careDuration!),
-              for (final lang in job.languages) Tag(Language.displayNames[lang] ?? lang),
-              if (job.preferredGender != null)
-                Tag('Preferred Gender: ${capitalize(job.preferredGender!)}', highlighted: true),
-              if (job.preferredReligion != null)
-                Tag('Preferred Religion: ${Religion.displayNames[job.preferredReligion] ?? job.preferredReligion!}'),
-            ],
-          ),
-          if (job.description != null && job.description!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(job.description!),
-          ],
-        ],
-      ],
+      ),
     );
   }
 }

@@ -7,13 +7,8 @@ import '../../individual/data/individual_repository.dart';
 import '../../organisation/data/organisation_repository.dart';
 import 'session_state.dart';
 
-/// Error codes that mean the token itself is no longer good for anything —
-/// a genuinely invalid/expired token, or the account behind it deleted or
-/// deactivated (see JwtAuthGuard, apps/api). Only these actually warrant
-/// clearing the stored token and forcing a fresh login; every other error
-/// loadSession can hit (no connectivity, the backend briefly unreachable,
-/// a 5xx) says nothing about the token's validity.
-const _tokenInvalidErrorCodes = {'AUTH_004', 'AUTH_005'};
+// tokenInvalidErrorCodes now lives in core/network/api_exception.dart,
+// shared with AuthInterceptor.onError — see its own doc comment there.
 
 /// Single source of truth for "who is logged in". Reused at splash
 /// (loadSession) and right after register/login, since both cases just
@@ -70,7 +65,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
         );
       }
     } on ApiException catch (e) {
-      if (_tokenInvalidErrorCodes.contains(e.code)) {
+      if (tokenInvalidErrorCodes.contains(e.code)) {
         await _localStorage.clearTokens();
         state = const SessionUnauthenticated();
       } else {

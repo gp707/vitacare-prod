@@ -109,6 +109,14 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           children: [
             _Field(Icons.badge, 'Full Name', profile.fullName),
             _Field(Icons.phone, 'Phone', profile.phone),
+            const Padding(
+              padding: EdgeInsets.only(left: 30, bottom: AppSpacing.xs),
+              child: Text(
+                "To change the mobile number linked to your account, tap the Help button above to "
+                "chat with us on WhatsApp and let us know.",
+                style: TextStyle(color: AppColors.success, fontSize: AppTypography.caption),
+              ),
+            ),
             _Field(Icons.wc, 'Gender', profile.gender[0].toUpperCase() + profile.gender.substring(1)),
             _Field(Icons.cake, 'Age', '${profile.age}'),
             _Field(

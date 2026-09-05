@@ -191,10 +191,11 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-// JobDetailCard is collapsed by default; tests that need the About
-// Patient/About Nurse-Caregiver Requirement detail must expand it first.
+// JobDetailCard's header is compact by default; tests that need the About
+// Patient/About Nurse-Caregiver Requirement detail must open the full-screen
+// detail view first.
 Future<void> _expandDetails(WidgetTester tester, {int index = 0}) async {
-  await tester.tap(find.text('Click for More Details about Patient Requirements').at(index));
+  await tester.tap(find.text('View Full Details about Patient Requirements').at(index));
   await tester.pumpAndSettle();
 }
 
@@ -208,33 +209,37 @@ Future<void> _showAllJobs(WidgetTester tester) async {
 
 void main() {
   testWidgets(
-      'job cards start collapsed (About Patient/Requirement hidden) and expand/collapse on tap, '
-      'so cards are distinguishable when scanning a list of many', (tester) async {
+      'job cards show a compact header (About Patient/Requirement hidden) and open a full-screen '
+      'detail view on tap, with a clear way back out', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
 
-    // Collapsed: header (job #, salary, duty type + city/area, posted date)
-    // is visible, but the tag-heavy detail sections are not.
+    // Compact header (job #, salary, duty type + city/area, posted date) is
+    // visible on the card, but the tag-heavy detail sections are not.
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('24Hrs - Live In'), findsOneWidget);
     expect(find.text('Bangalore · Indiranagar'), findsOneWidget);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
-    expect(find.text('Click for More Details about Patient Requirements'), findsOneWidget);
+    expect(find.text('View Full Details about Patient Requirements'), findsOneWidget);
 
-    await tester.tap(find.text('Click for More Details about Patient Requirements'));
+    await tester.tap(find.text('View Full Details about Patient Requirements'));
     await tester.pumpAndSettle();
 
+    // Full-screen detail view: same header content repeated, plus the full
+    // About Patient / About Nurse-Caregiver Requirement sections, plus a
+    // back button to leave the full-screen view.
+    expect(find.byType(JobFullDetailScreen), findsOneWidget);
     expect(find.text('About Patient'), findsOneWidget);
     expect(find.text('About Nurse/Caregiver Requirement'), findsOneWidget);
-    expect(find.text('Hide More Details about Patient Requirements'), findsOneWidget);
-    expect(find.text('Click for More Details about Patient Requirements'), findsNothing);
+    expect(find.byTooltip('Back'), findsOneWidget);
 
-    await tester.tap(find.text('Hide More Details about Patient Requirements'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(JobFullDetailScreen), findsNothing);
     expect(find.text('About Patient'), findsNothing);
     expect(find.text('About Nurse/Caregiver Requirement'), findsNothing);
-    expect(find.text('Click for More Details about Patient Requirements'), findsOneWidget);
+    expect(find.text('View Full Details about Patient Requirements'), findsOneWidget);
   });
 
   testWidgets(
@@ -1079,6 +1084,31 @@ void main() {
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
+  });
+
+  testWidgets(
+      '"Hospital Jobs Only" is styled distinctly, not just a subtle tint, so active vs inactive is unmistakable',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
+
+    final chipFinder = find.widgetWithText(FilterChip, 'Hospital Jobs Only');
+    FilterChip chip() => tester.widget<FilterChip>(chipFinder);
+
+    expect(chip().selected, isFalse);
+    expect(chip().selectedColor, AppColors.primary);
+    expect(chip().checkmarkColor, Colors.white);
+    expect((chip().label as Text).style?.fontWeight, isNot(FontWeight.bold));
+
+    await tester.tap(chipFinder);
+    await tester.pumpAndSettle();
+
+    expect(chip().selected, isTrue);
+    expect((chip().label as Text).style?.fontWeight, FontWeight.bold);
+    expect((chip().label as Text).style?.color, Colors.white);
   });
 
   testWidgets('shows the applied timeline instead of buttons for a requirement once already applied',

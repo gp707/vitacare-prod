@@ -84,6 +84,9 @@ void main() {
     expect(find.text('Test Caregiver'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.text('NUR-500'), findsOneWidget);
+    // Explanatory text about changing the phone number lives right next to
+    // where it's actually shown (Basic Info), not duplicated elsewhere.
+    expect(find.textContaining('tap the Help button above to chat with us on WhatsApp'), findsOneWidget);
   });
 
   testWidgets('Edit is always available, at any verification status', (tester) async {

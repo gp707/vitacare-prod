@@ -154,7 +154,6 @@ void main() {
     expect(find.text('Enter a valid 10-digit mobile number'), findsOneWidget);
     expect(find.text('Enter a 4-digit PIN'), findsOneWidget);
     expect(find.text('Enter a name (letters and spaces only)'), findsOneWidget);
-    expect(find.text('Select an account type'), findsOneWidget);
     expect(find.text('You must accept the Terms & Conditions to continue'), findsOneWidget);
     expect(authRepo.registerCalled, isFalse);
   });
@@ -166,7 +165,6 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
-    await tester.tap(find.text('Individual'));
     // Terms checkbox deliberately left unchecked.
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
@@ -184,7 +182,6 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     // Full name deliberately left blank.
-    await tester.tap(find.text('Individual'));
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pump();
@@ -202,8 +199,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
-    await tester.tap(find.text('Individual'));
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
 
@@ -222,7 +218,7 @@ void main() {
     expect(find.text('Full name (Mandatory)'), findsOneWidget);
     expect(find.text('Organisation Details'), findsNothing);
 
-    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
     await tester.pumpAndSettle();
 
     expect(find.text('Contact person name (Mandatory)'), findsOneWidget);
@@ -242,7 +238,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
-    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
 
@@ -262,7 +258,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Ravi Sharma');
-    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
@@ -278,7 +274,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Indiranagar');
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
@@ -301,7 +297,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Ravi Sharma');
-    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
@@ -317,7 +313,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Area left untouched.
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
@@ -331,7 +327,7 @@ void main() {
       (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo: authRepo);
-    await tester.tap(find.text('Hospital / Rehab'));
+    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
@@ -349,8 +345,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
     await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
-    await tester.tap(find.text('Individual'));
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
     await tester.pumpAndSettle();
 
@@ -361,8 +356,32 @@ void main() {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo: authRepo);
 
-    expect(find.byType(Checkbox), findsOneWidget);
+    expect(find.byKey(const Key('termsCheckbox')), findsOneWidget);
     expect(find.textContaining('Terms & Conditions', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets(
+      '"Register as Organisation" is a checkbox, unchecked (Individual) by default; checking it toggles to '
+      'Organisation and unchecking it goes back to Individual — no separate radio buttons', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo: authRepo);
+
+    final checkbox = find.byKey(const Key('registerAsOrganisationCheckbox'));
+    expect(checkbox, findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
+    expect(find.text('Full name (Mandatory)'), findsOneWidget);
+    expect(find.text('Organisation Details'), findsNothing);
+
+    await tester.tap(checkbox);
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isTrue);
+    expect(find.text('Organisation Details'), findsOneWidget);
+
+    await tester.tap(checkbox);
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
+    expect(find.text('Organisation Details'), findsNothing);
+    expect(find.text('Full name (Mandatory)'), findsOneWidget);
   });
 
   group('OTP mode', () {
@@ -400,8 +419,7 @@ void main() {
       expect(find.text('Phone number verified'), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Asha Patel');
-      await tester.tap(find.text('Individual'));
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
       await tester.pumpAndSettle();
 
@@ -423,7 +441,7 @@ void main() {
       await tester.tap(find.text('Verify'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Hospital / Rehab'));
+      await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
       await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
       await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
@@ -436,7 +454,7 @@ void main() {
       await tester.tap(find.text('Bangalore').last);
       await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Indiranagar');
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.descendant(of: find.byKey(const Key('termsCheckbox')), matching: find.byType(Checkbox)));
       await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
       await tester.pumpAndSettle();
 

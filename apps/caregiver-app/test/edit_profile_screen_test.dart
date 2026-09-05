@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
+import 'package:caregiver_app/app/whatsapp_help_button.dart';
 import 'package:caregiver_app/core/providers.dart';
 import 'package:caregiver_app/features/profile/data/profile_repository.dart';
 import 'package:caregiver_app/features/profile/screens/edit_profile_screen.dart';
@@ -64,7 +65,9 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  testWidgets('shows an Aadhaar re-review warning when status is available', (tester) async {
+  testWidgets(
+      'has no phone number section at all (shown, with a pointer to Help, on the Profile view '
+      'screen instead) but keeps the Help button reachable in its own AppBar', (tester) async {
     final fakeRepo = _FakeProfileRepository(_profile(status: 'available'));
     await _pumpTall(
       tester,
@@ -75,23 +78,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Changing your phone number will send your profile back for re-review'),
-        findsOneWidget);
-  });
-
-  testWidgets('no Aadhaar re-review warning when status is pending_call', (tester) async {
-    final fakeRepo = _FakeProfileRepository(_profile(status: 'pending_call'));
-    await _pumpTall(
-      tester,
-      ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(fakeRepo)],
-        child: const MaterialApp(home: EditProfileScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('Changing your phone number will send your profile back for re-review'),
-        findsNothing);
+    expect(find.text('Phone Number'), findsNothing);
+    expect(find.text('+919876543210'), findsNothing);
+    expect(find.textContaining('tap the Help button above to chat with us on WhatsApp'), findsNothing);
+    expect(find.text('Save Phone Number'), findsNothing);
+    expect(find.byType(WhatsAppHelpButton), findsOneWidget);
   });
 
   testWidgets('full name, gender, and religion are shown read-only', (tester) async {

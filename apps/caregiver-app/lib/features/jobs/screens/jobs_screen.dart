@@ -195,11 +195,34 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      // A plain default FilterChip's selected/unselected states
+                      // read as nearly identical at a glance (a faint tint
+                      // shift) — styled explicitly here instead, so on vs off
+                      // is unmistakable: solid filled + white checkmark when
+                      // active, a plain outline when not.
                       child: FilterChip(
-                        avatar: const Icon(Icons.local_hospital, size: 18),
-                        label: const Text('Hospital Jobs Only'),
+                        avatar: Icon(
+                          Icons.local_hospital,
+                          size: 18,
+                          color: _hospitalJobsOnly ? Colors.white : AppColors.primaryDark,
+                        ),
+                        label: Text(
+                          'Hospital Jobs Only',
+                          style: TextStyle(
+                            color: _hospitalJobsOnly ? Colors.white : AppColors.textPrimary,
+                            fontWeight: _hospitalJobsOnly ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
                         selected: _hospitalJobsOnly,
                         onSelected: (selected) => setState(() => _hospitalJobsOnly = selected),
+                        showCheckmark: true,
+                        checkmarkColor: Colors.white,
+                        selectedColor: AppColors.primary,
+                        backgroundColor: AppColors.surface,
+                        side: BorderSide(
+                          color: _hospitalJobsOnly ? AppColors.primary : AppColors.border,
+                          width: _hospitalJobsOnly ? 0 : 1,
+                        ),
                       ),
                     ),
                     if (hasHiddenJobs)

@@ -10,6 +10,7 @@ import 'scope_of_work/scope_of_work_repository.dart';
 import 'duty_requirements/duty_requirements_repository.dart';
 import 'individual_messages/individual_messages_repository.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/auth/state/session_notifier.dart';
 import '../features/individual/data/individual_repository.dart';
 import '../features/organisation/data/organisation_repository.dart';
 
@@ -18,8 +19,20 @@ final localStorageProvider = Provider<LocalStorage>((ref) {
   throw UnimplementedError('localStorageProvider must be overridden in main.dart');
 });
 
-final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(ref.watch(localStorageProvider));
+// Explicitly typed (not just via the Provider<ApiClient> generic) to break
+// a top-level type-inference cycle: this reads sessionProvider, which
+// (through SessionNotifier's own constructor) reads individualRepositoryProvider/
+// organisationRepositoryProvider, which read this same provider — Dart can't
+// infer types around that cycle without one link in it being explicit.
+final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
+  return ApiClient(
+    ref.watch(localStorageProvider),
+    // ref.read, not ref.watch — this only needs to reach the notifier once
+    // an error actually happens, not rebuild ApiClient whenever session
+    // state changes (that would tear down/reattach the interceptor on
+    // every login/logout for no reason).
+    onUnauthorized: () => ref.read(sessionProvider.notifier).logout(),
+  );
 });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

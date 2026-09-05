@@ -21,13 +21,11 @@ import 'package:nursenow_app/features/organisation/data/organisation_repository.
 
 class _FakeIndividualRepository extends IndividualRepository {
   String? updatedName;
-  String? updatedPhone;
   String? updatedCode;
   final ApiException? nameError;
-  final ApiException? phoneError;
   final ApiException? codeError;
 
-  _FakeIndividualRepository({this.nameError, this.phoneError, this.codeError}) : super(Dio());
+  _FakeIndividualRepository({this.nameError, this.codeError}) : super(Dio());
 
   // Overridden so a post-save session refresh (loadSession() -> getMe())
   // never makes a real, unmocked Dio call in a widget test.
@@ -35,7 +33,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   Future<IndividualModel> getMe() async => IndividualModel(
         userId: 'individual-1',
         fullName: updatedName ?? 'Asha Patel',
-        phone: updatedPhone ?? '+919876543210',
+        phone: '+919876543210',
         isJobPostingBlocked: false,
       );
 
@@ -43,12 +41,6 @@ class _FakeIndividualRepository extends IndividualRepository {
   Future<void> updateName(String fullName) async {
     if (nameError != null) throw nameError!;
     updatedName = fullName;
-  }
-
-  @override
-  Future<void> updatePhone(String phone) async {
-    if (phoneError != null) throw phoneError!;
-    updatedPhone = phone;
   }
 
   @override
@@ -125,11 +117,11 @@ class _FakeOrganisationRepository extends OrganisationRepository {
 }
 
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
-  // Now 3 full form sections (Full Name/Phone Number/Login PIN) plus
-  // Logout — taller than the default 800x600 surface's viewport + cache
-  // extent, so the ListView never mounts the later sections without a
-  // taller surface (same reasoning as the standalone "logging out" test
-  // below, which already needed this).
+  // Full Name section + Login PIN section plus Logout — taller than the
+  // default 800x600 surface's viewport + cache extent, so the ListView
+  // never mounts the later sections without a taller surface (same
+  // reasoning as the standalone "logging out" test below, which already
+  // needed this).
   await tester.binding.setSurfaceSize(const Size(400, 1400));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -137,10 +129,10 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
   // A real access token so a post-save loadSession() (triggered after
-  // saving the phone number) re-hydrates via the fake repo's getMe()
-  // instead of falling through to SessionUnauthenticated — which would
-  // otherwise show an indefinitely-animating loading spinner that
-  // pumpAndSettle can never settle on.
+  // saving the name/PIN) re-hydrates via the fake repo's getMe() instead of
+  // falling through to SessionUnauthenticated — which would otherwise show
+  // an indefinitely-animating loading spinner that pumpAndSettle can never
+  // settle on.
   await localStorage.saveTokens(accessToken: 'test-token', refreshToken: 'test-refresh');
 
   await tester.pumpWidget(
@@ -160,8 +152,6 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
             ),
         ),
       ],
-      // Stub route so a real "Save Phone Number" -> session-refresh doesn't
-      // need /home registered — this screen itself never navigates there.
       child: const MaterialApp(home: ProfileScreen()),
     ),
   );
@@ -221,14 +211,18 @@ Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository 
 }
 
 void main() {
-  testWidgets('shows the account name and phone, prefilled into the phone field', (tester) async {
+  testWidgets('shows the account name and phone (read-only) with a pointer to the Help button', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 
     // Appears twice — once in the header, once prefilled into the new Full
     // Name field below (find.text matches EditableText, not just Text).
     expect(find.text('Asha Patel'), findsNWidgets(2));
-    final phoneField = tester.widget<TextField>(find.widgetWithText(TextField, 'Phone number'));
-    expect(phoneField.controller?.text, '+919876543210');
+    // Phone is shown exactly once now — just in the header row, no separate
+    // "Phone Number" section duplicating it further down.
+    expect(find.text('+919876543210'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Phone number'), findsNothing);
+    expect(find.text('Phone Number'), findsNothing);
+    expect(find.textContaining('tap the Help button above to chat with us on WhatsApp'), findsOneWidget);
     expect(find.text('PAT-500'), findsOneWidget);
   });
 
@@ -282,33 +276,6 @@ void main() {
     await _pump(tester, _FakeIndividualRepository(), isJobPostingBlocked: true);
 
     expect(find.textContaining('Posting new requirements is currently blocked'), findsOneWidget);
-  });
-
-  testWidgets('saving a valid phone number calls the repository and shows a success message', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pump(tester, repo);
-
-    final phoneField = find.widgetWithText(TextField, 'Phone number');
-    await tester.enterText(phoneField, '+919876500000');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Phone Number'));
-    await tester.pumpAndSettle();
-
-    expect(repo.updatedPhone, '+919876500000');
-    expect(find.text('Phone number updated.'), findsOneWidget);
-  });
-
-  testWidgets('shows a server error message when the phone save fails', (tester) async {
-    final repo = _FakeIndividualRepository(
-      phoneError: const ApiException(code: 'AUTH_001', message: 'Phone number is already registered'),
-    );
-    await _pump(tester, repo);
-
-    await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '+919876500000');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Phone Number'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Phone number is already registered'), findsOneWidget);
-    expect(repo.updatedPhone, isNull);
   });
 
   testWidgets('saving a valid 4-digit PIN calls the repository and shows a success message', (tester) async {
