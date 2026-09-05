@@ -7,6 +7,7 @@ import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
+import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
 
@@ -589,6 +590,7 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
+                      AreaCharLimitNote(currentLength: _areaController.text.length),
                       const SizedBox(height: AppSpacing.md),
                       const Row(
                         children: [

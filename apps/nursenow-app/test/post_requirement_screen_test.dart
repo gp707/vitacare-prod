@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/core/duty_requirements/duty_requirements_repository.dart';
 import 'package:nursenow_app/core/individual_messages/individual_messages_repository.dart';
@@ -288,6 +289,40 @@ void main() {
     // the literal cursor-to-first-invalid behavior.
     final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
     expect(areaField.focusNode!.hasFocus, isTrue);
+  });
+
+  group('Area character-limit note', () {
+    testWidgets('shows a declining "characters remaining" count as Area is typed, not yet red', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+
+      expect(find.text('32 characters remaining (max 32 characters)'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Indiranagar');
+      await tester.pump();
+
+      expect(find.text('21 characters remaining (max 32 characters)'), findsOneWidget);
+      final note = tester.widget<Text>(find.text('21 characters remaining (max 32 characters)'));
+      expect(note.style?.color, isNot(AppColors.error));
+    });
+
+    testWidgets('turns red and counts over-the-limit characters once Area is typed past 32, without blocking input',
+        (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+
+      final longArea = 'A' * 40;
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), longArea);
+      await tester.pump();
+
+      // Not blocked — the field itself still holds all 40 characters.
+      final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
+      expect(areaField.controller?.text, longArea);
+
+      expect(find.text('8 characters over the 32 character limit'), findsOneWidget);
+      final note = tester.widget<Text>(find.text('8 characters over the 32 character limit'));
+      expect(note.style?.color, AppColors.error);
+    });
   });
 
   testWidgets('submits with the hard-required fields filled, defaulting the rest server-side', (tester) async {
