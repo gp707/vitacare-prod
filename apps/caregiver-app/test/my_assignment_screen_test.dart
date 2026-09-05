@@ -89,6 +89,9 @@ OrganisationRequirementModel _assignedRequirement({
     'organisation_type': 'hospital',
     'city': 'bangalore',
     'area': 'Indiranagar',
+    'organisation_phone': '+919876511111',
+    'duration_type': 'long_term',
+    'preferred_gender': 'female',
     'my_application': {
       'status': applicationStatus,
       'applied_at': '2026-08-03T10:00:00Z',
@@ -360,10 +363,55 @@ void main() {
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
-    expect(find.text('City Hospital'), findsOneWidget);
+    // Appears twice — once as the card's own header, once again in its
+    // organisation contact card's "Posted by" name line.
+    expect(find.text('City Hospital'), findsNWidgets(2));
     expect(find.text('You were accepted for this requirement'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Job'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Close Requirement'), findsOneWidget);
+  });
+
+  testWidgets('shows the full requirement detail (tags + special skills) on an assigned requirement, same as '
+      'the browse-list card', (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
+    );
+
+    expect(find.text('Accommodation provided'), findsOneWidget);
+    expect(find.text('No food'), findsOneWidget);
+    expect(find.text('Vacancies: 1'), findsOneWidget);
+    expect(find.text('Long Term'), findsOneWidget);
+    expect(find.text('Preferred: Female'), findsOneWidget);
+    expect(find.text('Post-surgery wound care'), findsOneWidget);
+  });
+
+  testWidgets('shows the organisation\'s own contact card (name, phone, Call/WhatsApp) once accepted',
+      (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
+    );
+
+    expect(find.text('City Hospital'), findsWidgets);
+    expect(find.text('+919876511111'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
+  });
+
+  testWidgets(
+      'once the requirement is closed, the organisation\'s phone number and Call/WhatsApp actions disappear, '
+      'but the name stays', (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(applicationStatus: 'completed')]),
+    );
+    await _showCompletedJobs(tester);
+
+    expect(find.text('City Hospital'), findsWidgets);
+    expect(find.text('+919876511111'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Call'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsNothing);
   });
 
   testWidgets(

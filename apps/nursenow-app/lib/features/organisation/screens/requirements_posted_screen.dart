@@ -271,6 +271,67 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   }
 }
 
+/// A prominent, plain-language, color-coded status pill — the single most
+/// important thing to communicate at a glance, instead of a plain colored
+/// text label. Mirrors Individual's own _StatusBadge in jobs_posted_screen
+/// .dart exactly (same pill shape/blink behavior), duplicated here since
+/// the two screens' widgets aren't shared. [blink] is only ever true while
+/// the requirement is genuinely live (active, visible to caregivers right
+/// now) — same "needs attention" signal as the card's own red border
+/// (_cardBorderColor).
+class _StatusBadge extends StatefulWidget {
+  final String label;
+  final Color color;
+  final bool blink;
+
+  const _StatusBadge({required this.label, required this.color, this.blink = false});
+
+  @override
+  State<_StatusBadge> createState() => _StatusBadgeState();
+}
+
+class _StatusBadgeState extends State<_StatusBadge> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(_controller);
+    if (widget.blink) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: widget.color.withValues(alpha: 0.12),
+        border: Border.all(color: widget.color, width: 1.5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      // Always a single line — never wraps onto a second line; truncated
+      // with "…" only in the extreme case where the row genuinely has no
+      // room left for it (see the Flexible wrapping this badge).
+      child: Text(widget.label,
+          textAlign: TextAlign.end,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: widget.color, fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle)),
+    );
+    if (!widget.blink) return badge;
+    return FadeTransition(opacity: _opacity, child: badge);
+  }
+}
+
 class _MenuAction {
   final String label;
   final bool enabled;
@@ -338,11 +399,12 @@ class _RequirementCard extends StatelessWidget {
   /// (admin-rejected or already cancelled once).
   bool get _canCancel => !requirement.isCancelled && requirement.rejectionReason == null;
 
-  /// Mirrors the backend's own JOB_014 check — editing is blocked once a
-  /// caregiver has responded, regardless of the requirement's own status.
-  /// Rejected/completed applications never count.
-  bool get _hasActiveApplication => applications.any(
-      (a) => a.status == JobApplicationStatus.applied || a.status == JobApplicationStatus.accepted);
+  /// Mirrors the backend's own JOB_014 check — editing is blocked the
+  /// moment ANY caregiver has ever applied, regardless of the requirement's
+  /// own status or that application's own status (applied/accepted/
+  /// rejected/completed all lock it) — a deliberately stricter rule than
+  /// the jobs pipeline's own edit lock.
+  bool get _hasAnyApplication => applications.isNotEmpty;
 
   String get _statusLabel {
     switch (requirement.status) {
@@ -380,7 +442,7 @@ class _RequirementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final locked = _hasActiveApplication;
+    final locked = _hasAnyApplication;
     // A fixed 4-item menu, always offered — each item individually
     // disabled (not hidden) when its own precondition doesn't hold, so the
     // set of actions is predictable rather than shifting around based on
@@ -430,10 +492,11 @@ class _RequirementCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Flexible(
-                child: Text(_statusLabel,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: TextStyle(fontWeight: FontWeight.w600, color: _statusColor)),
+                child: _StatusBadge(
+                  label: _statusLabel,
+                  color: _statusColor,
+                  blink: requirement.status == JobStatus.active,
+                ),
               ),
               PopupMenuButton<_MenuAction>(
                 icon: const Icon(Icons.more_vert),

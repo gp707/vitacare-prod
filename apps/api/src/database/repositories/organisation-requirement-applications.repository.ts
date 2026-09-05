@@ -33,9 +33,13 @@ export interface OrganisationRequirementApplicationWithCaregiver
  *  caregiver-app can render it with the exact same card it uses for the
  *  browse list — see JobAssignedRecord for the identical pattern on the
  *  jobs side. my_application is never null here (the query only returns
- *  rows the caregiver has an accepted/completed application for). */
+ *  rows the caregiver has an accepted/completed application for).
+ *  organisation_phone mirrors jobs' own job_poster.phone — deliberately
+ *  scoped to this one endpoint only, never the browse list, since contact
+ *  info is only shared once there's an actual accepted engagement. */
 export interface OrganisationRequirementAssignedRecord extends OrganisationRequirementWithOrg {
   my_application: MyApplicationSummary;
+  organisation_phone: string;
 }
 
 /** Mirrors JobApplicationsRepository exactly, against
@@ -105,11 +109,16 @@ export class OrganisationRequirementApplicationsRepository {
     );
   }
 
-  /** Mirrors JobApplicationsRepository.hasActiveApplicationForJob — used by
-   *  OrganisationRequirementsService.editRequirement (JOB_014). */
-  async hasActiveApplicationForRequirement(requirementId: string): Promise<boolean> {
+  /** Used by OrganisationRequirementsService.editRequirement (JOB_014) —
+   *  deliberately ANY application at all (applied/accepted/rejected/
+   *  completed), not just an active one. Unlike the jobs pipeline's
+   *  equivalent (JobApplicationsRepository.hasActiveApplicationForJob,
+   *  which only counts applied/accepted), an organisation requirement
+   *  locks for editing the moment any caregiver has ever responded to it —
+   *  a deliberate stricter rule requested specifically for Organisation. */
+  async hasAnyApplicationForRequirement(requirementId: string): Promise<boolean> {
     const result = await this.db.query<{ count: string }>(
-      `SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = $1 AND status IN ('applied', 'accepted')`,
+      `SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = $1`,
       [requirementId],
     );
     return Number(result.rows[0].count) > 0;
@@ -171,7 +180,7 @@ export class OrganisationRequirementApplicationsRepository {
 
   async findAssignedByProfileId(profileId: string): Promise<OrganisationRequirementAssignedRecord[]> {
     const result = await this.db.query<OrganisationRequirementAssignedRecord>(
-      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
+      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area, u.phone AS organisation_phone,
          jsonb_build_object(
            'status', ora.status,
            'applied_at', ora.applied_at,
@@ -184,6 +193,7 @@ export class OrganisationRequirementApplicationsRepository {
        FROM organisation_requirement_applications ora
        JOIN organisation_requirements r ON r.id = ora.requirement_id
        JOIN organisation_profiles op ON op.user_id = r.posted_by
+       JOIN users u ON u.id = r.posted_by
        WHERE ora.profile_id = $1 AND ora.status IN ('accepted', 'completed')
        ORDER BY ora.updated_at ASC`,
       [profileId],

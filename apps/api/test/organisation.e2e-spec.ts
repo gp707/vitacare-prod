@@ -443,6 +443,9 @@ describe('Organisation (NurseNow) (e2e)', () => {
       const found = list.body.data.find((r: { id: string }) => r.id === requirementId);
       expect(found).toBeDefined();
       expect(found.organisation_name).toBe('Green Valley Clinic');
+      // Contact info is only ever shared once there's an actual accepted
+      // engagement (see the assigned-endpoint test below) — never here.
+      expect(found.organisation_phone).toBeUndefined();
 
       await request(app.getHttpServer())
         .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
@@ -519,6 +522,10 @@ describe('Organisation (NurseNow) (e2e)', () => {
       expect(assigned.body.data).toHaveLength(1);
       expect(assigned.body.data[0].id).toBe(requirementId);
       expect(assigned.body.data[0].my_application.status).toBe('completed');
+      // The org's own contact phone — lets the caregiver call/WhatsApp them
+      // once accepted (mirrors jobs' own job_poster.phone). Deliberately
+      // never present on the browse list, only here.
+      expect(assigned.body.data[0].organisation_phone).toBe(testPhone('0008'));
     });
 
     it('the organisation must give a reason to reject an applicant (JOB_012), and can later "Accept Anyway" '

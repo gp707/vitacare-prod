@@ -386,6 +386,28 @@ class _AssignedRequirementCard extends StatelessWidget {
                 : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
             style: const TextStyle(color: AppColors.textSecondary),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          // The same full posting detail shown on the browse list's own
+          // _RequirementCard — an accepted requirement stays just as fully
+          // visible here as it was before acceptance, not reduced to a
+          // bare summary.
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
+              Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+              Tag('Vacancies: ${requirement.numberOfVacancies}'),
+              if (requirement.durationType != null)
+                Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+              if (requirement.preferredGender != null)
+                Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
+            ],
+          ),
+          if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(requirement.specialSkills!),
+          ],
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(
@@ -406,6 +428,16 @@ class _AssignedRequirementCard extends StatelessWidget {
           if (requirement.myApplication != null) ...[
             const SizedBox(height: AppSpacing.sm),
             ApplicationTimeline(requirement.myApplication!),
+          ],
+          if (requirement.organisationPhone != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            JobPosterContactCard(
+              poster: JobPosterModel(
+                fullName: requirement.organisationName ?? 'Organisation',
+                phone: requirement.organisationPhone!,
+              ),
+              showPhone: !isCompleted,
+            ),
           ],
         ],
       ),

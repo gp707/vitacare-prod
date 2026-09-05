@@ -432,7 +432,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
       expect(res.body.error.code).toBe('GEN_002');
     });
 
-    it('rejects editing (JOB_014) once a caregiver has an active application', async () => {
+    it('rejects editing (JOB_014) once a caregiver has an active (applied) application', async () => {
       const org = await registerOrganisation('0073');
       const create = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -452,6 +452,47 @@ describe('Organisation requirement enhancements (e2e)', () => {
         .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
         .set('Authorization', `Bearer ${caregiver.access_token}`)
         .send({ status: 'applied' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(selfEditPayload())
+        .expect(400);
+      expect(res.body.error.code).toBe('JOB_014');
+    });
+
+    it('rejects editing (JOB_014) even once that lone application was rejected — ANY application at all '
+      + 'locks editing, a deliberately stricter rule than the jobs pipeline', async () => {
+      const org = await registerOrganisation('0175');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = create.body.data.id;
+      await db.query(`UPDATE organisation_requirements SET status = 'active', posted_at = NOW() WHERE id = $1`, [
+        requirementId,
+      ]);
+
+      const caregiver = await registerCaregiver('0176', 'female');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicants.body.data[0].id}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected', reason: 'Not a fit' })
         .expect(200);
 
       const res = await request(app.getHttpServer())

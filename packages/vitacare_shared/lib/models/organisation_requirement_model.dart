@@ -42,6 +42,12 @@ class OrganisationRequirementModel {
   final String? organisationType;
   final String? city;
   final String? area;
+  /// The posting organisation's own contact phone — mirrors JobModel's
+  /// jobPoster.phone, but flattened onto this model rather than nested,
+  /// since organisationName already carries the "who" half. Only ever
+  /// present on GET /caregiver/organisation-requirements/assigned, once
+  /// the caregiver has actually been accepted — never on the browse list.
+  final String? organisationPhone;
   /// The caregiver's own application to this requirement, if any — present
   /// on GET /caregiver/organisation-requirements (nullable, per-caregiver
   /// join) and GET /caregiver/organisation-requirements/assigned (always
@@ -69,6 +75,7 @@ class OrganisationRequirementModel {
     this.organisationType,
     this.city,
     this.area,
+    this.organisationPhone,
     this.myApplication,
   });
 
@@ -92,6 +99,7 @@ class OrganisationRequirementModel {
         organisationType: json['organisation_type'] as String?,
         city: json['city'] as String?,
         area: json['area'] as String?,
+        organisationPhone: json['organisation_phone'] as String?,
         myApplication: json['my_application'] != null
             ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
             : null,

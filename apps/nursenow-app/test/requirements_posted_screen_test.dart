@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/core/network/api_exception.dart';
 import 'package:nursenow_app/core/providers.dart';
@@ -13,6 +14,19 @@ import 'package:nursenow_app/features/auth/state/session_state.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/organisation/data/organisation_repository.dart';
 import 'package:nursenow_app/features/organisation/screens/requirements_posted_screen.dart';
+
+/// Equivalent to pumpAndSettle(), but safe once a live (JobStatus.active)
+/// requirement's status badge is on screen — its blink animation repeats
+/// forever via AnimationController, so a real pumpAndSettle() never
+/// observes an idle frame and times out (same reasoning as Individual's own
+/// jobs_posted_screen_test.dart _settle helper, mirrored here since
+/// _StatusBadge was duplicated onto this screen too). 500ms comfortably
+/// clears every real transition in this screen (dialogs/snackbars) without
+/// completing even one blink cycle (700ms).
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
 
 OrganisationRequirementModel _requirement({
   String id = 'req-1',
@@ -169,7 +183,7 @@ Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo, {bool 
       child: const MaterialApp(home: RequirementsPostedScreen()),
     ),
   );
-  await tester.pumpAndSettle();
+  await _settle(tester);
 }
 
 void main() {
@@ -214,6 +228,21 @@ void main() {
     expect(find.text('Wound care'), findsOneWidget);
   });
 
+  testWidgets('highlights the status as a rounded, color-coded pill instead of plain text', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(requirements: [_requirement(status: 'active')]),
+    );
+
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('Live — visible to caregivers'), matching: find.byType(Container)).first,
+    );
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(999));
+    expect(decoration.border, isNotNull);
+    expect(decoration.color, AppColors.success.withValues(alpha: 0.12));
+  });
+
   testWidgets('shows the accepted caregiver on a closed requirement', (tester) async {
     await _pump(
       tester,
@@ -241,7 +270,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(TextButton, 'Accept'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedRequirementId, 'req-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -259,16 +288,16 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(TextButton, 'Reject'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     final confirmButton =
         tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
     expect(confirmButton.onPressed, isNull);
 
     await tester.enterText(find.byType(TextField), 'Not enough experience');
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedRequirementId, 'req-1');
     expect(repo.decidedApplicationId, 'app-1');
@@ -287,7 +316,7 @@ void main() {
 
     expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
@@ -324,7 +353,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.profileFetchedRequirementId, 'req-1');
     expect(repo.profileFetchedApplicationId, 'app-1');
@@ -341,7 +370,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'View Profile'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.profileFetchedApplicationId, 'app-1');
     expect(find.text('30 yrs'), findsOneWidget);
@@ -381,7 +410,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit the Requirement'), findsOneWidget);
     expect(find.text('Post Similar Requirement'), findsOneWidget);
@@ -400,26 +429,29 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
   });
 
-  testWidgets('rejected/completed applications do not lock editing — Edit the Requirement stays enabled',
-      (tester) async {
-    final repo = _FakeOrganisationRepository(
-      requirements: [_requirement()],
-      applicationsByRequirementId: {
-        'req-1': [_application(status: 'rejected')],
-      },
-    );
-    await _pump(tester, repo);
+  testWidgets(
+      'a rejected or completed application locks editing too — ANY application at all locks it, not just an '
+      'active applied/accepted one', (tester) async {
+    for (final status in ['rejected', 'completed']) {
+      final repo = _FakeOrganisationRepository(
+        requirements: [_requirement()],
+        applicationsByRequirementId: {
+          'req-1': [_application(status: status)],
+        },
+      );
+      await _pump(tester, repo);
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await _settle(tester);
 
-    expect(find.text('Edit the Requirement'), findsOneWidget);
-    expect(find.text('Edit the Requirement (Locked)'), findsNothing);
+      expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
+      expect(find.text('Edit the Requirement'), findsNothing);
+    }
   });
 
   testWidgets('Cancel the Requirement is disabled once the requirement was admin-rejected', (tester) async {
@@ -431,7 +463,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
   });
@@ -448,7 +480,7 @@ void main() {
     expect(find.text('Cancelled'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Cancel the Requirement (Unavailable)'), findsOneWidget);
     // Reactivate is the mirror image — disabled everywhere except once
     // actually cancelled.
@@ -460,7 +492,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Reactivate the Requirement (Unavailable)'), findsOneWidget);
   });
 
@@ -472,9 +504,9 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Reactivate the Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.reactivatedRequirementId, 'req-1');
   });
@@ -488,9 +520,9 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Reactivate the Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Your account is blocked from posting new requirements'), findsOneWidget);
   });
@@ -500,13 +532,13 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Cancel the Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Cancel this requirement?'), findsOneWidget);
     await tester.tap(find.text('Yes, cancel it'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.cancelledRequirementId, 'req-1');
   });
@@ -517,11 +549,11 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Cancel the Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('No, keep it'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(repo.cancelledRequirementId, isNull);
   });
@@ -531,9 +563,9 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Edit the Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Edit Requirement'), findsOneWidget);
     expect(find.text('Auxiliary Nurse'), findsOneWidget);
@@ -544,9 +576,9 @@ void main() {
     await _pump(tester, repo);
 
     await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Post Similar Requirement'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Post a Requirement'), findsOneWidget);
   });
