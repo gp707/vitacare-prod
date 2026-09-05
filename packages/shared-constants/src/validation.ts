@@ -1,7 +1,7 @@
 export const Validation = {
   PHONE_REGEX: /^\+91[6-9]\d{9}$/,
   NAME_REGEX: /^[a-zA-Z\s]+$/,
-  NAME_MAX_LENGTH: 100,
+  NAME_MAX_LENGTH: 24,
   CODE_LENGTH: 4,
   CODE_REGEX: /^\d{4}$/,
   OTP_LENGTH: 6,

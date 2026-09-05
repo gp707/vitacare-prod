@@ -79,7 +79,7 @@ describe('Organisation (NurseNow) (e2e)', () => {
       .post('/v1/auth/register')
       .send({
         phone: caregiverPhone(phoneSuffix),
-        full_name: 'Organisation Test Caregiver',
+        full_name: 'Org Test Caregiver',
         gender: 'female',
         age: 28,
         languages: ['hindi'],

@@ -124,6 +124,14 @@ Future<void> _selectQualification(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('Full Name is capped at 24 characters', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo);
+
+    final fullNameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Full Name (Mandatory)'));
+    expect(fullNameField.maxLength, Validation.nameMaxLength);
+  });
+
   testWidgets('blocks submission without a 4-digit code, without calling register', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo);

@@ -115,7 +115,7 @@ describe('App Versions & Maintenance (e2e)', () => {
 
     const caregiverRes = await request(app.getHttpServer()).post('/v1/auth/register').send({
       phone: testPhone('0001'),
-      full_name: 'App Versions Test Subject',
+      full_name: 'App Ver Test Subject',
       gender: 'female',
       age: 28,
       languages: ['hindi'],

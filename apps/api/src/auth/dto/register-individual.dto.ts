@@ -1,4 +1,4 @@
-import { Equals, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { Equals, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { Validation } from '@vitacare/shared-constants';
 
 /** Individual (patient/family) registration is deliberately minimal —
@@ -11,6 +11,7 @@ export class RegisterIndividualDto {
 
   @IsNotEmpty({ message: 'PROFILE_001' })
   @Matches(Validation.NAME_REGEX, { message: 'PROFILE_020' })
+  @MaxLength(Validation.NAME_MAX_LENGTH, { message: 'PROFILE_022' })
   full_name!: string;
 
   /** Same PROFILE_009 code caregiver registration uses — nursenow-app

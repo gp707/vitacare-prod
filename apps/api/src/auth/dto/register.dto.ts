@@ -9,6 +9,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { Gender, Language, Qualification, Religion, Validation } from '@vitacare/shared-constants';
@@ -19,6 +20,7 @@ export class RegisterDto {
 
   @IsNotEmpty({ message: 'PROFILE_001' })
   @Matches(Validation.NAME_REGEX, { message: 'PROFILE_020' })
+  @MaxLength(Validation.NAME_MAX_LENGTH, { message: 'PROFILE_022' })
   full_name!: string;
 
   @IsIn(Object.values(Gender), { message: 'PROFILE_003' })

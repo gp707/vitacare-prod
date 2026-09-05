@@ -17,7 +17,7 @@ import '../../../core/version/app_maintenance_repository.dart';
 /// verification_status per CLAUDE.md, so restoring e.g. "/jobs" is valid
 /// even for a pending_call caregiver. Kept in sync with router.dart by
 /// hand, same convention as admin-web's equivalent set.
-const _restorableRoutes = {'/pending-call', '/profile', '/profile/edit', '/jobs', '/my-jobs'};
+const _restorableRoutes = {'/pending-call', '/profile', '/jobs', '/my-jobs'};
 
 class SplashScreen extends ConsumerStatefulWidget {
   final String? initialDeepLinkRoute;

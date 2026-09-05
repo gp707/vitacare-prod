@@ -38,6 +38,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
     message: 'Name must contain only alphabetic characters and spaces',
   },
   PROFILE_021: { status: 400, message: 'FCM token is required' },
+  PROFILE_022: { status: 400, message: 'Name must be 24 characters or fewer' },
 
   // Upload errors
   UPLOAD_001: { status: 400, message: 'File is required' },

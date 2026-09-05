@@ -2,7 +2,7 @@
 class Validation {
   static final RegExp phoneRegex = RegExp(r'^\+91[6-9]\d{9}$');
   static final RegExp nameRegex = RegExp(r'^[a-zA-Z\s]+$');
-  static const nameMaxLength = 100;
+  static const nameMaxLength = 24;
   static const codeLength = 4;
   static final RegExp codeRegex = RegExp(r'^\d{4}$');
   static const otpLength = 6;

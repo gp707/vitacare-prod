@@ -74,6 +74,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? updatedOrganisationType;
   String? updatedCity;
   String? updatedArea;
+  bool updateProfileCalled = false;
   final ApiException? profileError;
 
   _FakeOrganisationRepository({this.profileError}) : super(Dio());
@@ -103,6 +104,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? area,
   }) async {
     if (profileError != null) throw profileError!;
+    updateProfileCalled = true;
     updatedFullName = fullName;
     updatedOrganisationName = organisationName;
     updatedOrganisationType = organisationType;
@@ -114,6 +116,20 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   // this file tests, so it returns empty rather than hitting the network.
   @override
   Future<List<OrganisationRequirementModel>> listMyRequirements() async => const [];
+}
+
+/// Taps the pencil icon next to an inline field, revealing its editor.
+Future<void> _tapEditPencil(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('Edit $label'));
+  await tester.pumpAndSettle();
+}
+
+/// Taps the check (Save) icon shown while a field is being edited. Only
+/// ever one field is in edit mode at a time in these tests, so the
+/// tooltip is unambiguous.
+Future<void> _tapSave(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Save'));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
@@ -171,7 +187,7 @@ String _fakeJwt(Map<String, dynamic> payload) {
 }
 
 Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository repo) async {
-  // Organisation Details (5 fields) + Phone/PIN sections + Logout — taller
+  // Organisation Details (5 fields) + Login PIN section + Logout — taller
   // than the default viewport, same reasoning as _pump above.
   await tester.binding.setSurfaceSize(const Size(400, 1800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -214,8 +230,8 @@ void main() {
   testWidgets('shows the account name and phone (read-only) with a pointer to the Help button', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 
-    // Appears twice — once in the header, once prefilled into the new Full
-    // Name field below (find.text matches EditableText, not just Text).
+    // Appears twice — once in the header, once as the (not-yet-editing)
+    // display value of the inline Full Name field below.
     expect(find.text('Asha Patel'), findsNWidgets(2));
     // Phone is shown exactly once now — just in the header row, no separate
     // "Phone Number" section duplicating it further down.
@@ -226,36 +242,59 @@ void main() {
     expect(find.text('PAT-500'), findsOneWidget);
   });
 
-  testWidgets('shows the account name prefilled into the Full Name field', (tester) async {
+  testWidgets('Full Name is displayed read-only with a pencil icon; tapping it reveals an editable field '
+      'prefilled with the current name', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 
-    final nameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Full name'));
+    expect(find.widgetWithText(TextField, 'Full Name'), findsNothing);
+    await _tapEditPencil(tester, 'Full Name');
+
+    final nameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Full Name'));
     expect(nameField.controller?.text, 'Asha Patel');
+    expect(nameField.maxLength, Validation.nameMaxLength);
+    expect(find.byTooltip('Save'), findsOneWidget);
+    expect(find.byTooltip('Cancel'), findsOneWidget);
   });
 
-  testWidgets('saving a valid name calls the repository and shows a success message', (tester) async {
+  testWidgets('tapping Cancel while editing Full Name discards the change and restores the pencil icon',
+      (tester) async {
+    await _pump(tester, _FakeIndividualRepository());
+    await _tapEditPencil(tester, 'Full Name');
+
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Someone Else');
+    await tester.tap(find.byTooltip('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, 'Full Name'), findsNothing);
+    expect(find.text('Asha Patel'), findsNWidgets(2));
+    expect(find.byTooltip('Edit Full Name'), findsOneWidget);
+  });
+
+  testWidgets('saving a valid name calls the repository and returns to the read-only display with the new value',
+      (tester) async {
     final repo = _FakeIndividualRepository();
     await _pump(tester, repo);
 
-    final nameField = find.widgetWithText(TextField, 'Full name');
-    await tester.enterText(nameField, 'Asha P Patel');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
-    await tester.pumpAndSettle();
+    await _tapEditPencil(tester, 'Full Name');
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Asha P Patel');
+    await _tapSave(tester);
 
     expect(repo.updatedName, 'Asha P Patel');
-    expect(find.text('Name updated.'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Full Name'), findsNothing);
+    expect(find.byTooltip('Edit Full Name'), findsOneWidget);
   });
 
-  testWidgets('rejects an invalid name without calling the repository', (tester) async {
+  testWidgets('rejects an invalid name without calling the repository, and stays in edit mode', (tester) async {
     final repo = _FakeIndividualRepository();
     await _pump(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Full name'), 'Asha123');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
-    await tester.pumpAndSettle();
+    await _tapEditPencil(tester, 'Full Name');
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Asha123');
+    await _tapSave(tester);
 
     expect(repo.updatedName, isNull);
     expect(find.text('Enter a valid name (letters and spaces only)'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Full Name'), findsOneWidget);
   });
 
   testWidgets('shows a server error message when the name save fails', (tester) async {
@@ -264,9 +303,9 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Full name'), 'Asha P Patel');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Name'));
-    await tester.pumpAndSettle();
+    await _tapEditPencil(tester, 'Full Name');
+    await tester.enterText(find.widgetWithText(TextField, 'Full Name'), 'Asha P Patel');
+    await _tapSave(tester);
 
     expect(find.text('Name can only contain letters and spaces'), findsOneWidget);
     expect(repo.updatedName, isNull);
@@ -278,25 +317,38 @@ void main() {
     expect(find.textContaining('Posting new requirements is currently blocked'), findsOneWidget);
   });
 
-  testWidgets('saving a valid 4-digit PIN calls the repository and shows a success message', (tester) async {
+  testWidgets('Login PIN shows a masked placeholder with a pencil icon; tapping it reveals an empty 4-digit input',
+      (tester) async {
+    await _pump(tester, _FakeIndividualRepository());
+
+    expect(find.text('••••'), findsOneWidget);
+    await _tapEditPencil(tester, 'Login PIN');
+
+    final pinField = tester.widget<TextField>(find.widgetWithText(TextField, 'New 4-digit PIN'));
+    expect(pinField.controller?.text, isEmpty);
+    expect(pinField.maxLength, Validation.codeLength);
+  });
+
+  testWidgets('saving a valid 4-digit PIN calls the repository and returns to the masked display', (tester) async {
     final repo = _FakeIndividualRepository();
     await _pump(tester, repo);
 
+    await _tapEditPencil(tester, 'Login PIN');
     await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '4321');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save PIN'));
-    await tester.pumpAndSettle();
+    await _tapSave(tester);
 
     expect(repo.updatedCode, '4321');
-    expect(find.text('PIN updated.'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'New 4-digit PIN'), findsNothing);
+    expect(find.text('••••'), findsOneWidget);
   });
 
   testWidgets('rejects a PIN that is not exactly 4 digits without calling the repository', (tester) async {
     final repo = _FakeIndividualRepository();
     await _pump(tester, repo);
 
+    await _tapEditPencil(tester, 'Login PIN');
     await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '12');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save PIN'));
-    await tester.pumpAndSettle();
+    await _tapSave(tester);
 
     expect(repo.updatedCode, isNull);
     expect(find.text('PIN must be exactly 4 digits'), findsOneWidget);
@@ -306,18 +358,19 @@ void main() {
     final repo = _FakeIndividualRepository(codeError: const ApiException(code: 'GEN_003', message: 'Could not reach the server.'));
     await _pump(tester, repo);
 
+    await _tapEditPencil(tester, 'Login PIN');
     await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '4321');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save PIN'));
-    await tester.pumpAndSettle();
+    await _tapSave(tester);
 
     expect(find.text('Could not reach the server.'), findsOneWidget);
     expect(repo.updatedCode, isNull);
   });
 
   testWidgets('logging out clears the session and navigates to /login', (tester) async {
-    // The Logout button sits below two full form sections — tall enough to
-    // fall outside the default 800x600 surface's viewport + cache extent,
-    // so the ListView's sliver never mounts it without a taller surface.
+    // The Logout button sits below the Full Name and Login PIN sections —
+    // tall enough to fall outside the default 800x600 surface's viewport +
+    // cache extent, so the ListView's sliver never mounts it without a
+    // taller surface.
     await tester.binding.setSurfaceSize(const Size(400, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -356,86 +409,154 @@ void main() {
     expect(find.text('login screen'), findsOneWidget);
   });
 
-  group('Organisation account — Organisation Details self-edit', () {
-    testWidgets('prefills every field from the session, and shows no Full Name section (that\'s Individual-only)',
+  group('Organisation account — Organisation Details, each field independently inline-editable', () {
+    testWidgets('shows every field\'s current value read-only, and no Full Name section (that\'s Individual-only)',
         (tester) async {
       await _pumpOrganisation(tester, _FakeOrganisationRepository());
 
       expect(find.text('Organisation Details'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Contact person name'), findsOneWidget);
-      final contactField = tester.widget<TextField>(find.widgetWithText(TextField, 'Contact person name'));
-      expect(contactField.controller?.text, 'Ravi Sharma');
-      final orgNameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Organisation name'));
-      expect(orgNameField.controller?.text, 'City Hospital');
-      final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Optional)'));
-      expect(areaField.controller?.text, 'Indiranagar');
+      expect(find.text('Ravi Sharma'), findsWidgets);
+      expect(find.text('City Hospital'), findsWidgets);
+      expect(find.text('Indiranagar'), findsWidgets);
       expect(find.text('Hospital'), findsWidgets);
       expect(find.text('Bangalore'), findsWidgets);
-      expect(find.widgetWithText(TextField, 'Full name'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Full Name'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Contact person name'), findsNothing);
     });
 
-    testWidgets('saving every field calls updateProfile with all of them and shows a success message',
+    testWidgets('tapping the pencil on Contact person name reveals a field prefilled with the current value, '
+        'capped at the same 24-character limit as Individual\'s Full Name', (tester) async {
+      await _pumpOrganisation(tester, _FakeOrganisationRepository());
+
+      await _tapEditPencil(tester, 'Contact person name');
+      final field = tester.widget<TextField>(find.widgetWithText(TextField, 'Contact person name'));
+      expect(field.controller?.text, 'Ravi Sharma');
+      expect(field.maxLength, Validation.nameMaxLength);
+    });
+
+    testWidgets('editing and saving Contact person name calls updateProfile with only that field set',
         (tester) async {
       final repo = _FakeOrganisationRepository();
       await _pumpOrganisation(tester, repo);
 
+      await _tapEditPencil(tester, 'Contact person name');
       await tester.enterText(find.widgetWithText(TextField, 'Contact person name'), 'Priya Iyer');
-      await tester.enterText(find.widgetWithText(TextField, 'Organisation name'), 'Green Valley Clinic');
-      await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Whitefield');
+      await _tapSave(tester);
 
+      expect(repo.updatedFullName, 'Priya Iyer');
+      expect(repo.updatedOrganisationName, isNull);
+      expect(repo.updatedOrganisationType, isNull);
+      expect(repo.updatedCity, isNull);
+      expect(repo.updatedArea, isNull);
+      expect(find.widgetWithText(TextField, 'Contact person name'), findsNothing);
+    });
+
+    testWidgets('editing and saving Organisation name calls updateProfile with only that field set', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await _tapEditPencil(tester, 'Organisation name');
+      await tester.enterText(find.widgetWithText(TextField, 'Organisation name'), 'Green Valley Clinic');
+      await _tapSave(tester);
+
+      expect(repo.updatedOrganisationName, 'Green Valley Clinic');
+      expect(repo.updatedFullName, isNull);
+      expect(repo.updatedOrganisationType, isNull);
+    });
+
+    testWidgets('editing and saving Type of organisation (dropdown) calls updateProfile with only that field set',
+        (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await _tapEditPencil(tester, 'Type of organisation');
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of organisation'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Clinic').last);
       await tester.pumpAndSettle();
+      await _tapSave(tester);
 
+      expect(repo.updatedOrganisationType, 'clinic');
+      expect(repo.updatedFullName, isNull);
+      expect(repo.updatedOrganisationName, isNull);
+      expect(repo.updatedCity, isNull);
+      expect(repo.updatedArea, isNull);
+    });
+
+    testWidgets('editing and saving City (dropdown) calls updateProfile with only that field set', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await _tapEditPencil(tester, 'City');
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mumbai').last);
       await tester.pumpAndSettle();
+      await _tapSave(tester);
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
-      await tester.pumpAndSettle();
-
-      expect(repo.updatedFullName, 'Priya Iyer');
-      expect(repo.updatedOrganisationName, 'Green Valley Clinic');
-      expect(repo.updatedOrganisationType, 'clinic');
       expect(repo.updatedCity, 'mumbai');
+      expect(repo.updatedFullName, isNull);
+      expect(repo.updatedOrganisationName, isNull);
+      expect(repo.updatedOrganisationType, isNull);
+    });
+
+    testWidgets('editing and saving Area calls updateProfile with only that field set', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await _tapEditPencil(tester, 'Area (Optional)');
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), 'Whitefield');
+      await _tapSave(tester);
+
       expect(repo.updatedArea, 'Whitefield');
-      expect(find.text('Organisation details updated.'), findsOneWidget);
+      expect(repo.updatedFullName, isNull);
+    });
+
+    testWidgets('clearing Area back to empty and saving is a no-op — sent as null, matching the old form\'s '
+        '"nothing to update" semantics (there is no way to unset an already-set area)', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pumpOrganisation(tester, repo);
+
+      await _tapEditPencil(tester, 'Area (Optional)');
+      await tester.enterText(find.widgetWithText(TextField, 'Area (Optional)'), '');
+      await _tapSave(tester);
+
+      expect(repo.updateProfileCalled, isTrue);
+      expect(repo.updatedArea, isNull);
     });
 
     testWidgets('rejects an invalid contact person name without calling the repository', (tester) async {
       final repo = _FakeOrganisationRepository();
       await _pumpOrganisation(tester, repo);
 
+      await _tapEditPencil(tester, 'Contact person name');
       await tester.enterText(find.widgetWithText(TextField, 'Contact person name'), 'Priya123');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
-      await tester.pumpAndSettle();
+      await _tapSave(tester);
 
       expect(repo.updatedFullName, isNull);
-      expect(find.text('Enter a valid contact person name (letters and spaces only)'), findsOneWidget);
+      expect(find.text('Enter a valid name (letters and spaces only)'), findsOneWidget);
     });
 
     testWidgets('rejects a blank organisation name without calling the repository', (tester) async {
       final repo = _FakeOrganisationRepository();
       await _pumpOrganisation(tester, repo);
 
+      await _tapEditPencil(tester, 'Organisation name');
       await tester.enterText(find.widgetWithText(TextField, 'Organisation name'), '');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
-      await tester.pumpAndSettle();
+      await _tapSave(tester);
 
       expect(repo.updatedFullName, isNull);
       expect(find.text('Organisation name is required'), findsOneWidget);
     });
 
-    testWidgets('shows a server error message when the org profile save fails', (tester) async {
+    testWidgets('shows a server error message when a field save fails', (tester) async {
       final repo = _FakeOrganisationRepository(
         profileError: const ApiException(code: 'GEN_001', message: 'Invalid or missing field'),
       );
       await _pumpOrganisation(tester, repo);
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Organisation Details'));
-      await tester.pumpAndSettle();
+      await _tapEditPencil(tester, 'Organisation name');
+      await _tapSave(tester);
 
       expect(find.text('Invalid or missing field'), findsOneWidget);
     });

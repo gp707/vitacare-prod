@@ -79,7 +79,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
       .post('/v1/auth/register')
       .send({
         phone: caregiverPhone(phoneSuffix),
-        full_name: 'Enhancements Test Caregiver',
+        full_name: 'Enh Test Caregiver',
         gender,
         age: 28,
         languages: ['hindi'],

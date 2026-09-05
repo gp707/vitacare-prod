@@ -192,6 +192,13 @@ void main() {
     expect(fullNameField.focusNode!.hasFocus, isTrue);
   });
 
+  testWidgets('Full name is capped at 24 characters', (tester) async {
+    await _pumpRegistration(tester, authRepo: _FakeAuthRepository());
+
+    final fullNameField = tester.widget<TextField>(find.widgetWithText(TextField, 'Full name (Mandatory)'));
+    expect(fullNameField.maxLength, Validation.nameMaxLength);
+  });
+
   testWidgets('registers an Individual account with phone, full name, and code', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo: authRepo);

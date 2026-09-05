@@ -14,6 +14,7 @@ import { City, OrganisationType, Validation } from '@vitacare/shared-constants';
 export class UpdateOrganisationProfileDto {
   @IsOptional()
   @Matches(Validation.NAME_REGEX, { message: 'PROFILE_020' })
+  @MaxLength(Validation.NAME_MAX_LENGTH, { message: 'PROFILE_022' })
   full_name?: string;
 
   @IsOptional()

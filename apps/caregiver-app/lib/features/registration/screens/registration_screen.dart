@@ -388,6 +388,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               key: _fullNameKey,
               controller: _fullNameController,
               focusNode: _fullNameFocusNode,
+              maxLength: Validation.nameMaxLength,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 labelText: 'Full Name (Mandatory)',
