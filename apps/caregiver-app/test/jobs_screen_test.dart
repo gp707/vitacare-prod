@@ -214,6 +214,15 @@ Future<void> _showAllJobs(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// Opens the named dropdown and picks the given option — the two filter
+// dropdowns (Job Type, City) both use this same interaction.
+Future<void> _selectDropdown(WidgetTester tester, String fieldLabel, String optionLabel) async {
+  await tester.tap(find.widgetWithText(DropdownButtonFormField<String?>, fieldLabel));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(optionLabel).last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       'job cards show a compact header (About Patient/Requirement hidden) and open a full-screen '
@@ -1181,8 +1190,9 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Reject'), findsNothing);
   });
 
-  testWidgets('the "Hospital Jobs" category chip hides admin/individual jobs and every other organisation type',
-      (tester) async {
+  testWidgets(
+      'the Job Type dropdown\'s "Hospital Jobs" option hides admin/individual jobs and every other '
+      'organisation type', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([_job()]),
@@ -1196,58 +1206,34 @@ void main() {
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('ORG-JOB-8'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
-    await tester.pumpAndSettle();
+    await _selectDropdown(tester, 'Job Type', 'Hospital Jobs');
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsNothing);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('ORG-JOB-8'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
-    await tester.pumpAndSettle();
+    await _selectDropdown(tester, 'Job Type', 'All Jobs');
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('ORG-JOB-8'), findsOneWidget);
   });
 
-  testWidgets('the "Home Care Jobs" category chip hides every organisation requirement, leaving only jobs',
-      (tester) async {
+  testWidgets('the Job Type dropdown\'s "Home Care Jobs" option hides every organisation requirement, '
+      'leaving only jobs', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([_job()]),
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Home Care Jobs'));
-    await tester.pumpAndSettle();
+    await _selectDropdown(tester, 'Job Type', 'Home Care Jobs');
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsNothing);
   });
 
-  testWidgets('selecting more than one category chip shows the union of both (Home Care + Hospital)',
-      (tester) async {
-    await _pump(
-      tester,
-      _FakeJobsRepository([_job()]),
-      orgRepo: _FakeOrganisationOpeningsRepository([
-        _requirement(),
-        _requirement(id: 'req-2', requirementNumber: 8, organisationType: 'clinic'),
-      ]),
-    );
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Home Care Jobs'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
-    expect(find.text('ORG-JOB-7'), findsOneWidget);
-    expect(find.text('ORG-JOB-8'), findsNothing);
-  });
-
-  testWidgets('"Hospital Jobs" is styled distinctly, not just a subtle tint, so active vs inactive is unmistakable',
+  testWidgets('the Job Type and City dropdowns sit in one row that never wraps to a second line',
       (tester) async {
     await _pump(
       tester,
@@ -1255,20 +1241,15 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    final chipFinder = find.widgetWithText(FilterChip, 'Hospital Jobs');
-    FilterChip chip() => tester.widget<FilterChip>(chipFinder);
+    final jobType = tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String?>, 'Job Type'));
+    final city = tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String?>, 'City'));
+    expect(jobType.dy, city.dy);
 
-    expect(chip().selected, isFalse);
-    expect(chip().selectedColor, AppColors.primary);
-    expect(chip().checkmarkColor, Colors.white);
-    expect((chip().label as Text).style?.fontWeight, isNot(FontWeight.bold));
-
-    await tester.tap(chipFinder);
-    await tester.pumpAndSettle();
-
-    expect(chip().selected, isTrue);
-    expect((chip().label as Text).style?.fontWeight, FontWeight.bold);
-    expect((chip().label as Text).style?.color, Colors.white);
+    final row = tester.widget<Row>(find.ancestor(
+      of: find.widgetWithText(DropdownButtonFormField<String?>, 'Job Type'),
+      matching: find.byType(Row),
+    ));
+    expect(row.children, hasLength(3));
   });
 
   testWidgets('the City dropdown filters both jobs and organisation requirements to the selected city',
@@ -1282,13 +1263,42 @@ void main() {
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String?>, 'City'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Mumbai').last);
-    await tester.pumpAndSettle();
+    await _selectDropdown(tester, 'City', 'Mumbai');
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsNothing);
+  });
+
+  testWidgets(
+      'the filter row stays fixed above the scrollable job list — scrolling the list does not scroll '
+      'the filters away', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository(List.generate(
+        12,
+        (i) => _job(postedAt: DateTime(2026, 8, i + 1).toUtc().toIso8601String()),
+      )),
+    );
+    // A shorter viewport than _pump's own default so 12 job cards actually
+    // overflow it and the drag below causes a real scroll, not a no-op.
+    await tester.binding.setSurfaceSize(const Size(400, 700));
+    await tester.pumpAndSettle();
+
+    final jobTypeTopBefore =
+        tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String?>, 'Job Type')).dy;
+    final firstCardTopBefore = tester.getTopLeft(find.text('Job Id: ADMIN-JOB-542').first).dy;
+
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pump();
+
+    // The list itself really did scroll (proving the drag wasn't a no-op)...
+    final firstCardTopAfter = tester.getTopLeft(find.text('Job Id: ADMIN-JOB-542').first).dy;
+    expect(firstCardTopAfter, lessThan(firstCardTopBefore));
+    // ...yet the filter row above it did not move at all.
+    final jobTypeTopAfter =
+        tester.getTopLeft(find.widgetWithText(DropdownButtonFormField<String?>, 'Job Type')).dy;
+    expect(jobTypeTopAfter, jobTypeTopBefore);
+    expect(find.widgetWithText(DropdownButtonFormField<String?>, 'City'), findsOneWidget);
   });
 
   testWidgets('shows the applied timeline instead of buttons for a requirement once already applied',

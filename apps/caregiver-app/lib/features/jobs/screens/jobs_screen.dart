@@ -13,15 +13,15 @@ import '../widgets/job_detail_card.dart';
 /// cover the 4 organisation-posted requirement categories instead.
 const _kHomeCareCategory = 'home_care';
 
-/// One filter chip per posting category — "Home Care" (a regular job) plus
-/// every OrganisationType value (an organisation requirement of that
+/// One dropdown option per posting category — "Home Care" (a regular job)
+/// plus every OrganisationType value (an organisation requirement of that
 /// type). Order matches how the user asked for them.
-const _kCategoryOptions = <(String value, String label, IconData icon)>[
-  (_kHomeCareCategory, 'Home Care Jobs', Icons.home),
-  (OrganisationType.hospital, 'Hospital Jobs', Icons.local_hospital),
-  (OrganisationType.clinic, 'Clinic Jobs', Icons.medical_services),
-  (OrganisationType.rehab, 'Rehab Jobs', Icons.healing),
-  (OrganisationType.agency, 'Agency Jobs', Icons.business),
+const _kCategoryOptions = <(String value, String label)>[
+  (_kHomeCareCategory, 'Home Care Jobs'),
+  (OrganisationType.hospital, 'Hospital Jobs'),
+  (OrganisationType.clinic, 'Clinic Jobs'),
+  (OrganisationType.rehab, 'Rehab Jobs'),
+  (OrganisationType.agency, 'Agency Jobs'),
 ];
 
 /// Unified list of active postings — admin/individual jobs AND organisation
@@ -51,11 +51,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   // _Listing.isHiddenByDefault) is hidden by default to keep the list
   // focused on what's still open to them. One tap away to see everything.
   bool _showAllJobs = false;
-  // Which posting categories to include — a plain client-side filter over
-  // the already-fetched lists, no new endpoint. Empty set means no
-  // narrowing at all (every category shown), matching the same "nothing
-  // selected = show everything" convention as _cityFilter below.
-  final Set<String> _categoryFilter = {};
+  // Which single posting category to include — a plain client-side filter
+  // over the already-fetched lists, no new endpoint. null means every
+  // category shown, matching the same "nothing selected = show everything"
+  // convention as _cityFilter below.
+  String? _categoryFilter;
   // null means every city.
   String? _cityFilter;
 
@@ -193,36 +193,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       listing is _JobListing ? listing.job.city : (listing as _RequirementListing).requirement.city;
 
   bool _matchesFilters(_Listing listing) {
-    if (_categoryFilter.isNotEmpty && !_categoryFilter.contains(_categoryOf(listing))) return false;
+    if (_categoryFilter != null && _categoryOf(listing) != _categoryFilter) return false;
     if (_cityFilter != null && _cityOf(listing) != _cityFilter) return false;
     return true;
-  }
-
-  Widget _buildCategoryChip(String value, String label, IconData icon) {
-    final selected = _categoryFilter.contains(value);
-    // A plain default FilterChip's selected/unselected states read as
-    // nearly identical at a glance (a faint tint shift) — styled
-    // explicitly here instead, so on vs off is unmistakable: solid filled
-    // + white checkmark when active, a plain outline when not.
-    return FilterChip(
-      avatar: Icon(icon, size: 18, color: selected ? Colors.white : AppColors.primaryDark),
-      label: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : AppColors.textPrimary,
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      selected: selected,
-      onSelected: (isSelected) => setState(
-        () => isSelected ? _categoryFilter.add(value) : _categoryFilter.remove(value),
-      ),
-      showCheckmark: true,
-      checkmarkColor: Colors.white,
-      selectedColor: AppColors.primary,
-      backgroundColor: AppColors.surface,
-      side: BorderSide(color: selected ? AppColors.primary : AppColors.border, width: selected ? 0 : 1),
-    );
   }
 
   @override
@@ -242,102 +215,147 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       backgroundColor: AppColors.background,
       bottomNavigationBar: const CaregiverBottomNav(currentIndex: 1),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: _loading
-              ? const Center(child: VitaLoadingIndicator())
-              : ListView(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  children: [
-                    if (_errorMessage != null)
-                      Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: Wrap(
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.sm,
+        child: Column(
+          children: [
+            // Pinned above the scrollable list, not inside it — these
+            // filters must stay visible while scrolling through jobs, not
+            // scroll away with the rest of the content.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
+              // Both filters sit in one row, never wrapping to a second
+              // line — Job Type takes the remaining space (its labels are
+              // the longest text on the row), City stays a small
+              // fixed-width dropdown since a city name is short.
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String?>(
+                      isExpanded: true,
+                      initialValue: _categoryFilter,
+                      decoration: const InputDecoration(
+                        labelText: 'Job Type',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All Jobs', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        for (final option in _kCategoryOptions)
+                          DropdownMenuItem<String?>(
+                            value: option.$1,
+                            child: Text(option.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _categoryFilter = value),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  SizedBox(
+                    width: 130,
+                    child: DropdownButtonFormField<String?>(
+                      isExpanded: true,
+                      initialValue: _cityFilter,
+                      decoration: const InputDecoration(
+                        labelText: 'City',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        for (final city in City.all)
+                          DropdownMenuItem<String?>(
+                            value: city,
+                            child: Text(
+                              City.displayNames[city] ?? city,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _cityFilter = value),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: _loading
+                    ? const Center(child: VitaLoadingIndicator())
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
                         children: [
-                          for (final option in _kCategoryOptions)
-                            _buildCategoryChip(option.$1, option.$2, option.$3),
+                          if (_errorMessage != null)
+                            Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                          if (hasHiddenJobs)
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Show All Jobs'),
+                              subtitle: const Text(
+                                'Includes jobs and organisation requirements you rejected, or closed yourself',
+                              ),
+                              value: _showAllJobs,
+                              onChanged: (value) => setState(() => _showAllJobs = value),
+                            ),
+                          if (merged.isEmpty && _errorMessage == null)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                              child: Text(
+                                'No jobs posted right now. Pull down to refresh.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            )
+                          else if (filtered.isEmpty && _errorMessage == null)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                              child: Text(
+                                'No jobs match your current filters. Try adjusting them.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            )
+                          else if (visible.isEmpty && _errorMessage == null)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                              child: Text(
+                                'No jobs you can currently apply to. Turn on "Show All Jobs" to see jobs and '
+                                'organisation requirements you rejected or closed yourself.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ),
+                          for (final listing in visible) ...[
+                            if (listing is _JobListing)
+                              _JobCard(
+                                job: listing.job,
+                                isApplying: _applyingId.contains(listing.job.id),
+                                onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
+                                onReject: () => _rejectJob(listing.job),
+                                onWithdraw: () => _withdrawJob(listing.job),
+                              )
+                            else if (listing is _RequirementListing)
+                              _RequirementCard(
+                                requirement: listing.requirement,
+                                isApplying: _applyingId.contains(listing.requirement.id),
+                                onApply: () =>
+                                    _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
+                              ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
                         ],
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        initialValue: _cityFilter,
-                        decoration: const InputDecoration(
-                          labelText: 'City',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          prefixIcon: Icon(Icons.location_on_outlined, size: 18),
-                        ),
-                        items: [
-                          const DropdownMenuItem<String?>(value: null, child: Text('All Cities')),
-                          for (final city in City.all)
-                            DropdownMenuItem<String?>(value: city, child: Text(City.displayNames[city] ?? city)),
-                        ],
-                        onChanged: (value) => setState(() => _cityFilter = value),
-                      ),
-                    ),
-                    if (hasHiddenJobs)
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Show All Jobs'),
-                        subtitle: const Text(
-                          'Includes jobs and organisation requirements you rejected, or closed yourself',
-                        ),
-                        value: _showAllJobs,
-                        onChanged: (value) => setState(() => _showAllJobs = value),
-                      ),
-                    if (merged.isEmpty && _errorMessage == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                        child: Text(
-                          'No jobs posted right now. Pull down to refresh.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    else if (filtered.isEmpty && _errorMessage == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                        child: Text(
-                          'No jobs match your current filters. Try adjusting them.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    else if (visible.isEmpty && _errorMessage == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-                        child: Text(
-                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see jobs and '
-                          'organisation requirements you rejected or closed yourself.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    for (final listing in visible) ...[
-                      if (listing is _JobListing)
-                        _JobCard(
-                          job: listing.job,
-                          isApplying: _applyingId.contains(listing.job.id),
-                          onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
-                          onReject: () => _rejectJob(listing.job),
-                          onWithdraw: () => _withdrawJob(listing.job),
-                        )
-                      else if (listing is _RequirementListing)
-                        _RequirementCard(
-                          requirement: listing.requirement,
-                          isApplying: _applyingId.contains(listing.requirement.id),
-                          onApply: () => _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
-                        ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-                  ],
-                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
