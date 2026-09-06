@@ -13,6 +13,17 @@ export interface DashboardStats {
   pending_edits_count: number;
   new_registrations_24h: number;
   new_registrations_7d: number;
+  /** jobs.status = 'pending_review' + organisation_requirements.status =
+   *  'pending_review' combined — every NurseNow posting currently awaiting
+   *  admin's legitimacy review, across both posting types. Populated by
+   *  AdminService.getDashboardStats, not this repository's own query. */
+  jobs_pending_approval: number;
+  /** users.role = 'organisation' created in the last 7 days. Populated by
+   *  AdminService.getDashboardStats, not this repository's own query. */
+  new_organisations_7d: number;
+  /** users.role = 'individual' created in the last 7 days. Populated by
+   *  AdminService.getDashboardStats, not this repository's own query. */
+  new_individuals_7d: number;
 }
 
 export interface AdminCaregiverListItem {

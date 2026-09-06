@@ -449,6 +449,13 @@ class _RequirementCard extends StatelessWidget {
     required this.onApply,
   });
 
+  /// The plain "Type of Nurse/Caregiver Needed" text as filled on nursenow's
+  /// own posting form — free text when 'others', else the enum's display
+  /// name. Shared by the header line and the type-of-nurse tag below it.
+  String get _typeOfNurseText => requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+      ? requirement.typeOfNurseOther!
+      : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -466,13 +473,31 @@ class _RequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Job in Posted by Organisation '
-            '${requirement.city != null ? (City.displayNames[requirement.city] ?? requirement.city!) : ''}',
+            'Job Posted by Organisation'
+            '${requirement.city != null ? ' in ${City.displayNames[requirement.city] ?? requirement.city!}' : ''}'
+            ' · $_typeOfNurseText',
             style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.error),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(organisationJobDisplayId(requirement),
-              style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: organisationJobDisplayId(requirement),
+                  style: const TextStyle(
+                      fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                ),
+                // Only present on the browse list (GET /caregiver/organisation-requirements)
+                // — null on the assigned/MyJobs list, where this doesn't apply.
+                if (requirement.applicantCount != null)
+                  TextSpan(
+                    text: '  ·  ${requirement.applicantCount} applied',
+                    style: const TextStyle(
+                        fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           _Tag(
             requirement.organisationType != null
@@ -499,11 +524,7 @@ class _RequirementCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              _Tag(
-                requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
-                    ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
-                    : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
-              ),
+              _Tag(_typeOfNurseText),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               _Tag('Vacancies: ${requirement.numberOfVacancies}'),

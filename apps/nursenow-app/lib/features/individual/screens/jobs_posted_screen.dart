@@ -554,26 +554,26 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            // spaceBetween (not an explicit Spacer) keeps the menu button
-            // pinned to the row's far right regardless of the badge's
-            // width, while the badge's own Flexible below is free to claim
-            // up to the rest of the row for a long status label like
-            // "Live — visible to caregivers" instead of being squeezed
-            // into half the row the way a 50/50 Flexible+Spacer pairing
-            // would.
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Loose fit (hugs its own text when short) but can grow up
-              // to the remaining row width for a long label. On a narrow
-              // phone where even the full row width isn't enough for one
-              // line, _StatusBadge wraps onto a second line rather than
-              // truncating with "…" — the full status stays readable
-              // either way.
-              Flexible(
-                child: _StatusBadge(
-                  label: _statusLabel,
-                  color: _statusColor,
-                  blink: requirement.status == JobStatus.active,
+              // The status badge sits right next to the Job Id (small
+              // margin between them) in a Wrap, not squeezed into a
+              // Flexible sharing the row with the menu button — a Wrap
+              // moves the badge onto its own second line when the row
+              // genuinely has no room, rather than truncating a long label
+              // like "Live — visible to caregivers" with "…".
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    _JobIdLine(requirement: requirement),
+                    _StatusBadge(
+                      label: _statusLabel,
+                      color: _statusColor,
+                      blink: requirement.status == JobStatus.active,
+                    ),
+                  ],
                 ),
               ),
               // Always exactly 3 actions — Edit / Post Similar / Cancel —
@@ -608,25 +608,13 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           ],
           // A clean, uniform label/value record — consistent font
           // size/weight/color across every line (matching clinical/hospital
-          // documentation conventions), except the Job Id itself, which is
-          // set apart in bold green as the card's primary identifier.
+          // documentation conventions).
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _JobIdLine(requirement: requirement)),
-              if (careReceiver != null) ...[
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _FieldLine(
-                    label: 'Type Of Care',
-                    value: CareTier.displayNames[deriveCareTier(careReceiver)] ??
-                        deriveCareTier(careReceiver),
-                  ),
-                ),
-              ],
-            ],
-          ),
+          if (careReceiver != null)
+            _FieldLine(
+              label: 'Type Of Care',
+              value: CareTier.displayNames[deriveCareTier(careReceiver)] ?? deriveCareTier(careReceiver),
+            ),
           const SizedBox(height: AppSpacing.xs),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

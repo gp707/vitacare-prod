@@ -11,6 +11,12 @@ class DashboardStats {
   final int pendingEditsCount;
   final int newRegistrations24h;
   final int newRegistrations7d;
+  // jobs.status = 'pending_review' + organisation_requirements.status =
+  // 'pending_review' combined — every NurseNow posting currently awaiting
+  // admin's legitimacy review, across both posting types.
+  final int jobsPendingApproval;
+  final int newOrganisations7d;
+  final int newIndividuals7d;
 
   const DashboardStats({
     required this.totalCaregivers,
@@ -22,6 +28,9 @@ class DashboardStats {
     required this.pendingEditsCount,
     required this.newRegistrations24h,
     required this.newRegistrations7d,
+    required this.jobsPendingApproval,
+    required this.newOrganisations7d,
+    required this.newIndividuals7d,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) => DashboardStats(
@@ -34,6 +43,9 @@ class DashboardStats {
         pendingEditsCount: json['pending_edits_count'] as int,
         newRegistrations24h: json['new_registrations_24h'] as int,
         newRegistrations7d: json['new_registrations_7d'] as int,
+        jobsPendingApproval: json['jobs_pending_approval'] as int,
+        newOrganisations7d: json['new_organisations_7d'] as int,
+        newIndividuals7d: json['new_individuals_7d'] as int,
       );
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../core/network/api_exception.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
@@ -21,10 +22,13 @@ String _posterValueText({required String role, String? name, String? phone}) {
 class RequirementRow extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
   final VoidCallback onTap;
-  /// Only supplied for a pending_review requirement — approves it. Admin
-  /// owns no fields on an active/closed requirement, so there is nothing
-  /// left to edit once it's live; the row shows no Approve/Edit action then.
-  final VoidCallback? onApprove;
+  /// Always offered, regardless of status — admin can edit any org-owned
+  /// field at any point in the requirement's lifecycle; saving from
+  /// pending_review (or closed) also approves/reposts it (see
+  /// EditRequirementDialog).
+  final VoidCallback onEdit;
+  /// Only supplied for a pending_review requirement — declines it, same as
+  /// admin-posted jobs' own Reject action.
   final VoidCallback? onReject;
   final VoidCallback onViewApplicants;
 
@@ -32,7 +36,7 @@ class RequirementRow extends StatelessWidget {
     super.key,
     required this.requirement,
     required this.onTap,
-    required this.onApprove,
+    required this.onEdit,
     required this.onReject,
     required this.onViewApplicants,
   });
@@ -107,9 +111,7 @@ class RequirementRow extends StatelessWidget {
                   TextButton(
                       onPressed: onViewApplicants,
                       child: const Text('Applicants')),
-                  if (onApprove != null)
-                    TextButton(
-                        onPressed: onApprove, child: const Text('Approve')),
+                  TextButton(onPressed: onEdit, child: const Text('Edit')),
                   if (onReject != null)
                     TextButton(
                         onPressed: onReject, child: const Text('Reject')),
@@ -156,42 +158,216 @@ class RequirementStatusBadge extends StatelessWidget {
   }
 }
 
-/// Admin approval is a bare click — the organisation set every field on
-/// this requirement itself (see "NurseNow" in CLAUDE.md: "admin approval is
-/// just click a button, approve/reject"). Only ever shown for a
-/// pending_review requirement; there is nothing left for admin to edit once
-/// it's active, since admin owns no fields on it at all.
-class ApproveRequirementDialog extends StatefulWidget {
+/// Admin can edit any org-owned field on a requirement — every field the
+/// org itself can edit via its own self-edit screen — reversing the
+/// original "admin's role is a pure approve/reject click" design on
+/// explicit follow-up request. Saving from pending_review (or a
+/// previously-closed requirement) also approves/reposts it, exactly like
+/// admin-web's own _JobFormDialog does for jobs; saving an already-active
+/// requirement just persists the field changes. [onSubmit] is called with
+/// every field's current value (a full-form resubmit, same convention the
+/// org's own edit screen and admin's own job edit form both use), so the
+/// caller never needs to diff what actually changed.
+class EditRequirementDialog extends StatefulWidget {
   final AdminOrganisationRequirement requirement;
-  final Future<void> Function() onSubmit;
+  final Future<void> Function({
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+    required String durationType,
+  }) onSubmit;
 
-  const ApproveRequirementDialog(
+  const EditRequirementDialog(
       {super.key, required this.requirement, required this.onSubmit});
 
   @override
-  State<ApproveRequirementDialog> createState() =>
-      _ApproveRequirementDialogState();
+  State<EditRequirementDialog> createState() => _EditRequirementDialogState();
 }
 
-class _ApproveRequirementDialogState extends State<ApproveRequirementDialog> {
-  bool _submitting = false;
+class _EditRequirementDialogState extends State<EditRequirementDialog> {
+  late String? _typeOfNurse = widget.requirement.typeOfNurse;
+  late final _typeOfNurseOtherController =
+      TextEditingController(text: widget.requirement.typeOfNurseOther ?? '');
+  late bool _accommodationProvided = widget.requirement.accommodationProvided;
+  late bool _foodProvided = widget.requirement.foodProvided;
+  late final _specialSkillsController =
+      TextEditingController(text: widget.requirement.specialSkills ?? '');
+  late final _numberOfVacanciesController =
+      TextEditingController(text: widget.requirement.numberOfVacancies.toString());
+  late String? _preferredGender = widget.requirement.preferredGender;
+  late String? _durationType = widget.requirement.durationType;
 
-  Future<void> _submit() async {
-    setState(() => _submitting = true);
-    await widget.onSubmit();
-    if (mounted) Navigator.of(context).pop();
+  bool _submitting = false;
+  String? _error;
+  bool _showValidationErrors = false;
+
+  bool get _isTypeOfNurseValid => _typeOfNurse != null;
+  bool get _isTypeOfNurseOtherValid =>
+      _typeOfNurse != TypeOfNurse.others || _typeOfNurseOtherController.text.trim().isNotEmpty;
+  bool get _isNumberOfVacanciesValid {
+    final value = int.tryParse(_numberOfVacanciesController.text.trim());
+    return value != null && value > 0 && value < 50;
+  }
+
+  bool get _isDurationTypeValid => _durationType != null;
+
+  bool get _canSubmit =>
+      !_submitting &&
+      _isTypeOfNurseValid &&
+      _isTypeOfNurseOtherValid &&
+      _isNumberOfVacanciesValid &&
+      _isDurationTypeValid;
+
+  @override
+  void dispose() {
+    _typeOfNurseOtherController.dispose();
+    _specialSkillsController.dispose();
+    _numberOfVacanciesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSavePressed() async {
+    if (!_canSubmit) {
+      setState(() => _showValidationErrors = true);
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.onSubmit(
+        typeOfNurse: _typeOfNurse!,
+        typeOfNurseOther: _typeOfNurse == TypeOfNurse.others ? _typeOfNurseOtherController.text.trim() : null,
+        accommodationProvided: _accommodationProvided,
+        foodProvided: _foodProvided,
+        specialSkills: _specialSkillsController.text.trim(),
+        numberOfVacancies: int.parse(_numberOfVacanciesController.text.trim()),
+        preferredGender: _preferredGender,
+        durationType: _durationType!,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Approve ${requirementDisplayId(widget.requirement)}'),
+      title: Text('Edit ${requirementDisplayId(widget.requirement)}'),
       content: SizedBox(
-        width: context.dialogWidth(400),
-        child: const Text(
-          'This makes the requirement visible to caregivers. The organisation '
-          'already set every field themselves — there is nothing for you to '
-          'fill in.',
+        width: context.dialogWidth(420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _typeOfNurse,
+                decoration: InputDecoration(
+                  labelText: 'Type of Nurse/Caregiver (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isTypeOfNurseValid ? 'Please select a type' : null,
+                ),
+                items: TypeOfNurse.all
+                    .map((t) => DropdownMenuItem(value: t, child: Text(TypeOfNurse.displayNames[t] ?? t)))
+                    .toList(),
+                onChanged: (value) => setState(() => _typeOfNurse = value),
+              ),
+              if (_typeOfNurse == TypeOfNurse.others) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _typeOfNurseOtherController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Please specify (Mandatory)',
+                    border: const OutlineInputBorder(),
+                    errorText: _showValidationErrors && !_isTypeOfNurseOtherValid
+                        ? 'Please specify the type of nurse/caregiver'
+                        : null,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _numberOfVacanciesController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Number of Vacancies (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isNumberOfVacanciesValid
+                      ? 'Enter a number between 1 and 49'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _durationType,
+                decoration: InputDecoration(
+                  labelText: 'Duration (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isDurationTypeValid ? 'Please select a duration' : null,
+                ),
+                items: RequirementDuration.all
+                    .map((d) => DropdownMenuItem(value: d, child: Text(RequirementDuration.displayNames[d] ?? d)))
+                    .toList(),
+                onChanged: (value) => setState(() => _durationType = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _preferredGender,
+                decoration: const InputDecoration(
+                  labelText: 'Preferred Caregiver Gender',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('No preference')),
+                  DropdownMenuItem(value: Gender.male, child: Text('Male')),
+                  DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                ],
+                onChanged: (value) => setState(() => _preferredGender = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Accommodation provided?'),
+                value: _accommodationProvided,
+                onChanged: (value) => setState(() => _accommodationProvided = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Food provided?'),
+                value: _foodProvided,
+                onChanged: (value) => setState(() => _foodProvided = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _specialSkillsController,
+                maxLines: 4,
+                maxLength: Validation.specialSkillsMaxLength,
+                decoration: const InputDecoration(
+                  labelText: 'Special skills required (optional)',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(_error!, style: const TextStyle(color: AppColors.error)),
+              ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -199,11 +375,11 @@ class _ApproveRequirementDialogState extends State<ApproveRequirementDialog> {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel')),
         ElevatedButton(
-          onPressed: _submitting ? null : _submit,
+          onPressed: _submitting ? null : _handleSavePressed,
           child: _submitting
               ? const SizedBox(
                   height: 16, width: 16, child: VitaLoadingIndicator(size: 16))
-              : const Text('Approve'),
+              : const Text('Save Changes'),
         ),
       ],
     );
@@ -323,14 +499,14 @@ String requirementDisplayId(AdminOrganisationRequirement requirement) =>
     'ORG-JOB-${requirement.requirementNumber}';
 
 /// Read-only detail view opened by tapping a requirement row — every field
-/// as plain text, with an Approve button (pending_review only) handing off
-/// to ApproveRequirementDialog.
+/// as plain text, with an Edit button (always offered, any status) handing
+/// off to EditRequirementDialog.
 class RequirementReadOnlyDialog extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
-  final VoidCallback? onApprove;
+  final VoidCallback onEdit;
 
   const RequirementReadOnlyDialog(
-      {super.key, required this.requirement, required this.onApprove});
+      {super.key, required this.requirement, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -417,8 +593,7 @@ class RequirementReadOnlyDialog extends StatelessWidget {
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close')),
-        if (onApprove != null)
-          ElevatedButton(onPressed: onApprove, child: const Text('Approve')),
+        ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
       ],
     );
   }

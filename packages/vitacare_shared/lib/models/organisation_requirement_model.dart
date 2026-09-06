@@ -54,6 +54,11 @@ class OrganisationRequirementModel {
   /// non-null there). Reuses JobModel's MyApplicationModel — identical
   /// shape, same underlying job_applications-style timeline columns.
   final MyApplicationModel? myApplication;
+  /// Total distinct caregivers who have ever applied — shown on
+  /// caregiver-app's browse list as a plain "N applied" count, same
+  /// convention as JobModel.applicantCount. Only present on
+  /// GET /caregiver/organisation-requirements's response.
+  final int? applicantCount;
 
   const OrganisationRequirementModel({
     required this.id,
@@ -77,6 +82,7 @@ class OrganisationRequirementModel {
     this.area,
     this.organisationPhone,
     this.myApplication,
+    this.applicantCount,
   });
 
   factory OrganisationRequirementModel.fromJson(Map<String, dynamic> json) => OrganisationRequirementModel(
@@ -103,6 +109,7 @@ class OrganisationRequirementModel {
         myApplication: json['my_application'] != null
             ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
             : null,
+        applicantCount: json['applicant_count'] as int?,
       );
 
   /// Mirrors JobModel.isCancelled — set once the org cancels this

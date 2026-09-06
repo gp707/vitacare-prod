@@ -98,6 +98,15 @@ export interface JobWithMyApplication extends JobRecord {
    *  About Patient / About Patient Condition details on the jobs list
    *  itself, without a second per-job request. */
   care_receiver: CareReceiverRecord;
+  /** Total distinct caregivers who have ever applied (any status — one row
+   *  per caregiver per job via the job_applications upsert) — shown to
+   *  every browsing caregiver as a plain "N applied" count, regardless of
+   *  who posted the job (admin/individual). Only populated by
+   *  listActiveForCaregiver below — every other query returning
+   *  JobWithMyApplication/JobAssignedRecord (e.g. listAssignedForCaregiver)
+   *  leaves it undefined, since the count is only meaningful on the browse
+   *  list where a caregiver is deciding whether to apply. */
+  applicant_count?: number;
 }
 
 /** A job the caregiver is (or was) accepted onto — GET /caregiver/jobs/assigned's
@@ -343,6 +352,17 @@ export class JobsRepository {
     return result.rows;
   }
 
+  /** Jobs awaiting admin's legitimacy review (NurseNow individual postings
+   *  only — admin's own postings go straight to 'active'). Feeds the
+   *  dashboard's "Needs Approval" tile alongside
+   *  OrganisationRequirementsRepository.countPendingApproval. */
+  async countPendingApproval(): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM jobs WHERE status = 'pending_review'`,
+    );
+    return Number(result.rows[0].count);
+  }
+
   /** Applications that will disappear (via job_applications.job_id's own
    *  ON DELETE CASCADE) the moment these jobs are deleted — counted
    *  beforehand purely so the caller can report/audit-log an accurate
@@ -402,6 +422,7 @@ export class JobsRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobWithMyApplication>(
         `SELECT j.*, to_jsonb(cr) AS care_receiver,
+           (SELECT COUNT(*)::int FROM job_applications ja2 WHERE ja2.job_id = j.id) AS applicant_count,
            CASE WHEN ja.id IS NULL THEN NULL ELSE jsonb_build_object(
              'status', ja.status,
              'applied_at', ja.applied_at,

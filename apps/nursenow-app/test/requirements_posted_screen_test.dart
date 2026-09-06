@@ -458,12 +458,13 @@ void main() {
     expect(repo.decidedStatus, 'accepted');
   });
 
-  testWidgets('while one applicant is accepted, an undecided candidate offers no Accept/Reject action',
-      (tester) async {
+  testWidgets(
+      'while one applicant is already accepted, another undecided candidate still offers Accept — '
+      'number_of_vacancies is informational only, never an accept cap', (tester) async {
     await _pump(
       tester,
       _FakeOrganisationRepository(
-        requirements: [_requirement(status: 'closed')],
+        requirements: [_requirement(status: 'closed', numberOfVacancies: 1)],
         applicationsByRequirementId: {
           'req-1': [
             _application(id: 'app-1', status: 'accepted'),
@@ -473,10 +474,9 @@ void main() {
       ),
     );
 
-    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
-    // Only the accepted applicant's own Reject (undo) stays available.
-    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+    // The already-accepted applicant offers Reject (undo), not Accept.
+    expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Reject'), findsNWidgets(2));
   });
 
   testWidgets('tapping View Profile on an undecided applicant opens their full profile', (tester) async {

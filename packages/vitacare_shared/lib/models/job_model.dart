@@ -134,6 +134,11 @@ class JobModel {
   final String? postedByRole;
   final String? postedByName;
   final String? postedByPhone;
+  /// Total distinct caregivers who have ever applied — shown on
+  /// caregiver-app's browse list as a plain "N applied" count, regardless
+  /// of who posted the job. Only present on GET /caregiver/jobs's response;
+  /// null everywhere else (e.g. the assigned/MyJobs list, admin-web).
+  final int? applicantCount;
 
   const JobModel({
     required this.id,
@@ -164,6 +169,7 @@ class JobModel {
     this.postedByRole,
     this.postedByName,
     this.postedByPhone,
+    this.applicantCount,
   });
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
@@ -201,6 +207,7 @@ class JobModel {
         postedByRole: json['posted_by_role'] as String?,
         postedByName: json['posted_by_name'] as String?,
         postedByPhone: json['posted_by_phone'] as String?,
+        applicantCount: json['applicant_count'] as int?,
       );
 
   /// The apply-by urgency window, always computed from [postedAt] (not

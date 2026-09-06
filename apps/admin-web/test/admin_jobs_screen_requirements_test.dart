@@ -73,7 +73,8 @@ class _FakeAdminOrganisationRequirementsRepository
     extends AdminOrganisationRequirementsRepository {
   List<AdminOrganisationRequirement> items;
   List<OrganisationRequirementApplicationModel> applications;
-  String? approvedId;
+  String? editedId;
+  int? editedNumberOfVacancies;
   String? rejectedId;
   String? rejectedReason;
   String? decidedRequirementId;
@@ -106,8 +107,19 @@ class _FakeAdminOrganisationRequirementsRepository
   }
 
   @override
-  Future<void> approve(String id) async {
-    approvedId = id;
+  Future<void> edit(
+    String id, {
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+    required String durationType,
+  }) async {
+    editedId = id;
+    editedNumberOfVacancies = numberOfVacancies;
   }
 
   @override
@@ -205,7 +217,7 @@ void main() {
   });
 
   testWidgets(
-      'Approve and Reject only show for a pending_review requirement; nothing to edit once active',
+      'Edit is always offered regardless of status, but Reject only shows for a pending_review requirement',
       (tester) async {
     await _pump(
       tester,
@@ -214,26 +226,27 @@ void main() {
       ]),
     );
 
-    expect(find.text('Approve'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
     expect(find.text('Reject'), findsNothing);
     expect(find.text('Applicants'), findsOneWidget);
   });
 
   testWidgets(
-      'approving a pending_review requirement is a bare click — no fields to fill in',
+      'editing a pending_review requirement approves/reposts it in the same save',
       (tester) async {
     final repo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Approve'));
+    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Approve ORG-JOB-101'), findsOneWidget);
+    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Approve'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
     await tester.pumpAndSettle();
 
-    expect(repo.approvedId, 'r1');
+    expect(repo.editedId, 'r1');
+    expect(repo.editedNumberOfVacancies, 1);
   });
 
   testWidgets('rejecting requires a reason before Confirm is enabled',
@@ -324,7 +337,8 @@ void main() {
   });
 
   testWidgets(
-      'tapping an active requirement row opens a read-only detail view with no Approve action',
+      'tapping an active requirement row opens a read-only detail view with an Edit action (admin owns no '
+      'fields is no longer true — Edit is always offered)',
       (tester) async {
     await _pump(
       tester,
@@ -342,14 +356,14 @@ void main() {
         findsOneWidget);
     expect(
         find.descendant(
-            of: dialog, matching: find.widgetWithText(ElevatedButton, 'Approve')),
-        findsNothing);
+            of: dialog, matching: find.widgetWithText(ElevatedButton, 'Edit')),
+        findsOneWidget);
     expect(find.descendant(of: dialog, matching: find.text('Close')),
         findsOneWidget);
   });
 
   testWidgets(
-      'tapping Approve inside a pending_review requirement\'s read-only detail view opens the approve confirmation',
+      'tapping Edit inside a pending_review requirement\'s read-only detail view opens EditRequirementDialog',
       (tester) async {
     await _pump(
       tester,
@@ -362,10 +376,10 @@ void main() {
     final readOnlyDialog = find.byType(AlertDialog);
     await tester.tap(find.descendant(
         of: readOnlyDialog,
-        matching: find.widgetWithText(ElevatedButton, 'Approve')));
+        matching: find.widgetWithText(ElevatedButton, 'Edit')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Approve ORG-JOB-101'), findsOneWidget);
+    expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 

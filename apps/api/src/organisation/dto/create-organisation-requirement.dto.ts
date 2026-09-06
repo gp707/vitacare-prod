@@ -10,7 +10,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { Gender, RequirementDuration, TypeOfNurse } from '@vitacare/shared-constants';
+import { Gender, RequirementDuration, TypeOfNurse, Validation } from '@vitacare/shared-constants';
 
 /** The "exclusive" org posting form — no care_receiver, no city/area/
  *  duty_type (inherited from the org's own registered location). Unlike
@@ -37,7 +37,7 @@ export class CreateOrganisationRequirementDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(1000, { message: 'GEN_001' })
+  @MaxLength(Validation.SPECIAL_SKILLS_MAX_LENGTH, { message: 'GEN_001' })
   special_skills?: string;
 
   /** Defaults to 1 (in the service, not here) when omitted. */

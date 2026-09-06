@@ -397,12 +397,6 @@ class _RequirementCard extends StatelessWidget {
 
   int get _acceptedCount => applications.where((a) => a.status == JobApplicationStatus.accepted).length;
 
-  /// Mirrors the backend's own JOB_019 check — up to `number_of_vacancies`
-  /// candidates can be accepted onto the same requirement at once, not
-  /// just one (an org posting for several openings can hire several
-  /// different caregivers onto the same posting).
-  bool get _vacanciesFull => _acceptedCount >= requirement.numberOfVacancies;
-
   /// Mirrors the backend's own JOB_015 check — cancellable at any point in
   /// the lifecycle except once it's already been terminated some other way
   /// (admin-rejected or already cancelled once).
@@ -495,18 +489,28 @@ class _RequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // The status badge sits right next to the requirement id
+              // (small margin between them) in a Wrap, not squeezed into a
+              // Flexible sharing the row with the menu button — a Wrap
+              // moves the badge onto its own second line when the row
+              // genuinely has no room, rather than truncating a long label
+              // like "Live — visible to caregivers" with "…".
               Expanded(
-                child: Text(organisationJobDisplayId(requirement),
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: _StatusBadge(
-                  label: _statusLabel,
-                  color: _statusColor,
-                  blink: requirement.status == JobStatus.active,
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    Text(organisationJobDisplayId(requirement),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
+                    _StatusBadge(
+                      label: _statusLabel,
+                      color: _statusColor,
+                      blink: requirement.status == JobStatus.active,
+                    ),
+                  ],
                 ),
               ),
               PopupMenuButton<_MenuAction>(
@@ -572,14 +576,14 @@ class _RequirementCard extends StatelessWidget {
                 _ApplicantTile(
                   application: application,
                   isDeciding: decidingApplicationId.contains(application.id),
-                  // Up to number_of_vacancies applicants can be accepted at
-                  // once (JOB_019 backstops this server-side) — once every
-                  // vacancy is filled, no one else (including a previously-
-                  // rejected or completed candidate) offers an Accept
-                  // action until a slot is freed up via Reject on one of
-                  // the currently-accepted candidates.
-                  canAccept: !_vacanciesFull,
-                  canReject: (application.status == JobApplicationStatus.applied && !_vacanciesFull) ||
+                  // Any number of candidates can be accepted onto the same
+                  // requirement at once — number_of_vacancies is purely
+                  // informational (what the org told caregivers it's hiring
+                  // for), never an accept cap. Every candidate not already
+                  // accepted (applied, rejected, or completed) always offers
+                  // an Accept action.
+                  canAccept: application.status != JobApplicationStatus.accepted,
+                  canReject: application.status == JobApplicationStatus.applied ||
                       application.status == JobApplicationStatus.accepted,
                   onAccept: () => onAccept(application.id),
                   onReject: () => onReject(application.id),

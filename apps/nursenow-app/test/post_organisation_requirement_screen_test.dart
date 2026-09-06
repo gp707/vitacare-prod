@@ -129,6 +129,14 @@ void main() {
     expect(find.textContaining('An admin reviews every new requirement'), findsNothing);
   });
 
+  testWidgets('Special skills field is capped at 256 characters', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo);
+
+    final field = tester.widget<TextField>(find.widgetWithText(TextField, 'Special skills required (optional)'));
+    expect(field.maxLength, Validation.specialSkillsMaxLength);
+  });
+
   testWidgets('Number of Vacancies defaults to 1 and is sent as-is when untouched', (tester) async {
     final repo = _FakeOrganisationRepository();
     await _pump(tester, repo);

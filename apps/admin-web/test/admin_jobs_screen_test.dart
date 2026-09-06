@@ -77,15 +77,27 @@ AdminOrganisationRequirement _requirement({
   String postedBy = 'org-user-1',
   String? contactPersonName,
   String? organisationPhone,
+  String typeOfNurse = TypeOfNurse.auxiliaryNurse,
+  String? typeOfNurseOther,
+  bool accommodationProvided = true,
+  bool foodProvided = false,
+  String? specialSkills,
+  int numberOfVacancies = 1,
+  String? preferredGender,
+  String? durationType = RequirementDuration.longTerm,
 }) {
   return AdminOrganisationRequirement(
     id: id,
     requirementNumber: requirementNumber,
     postedBy: postedBy,
-    typeOfNurse: TypeOfNurse.auxiliaryNurse,
-    accommodationProvided: true,
-    foodProvided: false,
-    numberOfVacancies: 1,
+    typeOfNurse: typeOfNurse,
+    typeOfNurseOther: typeOfNurseOther,
+    accommodationProvided: accommodationProvided,
+    foodProvided: foodProvided,
+    specialSkills: specialSkills,
+    numberOfVacancies: numberOfVacancies,
+    preferredGender: preferredGender,
+    durationType: durationType,
     status: status,
     postedAt: postedAt,
     organisationName: 'City Rehab Center',
@@ -102,6 +114,15 @@ class _FakeAdminOrganisationRequirementsRepository
   List<AdminOrganisationRequirement> items;
   int listCallCount = 0;
   OrganisationRequirementListFilters? lastFilters;
+  String? editedId;
+  String? editedTypeOfNurse;
+  String? editedTypeOfNurseOther;
+  bool? editedAccommodationProvided;
+  bool? editedFoodProvided;
+  String? editedSpecialSkills;
+  int? editedNumberOfVacancies;
+  String? editedPreferredGender;
+  String? editedDurationType;
 
   _FakeAdminOrganisationRequirementsRepository([this.items = const []])
       : super(Dio());
@@ -114,6 +135,29 @@ class _FakeAdminOrganisationRequirementsRepository
     listCallCount++;
     lastFilters = filters;
     return items;
+  }
+
+  @override
+  Future<void> edit(
+    String id, {
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+    required String durationType,
+  }) async {
+    editedId = id;
+    editedTypeOfNurse = typeOfNurse;
+    editedTypeOfNurseOther = typeOfNurseOther;
+    editedAccommodationProvided = accommodationProvided;
+    editedFoodProvided = foodProvided;
+    editedSpecialSkills = specialSkills;
+    editedNumberOfVacancies = numberOfVacancies;
+    editedPreferredGender = preferredGender;
+    editedDurationType = durationType;
   }
 }
 
@@ -1988,6 +2032,99 @@ void main() {
     expect(find.text('organisation detail screen'), findsOneWidget);
   });
 
+  group('admin editing an organisation requirement (reverses the old "pure approve click" design)', () {
+    testWidgets('the requirement row always offers Edit, regardless of status (not just pending_review)',
+        (tester) async {
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active),
+      ]);
+      await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
+
+      expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Approve'), findsNothing);
+    });
+
+    testWidgets('tapping Edit opens a dialog pre-filled with every org-owned field', (tester) async {
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(
+          typeOfNurse: TypeOfNurse.others,
+          typeOfNurseOther: 'Physiotherapist',
+          accommodationProvided: true,
+          foodProvided: true,
+          specialSkills: 'Post-surgery wound care',
+          numberOfVacancies: 5,
+          preferredGender: Gender.female,
+          durationType: RequirementDuration.longTerm,
+        ),
+      ]);
+      await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
+      expect(find.widgetWithText(DropdownButtonFormField<String>, 'Others'), findsOneWidget);
+      expect(find.text('Physiotherapist'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('Post-surgery wound care'), findsOneWidget);
+      final accommodationSwitch =
+          tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Accommodation provided?'));
+      expect(accommodationSwitch.value, isTrue);
+      final foodSwitch = tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Food provided?'));
+      expect(foodSwitch.value, isTrue);
+    });
+
+    testWidgets('saving calls edit() with the requirement id and every field, and reloads the list',
+        (tester) async {
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(id: 'req-9', status: JobStatus.pendingReview, numberOfVacancies: 2),
+      ]);
+      await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), '8');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+      await tester.pumpAndSettle();
+
+      expect(requirementsRepo.editedId, 'req-9');
+      expect(requirementsRepo.editedNumberOfVacancies, 8);
+      expect(requirementsRepo.editedTypeOfNurse, TypeOfNurse.auxiliaryNurse);
+      expect(requirementsRepo.listCallCount, greaterThanOrEqualTo(2), reason: 'reloads after saving');
+    });
+
+    testWidgets('tapping Save with an empty Number of Vacancies shows a validation error and does not submit',
+        (tester) async {
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), '');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter a number between 1 and 49'), findsOneWidget);
+      expect(requirementsRepo.editedId, isNull);
+    });
+
+    testWidgets('the read-only detail view\'s own Edit button also opens EditRequirementDialog', (tester) async {
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active),
+      ]);
+      await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
+
+      await tester.tap(find.text('ORG-JOB-101'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
+    });
+  });
+
   group('merged with organisation requirements', () {
     testWidgets(
         'a job and an organisation requirement both render in the same list, newest first',
@@ -2170,6 +2307,39 @@ void main() {
       expect(find.text('Showing postings by: Rahul Bajaj'), findsOneWidget);
       expect(find.text('ORG-JOB-101'), findsNothing);
       expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+    });
+  });
+
+  group('status-only initialFilter (Dashboard\'s "Needs Approval" tile)', () {
+    testWidgets(
+        'seeds the Status filter to pending_review, fetches both jobs and organisation requirements '
+        '(no poster narrowing), and shows no "Showing postings by:" banner',
+        (tester) async {
+      final repo = _FakeAdminJobsRepository([_job()]);
+      final requirementsRepo =
+          _FakeAdminOrganisationRequirementsRepository([_requirement()]);
+      await _pump(
+        tester,
+        repo,
+        requirementsRepo: requirementsRepo,
+        initialFilter: const JobsScreenInitialFilter(status: 'pending_review'),
+      );
+
+      expect(
+        repo.lastListFilters,
+        isA<JobListFilters>()
+            .having((f) => f.status, 'status', 'pending_review')
+            .having((f) => f.postedBy, 'postedBy', isNull),
+      );
+      expect(
+        requirementsRepo.lastFilters,
+        isA<OrganisationRequirementListFilters>()
+            .having((f) => f.status, 'status', 'pending_review')
+            .having((f) => f.postedBy, 'postedBy', isNull),
+      );
+      expect(find.textContaining('Showing postings by:'), findsNothing);
+      expect(find.text('ADMIN-JOB-542'), findsOneWidget);
+      expect(find.text('ORG-JOB-101'), findsOneWidget);
     });
   });
 

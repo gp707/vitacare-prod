@@ -155,20 +155,6 @@ export class OrganisationRequirementApplicationsRepository {
     return Number(result.rows[0].count);
   }
 
-  /** An organisation requirement may have up to `number_of_vacancies`
-   *  `accepted` applications at once (enforced by
-   *  OrganisationRequirementsService.decideApplication's JOB_019 guard,
-   *  not a DB constraint) — unlike the regular jobs pipeline
-   *  (JobApplicationsRepository.findAcceptedForJob), which stays
-   *  single-accept only. */
-  async countAcceptedForRequirement(requirementId: string): Promise<number> {
-    const result = await this.db.query<{ count: string }>(
-      `SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = $1 AND status = 'accepted'`,
-      [requirementId],
-    );
-    return Number(result.rows[0].count);
-  }
-
   async findByRequirementId(requirementId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
     const result = await this.db.query<OrganisationRequirementApplicationWithCaregiver>(
       `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name

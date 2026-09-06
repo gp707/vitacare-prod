@@ -44,7 +44,6 @@ describe('OrganisationRequirementsService', () => {
       countAcceptedByProfileId: jest.fn(),
       findAssignedByProfileId: jest.fn(),
       hasAnyApplicationForRequirement: jest.fn(),
-      countAcceptedForRequirement: jest.fn(),
     };
     caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
@@ -535,14 +534,6 @@ describe('OrganisationRequirementsService', () => {
     };
     const caregiverDetail = { user_id: 'caregiver-user-1' };
 
-    beforeEach(() => {
-      // Sane defaults for the isAccepting branch's vacancy check — a
-      // single-vacancy requirement with nobody accepted yet. Individual
-      // tests override these to exercise the multi-vacancy/full cases.
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', number_of_vacancies: 1 });
-      applicationsRepo.countAcceptedForRequirement.mockResolvedValue(0);
-    });
-
     it('throws JOB_006 when the application does not exist', async () => {
       applicationsRepo.findById.mockResolvedValue(null);
       await expect(
@@ -649,68 +640,35 @@ describe('OrganisationRequirementsService', () => {
     });
 
     it.each(['applied', 'rejected', 'completed'])(
-      'throws JOB_019 when accepting a %s application would exceed number_of_vacancies (single-vacancy requirement, '
-      + 'already 1 accepted)',
+      'accepts a %s application regardless of how many others are already accepted on the same requirement '
+      + '(number_of_vacancies is informational only, never an accept cap — an earlier iteration enforced it '
+      + 'via JOB_019, reversed on explicit follow-up request)',
       async (status) => {
         applicationsRepo.findById.mockResolvedValue({ ...application, status });
-        requirementsRepo.findById.mockResolvedValue({ id: 'req-1', number_of_vacancies: 1 });
-        applicationsRepo.countAcceptedForRequirement.mockResolvedValue(1);
+        adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
 
-        await expect(
-          service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null),
-        ).rejects.toMatchObject({ code: 'JOB_019' });
-        expect(applicationsRepo.decide).not.toHaveBeenCalled();
+        const result = await service.decideApplication(
+          'admin-1',
+          'req-1',
+          'app-1',
+          { status: 'accepted' } as any,
+          null,
+        );
+
+        expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', {}, undefined);
+        expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'assigned', null, 'admin-1', {});
+        expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
       },
     );
 
-    it('accepts a new applicant onto a multi-vacancy requirement that still has an open slot, without touching '
-      + 'the already-accepted applicant', async () => {
-      applicationsRepo.findById.mockResolvedValue(application);
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', number_of_vacancies: 3 });
-      applicationsRepo.countAcceptedForRequirement.mockResolvedValue(2);
-      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
-
-      const result = await service.decideApplication(
-        'admin-1',
-        'req-1',
-        'app-1',
-        { status: 'accepted' } as any,
-        null,
-      );
-
-      expect(applicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', {}, undefined);
-      expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'assigned', null, 'admin-1', {});
-      expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
-    });
-
-    it('throws JOB_019 when all vacancies on a multi-vacancy requirement are already filled', async () => {
-      applicationsRepo.findById.mockResolvedValue(application);
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', number_of_vacancies: 3 });
-      applicationsRepo.countAcceptedForRequirement.mockResolvedValue(3);
-
-      await expect(
-        service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null),
-      ).rejects.toMatchObject({ code: 'JOB_019' });
-      expect(applicationsRepo.decide).not.toHaveBeenCalled();
-    });
-
-    it('throws GEN_002 when accepting on a requirement that no longer exists', async () => {
-      applicationsRepo.findById.mockResolvedValue(application);
-      requirementsRepo.findById.mockResolvedValue(null);
-
-      await expect(
-        service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null),
-      ).rejects.toMatchObject({ code: 'GEN_002' });
-      expect(applicationsRepo.decide).not.toHaveBeenCalled();
-    });
-
-    it('does not consult countAcceptedForRequirement at all for a reject (only accepting checks vacancies)', async () => {
+    it('never consults the requirement at all when deciding — accepting is not gated on '
+      + 'number_of_vacancies for either accept or reject', async () => {
       applicationsRepo.findById.mockResolvedValue(application);
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
 
-      await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'rejected' } as any, null);
+      await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null);
 
-      expect(applicationsRepo.countAcceptedForRequirement).not.toHaveBeenCalled();
+      expect(requirementsRepo.findById).not.toHaveBeenCalled();
     });
   });
 
@@ -810,47 +768,137 @@ describe('OrganisationRequirementsService', () => {
     });
   });
 
-  describe('approveRequirement', () => {
+  describe('adminEditRequirement', () => {
+    const existing = {
+      id: 'req-1',
+      status: 'pending_review',
+      type_of_nurse: 'registered_nurse',
+      type_of_nurse_other: null,
+      accommodation_provided: true,
+      food_provided: false,
+      special_skills: 'Wound care',
+      number_of_vacancies: 2,
+      preferred_gender: 'female',
+      duration_type: 'long_term',
+    };
+
+    beforeEach(() => {
+      requirementsRepo.updateOwnFields.mockImplementation(async (_id: string, fields: any) => ({
+        ...existing,
+        ...fields,
+      }));
+    });
+
     it('throws GEN_002 when the requirement does not exist', async () => {
       requirementsRepo.findById.mockResolvedValue(null);
-      await expect(service.approveRequirement('admin-1', 'req-1', null)).rejects.toMatchObject({
+      await expect(service.adminEditRequirement('admin-1', 'req-1', {}, null)).rejects.toMatchObject({
         code: 'GEN_002',
       });
     });
 
-    it('activates a pending_review requirement, stamps posted_at, and broadcasts a push — no fields involved', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'pending_review' });
-      requirementsRepo.activate.mockResolvedValue({ id: 'req-1', status: 'active' });
+    it('a bare/empty body keeps every existing field unchanged (pure approve, same as the old approveRequirement)',
+      async () => {
+        requirementsRepo.findById.mockResolvedValue(existing);
+        requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
 
-      const result = await service.approveRequirement('admin-1', 'req-1', '127.0.0.1');
+        await service.adminEditRequirement('admin-1', 'req-1', {}, '127.0.0.1');
+
+        expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith('req-1', {
+          type_of_nurse: 'registered_nurse',
+          type_of_nurse_other: null,
+          accommodation_provided: true,
+          food_provided: false,
+          special_skills: 'Wound care',
+          number_of_vacancies: 2,
+          preferred_gender: 'female',
+          duration_type: 'long_term',
+        });
+      });
+
+    it('overrides only the fields provided, keeping every other field as-is', async () => {
+      requirementsRepo.findById.mockResolvedValue(existing);
+      requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
+
+      await service.adminEditRequirement(
+        'admin-1',
+        'req-1',
+        { number_of_vacancies: 5, food_provided: true },
+        null,
+      );
+
+      expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ number_of_vacancies: 5, food_provided: true, accommodation_provided: true }),
+      );
+    });
+
+    it('activates a pending_review requirement, stamps posted_at, and broadcasts a push', async () => {
+      requirementsRepo.findById.mockResolvedValue(existing);
+      requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
+
+      const result = await service.adminEditRequirement('admin-1', 'req-1', {}, '127.0.0.1');
 
       expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'admin-1', action: 'org_requirement_updated', entityId: 'req-1' }),
       );
-      expect(result).toEqual({ id: 'req-1', status: 'active' });
+      expect(result.status).toBe('active');
     });
 
     it('reactivates (reposts) an already-closed requirement, same as reactivating from pending_review', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'closed' });
-      requirementsRepo.activate.mockResolvedValue({ id: 'req-1', status: 'active' });
+      requirementsRepo.findById.mockResolvedValue({ ...existing, status: 'closed' });
+      requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
 
-      await service.approveRequirement('admin-1', 'req-1', null);
+      await service.adminEditRequirement('admin-1', 'req-1', {}, null);
 
       expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
     });
 
-    it('is a no-op (no repo call, no push, no audit log) when the requirement is already active', async () => {
-      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', status: 'active' });
+    it('saves field changes on an already-active requirement without reactivating or re-broadcasting the push',
+      async () => {
+        requirementsRepo.findById.mockResolvedValue({ ...existing, status: 'active' });
 
-      const result = await service.approveRequirement('admin-1', 'req-1', null);
+        const result = await service.adminEditRequirement(
+          'admin-1',
+          'req-1',
+          { number_of_vacancies: 9 },
+          null,
+        );
 
-      expect(requirementsRepo.activate).not.toHaveBeenCalled();
-      expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
-      expect(auditService.log).not.toHaveBeenCalled();
-      expect(result).toEqual({ id: 'req-1', status: 'active' });
+        expect(requirementsRepo.activate).not.toHaveBeenCalled();
+        expect(fcmService.sendToAllCaregivers).not.toHaveBeenCalled();
+        expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith(
+          'req-1',
+          expect.objectContaining({ number_of_vacancies: 9 }),
+        );
+        expect(auditService.log).toHaveBeenCalled();
+        expect(result.number_of_vacancies).toBe(9);
+      });
+
+    it('throws GEN_001 when switching type_of_nurse to others without a free-text description', async () => {
+      requirementsRepo.findById.mockResolvedValue(existing);
+
+      await expect(
+        service.adminEditRequirement('admin-1', 'req-1', { type_of_nurse: 'others' }, null),
+      ).rejects.toMatchObject({ code: 'GEN_001' });
+    });
+
+    it('keeps the existing type_of_nurse_other when type_of_nurse stays others and it is not resent', async () => {
+      requirementsRepo.findById.mockResolvedValue({
+        ...existing,
+        type_of_nurse: 'others',
+        type_of_nurse_other: 'Physiotherapist',
+      });
+      requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
+
+      await service.adminEditRequirement('admin-1', 'req-1', { food_provided: true }, null);
+
+      expect(requirementsRepo.updateOwnFields).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ type_of_nurse: 'others', type_of_nurse_other: 'Physiotherapist' }),
+      );
     });
   });
 

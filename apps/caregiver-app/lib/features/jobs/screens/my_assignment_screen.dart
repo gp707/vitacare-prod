@@ -82,7 +82,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       message:
           "This marks ${jobDisplayId(job)} as closed — work completed. You can apply again later if it's still "
           "open. If you don't have any other accepted jobs, you'll be shown as available for new ones again.",
-      confirmLabel: 'Close Job',
+      confirmLabel: 'Close Duty',
     );
     if (reason == null || !mounted) return;
 
@@ -118,7 +118,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
           "This marks ${organisationJobDisplayId(requirement)} as closed — work completed. You can apply again "
           "later if it's still open. If you don't have any other accepted jobs or requirements, you'll be shown "
           "as available for new ones again.",
-      confirmLabel: 'Close Requirement',
+      confirmLabel: 'Close Duty',
     );
     if (reason == null || !mounted) return;
 
@@ -348,7 +348,7 @@ class _AssignedJobCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
-              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Job'),
+              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Duty'),
             ),
           ],
           if (job.myApplication != null) ...[
@@ -390,8 +390,8 @@ class _AssignedRequirementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Job in Posted by Organisation '
-            '${requirement.city != null ? (City.displayNames[requirement.city] ?? requirement.city!) : ''}',
+            'Job Posted by Organisation'
+            '${requirement.city != null ? ' in ${City.displayNames[requirement.city] ?? requirement.city!}' : ''}',
             style: const TextStyle(fontSize: AppTypography.body, fontWeight: FontWeight.bold, color: AppColors.error),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -450,7 +450,7 @@ class _AssignedRequirementCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
-              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Requirement'),
+              child: _CloseButton(completing: completing, onPressed: onMarkComplete, label: 'Close Duty'),
             ),
           ],
           if (requirement.myApplication != null) ...[

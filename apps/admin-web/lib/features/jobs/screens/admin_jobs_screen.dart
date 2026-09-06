@@ -36,23 +36,27 @@ class AdminJobsScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminJobsScreen> createState() => _AdminJobsScreenState();
 }
 
-/// Pre-seeds the merged Jobs screen's filters to a single poster's
-/// postings — passed as `/jobs`'s route argument by the "View Jobs" redirect
-/// on a Rehab/Hospitals or Patients/Family row. [organisationType] set means
-/// [postedByUserId] is an organisation account (scopes to the organisation-
-/// requirements fetch only); left null means it's an individual account
-/// (scopes to the jobs fetch only, via `posted_by_role=individual`). Every
-/// other filter (search/city/status/etc.) stays available to narrow further
-/// once landed — this only seeds the initial view, it doesn't lock anything.
+/// Pre-seeds the merged Jobs screen's filters — passed as `/jobs`'s route
+/// argument either by the "View Jobs" redirect on a Rehab/Hospitals or
+/// Patients/Family row ([postedByUserId] set), or by the Dashboard's "Needs
+/// Approval" tile ([status] set, no poster narrowing at all). [organisationType]
+/// set means [postedByUserId] is an organisation account (scopes to the
+/// organisation-requirements fetch only); [postedByUserId] set with
+/// [organisationType] left null means it's an individual account (scopes to
+/// the jobs fetch only, via `posted_by_role=individual`). Every other filter
+/// (search/city/status/etc.) stays available to narrow further once landed —
+/// this only seeds the initial view, it doesn't lock anything.
 class JobsScreenInitialFilter {
-  final String postedByUserId;
-  final String postedByLabel;
+  final String? postedByUserId;
+  final String? postedByLabel;
   final String? organisationType;
+  final String? status;
 
   const JobsScreenInitialFilter({
-    required this.postedByUserId,
-    required this.postedByLabel,
+    this.postedByUserId,
+    this.postedByLabel,
     this.organisationType,
+    this.status,
   });
 }
 
@@ -153,13 +157,16 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     super.initState();
     final initialFilter = widget.initialFilter;
     if (initialFilter != null) {
-      _filterPostedByLabel = initialFilter.postedByLabel;
-      if (initialFilter.organisationType != null) {
-        _filterPosterType = initialFilter.organisationType;
-        _filterOrgPostedBy = initialFilter.postedByUserId;
-      } else {
-        _filterPosterType = UserRole.individual;
-        _filterPostedBy = initialFilter.postedByUserId;
+      _filterStatus = initialFilter.status;
+      if (initialFilter.postedByUserId != null) {
+        _filterPostedByLabel = initialFilter.postedByLabel;
+        if (initialFilter.organisationType != null) {
+          _filterPosterType = initialFilter.organisationType;
+          _filterOrgPostedBy = initialFilter.postedByUserId;
+        } else {
+          _filterPosterType = UserRole.individual;
+          _filterPostedBy = initialFilter.postedByUserId;
+        }
       }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -414,18 +421,34 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     await _load();
   }
 
-  /// Only offered for a pending_review requirement — a bare approve click,
-  /// no fields to fill in (the organisation set everything itself).
-  Future<void> _approveRequirement(
-      AdminOrganisationRequirement requirement) async {
+  /// Always offered, any status — admin can edit any org-owned field;
+  /// saving from pending_review (or closed) also approves/reposts it.
+  Future<void> _editRequirement(AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => ApproveRequirementDialog(
+      builder: (dialogContext) => EditRequirementDialog(
         requirement: requirement,
-        onSubmit: () async {
-          await ref
-              .read(adminOrganisationRequirementsRepositoryProvider)
-              .approve(requirement.id);
+        onSubmit: ({
+          required typeOfNurse,
+          typeOfNurseOther,
+          required accommodationProvided,
+          required foodProvided,
+          specialSkills,
+          required numberOfVacancies,
+          preferredGender,
+          required durationType,
+        }) async {
+          await ref.read(adminOrganisationRequirementsRepositoryProvider).edit(
+                requirement.id,
+                typeOfNurse: typeOfNurse,
+                typeOfNurseOther: typeOfNurseOther,
+                accommodationProvided: accommodationProvided,
+                foodProvided: foodProvided,
+                specialSkills: specialSkills,
+                numberOfVacancies: numberOfVacancies,
+                preferredGender: preferredGender,
+                durationType: durationType,
+              );
           await _load();
         },
       ),
@@ -482,21 +505,18 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     }
   }
 
-  /// Row tap opens the full detail read-only; its own Approve button (shown
-  /// only for a pending_review requirement) hands off to
-  /// _approveRequirement.
+  /// Row tap opens the full detail read-only; its own Edit button (always
+  /// offered, any status) hands off to _editRequirement.
   Future<void> _viewRequirementDetail(
       AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => RequirementReadOnlyDialog(
         requirement: requirement,
-        onApprove: requirement.status == JobStatus.pendingReview
-            ? () {
-                Navigator.of(dialogContext).pop();
-                _approveRequirement(requirement);
-              }
-            : null,
+        onEdit: () {
+          Navigator.of(dialogContext).pop();
+          _editRequirement(requirement);
+        },
       ),
     );
   }
@@ -920,10 +940,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         _RequirementEntry(:final requirement) => RequirementRow(
                             requirement: requirement,
                             onTap: () => _viewRequirementDetail(requirement),
-                            onApprove:
-                                requirement.status == JobStatus.pendingReview
-                                    ? () => _approveRequirement(requirement)
-                                    : null,
+                            onEdit: () => _editRequirement(requirement),
                             onReject:
                                 requirement.status == JobStatus.pendingReview
                                     ? () => _rejectRequirement(requirement)

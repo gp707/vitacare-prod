@@ -67,7 +67,6 @@ class ErrorCodes {
     'JOB_016': 'Another applicant is already accepted for this job',
     'JOB_017': 'Only a cancelled requirement can be reactivated',
     'JOB_018': 'Too many items selected for bulk delete — narrow your search first',
-    'JOB_019': 'All vacancies for this requirement have already been filled',
     'JOB_020': 'Invalid close reason value',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',

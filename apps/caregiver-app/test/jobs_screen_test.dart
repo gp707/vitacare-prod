@@ -56,6 +56,7 @@ JobModel _job({
   String frequencyOfCare = 'daily',
   String? startDate,
   String? careDuration,
+  int? applicantCount,
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
@@ -75,6 +76,7 @@ JobModel _job({
     'posted_at': postedAt ?? DateTime.now().toUtc().toIso8601String(),
     'created_at': '2026-08-01T10:00:00Z',
     'my_application': myApplication,
+    'applicant_count': applicantCount,
     'care_receiver': {
       'id': 'cr-1',
       'age': 78,
@@ -97,6 +99,7 @@ OrganisationRequirementModel _requirement({
   int requirementNumber = 7,
   String? postedAt,
   Map<String, dynamic>? myApplication,
+  int? applicantCount,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -114,6 +117,7 @@ OrganisationRequirementModel _requirement({
     'city': 'bangalore',
     'area': 'Indiranagar',
     'my_application': myApplication,
+    'applicant_count': applicantCount,
   });
 }
 
@@ -361,6 +365,28 @@ void main() {
     await _expandDetails(tester);
 
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
+  });
+
+  testWidgets('shows "N applied" next to the job id when applicant_count is set', (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job(applicantCount: 3)]));
+
+    expect(find.textContaining('3 applied'), findsOneWidget);
+  });
+
+  testWidgets('shows no applicant count line for a job when applicant_count is not set', (tester) async {
+    await _pump(tester, _FakeJobsRepository([_job()]));
+
+    expect(find.textContaining('applied'), findsNothing);
+  });
+
+  testWidgets('shows "N applied" next to the requirement id when applicant_count is set', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement(applicantCount: 5)]),
+    );
+
+    expect(find.textContaining('5 applied'), findsOneWidget);
   });
 
   testWidgets('renders fine and shows no description line when the job has none set (now optional)',

@@ -194,6 +194,14 @@ class _JobIdLine extends StatelessWidget {
             style: const TextStyle(
                 fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success),
           ),
+          // Only present on the browse list (GET /caregiver/jobs) — null on
+          // the assigned/MyJobs list, where this doesn't apply.
+          if (job.applicantCount != null)
+            TextSpan(
+              text: '  ·  ${job.applicantCount} applied',
+              style: const TextStyle(
+                  fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
         ],
       ),
     );

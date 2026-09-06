@@ -24,6 +24,7 @@ import { FcmService } from '../fcm/fcm.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
 import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation-requirement.dto';
+import { AdminEditOrganisationRequirementDto } from './dto/admin-edit-organisation-requirement.dto';
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
@@ -271,12 +272,13 @@ export class OrganisationRequirementsService {
    *  `accepted` is valid from `applied` (a normal accept), `rejected`
    *  ("Accept Anyway" — reconsidering either side's earlier decline), or
    *  `completed` (re-engaging a caregiver who already closed this same
-   *  requirement themselves). Up to `number_of_vacancies` applicants can
-   *  be `accepted` on a requirement at once (an org posting for, say, 3
-   *  vacancies can hire 3 different caregivers onto the same requirement)
-   *  — accepting one more than that is JOB_019. `rejected` on a
-   *  previously-`accepted` application undoes that one acceptance,
-   *  freeing a vacancy slot back up; `rejected` on a still-`applied`
+   *  requirement themselves). Any number of applicants can be `accepted`
+   *  on a requirement at once — `number_of_vacancies` is purely informational
+   *  (what the org told caregivers it's hiring for), never enforced as a
+   *  cap on how many can actually be accepted; an earlier iteration
+   *  capped accepting at that number (JOB_019), which was reversed on
+   *  explicit follow-up request. `rejected` on a previously-`accepted`
+   *  application undoes that one acceptance; `rejected` on a still-`applied`
    *  application just declines it. Anything else is JOB_007. Never checks
    *  or changes the requirement's own status (active/closed/cancelled) —
    *  unlike JobsService's own decideApplication, accepting a candidate here
@@ -308,15 +310,6 @@ export class OrganisationRequirementsService {
 
     if (!isAccepting && !isUndoAccept && !isRejectFromApplied) {
       throw new AppException('JOB_007');
-    }
-
-    if (isAccepting) {
-      const requirement = await this.requirementsRepo.findById(requirementId);
-      if (!requirement) throw new AppException('GEN_002');
-      const acceptedCount = await this.applicationsRepo.countAcceptedForRequirement(requirementId);
-      if (acceptedCount >= requirement.number_of_vacancies) {
-        throw new AppException('JOB_019');
-      }
     }
 
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
@@ -491,35 +484,62 @@ export class OrganisationRequirementsService {
     };
   }
 
-  /** Admin's entire role on an organisation requirement is a pure click —
-   *  approve (this method, no fields at all) or reject (below, reason
-   *  only). Every field is org-owned, set via the org's own create/self-
-   *  edit endpoints; admin never sees or touches any of them. Activates
-   *  (push-broadcasts) and stamps posted_at from pending_review OR a
-   *  previously-closed requirement — same repost-on-reactivate behavior
-   *  JobsService.updateJob has, just with no fields to submit alongside
-   *  it. A no-op (no push, no audit entry) if called on an already-active
-   *  requirement, since admin-web only shows this action for
-   *  pending_review/closed ones in the first place. */
-  async approveRequirement(adminId: string, id: string, ipAddress: string | null) {
+  /** Admin can edit any org-owned field on a requirement — the same fields
+   *  the org itself can edit via editRequirement above — reversing the
+   *  original "admin's entire role is a pure approve/reject click, no
+   *  fields at all" design on explicit follow-up request. [dto] is a
+   *  partial update (every field optional): anything omitted keeps its
+   *  existing value, so a bare/empty body still works as a pure approve,
+   *  same as the old approveRequirement this replaces. Saving from
+   *  pending_review (or a previously-closed requirement) also activates it
+   *  and re-broadcasts the "New Organisation Opening" push — same
+   *  repost-on-save behavior JobsService.updateJob has for jobs; saving an
+   *  already-active requirement just persists the field changes, no
+   *  re-broadcast. Unlike the org's own editRequirement, this is NOT
+   *  blocked by an existing application (JOB_014) — admin may need to fix
+   *  a field after caregivers have already applied. */
+  async adminEditRequirement(
+    adminId: string,
+    id: string,
+    dto: AdminEditOrganisationRequirementDto,
+    ipAddress: string | null,
+  ) {
     const existing = await this.requirementsRepo.findById(id);
     if (!existing) throw new AppException('GEN_002');
-    if (existing.status === JobStatus.ACTIVE) return existing;
 
-    const requirement = await this.requirementsRepo.activate(id);
+    const typeOfNurse = dto.type_of_nurse ?? existing.type_of_nurse;
+    const typeOfNurseOther =
+      typeOfNurse === TypeOfNurse.OTHERS
+        ? (dto.type_of_nurse_other ?? existing.type_of_nurse_other ?? undefined)
+        : undefined;
+    this.validateTypeOfNurseOther(typeOfNurse, typeOfNurseOther);
 
-    await this.fcmService.sendToAllCaregivers(
-      'New Organisation Opening',
-      `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
-    );
+    let requirement = await this.requirementsRepo.updateOwnFields(id, {
+      type_of_nurse: typeOfNurse,
+      type_of_nurse_other: typeOfNurse === TypeOfNurse.OTHERS ? (typeOfNurseOther ?? null) : null,
+      accommodation_provided: dto.accommodation_provided ?? existing.accommodation_provided,
+      food_provided: dto.food_provided ?? existing.food_provided,
+      special_skills: dto.special_skills !== undefined ? dto.special_skills : existing.special_skills,
+      number_of_vacancies: dto.number_of_vacancies ?? existing.number_of_vacancies,
+      preferred_gender: dto.preferred_gender !== undefined ? dto.preferred_gender : existing.preferred_gender,
+      duration_type: dto.duration_type ?? existing.duration_type!,
+    });
+
+    if (existing.status !== JobStatus.ACTIVE) {
+      requirement = await this.requirementsRepo.activate(id);
+      await this.fcmService.sendToAllCaregivers(
+        'New Organisation Opening',
+        `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
+      );
+    }
 
     await this.auditService.log({
       userId: adminId,
       action: AuditAction.ORG_REQUIREMENT_UPDATED,
       entityType: 'organisation_requirements',
       entityId: requirement.id,
-      beforeValue: { status: existing.status },
-      afterValue: { status: requirement.status },
+      beforeValue: { type_of_nurse: existing.type_of_nurse, status: existing.status },
+      afterValue: { type_of_nurse: requirement.type_of_nurse, status: requirement.status },
       ipAddress,
     });
 

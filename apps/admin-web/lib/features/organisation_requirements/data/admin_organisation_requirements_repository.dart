@@ -162,12 +162,39 @@ class AdminOrganisationRequirementsRepository {
     }
   }
 
-  /// Approves a pending_review requirement — a bare click, no body. The
-  /// organisation set every field on the requirement itself; admin owns
-  /// none of them (see "NurseNow" in CLAUDE.md).
-  Future<void> approve(String id) async {
+  /// Admin can edit any org-owned field, always called with the full
+  /// current form state from EditRequirementDialog (never a bare/partial
+  /// call) — [typeOfNurseOther]/[specialSkills]/[preferredGender] are sent
+  /// explicitly as `null` when cleared, not omitted, since the backend's
+  /// merge treats an omitted key as "leave unchanged" but an explicit
+  /// `null` as "clear it". Saving from pending_review (or a previously-
+  /// closed requirement) also activates it; saving an already-active one
+  /// just persists the field changes.
+  Future<void> edit(
+    String id, {
+    required String typeOfNurse,
+    String? typeOfNurseOther,
+    required bool accommodationProvided,
+    required bool foodProvided,
+    String? specialSkills,
+    required int numberOfVacancies,
+    String? preferredGender,
+    required String durationType,
+  }) async {
     try {
-      await _dio.patch('/admin/organisation-requirements/$id');
+      await _dio.patch(
+        '/admin/organisation-requirements/$id',
+        data: {
+          'type_of_nurse': typeOfNurse,
+          'type_of_nurse_other': typeOfNurseOther,
+          'accommodation_provided': accommodationProvided,
+          'food_provided': foodProvided,
+          'special_skills': specialSkills,
+          'number_of_vacancies': numberOfVacancies,
+          'preferred_gender': preferredGender,
+          'duration_type': durationType,
+        },
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

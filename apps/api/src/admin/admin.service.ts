@@ -3,13 +3,17 @@ import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, DocumentType, Validation } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
-import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
+import { AdminCaregiversRepository, DashboardStats } from '../database/repositories/admin-caregivers.repository';
 import { AdminNotesRepository } from '../database/repositories/admin-notes.repository';
 import { AuditLogsRepository } from '../database/repositories/audit-logs.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { AdminIndividualsRepository } from '../database/repositories/admin-individuals.repository';
+import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
+import { JobsRepository } from '../database/repositories/jobs.repository';
+import { OrganisationRequirementsRepository } from '../database/repositories/organisation-requirements.repository';
 import { DatabaseService } from '../database/database.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
@@ -35,11 +39,28 @@ export class AdminService {
     private readonly fcmService: FcmService,
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly usersRepo: UsersRepository,
+    private readonly individualsRepo: AdminIndividualsRepository,
+    private readonly organisationsRepo: AdminOrganisationsRepository,
+    private readonly jobsRepo: JobsRepository,
+    private readonly organisationRequirementsRepo: OrganisationRequirementsRepository,
     private readonly db: DatabaseService,
   ) {}
 
-  async getDashboardStats() {
-    return this.caregiversRepo.getDashboardStats();
+  async getDashboardStats(): Promise<DashboardStats> {
+    const [caregiverStats, jobsPendingApproval, requirementsPendingApproval, newOrganisations7d, newIndividuals7d] =
+      await Promise.all([
+        this.caregiversRepo.getDashboardStats(),
+        this.jobsRepo.countPendingApproval(),
+        this.organisationRequirementsRepo.countPendingApproval(),
+        this.organisationsRepo.countNewLast7Days(),
+        this.individualsRepo.countNewLast7Days(),
+      ]);
+    return {
+      ...caregiverStats,
+      jobs_pending_approval: jobsPendingApproval + requirementsPendingApproval,
+      new_organisations_7d: newOrganisations7d,
+      new_individuals_7d: newIndividuals7d,
+    };
   }
 
   async listCaregivers(query: ListCaregiversQueryDto) {

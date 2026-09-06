@@ -233,11 +233,13 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: _specialSkillsController,
-              maxLines: 3,
+              maxLines: 6,
+              maxLength: Validation.specialSkillsMaxLength,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.star_outline),
                 labelText: 'Special skills required (optional)',
                 border: OutlineInputBorder(),
+                alignLabelWithHint: true,
               ),
             ),
             if (_error != null) ...[

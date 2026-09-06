@@ -4,6 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/dashboard_repository.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -41,6 +42,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   void _goToCaregivers({String? status}) {
     Navigator.of(context).pushNamed('/caregivers', arguments: status);
+  }
+
+  void _goToPendingApprovalJobs() {
+    Navigator.of(context).pushNamed(
+      '/jobs',
+      arguments: const JobsScreenInitialFilter(status: 'pending_review'),
+    );
+  }
+
+  void _goToOrganisations() {
+    Navigator.of(context).pushNamed('/rehab-hospitals');
+  }
+
+  void _goToIndividuals() {
+    Navigator.of(context).pushNamed('/patients-family');
   }
 
   @override
@@ -114,6 +130,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           label: 'Pending Edits',
                           value: _stats!.pendingEditsCount,
                           color: AppColors.warning,
+                        ),
+                        _StatCard(
+                          icon: Icons.fact_check,
+                          label: 'Needs Approval',
+                          value: _stats!.jobsPendingApproval,
+                          color: AppColors.warning,
+                          onTap: _goToPendingApprovalJobs,
+                        ),
+                        _StatCard(
+                          icon: Icons.local_hospital,
+                          label: 'New Organisations (7d)',
+                          value: _stats!.newOrganisations7d,
+                          onTap: _goToOrganisations,
+                        ),
+                        _StatCard(
+                          icon: Icons.person_add_alt,
+                          label: 'New Patients (7d)',
+                          value: _stats!.newIndividuals7d,
+                          onTap: _goToIndividuals,
                         ),
                       ],
                     ),

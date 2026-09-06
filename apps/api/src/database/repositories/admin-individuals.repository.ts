@@ -49,6 +49,18 @@ function buildIndividualsWhereClause(filters: AdminIndividualListFilters): {
 export class AdminIndividualsRepository {
   constructor(private readonly db: DatabaseService) {}
 
+  /** Newly onboarded individual (patient/family) accounts in the last 7
+   *  days — feeds the dashboard's "New Patients (7d)" tile, same window
+   *  convention as AdminCaregiversRepository.getDashboardStats's own
+   *  new_registrations_7d. */
+  async countNewLast7Days(): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM users
+       WHERE role = 'individual' AND created_at >= NOW() - INTERVAL '7 days'`,
+    );
+    return Number(result.rows[0].count);
+  }
+
   async listIndividuals(
     filters: AdminIndividualListFilters,
     page: ListPage,

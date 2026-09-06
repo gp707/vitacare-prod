@@ -14,6 +14,10 @@ describe('AdminService', () => {
   let fcmService: any;
   let profilesRepo: any;
   let usersRepo: any;
+  let individualsRepo: any;
+  let organisationsRepo: any;
+  let jobsRepo: any;
+  let organisationRequirementsRepo: any;
   let db: any;
 
   const detail = {
@@ -70,6 +74,10 @@ describe('AdminService', () => {
       appendOtherDocumentUrl: jest.fn(),
     };
     usersRepo = { updateFullName: jest.fn(), findById: jest.fn(), updatePasswordHash: jest.fn() };
+    individualsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
+    organisationsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
+    jobsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
+    organisationRequirementsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
     db = { withTransaction: jest.fn((fn: any) => fn({ query: jest.fn() })) };
 
     service = new AdminService(
@@ -83,8 +91,43 @@ describe('AdminService', () => {
       fcmService,
       profilesRepo,
       usersRepo,
+      individualsRepo,
+      organisationsRepo,
+      jobsRepo,
+      organisationRequirementsRepo,
       db,
     );
+  });
+
+  describe('getDashboardStats', () => {
+    it('merges caregiver stats with jobs-pending-approval (jobs + organisation requirements combined) and new organisation/individual counts', async () => {
+      caregiversRepo.getDashboardStats.mockResolvedValue({
+        total_caregivers: 10,
+        pending_call: 2,
+        available: 5,
+        unavailable: 1,
+        assigned: 1,
+        rejected: 1,
+        pending_edits_count: 0,
+        new_registrations_24h: 1,
+        new_registrations_7d: 3,
+      });
+      jobsRepo.countPendingApproval.mockResolvedValue(4);
+      organisationRequirementsRepo.countPendingApproval.mockResolvedValue(2);
+      organisationsRepo.countNewLast7Days.mockResolvedValue(3);
+      individualsRepo.countNewLast7Days.mockResolvedValue(7);
+
+      const result = await service.getDashboardStats();
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          total_caregivers: 10,
+          jobs_pending_approval: 6,
+          new_organisations_7d: 3,
+          new_individuals_7d: 7,
+        }),
+      );
+    });
   });
 
   describe('listCaregivers', () => {

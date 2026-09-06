@@ -58,6 +58,12 @@ export interface OrganisationRequirementListItemForAdmin extends OrganisationReq
  *  identically for both jobs and organisation requirements. */
 export interface OrganisationRequirementWithMyApplication extends OrganisationRequirementWithOrg {
   my_application: MyApplicationSummary | null;
+  /** Total distinct caregivers who have ever applied (any status — one row
+   *  per caregiver per requirement via the upsert) — shown to every
+   *  browsing caregiver as a plain "N applied" count, same convention as
+   *  JobsRepository.listActiveForCaregiver's own applicant_count. Only
+   *  populated by listActiveForCaregiver below. */
+  applicant_count?: number;
 }
 
 export interface CreateOrganisationRequirementInput {
@@ -135,6 +141,15 @@ export class OrganisationRequirementsRepository {
     return result.rows[0];
   }
 
+  /** Requirements awaiting admin's legitimacy review. Feeds the dashboard's
+   *  "Needs Approval" tile alongside JobsRepository.countPendingApproval. */
+  async countPendingApproval(): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM organisation_requirements WHERE status = 'pending_review'`,
+    );
+    return Number(result.rows[0].count);
+  }
+
   async findById(id: string): Promise<OrganisationRequirementRecord | null> {
     const result = await this.db.query<OrganisationRequirementRecord>(
       'SELECT * FROM organisation_requirements WHERE id = $1',
@@ -163,6 +178,8 @@ export class OrganisationRequirementsRepository {
   ): Promise<OrganisationRequirementWithMyApplication[]> {
     const result = await this.db.query<OrganisationRequirementWithMyApplication>(
       `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
+         (SELECT COUNT(*)::int FROM organisation_requirement_applications ora2
+            WHERE ora2.requirement_id = r.id) AS applicant_count,
          CASE WHEN ora.id IS NULL THEN NULL ELSE jsonb_build_object(
            'status', ora.status,
            'applied_at', ora.applied_at,

@@ -10,6 +10,7 @@ import { OrganisationRequirementsService } from './organisation-requirements.ser
 import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-requirements-query.dto';
 import { RejectJobDto } from '../jobs/dto/reject-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { AdminEditOrganisationRequirementDto } from './dto/admin-edit-organisation-requirement.dto';
 
 @Controller('admin/organisation-requirements')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,13 +28,17 @@ export class AdminOrganisationRequirementsController {
     return this.requirementsService.getRequirementDetailForAdmin(id);
   }
 
-  /** Admin's entire role on an organisation requirement is a pure click —
-   *  approve (this endpoint, no body) or reject (below, reason only).
-   *  Every field is org-owned; admin never sets or edits any of them. */
+  /** Admin can edit any org-owned field here — a bare/empty body still
+   *  works as a pure approve (see adminEditRequirement). */
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  approve(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
-    return this.requirementsService.approveRequirement(user.sub, id, ip);
+  edit(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: AdminEditOrganisationRequirementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.requirementsService.adminEditRequirement(user.sub, id, dto, ip);
   }
 
   @Patch(':id/reject')

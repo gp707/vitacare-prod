@@ -64,6 +64,18 @@ function buildOrganisationsWhereClause(filters: AdminOrganisationListFilters): {
 export class AdminOrganisationsRepository {
   constructor(private readonly db: DatabaseService) {}
 
+  /** Newly onboarded organisation (hospital/rehab/clinic) accounts in the
+   *  last 7 days — feeds the dashboard's "New Organisations (7d)" tile,
+   *  same window convention as AdminIndividualsRepository.countNewLast7Days
+   *  / AdminCaregiversRepository.getDashboardStats's new_registrations_7d. */
+  async countNewLast7Days(): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM users
+       WHERE role = 'organisation' AND created_at >= NOW() - INTERVAL '7 days'`,
+    );
+    return Number(result.rows[0].count);
+  }
+
   async listOrganisations(
     filters: AdminOrganisationListFilters,
     page: ListPage,

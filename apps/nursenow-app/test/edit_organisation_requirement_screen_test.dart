@@ -134,6 +134,10 @@ void main() {
     expect(accommodationSwitch.value, isTrue);
     final foodSwitch = tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Food provided?'));
     expect(foodSwitch.value, isTrue);
+
+    final specialSkillsField =
+        tester.widget<TextField>(find.widgetWithText(TextField, 'Special skills required (optional)'));
+    expect(specialSkillsField.maxLength, Validation.specialSkillsMaxLength);
   });
 
   testWidgets('saves changes and calls editRequirement with the requirement id', (tester) async {
