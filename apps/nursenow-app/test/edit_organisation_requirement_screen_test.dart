@@ -135,9 +135,11 @@ void main() {
     final foodSwitch = tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Food provided?'));
     expect(foodSwitch.value, isTrue);
 
+    // No hard maxLength — the org can type/paste past the limit and see a
+    // live red warning instead of being silently truncated.
     final specialSkillsField =
-        tester.widget<TextField>(find.widgetWithText(TextField, 'Special skills required (optional)'));
-    expect(specialSkillsField.maxLength, Validation.specialSkillsMaxLength);
+        tester.widget<TextField>(find.widgetWithText(TextField, 'Job description/Special Skills (optional)'));
+    expect(specialSkillsField.maxLength, isNull);
   });
 
   testWidgets('saves changes and calls editRequirement with the requirement id', (tester) async {
@@ -166,6 +168,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Enter a number between 1 and 49'), findsOneWidget);
+    expect(repo.editCalled, isFalse);
+  });
+
+  testWidgets(
+      'shows a red border/error message and blocks Save once Special Skills is typed/pasted past '
+      '${Validation.specialSkillsMaxLength} characters', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo, requirement: _requirement());
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Job description/Special Skills (optional)'),
+      'a' * (Validation.specialSkillsMaxLength + 20),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Please enter less than ${Validation.specialSkillsMaxLength} characters'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+          '${Validation.specialSkillsMaxLength + 20} entered · 20 characters over the ${Validation.specialSkillsMaxLength} character limit'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
     expect(repo.editCalled, isFalse);
   });
 

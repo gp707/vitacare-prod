@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../widgets/special_skills_char_limit_note.dart';
 
 /// The "exclusive" org posting form — this is the whole form. No About
 /// Patient section, no city/area/duty_type (every requirement inherits the
@@ -43,6 +44,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _typeOfNurseOtherKey = GlobalKey();
   final _numberOfVacanciesKey = GlobalKey();
   final _durationTypeKey = GlobalKey();
+  final _specialSkillsKey = GlobalKey();
 
   @override
   void initState() {
@@ -70,12 +72,19 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
 
   bool get _isDurationTypeValid => _durationType != null;
 
+  /// Optional field, so an empty value is always valid — only invalid once
+  /// typed/pasted past Validation.specialSkillsMaxLength, since the field
+  /// itself has no hard Flutter `maxLength` (see SpecialSkillsCharLimitNote).
+  bool get _isSpecialSkillsValid =>
+      _specialSkillsController.text.length <= Validation.specialSkillsMaxLength;
+
   bool get _canSubmit =>
       !_saving &&
       _isTypeOfNurseValid &&
       _isTypeOfNurseOtherValid &&
       _isNumberOfVacanciesValid &&
-      _isDurationTypeValid;
+      _isDurationTypeValid &&
+      _isSpecialSkillsValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one seen when Submit scrolls/focuses to it.
@@ -84,6 +93,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
         _durationTypeKey,
+        if (!_isSpecialSkillsValid) _specialSkillsKey,
       ];
 
   @override
@@ -239,16 +249,27 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(
+              key: _specialSkillsKey,
               controller: _specialSkillsController,
               maxLines: 6,
-              maxLength: Validation.specialSkillsMaxLength,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.star_outline),
-                labelText: 'Special skills required (optional)',
-                border: OutlineInputBorder(),
+              // Deliberately no `maxLength` here — it would silently
+              // truncate a long paste (and can't show an over-limit count
+              // at all). The org can keep typing/pasting past
+              // Validation.specialSkillsMaxLength and see exactly how far
+              // over in SpecialSkillsCharLimitNote below; the field's own
+              // border/errorText turns red immediately once they do.
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.star_outline),
+                labelText: 'Job description/Special Skills (optional)',
+                border: const OutlineInputBorder(),
                 alignLabelWithHint: true,
+                errorText: !_isSpecialSkillsValid
+                    ? 'Please enter less than ${Validation.specialSkillsMaxLength} characters'
+                    : null,
               ),
             ),
+            SpecialSkillsCharLimitNote(currentLength: _specialSkillsController.text.length),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(_error!, style: const TextStyle(color: AppColors.error)),

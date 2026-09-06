@@ -300,7 +300,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const SizedBox(height: AppSpacing.lg),
             CheckboxListTile(
               key: const Key('registerAsOrganisationCheckbox'),
-              title: const Text('Register as Organisation'),
+              title: const Text('If an Organisation click here (Hospitals/Rehab/Clinics/Agencies)'),
               subtitle: const Text(
                 'Hospital / Rehab — post care requirements on behalf of your organisation. '
                 'Leave unchecked to register as an Individual (patient, or a family '
