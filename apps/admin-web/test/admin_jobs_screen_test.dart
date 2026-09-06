@@ -1792,6 +1792,39 @@ void main() {
   });
 
   testWidgets(
+      'Applicants dialog still shows the earlier Declined entry (with reason) after accepting anyway — '
+      'history is no longer lost the moment status flips to accepted', (tester) async {
+    final repo = _FakeAdminJobsRepository(
+      [_job(status: 'closed')],
+      applications: [
+        _application(
+          status: 'accepted',
+          appliedAt: '2026-08-01T10:00:00Z',
+          rejectedAt: '2026-08-02T09:00:00Z',
+          declineReason: 'Not a fit',
+          decidedByName: 'Priya Admin',
+          acceptedAt: '2026-08-03T11:30:00Z',
+        ),
+      ],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Applied: ${_expectedDateTime('2026-08-01T10:00:00Z')}'), findsOneWidget);
+    expect(
+      find.text('Declined by Priya Admin: ${_expectedDateTime('2026-08-02T09:00:00Z')}'),
+      findsOneWidget,
+    );
+    expect(find.text('Reason: Not a fit'), findsOneWidget);
+    expect(
+      find.text('Accepted: ${_expectedDateTime('2026-08-03T11:30:00Z')} by Priya Admin'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
       'Applicants dialog shows who declined a previously-accepted applicant, and when',
       (tester) async {
     final repo = _FakeAdminJobsRepository(

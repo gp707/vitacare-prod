@@ -201,8 +201,11 @@ class _ApplicationTimeline extends StatelessWidget {
         '${application.decidedByName != null ? ' by ${application.decidedByName}' : ''}',
       );
     }
-    if (application.status == JobApplicationStatus.rejected &&
-        application.rejectedAt != null) {
+    // Shown whenever rejectedAt is set, regardless of the application's
+    // CURRENT status — so a previously-declined-then-accepted-anyway (or
+    // re-applied) candidate's rejection stays visible as history instead
+    // of silently vanishing.
+    if (application.rejectedAt != null) {
       final decider = application.decidedByName;
       final label = decider != null ? 'Declined by $decider' : 'Declined';
       lines.add(
@@ -213,15 +216,23 @@ class _ApplicationTimeline extends StatelessWidget {
       }
     }
     // A caregiver-initiated close of an accepted job — always "by the
-    // caregiver" themselves, admin is never the one who closes it.
-    if (application.status == JobApplicationStatus.completed &&
-        application.completedAt != null) {
+    // caregiver" themselves, admin is never the one who closes it. Shown
+    // whenever completedAt is set, regardless of current status, same
+    // reasoning as rejectedAt above.
+    if (application.completedAt != null) {
       lines.add(
           'Closed by Caregiver: ${_formatDateTime(DateTime.parse(application.completedAt!).toLocal())}');
       if (application.closeReason != null) {
         lines.add(
             'Reason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}');
       }
+    }
+    // A candidate can re-apply, then be decided on again — shown last since
+    // it always comes after whatever prior outcome it followed. Mirrors
+    // caregiver-app's own ApplicationTimeline.
+    if (application.reappliedAt != null) {
+      lines.add(
+          'Re-applied: ${_formatDateTime(DateTime.parse(application.reappliedAt!).toLocal())}');
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

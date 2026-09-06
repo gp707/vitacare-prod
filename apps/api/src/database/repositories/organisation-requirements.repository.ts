@@ -186,6 +186,7 @@ export class OrganisationRequirementsRepository {
            'accepted_at', ora.accepted_at,
            'rejected_at', ora.rejected_at,
            'completed_at', ora.completed_at,
+           'reapplied_at', ora.reapplied_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
            'decline_reason', ora.decline_reason,
            'close_reason', ora.close_reason

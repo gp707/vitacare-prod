@@ -488,6 +488,76 @@ describe('Organisation (NurseNow) (e2e)', () => {
         .expect(200);
     });
 
+    it('re-applying after being rejected sets reapplied_at, preserves rejected_at/decline_reason as '
+      + 'history, visible to both the caregiver and the organisation — mirrors job_applications', async () => {
+      const org = await registerOrganisation('0038');
+      const created = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      const requirementId = created.body.data.id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/organisation-requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const caregiver = await registerCaregiver('0147');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const applicants = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const applicationId = applicants.body.data[0].id;
+      await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send({ status: 'rejected', reason: 'Not enough experience' })
+        .expect(200);
+
+      // Re-applies.
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/organisation-requirements/${requirementId}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      // Visible to the caregiver themselves.
+      const myList = await request(app.getHttpServer())
+        .get('/v1/caregiver/organisation-requirements')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const myApplication = myList.body.data.find(
+        (r: { id: string }) => r.id === requirementId,
+      ).my_application;
+      expect(myApplication.status).toBe('applied');
+      // The earlier rejection's own date/reason are preserved as history,
+      // not cleared — they used to be wiped out the moment a fresh apply
+      // landed.
+      expect(myApplication.rejected_at).not.toBeNull();
+      expect(myApplication.decline_reason).toBe('Not enough experience');
+      expect(myApplication.reapplied_at).not.toBeNull();
+
+      // Visible to the organisation too.
+      const applicantsAfter = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const applicantAfter = applicantsAfter.body.data[0];
+      expect(applicantAfter.status).toBe('applied');
+      expect(applicantAfter.reapplied_at).not.toBeNull();
+      expect(applicantAfter.rejected_at).not.toBeNull();
+      expect(applicantAfter.decline_reason).toBe('Not enough experience');
+    });
+
     it('the organisation can accept an applicant themselves, assigning the caregiver while the requirement stays active/live', async () => {
       const org = await registerOrganisation('0008');
       const created = await request(app.getHttpServer())
@@ -635,6 +705,21 @@ describe('Organisation (NurseNow) (e2e)', () => {
         [caregiverA.user_id],
       );
       expect(caregiverAProfile.rows[0].verification_status).toBe('assigned');
+
+      // The earlier rejection's own reason/date survive on the now-accepted
+      // application — they used to be wiped out the moment the same row
+      // was accepted.
+      const applicantsAfterAcceptAnyway = await request(app.getHttpServer())
+        .get(`/v1/organisation/requirements/${requirementId}/applications`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .expect(200);
+      const applicantA = applicantsAfterAcceptAnyway.body.data.find(
+        (a: { id: string }) => a.id === appA,
+      );
+      expect(applicantA.status).toBe('accepted');
+      expect(applicantA.accepted_at).not.toBeNull();
+      expect(applicantA.rejected_at).not.toBeNull();
+      expect(applicantA.decline_reason).toBe('Not enough experience');
     }, 30000);
 
     it('allows accepting more candidates than number_of_vacancies — it is informational only, never an accept cap', async () => {

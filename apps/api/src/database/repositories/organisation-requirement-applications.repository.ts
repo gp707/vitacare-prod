@@ -15,6 +15,7 @@ export interface OrganisationRequirementApplicationRecord {
   accepted_at: Date | null;
   rejected_at: Date | null;
   completed_at: Date | null;
+  reapplied_at: Date | null;
   decline_reason: string | null;
   close_reason: string | null;
   created_at: Date;
@@ -56,6 +57,16 @@ export class OrganisationRequirementApplicationsRepository {
     status: JobApplicationStatus,
   ): Promise<OrganisationRequirementApplicationRecord> {
     if (status === JobApplicationStatus.APPLIED) {
+      // Mirrors JobApplicationsRepository.upsert's re-apply cycle exactly —
+      // deliberately does NOT clear accepted_at/rejected_at/completed_at/
+      // decided_by/decline_reason/close_reason from the previous cycle,
+      // so both the caregiver and the org can still see the full prior
+      // history (who decided what, when, and why) instead of it vanishing
+      // the moment a new cycle starts — status alone is the authoritative
+      // "current state" column everywhere else in the codebase, these are
+      // read only for display. Stamps reapplied_at as a "this row was
+      // overwritten by a fresh apply" marker when the row being
+      // overwritten was 'rejected' or 'completed'.
       const result = await this.db.query<OrganisationRequirementApplicationRecord>(
         `INSERT INTO organisation_requirement_applications (requirement_id, profile_id, status, applied_at)
          VALUES ($1, $2, $3, NOW())
@@ -63,10 +74,10 @@ export class OrganisationRequirementApplicationsRepository {
          DO UPDATE SET
            status = EXCLUDED.status,
            applied_at = NOW(),
-           accepted_at = NULL,
-           rejected_at = NULL,
-           decided_by = NULL,
-           decline_reason = NULL,
+           reapplied_at = CASE
+             WHEN organisation_requirement_applications.status IN ('rejected', 'completed') THEN NOW()
+             ELSE organisation_requirement_applications.reapplied_at
+           END,
            updated_at = NOW()
          RETURNING *`,
         [requirementId, profileId, status],
@@ -93,6 +104,13 @@ export class OrganisationRequirementApplicationsRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Accepting (including "Accept Anyway" on a previously-rejected/
+   *  completed application) deliberately never touches decline_reason —
+   *  an accept call never carries a reason in the first place, and
+   *  overwriting it to NULL would destroy the prior rejection's reason
+   *  from the timeline the moment it's accepted anyway; only a reject
+   *  call ever sets decline_reason. Mirrors JobApplicationsRepository.
+   *  decide() exactly. */
   async decide(
     id: string,
     status: JobApplicationStatus,
@@ -101,12 +119,20 @@ export class OrganisationRequirementApplicationsRepository {
     declineReason?: string,
   ): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
-    const timestampColumn = status === JobApplicationStatus.ACCEPTED ? 'accepted_at' : 'rejected_at';
+    if (status === JobApplicationStatus.REJECTED) {
+      await runner.query(
+        `UPDATE organisation_requirement_applications
+         SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [id, status, actorId, declineReason ?? null],
+      );
+      return;
+    }
     await runner.query(
       `UPDATE organisation_requirement_applications
-       SET status = $2, decided_by = $3, decline_reason = $4, ${timestampColumn} = NOW(), updated_at = NOW()
+       SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW()
        WHERE id = $1`,
-      [id, status, actorId, declineReason ?? null],
+      [id, status, actorId],
     );
   }
 
@@ -178,6 +204,7 @@ export class OrganisationRequirementApplicationsRepository {
            'accepted_at', ora.accepted_at,
            'rejected_at', ora.rejected_at,
            'completed_at', ora.completed_at,
+           'reapplied_at', ora.reapplied_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
            'decline_reason', ora.decline_reason,
            'close_reason', ora.close_reason

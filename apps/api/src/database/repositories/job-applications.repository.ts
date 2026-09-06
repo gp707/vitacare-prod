@@ -32,26 +32,31 @@ export class JobApplicationsRepository {
 
   /** One application per (job, caregiver) — re-applying updates in place
    *  rather than creating a duplicate row. Used only for the caregiver's
-   *  own applied/rejected self-action — decided_by stays untouched (NULL,
-   *  unless a fresh 'applied' clears a stale one — see below), which is
-   *  exactly what lets callers tell "caregiver declined it themselves"
-   *  (decided_by IS NULL) apart from "admin declined/undid it" (set). */
+   *  own applied/rejected self-action. */
   async upsert(
     jobId: string,
     profileId: string,
     status: JobApplicationStatus,
   ): Promise<JobApplicationRecord> {
     if (status === JobApplicationStatus.APPLIED) {
-      // A fresh 'applied' starts a new cycle — clear any accepted_at/
-      // rejected_at/completed_at/decided_by left over from a previous one
-      // (e.g. they were rejected, the job reopened, and they applied
-      // again — or they'd been accepted and then rejected/completed the
-      // job themselves, which also reopens the job to active). Before
-      // clearing those, stamp reapplied_at if the row being overwritten
-      // was 'rejected' or 'completed' — otherwise re-applying would leave
-      // no trace it ever happened (see JobsService.applyToJob, which also
-      // uses the pre-upsert status to decide whether to audit-log this as
-      // a plain response or a distinct "re-applied" event).
+      // A fresh 'applied' starts a new cycle, but deliberately does NOT
+      // clear accepted_at/rejected_at/completed_at/decided_by/
+      // decline_reason/close_reason from the previous cycle (e.g. they
+      // were rejected, the job reopened, and they applied again — or
+      // they'd been accepted and then rejected/completed the job
+      // themselves, which also reopens the job to active). `status` alone
+      // is the authoritative "current state" column everywhere else in
+      // the codebase (eligibility checks, the single-accept-at-a-time
+      // guard, etc.) — these timestamp/reason columns are read only for
+      // display (ApplicationTimeline and friends), so leaving the
+      // previous cycle's values in place lets both the caregiver and the
+      // job poster see the full prior history (who decided what, when,
+      // and why) instead of it vanishing the moment a new cycle starts.
+      // reapplied_at is stamped as a "this row was overwritten by a fresh
+      // apply" marker when the row being overwritten was 'rejected' or
+      // 'completed' (see JobsService.applyToJob, which also uses the
+      // pre-upsert status to decide whether to audit-log this as a plain
+      // response or a distinct "re-applied" event).
       const result = await this.db.query<JobApplicationRecord>(
         `INSERT INTO job_applications (job_id, profile_id, status, applied_at)
          VALUES ($1, $2, $3, NOW())
@@ -59,10 +64,6 @@ export class JobApplicationsRepository {
          DO UPDATE SET
            status = EXCLUDED.status,
            applied_at = NOW(),
-           accepted_at = NULL,
-           rejected_at = NULL,
-           completed_at = NULL,
-           decided_by = NULL,
            reapplied_at = CASE
              WHEN job_applications.status IN ('rejected', 'completed') THEN NOW()
              ELSE job_applications.reapplied_at
@@ -101,7 +102,12 @@ export class JobApplicationsRepository {
    *  being set is what tells the caregiver-app "the employer decided
    *  this", not the caregiver themselves. status is only ever 'accepted'
    *  or 'rejected' here (DecideApplicationDto), so the column choice below
-   *  is a fixed, non-user-controlled branch. */
+   *  is a fixed, non-user-controlled branch. Accepting (including "Accept
+   *  Anyway" on a previously-rejected/completed application) deliberately
+   *  never touches decline_reason — an accept call never carries a reason
+   *  in the first place, and overwriting it to NULL would destroy the
+   *  prior rejection's reason from the timeline the moment it's accepted
+   *  anyway; only a reject call ever sets decline_reason. */
   async decide(
     id: string,
     status: JobApplicationStatus,
@@ -110,10 +116,16 @@ export class JobApplicationsRepository {
     declineReason?: string,
   ): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
-    const timestampColumn = status === JobApplicationStatus.ACCEPTED ? 'accepted_at' : 'rejected_at';
+    if (status === JobApplicationStatus.REJECTED) {
+      await runner.query(
+        `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [id, status, adminId, declineReason ?? null],
+      );
+      return;
+    }
     await runner.query(
-      `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, ${timestampColumn} = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id, status, adminId, declineReason ?? null],
+      `UPDATE job_applications SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id, status, adminId],
     );
   }
 

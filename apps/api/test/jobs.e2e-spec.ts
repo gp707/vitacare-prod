@@ -1357,8 +1357,8 @@ describe('Jobs (e2e)', () => {
       expect(myApplicationAfterDecline.decided_by_admin).toBe(false);
     });
 
-    it('re-applying after rejecting sets reapplied_at, clears rejected_at, and audit-logs job_reapplied '
-      + '(not job_response)', async () => {
+    it('re-applying after rejecting sets reapplied_at, preserves rejected_at as history, and audit-logs '
+      + 'job_reapplied (not job_response)', async () => {
       const caregiver = await registerCaregiver('0044');
       await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
         caregiver.user_id,
@@ -1390,7 +1390,10 @@ describe('Jobs (e2e)', () => {
         .expect(200);
       const myApplication = myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application;
       expect(myApplication.status).toBe('applied');
-      expect(myApplication.rejected_at).toBeNull();
+      // Preserved as history, not cleared — this was a plain self-decline
+      // with no reason, so decline_reason stays null either way, but the
+      // timestamp itself now survives a re-apply.
+      expect(myApplication.rejected_at).not.toBeNull();
       expect(myApplication.reapplied_at).not.toBeNull();
 
       const afterReapply = await db.query(
@@ -1399,6 +1402,50 @@ describe('Jobs (e2e)', () => {
       );
       expect(afterReapply.rows[0].action).toBe('job_reapplied');
       expect(afterReapply.rows[0].before_value).toEqual({ status: 'rejected' });
+    }, 30000);
+
+    it('re-applying after an admin rejection with a reason preserves that reason/date/decider in '
+      + 'my_application, alongside the new applied_at/reapplied_at — the full detailed trail, not just a '
+      + 'bare "re-applied" marker', async () => {
+      const caregiver = await registerCaregiver('0045');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const applicationId = detail.body.data.applications[0].id;
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'rejected', reason: 'Not enough experience' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const myJobs = await request(app.getHttpServer())
+        .get('/v1/caregiver/jobs')
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .expect(200);
+      const myApplication = myJobs.body.data.find((j: { id: string }) => j.id === job.id).my_application;
+      expect(myApplication.status).toBe('applied');
+      expect(myApplication.reapplied_at).not.toBeNull();
+      // The admin's earlier rejection (date + reason) is still visible —
+      // it used to be wiped out (rejected_at nulled, decline_reason left
+      // to go stale/invisible) the moment a fresh apply landed.
+      expect(myApplication.rejected_at).not.toBeNull();
+      expect(myApplication.decline_reason).toBe('Not enough experience');
     }, 30000);
 
     it('allows an assigned caregiver to apply too', async () => {
@@ -1592,7 +1639,7 @@ describe('Jobs (e2e)', () => {
 
     it('returns JOB_007 when accepting an already-accepted application', async () => {
       const job = await createJob();
-      const caregiver = await applyAsAvailableCaregiver('0042', job.id);
+      const caregiver = await applyAsAvailableCaregiver('0047', job.id);
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -1938,6 +1985,49 @@ describe('Jobs (e2e)', () => {
         caregiver.user_id,
       ]);
       expect(profile.rows[0].verification_status).toBe('assigned');
+    }, 30000);
+
+    it('"Accept Anyway" on a rejected application preserves the rejection\'s own reason/date/decider in the '
+      + 'timeline instead of losing it the moment status flips to accepted', async () => {
+      const caregiver = await registerCaregiver('0046');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const applicationId = detail.body.data.applications[0].id;
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'rejected', reason: 'Not enough experience' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${applicationId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const detailAfterAccept = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detailAfterAccept.body.data.applications[0];
+      expect(application.status).toBe('accepted');
+      expect(application.accepted_at).not.toBeNull();
+      // The earlier rejection's own reason/date survive — they used to be
+      // wiped out the moment the same row was accepted.
+      expect(application.rejected_at).not.toBeNull();
+      expect(application.decline_reason).toBe('Not enough experience');
     }, 30000);
 
     it('rejects completing a job that was never applied to (JOB_008)', async () => {

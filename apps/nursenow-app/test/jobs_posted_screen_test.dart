@@ -999,6 +999,34 @@ void main() {
     expect(acceptedTop, lessThan(appliedTop));
   });
 
+  testWidgets(
+      'still shows the earlier Rejected entry (with reason) after accepting anyway — history is no longer '
+      'lost the moment status flips to accepted', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
+        applicationsByJobId: {
+          'job-1': [
+            _application(
+              status: 'accepted',
+              appliedAt: '2026-08-01T09:00:00Z',
+              rejectedAt: '2026-08-02T09:00:00Z',
+              declineReason: 'Not a fit',
+              decidedByName: 'Asha Patel',
+              acceptedAt: '2026-08-03T09:00:00Z',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Applied:'), findsOneWidget);
+    expect(find.textContaining('Rejected by Asha Patel:'), findsOneWidget);
+    expect(find.textContaining('Reason: Not a fit'), findsOneWidget);
+    expect(find.textContaining('Accepted by Asha Patel:'), findsOneWidget);
+  });
+
   testWidgets('shows "Rejected by Caregiver" and still shows the phone when the caregiver closed the job themselves '
       'before being accepted', (tester) async {
     await _pump(

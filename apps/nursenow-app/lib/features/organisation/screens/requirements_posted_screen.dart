@@ -720,13 +720,36 @@ String _formatDateTime(DateTime date) =>
 /// Mirrors Individual's own _ApplicantTimeline in jobs_posted_screen.dart
 /// exactly (same entries/ordering), duplicated here since the two screens'
 /// widgets aren't shared.
-class _ApplicantTimeline extends StatelessWidget {
+class _ApplicantTimeline extends StatefulWidget {
   final OrganisationRequirementApplicationModel application;
 
   const _ApplicantTimeline(this.application);
 
   @override
+  State<_ApplicantTimeline> createState() => _ApplicantTimelineState();
+}
+
+class _ApplicantTimelineState extends State<_ApplicantTimeline> {
+  // Same fixed per-row heights as caregiver-app's own ApplicationTimeline
+  // (job_detail_card.dart) and Individual's own _ApplicantTimeline — both
+  // parties see the same "4 rows by default, scroll for the rest"
+  // treatment.
+  static const _fontSize = AppTypography.small;
+  static const _rowHeight = 18.0;
+  static const _reasonRowHeight = 32.0; // a "Rejected + Reason" row wraps to two lines
+  static const _maxHeight = 78.0;
+
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final application = widget.application;
     final entries = <MapEntry<DateTime, String>>[];
     if (application.appliedAt != null) {
       final at = DateTime.parse(application.appliedAt!).toLocal();
@@ -737,7 +760,11 @@ class _ApplicantTimeline extends StatelessWidget {
       final by = application.decidedByName != null ? ' by ${application.decidedByName}' : '';
       entries.add(MapEntry(at, 'Accepted$by: ${_formatDateTime(at)}'));
     }
-    if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
+    // Shown whenever completedAt is set, regardless of the application's
+    // CURRENT status — e.g. still shown as history after the candidate is
+    // later accepted again ("Accept Anyway") or re-applies, neither of
+    // which clear completedAt any more.
+    if (application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
       var text = 'Closed by Caregiver: ${_formatDateTime(at)}';
       if (application.closeReason != null) {
@@ -745,7 +772,11 @@ class _ApplicantTimeline extends StatelessWidget {
       }
       entries.add(MapEntry(at, text));
     }
-    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+    // Shown whenever rejectedAt is set, regardless of the application's
+    // CURRENT status — same reasoning as completedAt above, so a
+    // previously-declined-then-accepted-anyway (or re-applied) candidate's
+    // rejection stays visible as history instead of silently vanishing.
+    if (application.rejectedAt != null) {
       final at = DateTime.parse(application.rejectedAt!).toLocal();
       final label = application.decidedByName != null ? 'Rejected by ${application.decidedByName}' : 'Rejected by Caregiver';
       var text = '$label: ${_formatDateTime(at)}';
@@ -754,6 +785,13 @@ class _ApplicantTimeline extends StatelessWidget {
       }
       entries.add(MapEntry(at, text));
     }
+    // A candidate can re-apply, then be decided on again — shown last since
+    // it always comes after whatever prior outcome it followed. Mirrors
+    // Individual's own _ApplicantTimeline.
+    if (application.reappliedAt != null) {
+      final at = DateTime.parse(application.reappliedAt!).toLocal();
+      entries.add(MapEntry(at, 'Re-applied: ${_formatDateTime(at)}'));
+    }
     if (entries.isEmpty) return const SizedBox.shrink();
 
     // Newest first — the current status is the one worth seeing without
@@ -761,18 +799,32 @@ class _ApplicantTimeline extends StatelessWidget {
     // _ApplicantTimeline and caregiver-app's ApplicationTimeline.
     entries.sort((a, b) => b.key.compareTo(a.key));
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final entry in entries)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              entry.value,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
-            ),
-          ),
-      ],
+    final totalHeight = entries.fold<double>(
+      0,
+      (sum, entry) => sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: _maxHeight),
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: totalHeight > _maxHeight,
+        child: ListView(
+          controller: _controller,
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          children: [
+            for (final entry in entries)
+              SizedBox(
+                height: entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
+                child: Text(
+                  entry.value,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

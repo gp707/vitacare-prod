@@ -142,6 +142,12 @@ class OrganisationRequirementApplicationModel {
   /// being accepted (POST /caregiver/organisation-requirements/:id/complete)
   /// — mirrors JobApplicationModel's own completedAt.
   final String? completedAt;
+  /// Set the moment a fresh apply lands on top of a 'rejected' or
+  /// 'completed' row — mirrors MyApplicationModel/JobApplicationModel's own
+  /// reappliedAt, so both the caregiver and the org can see a re-apply
+  /// cycle happened even after acceptedAt/rejectedAt/completedAt get
+  /// cleared by that same apply.
+  final String? reappliedAt;
   final String? declineReason;
   /// Only ever set once [status] is 'completed' — the caregiver's own
   /// reason for closing this requirement (CaregiverCloseReason), defaults
@@ -164,6 +170,7 @@ class OrganisationRequirementApplicationModel {
     this.acceptedAt,
     this.rejectedAt,
     this.completedAt,
+    this.reappliedAt,
     this.declineReason,
     this.closeReason,
     required this.updatedAt,
@@ -183,6 +190,7 @@ class OrganisationRequirementApplicationModel {
         acceptedAt: json['accepted_at'] as String?,
         rejectedAt: json['rejected_at'] as String?,
         completedAt: json['completed_at'] as String?,
+        reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
         updatedAt: json['updated_at'] as String,

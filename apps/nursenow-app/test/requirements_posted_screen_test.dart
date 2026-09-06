@@ -81,6 +81,7 @@ OrganisationRequirementApplicationModel _application({
   String? acceptedAt,
   String? rejectedAt,
   String? completedAt,
+  String? reappliedAt,
   String? decidedByName,
   String? declineReason,
   String? decidedBy,
@@ -98,6 +99,7 @@ OrganisationRequirementApplicationModel _application({
     'accepted_at': acceptedAt,
     'rejected_at': rejectedAt,
     'completed_at': completedAt,
+    'reapplied_at': reappliedAt,
     'decided_by_name': decidedByName,
     'decline_reason': declineReason,
     'decided_by': decidedBy,
@@ -322,6 +324,29 @@ void main() {
     expect(find.textContaining('Reason: Not enough experience'), findsOneWidget);
   });
 
+  testWidgets(
+      'shows a Re-applied line — and clears the prior rejection — once a caregiver re-applies after being '
+      'rejected (mirrors Individual\'s own timeline and caregiver-app\'s)', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement()],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(
+              status: 'applied',
+              appliedAt: '2026-08-05T09:00:00Z',
+              reappliedAt: '2026-08-05T09:00:00Z',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Re-applied: ${_localDateTime('2026-08-05T09:00:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Rejected'), findsNothing);
+  });
+
   testWidgets('shows "Rejected by Caregiver" (no reason) when the caregiver withdrew their own application',
       (tester) async {
     await _pump(
@@ -372,6 +397,34 @@ void main() {
     );
     // Defaults to "No Reason" when the fixture doesn't specify one.
     expect(find.textContaining('Reason: No Reason'), findsOneWidget);
+  });
+
+  testWidgets(
+      'still shows the earlier Rejected entry (with reason) after accepting anyway — history is no longer '
+      'lost the moment status flips to accepted', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement(status: 'active')],
+        applicationsByRequirementId: {
+          'req-1': [
+            _application(
+              status: 'accepted',
+              appliedAt: '2026-08-01T09:00:00Z',
+              rejectedAt: '2026-08-02T09:00:00Z',
+              declineReason: 'Not a fit',
+              decidedByName: 'Ravi Sharma',
+              acceptedAt: '2026-08-03T09:00:00Z',
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(find.textContaining('Applied:'), findsOneWidget);
+    expect(find.textContaining('Rejected by Ravi Sharma:'), findsOneWidget);
+    expect(find.textContaining('Reason: Not a fit'), findsOneWidget);
+    expect(find.textContaining('Accepted by Ravi Sharma:'), findsOneWidget);
   });
 
   testWidgets('shows a specific close reason in the timeline when the caregiver picked one', (tester) async {

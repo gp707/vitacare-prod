@@ -724,6 +724,26 @@ void main() {
     expect(find.textContaining('Reason: Position already filled.'), findsOneWidget);
   });
 
+  testWidgets('shows a Re-applied line for an organisation requirement too, after re-applying post-rejection',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([]),
+      orgRepo: _FakeOrganisationOpeningsRepository([
+        _requirement(myApplication: {
+          'status': 'applied',
+          'applied_at': '2026-08-20T09:00:00Z',
+          'accepted_at': null,
+          'rejected_at': null,
+          'reapplied_at': '2026-08-20T09:00:00Z',
+          'decided_by_admin': false,
+        }),
+      ]),
+    );
+
+    expect(find.text('Re-applied by you: ${_expected('2026-08-20T09:00:00Z')}'), findsOneWidget);
+  });
+
   testWidgets('tapping Apply calls applyToJob with applied', (tester) async {
     final fakeRepo = _FakeJobsRepository([_job()]);
     await _pump(tester, fakeRepo);
@@ -857,7 +877,35 @@ void main() {
     expect(find.text('Re-applied by you: ${_expected('2026-08-18T09:00:00Z')}'), findsOneWidget);
   });
 
-  testWidgets('shows a visible scrollbar thumb once the timeline has more than 3 entries', (tester) async {
+  testWidgets(
+      'still shows the earlier Declined entry (with reason) after the employer accepts anyway — history is '
+      'no longer lost the moment status flips to accepted', (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          // Now 'accepted' — but rejected_at/decline_reason from the
+          // earlier decline are still present, since decide() no longer
+          // clears them on a later accept.
+          'status': 'accepted',
+          'applied_at': '2026-08-10T09:00:00Z',
+          'rejected_at': '2026-08-11T09:00:00Z',
+          'decline_reason': 'Role filled internally',
+          'accepted_at': '2026-08-12T09:00:00Z',
+          'decided_by_admin': true,
+        }),
+      ]),
+    );
+
+    expect(find.text('Applied by you: ${_expected('2026-08-10T09:00:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Declined by employer: ${_expected('2026-08-11T09:00:00Z')}'), findsOneWidget);
+    expect(find.textContaining('Reason: Role filled internally'), findsOneWidget);
+    expect(find.text('Accepted by employer: ${_expected('2026-08-12T09:00:00Z')}'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows all 4 entries (the full possible trail: Applied, Re-applied, Accepted, Declined) without a '
+      'scrollbar — 4 rows visible by default', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -872,7 +920,32 @@ void main() {
       ]),
     );
 
-    // 4 entries: Applied, Accepted, Re-applied, Declined by employer.
+    expect(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Accepted by employer: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Re-applied by you: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
+    expect(find.text('Declined by employer: ${_expected('2026-08-18T09:00:00Z')}'), findsOneWidget);
+
+    final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
+    expect(scrollbar.thumbVisibility, isFalse);
+  });
+
+  testWidgets('shows a visible, actually-scrollable thumb once a reason line pushes the trail past 4 rows',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([
+        _job(myApplication: {
+          'status': 'rejected',
+          'applied_at': '2026-08-15T09:00:00Z',
+          'accepted_at': '2026-08-16T09:00:00Z',
+          'rejected_at': '2026-08-18T09:00:00Z',
+          'reapplied_at': '2026-08-17T09:00:00Z',
+          'decided_by_admin': true,
+          'decline_reason': 'Role filled internally',
+        }),
+      ]),
+    );
+
     final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
     expect(scrollbar.thumbVisibility, isTrue);
 

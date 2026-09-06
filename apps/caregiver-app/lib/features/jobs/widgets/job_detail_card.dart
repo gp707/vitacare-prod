@@ -573,10 +573,11 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
   static const _fontSize = 13.0;
   static const _rowHeight = 20.0;
   static const _reasonRowHeight = 36.0; // a "Declined + Reason" row wraps to two lines
-  // Strictly less than 4 plain rows (80) and strictly more than 3 (60), so
-  // a 4th entry always genuinely overflows and the scrollbar is never shown
-  // without something real to scroll to.
-  static const _maxHeight = 66.0;
+  // Strictly less than 5 plain rows (100) and strictly more than 4 (80) —
+  // 4 rows visible by default (both parties can see the recent trail at a
+  // glance), so a 5th entry always genuinely overflows and the scrollbar is
+  // never shown without something real to scroll to.
+  static const _maxHeight = 86.0;
 
   final _controller = ScrollController();
 
@@ -594,10 +595,10 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
       final at = DateTime.parse(application.appliedAt!).toLocal();
       entries.add(MapEntry(at, 'Applied by you: ${formatDateTime(at)}'));
     }
-    // Full detail on a re-apply — reappliedAt survives even after this same
-    // apply clears rejectedAt/completedAt, so it's the only place left that
-    // shows a prior rejection/close ever happened at all (see
-    // JobApplicationsRepository.upsert).
+    // Marks the moment a fresh apply overwrote a previously
+    // rejected/completed row — shown alongside (not instead of) that
+    // prior event's own entry below, since re-applying no longer clears
+    // it (see JobApplicationsRepository.upsert).
     if (application.reappliedAt != null) {
       final at = DateTime.parse(application.reappliedAt!).toLocal();
       entries.add(MapEntry(at, 'Re-applied by you: ${formatDateTime(at)}'));
@@ -608,7 +609,11 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
     }
     // A caregiver-initiated close of an accepted job — the only path to
     // 'completed', so this is always "by you", never the employer's doing.
-    if (application.status == JobApplicationStatus.completed && application.completedAt != null) {
+    // Shown whenever completedAt is set, regardless of the application's
+    // CURRENT status — e.g. still shown as history after the poster later
+    // accepts the caregiver again ("Accept Anyway") or the caregiver
+    // re-applies, neither of which clear completedAt any more.
+    if (application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
       var text = 'Closed by you: ${formatDateTime(at)}';
       if (application.closeReason != null) {
@@ -616,7 +621,11 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
       }
       entries.add(MapEntry(at, text));
     }
-    if (application.status == JobApplicationStatus.rejected && application.rejectedAt != null) {
+    // Shown whenever rejectedAt is set, regardless of the application's
+    // CURRENT status — same reasoning as completedAt above, so a
+    // previously-declined-then-accepted-anyway (or re-applied) candidate's
+    // rejection stays visible as history instead of silently vanishing.
+    if (application.rejectedAt != null) {
       final at = DateTime.parse(application.rejectedAt!).toLocal();
       final label = application.decidedByAdmin ? 'Declined by employer' : 'Declined by you';
       var text = '$label: ${formatDateTime(at)}';
