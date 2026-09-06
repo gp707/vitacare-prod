@@ -7,6 +7,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
+import 'package:admin_web/features/audit_logs/screens/audit_logs_screen.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
@@ -163,8 +164,11 @@ Future<void> _selectFilterDropdown(
   await tester.pumpAndSettle();
 }
 
-Future<void> _pump(WidgetTester tester,
-    _FakeAdminOrganisationRequirementsRepository repo) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _FakeAdminOrganisationRequirementsRepository repo, {
+  Map<String, WidgetBuilder>? extraRoutes,
+}) async {
   await tester.binding.setSurfaceSize(const Size(1200, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -185,7 +189,10 @@ Future<void> _pump(WidgetTester tester,
                 AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
       ],
-      child: const MaterialApp(home: AdminJobsScreen()),
+      child: MaterialApp(
+        home: const AdminJobsScreen(),
+        routes: extraRoutes ?? const {},
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -381,6 +388,31 @@ void main() {
 
     expect(find.text('Edit ORG-JOB-101'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets(
+      "the read-only detail view's \"View Activity Log\" button opens /audit-logs pre-filtered to this requirement's id",
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active),
+      ]),
+      extraRoutes: {
+        '/audit-logs': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as AuditLogsRouteArgs?;
+          return Text('AUDIT_LOGS_FOR_REQUIREMENT:${args?.requirementId}');
+        },
+      },
+    );
+
+    await tester.tap(find.text('ORG-JOB-101'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'View Activity Log'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUDIT_LOGS_FOR_REQUIREMENT:r1'), findsOneWidget);
   });
 
   testWidgets(

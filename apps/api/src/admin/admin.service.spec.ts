@@ -324,6 +324,24 @@ describe('AdminService', () => {
       expect(result.meta).toEqual({ page: 2, limit: 20, total: 45, totalPages: 3 });
     });
 
+    it('maps job_id/requirement_id filters through to the repository', async () => {
+      auditLogsRepo.list.mockResolvedValue({ items: [], total: 0 });
+
+      await service.listAuditLogs({
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+        job_id: 'job-1',
+        requirement_id: 'req-1',
+      } as any);
+
+      expect(auditLogsRepo.list).toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'job-1', requirementId: 'req-1' }),
+        expect.anything(),
+      );
+    });
+
     it('maps repository rows to the documented response shape', async () => {
       const row = {
         id: 'log-1',

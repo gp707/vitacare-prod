@@ -52,12 +52,36 @@ String? _auditTargetDisplayId(AuditLogEntry entry) {
   }
 }
 
+/// Route arguments for `/audit-logs` beyond the legacy bare target-user-id
+/// String (still accepted as-is by the router for the 3 existing
+/// caregiver/individual/organisation detail-screen call sites) — used by a
+/// job's or organisation requirement's own "View Activity Log" link, which
+/// needs to pass a job/requirement id instead.
+class AuditLogsRouteArgs {
+  final String? targetUserId;
+  final String? jobId;
+  final String? requirementId;
+
+  const AuditLogsRouteArgs({this.targetUserId, this.jobId, this.requirementId});
+}
+
 class AuditLogsScreen extends ConsumerStatefulWidget {
   /// Optional pre-filter, used when navigating here from a caregiver's
   /// "view full history" link.
   final String? initialTargetUserId;
+  /// Optional pre-filters, used when navigating here from a job's or an
+  /// organisation requirement's own "View Activity Log" link — shows the
+  /// complete apply/reapply/close/accept/reject/accept-anyway trail for
+  /// that one job/requirement.
+  final String? initialJobId;
+  final String? initialRequirementId;
 
-  const AuditLogsScreen({super.key, this.initialTargetUserId});
+  const AuditLogsScreen({
+    super.key,
+    this.initialTargetUserId,
+    this.initialJobId,
+    this.initialRequirementId,
+  });
 
   @override
   ConsumerState<AuditLogsScreen> createState() => _AuditLogsScreenState();
@@ -96,6 +120,8 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
       final result = await ref.read(auditLogsRepositoryProvider).list(
             AuditLogListFilters(
               targetUserId: widget.initialTargetUserId,
+              jobId: widget.initialJobId,
+              requirementId: widget.initialRequirementId,
               action: _action,
               fromDate: _fromDate?.toIso8601String().split('T').first,
               toDate: _toDate?.toIso8601String().split('T').first,

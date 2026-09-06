@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import 'scope_of_work_button.dart';
+import '../../audit_logs/screens/audit_logs_screen.dart';
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -188,6 +189,16 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed(
+              '/audit-logs',
+              arguments: AuditLogsRouteArgs(jobId: job.id),
+            );
+          },
+          child: const Text('View Activity Log'),
+        ),
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close')),

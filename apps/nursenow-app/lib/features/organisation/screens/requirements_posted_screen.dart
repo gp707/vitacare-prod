@@ -37,6 +37,23 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     _load();
   }
 
+  /// Live (active) requirements first — the ones actually visible to
+  /// caregivers right now are what the org most needs to act on/monitor —
+  /// then everything else (pending review, closed/hidden/rejected), each
+  /// group newest-posted-first. The backend itself just returns every
+  /// requirement by created_at DESC with no status grouping, so this is a
+  /// client-side re-sort rather than a fetch-order change.
+  List<OrganisationRequirementModel> get _sortedRequirements {
+    final sorted = [..._requirements];
+    sorted.sort((a, b) {
+      final aLive = a.status == JobStatus.active ? 0 : 1;
+      final bLive = b.status == JobStatus.active ? 0 : 1;
+      if (aLive != bLive) return aLive.compareTo(bLive);
+      return b.postedAt.compareTo(a.postedAt);
+    });
+    return sorted;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -249,7 +266,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                         ),
                       )
                     else
-                      for (final requirement in _requirements) ...[
+                      for (final requirement in _sortedRequirements) ...[
                         _RequirementCard(
                           requirement: requirement,
                           applications: _applicationsByRequirementId[requirement.id] ?? const [],

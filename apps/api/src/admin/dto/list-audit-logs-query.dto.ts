@@ -32,6 +32,19 @@ export class ListAuditLogsQueryDto {
   @IsUUID(undefined, { message: 'GEN_005' })
   target_user_id?: string;
 
+  // Filters to every entry resolving to this one job (a direct 'jobs'
+  // entry, or a 'job_applications' entry one hop via job_id) — lets
+  // admin-web show the complete activity trail (caregiver apply/reapply/
+  // close, plus every accept/reject/accept-anyway decision) for one job.
+  @IsOptional()
+  @IsUUID(undefined, { message: 'GEN_005' })
+  job_id?: string;
+
+  // Same idea as job_id, for organisation_requirements.
+  @IsOptional()
+  @IsUUID(undefined, { message: 'GEN_005' })
+  requirement_id?: string;
+
   @IsOptional()
   @IsIn(Object.values(AuditAction), { message: 'GEN_005' })
   action?: AuditAction;

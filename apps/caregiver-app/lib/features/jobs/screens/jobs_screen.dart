@@ -530,9 +530,10 @@ class _RequirementCard extends StatelessWidget {
               if (requirement.durationType != null)
                 _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
               // Always shown, even when there's no preference — never a
-              // blank gap.
+              // blank gap. Spelled out as "Preferred Gender" (not just
+              // "Preferred"), so it's unambiguous which preference this is.
               _Tag(
-                'Preferred: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+                'Preferred Gender: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
               ),
             ],
           ),

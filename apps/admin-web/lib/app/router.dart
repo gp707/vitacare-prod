@@ -57,9 +57,15 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
             CaregiverDetailScreen(profileId: settings.arguments as String),
       );
     case '/audit-logs':
+      final args = settings.arguments;
       return MaterialPageRoute(
-        builder: (context) =>
-            AuditLogsScreen(initialTargetUserId: settings.arguments as String?),
+        builder: (context) => args is AuditLogsRouteArgs
+            ? AuditLogsScreen(
+                initialTargetUserId: args.targetUserId,
+                initialJobId: args.jobId,
+                initialRequirementId: args.requirementId,
+              )
+            : AuditLogsScreen(initialTargetUserId: args as String?),
       );
     case '/individual-detail':
       return MaterialPageRoute(

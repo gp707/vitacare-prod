@@ -52,6 +52,8 @@ export interface AuditLogListItem {
 export interface AuditLogListFilters {
   userId?: string;
   targetUserId?: string;
+  jobId?: string;
+  requirementId?: string;
   action?: AuditAction;
   fromDate?: string;
   toDate?: string;
@@ -73,8 +75,30 @@ function buildWhereClause(filters: AuditLogListFilters): { clause: string; param
     conditions.push(`al.user_id = $${params.length}`);
   }
   if (filters.targetUserId) {
+    // Matches either side of the entry, not just target_user_id. A
+    // caregiver's own self-service actions (apply/reapply/complete) log
+    // with user_id = the caregiver and no target_user_id at all (there's
+    // no "other party" for a caregiver acting on their own application);
+    // only a decision someone else makes ABOUT that caregiver (admin's or
+    // an individual's/organisation's accept/reject) sets target_user_id =
+    // the caregiver. A strict target_user_id match therefore showed only
+    // half of a caregiver's own history (decisions made about them, never
+    // their own applies/reapplies/closes) on CaregiverDetailScreen's Audit
+    // History tab. Broadening to an OR is safe: this filter is never
+    // exposed as a manual textbox in the general Audit Logs screen, only
+    // passed programmatically from a caregiver/individual/organisation
+    // detail screen's own "View full audit log" link, where "everything
+    // involving this account" is exactly the intent either way.
     params.push(filters.targetUserId);
-    conditions.push(`al.target_user_id = $${params.length}`);
+    conditions.push(`(al.user_id = $${params.length} OR al.target_user_id = $${params.length})`);
+  }
+  if (filters.jobId) {
+    params.push(filters.jobId);
+    conditions.push(`COALESCE(job_direct.id, job_via_app.id) = $${params.length}`);
+  }
+  if (filters.requirementId) {
+    params.push(filters.requirementId);
+    conditions.push(`COALESCE(org_req_direct.id, org_req_via_app.id) = $${params.length}`);
   }
   if (filters.action) {
     params.push(filters.action);

@@ -291,10 +291,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             borderRadius: BorderRadius.circular(AppSpacing.sm),
           ),
           child: const Text(
-            "Changes below will be reviewed by admin. Your current verification status is not affected — "
-            "except re-uploading your Aadhaar card, which sends an available/unavailable profile back for "
-            "re-review (a rejected profile is always resubmitted by any change here). Looking for your "
-            "preferred city, shift, or minimum salary? That's now under the gear icon on the Jobs tab.",
+            "You can edit your profile wherever you can see a pen mark. No admin approval is needed for "
+            "this editing. If you wish to edit any other field, you can reach out to admin by clicking on "
+            "Help.",
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

@@ -2068,4 +2068,104 @@ describe('Jobs (e2e)', () => {
       expect(res.body.error.code).toBe('AUTH_007');
     });
   });
+
+  describe('GET /v1/admin/audit-logs — per-job and per-caregiver activity trail', () => {
+    it('job_id returns the full apply/accept/reject trail for that job only, not an unrelated job', async () => {
+      const caregiver = await registerCaregiver('0048');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+      const otherJob = await createJob();
+
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      const application = detail.body.data.applications.find(
+        (a: { profile_id: string }) => a.profile_id === caregiver.profile_id,
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/jobs/${job.id}/applications/${application.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'accepted' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ job_id: job.id })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const actions = res.body.data.map((e: { action: string }) => e.action);
+      expect(actions).toEqual(expect.arrayContaining(['job_response', 'job_application_decided']));
+      expect(res.body.data.every((e: { job_id: string }) => e.job_id === job.id)).toBe(true);
+
+      // otherJob still has its own job_posted entry (posting a job is
+      // itself audit-logged) — the assertion is that none of the apply/
+      // accept activity on `job` leaks into `otherJob`'s own trail.
+      const otherJobRes = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ job_id: otherJob.id })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+      expect(otherJobRes.body.data.map((e: { action: string }) => e.action)).toEqual(['job_posted']);
+    });
+
+    it('target_user_id also matches entries where the caregiver is the actor (apply/reapply), not only ones decided about them', async () => {
+      const caregiver = await registerCaregiver('0049');
+      await db.query("UPDATE caregiver_profiles SET verification_status = 'available' WHERE user_id = $1", [
+        caregiver.user_id,
+      ]);
+      const job = await createJob();
+
+      // Caregiver applies, then self-declines, then re-applies — each of
+      // these logs with user_id = the caregiver and no target_user_id at
+      // all, since there's no "other party" for a caregiver acting on
+      // their own application.
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'rejected' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/v1/caregiver/jobs/${job.id}/apply`)
+        .set('Authorization', `Bearer ${caregiver.access_token}`)
+        .send({ status: 'applied' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ target_user_id: caregiver.user_id })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const actions = res.body.data.map((e: { action: string; user_id: string; target_user_id: string | null }) => ({
+        action: e.action,
+        user_id: e.user_id,
+        target_user_id: e.target_user_id,
+      }));
+      // The caregiver's own self-registration, apply, self-decline, and
+      // re-apply entries all have target_user_id: null — only reachable
+      // via the actor-side of the broadened OR match.
+      expect(actions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ action: 'registration', user_id: caregiver.user_id, target_user_id: null }),
+          expect.objectContaining({ action: 'job_response', user_id: caregiver.user_id, target_user_id: null }),
+          expect.objectContaining({ action: 'job_reapplied', user_id: caregiver.user_id, target_user_id: null }),
+        ]),
+      );
+    });
+  });
 });

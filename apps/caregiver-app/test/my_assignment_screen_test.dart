@@ -430,7 +430,7 @@ void main() {
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Vacancies: 1'), findsOneWidget);
     expect(find.text('Long Term'), findsOneWidget);
-    expect(find.text('Preferred: Female'), findsOneWidget);
+    expect(find.text('Preferred Gender: Female'), findsOneWidget);
     // Special Skills is no longer inline — a "View Full Details" link opens
     // a dedicated page for it instead.
     expect(find.text('Post-surgery wound care'), findsNothing);
@@ -451,14 +451,14 @@ void main() {
     expect(find.text('Post-surgery wound care'), findsOneWidget);
   });
 
-  testWidgets('shows "Preferred: No Preference" on an assigned requirement when preferredGender is not set',
+  testWidgets('shows "Preferred Gender: No Preference" on an assigned requirement when preferredGender is not set',
       (tester) async {
     await _pump(
       tester,
       orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(preferredGender: null)]),
     );
 
-    expect(find.text('Preferred: No Preference'), findsOneWidget);
+    expect(find.text('Preferred Gender: No Preference'), findsOneWidget);
   });
 
   testWidgets('shows the organisation\'s own contact card (name, phone, Call/WhatsApp) once accepted',

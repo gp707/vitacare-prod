@@ -241,6 +241,8 @@ export class AdminService {
       {
         userId: query.user_id,
         targetUserId: query.target_user_id,
+        jobId: query.job_id,
+        requirementId: query.requirement_id,
         action: query.action,
         fromDate: query.from_date,
         toDate: query.to_date,

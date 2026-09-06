@@ -10,6 +10,7 @@ import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/features/audit_logs/screens/audit_logs_screen.dart';
 import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
 import 'package:admin_web/features/jobs/screens/admin_jobs_screen.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
@@ -1969,6 +1970,30 @@ void main() {
     // Not set on this fixture (detailCareDuration: null) — a legacy job
     // that predates the field.
     expect(find.text('Duration Care is Needed'), findsNothing);
+  });
+
+  testWidgets(
+      "the read-only detail view's \"View Activity Log\" button opens /audit-logs pre-filtered to this job's id",
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: null);
+    await _pump(
+      tester,
+      repo,
+      extraRoutes: {
+        '/audit-logs': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as AuditLogsRouteArgs?;
+          return Text('AUDIT_LOGS_FOR_JOB:${args?.jobId}');
+        },
+      },
+    );
+
+    await tester.tap(find.text('ADMIN-JOB-542'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'View Activity Log'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AUDIT_LOGS_FOR_JOB:job-1'), findsOneWidget);
   });
 
   testWidgets(

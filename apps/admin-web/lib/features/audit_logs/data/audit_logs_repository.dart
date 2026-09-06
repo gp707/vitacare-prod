@@ -5,6 +5,13 @@ import 'audit_log_models.dart';
 class AuditLogListFilters {
   final String? userId;
   final String? targetUserId;
+  // Filters to every entry resolving to one job/organisation requirement
+  // (a direct create/edit entry, or an applicant-decision entry one hop
+  // via job_applications/organisation_requirement_applications) — lets
+  // admin-web show the complete activity trail (caregiver apply/reapply/
+  // close, plus every accept/reject/accept-anyway decision) for one job.
+  final String? jobId;
+  final String? requirementId;
   final String? action;
   final String? fromDate;
   final String? toDate;
@@ -20,6 +27,8 @@ class AuditLogListFilters {
   const AuditLogListFilters({
     this.userId,
     this.targetUserId,
+    this.jobId,
+    this.requirementId,
     this.action,
     this.fromDate,
     this.toDate,
@@ -36,6 +45,8 @@ class AuditLogListFilters {
       'order': order,
       if (userId != null) 'user_id': userId,
       if (targetUserId != null) 'target_user_id': targetUserId,
+      if (jobId != null) 'job_id': jobId,
+      if (requirementId != null) 'requirement_id': requirementId,
       if (action != null) 'action': action,
       if (fromDate != null) 'from_date': fromDate,
       if (toDate != null) 'to_date': toDate,

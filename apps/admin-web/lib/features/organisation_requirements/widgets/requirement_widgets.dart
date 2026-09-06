@@ -3,6 +3,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/admin_organisation_requirements_repository.dart';
+import '../../audit_logs/screens/audit_logs_screen.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
 /// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
@@ -590,6 +591,16 @@ class RequirementReadOnlyDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pushNamed(
+              '/audit-logs',
+              arguments: AuditLogsRouteArgs(requirementId: requirement.id),
+            );
+          },
+          child: const Text('View Activity Log'),
+        ),
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close')),

@@ -53,6 +53,7 @@ OrganisationRequirementModel _requirement({
   int numberOfVacancies = 1,
   String? preferredGender,
   String durationType = 'short_term',
+  String postedAt = '2026-08-01T10:00:00Z',
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -69,7 +70,7 @@ OrganisationRequirementModel _requirement({
     'status': status,
     'rejection_reason': rejectionReason,
     'cancelled_at': cancelledAt,
-    'posted_at': '2026-08-01T10:00:00Z',
+    'posted_at': postedAt,
   });
 }
 
@@ -244,6 +245,60 @@ void main() {
     expect(button.onPressed, isNotNull);
     expect(find.text('ORG-JOB-1'), findsOneWidget);
     expect(find.text('ORG-JOB-2'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows live (active) requirements first, regardless of post date — an older active requirement '
+      'still outranks a newer pending_review/closed one', (tester) async {
+    // 4 full requirement cards need more vertical room than the default
+    // test surface to all lay out within the ListView's cache extent.
+    await tester.binding.setSurfaceSize(const Size(400, 4000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [
+          // Posted most recently, but not live — should sort below the
+          // older active one despite its newer postedAt.
+          _requirement(
+            id: 'req-new-pending',
+            requirementNumber: 3,
+            status: 'pending_review',
+            postedAt: '2026-08-03T10:00:00Z',
+          ),
+          _requirement(
+            id: 'req-old-active',
+            requirementNumber: 1,
+            status: 'active',
+            postedAt: '2026-08-01T10:00:00Z',
+          ),
+          _requirement(
+            id: 'req-newer-active',
+            requirementNumber: 2,
+            status: 'active',
+            postedAt: '2026-08-02T10:00:00Z',
+          ),
+          _requirement(
+            id: 'req-closed',
+            requirementNumber: 4,
+            status: 'closed',
+            postedAt: '2026-08-04T10:00:00Z',
+          ),
+        ],
+      ),
+    );
+
+    final activeNewerTop = tester.getTopLeft(find.text('ORG-JOB-2')).dy;
+    final activeOlderTop = tester.getTopLeft(find.text('ORG-JOB-1')).dy;
+    final pendingTop = tester.getTopLeft(find.text('ORG-JOB-3')).dy;
+    final closedTop = tester.getTopLeft(find.text('ORG-JOB-4')).dy;
+
+    // Both active requirements (newest-active-first between themselves)
+    // appear above both non-active ones, regardless of each one's own
+    // postedAt relative to the non-active requirements.
+    expect(activeNewerTop, lessThan(activeOlderTop));
+    expect(activeOlderTop, lessThan(pendingTop));
+    expect(activeOlderTop, lessThan(closedTop));
   });
 
   testWidgets('shows requirement details: type of nurse, duration, accommodation/food, and a View Full '

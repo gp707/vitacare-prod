@@ -310,7 +310,7 @@ describe('Admin (e2e)', () => {
     });
 
     it('admin override: allows jumping directly from pending_call to available, no transition-matrix restriction', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0004', 'Override Transition Subject');
+      const { profile_id: profileId } = await registerCaregiver('0004', 'Override Trans Subject');
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -326,7 +326,7 @@ describe('Admin (e2e)', () => {
     });
 
     it('admin override: also allows jumping straight to assigned, and rejects an unknown status value with ADMIN_001', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0021', 'Override Assigned Subject');
+      const { profile_id: profileId } = await registerCaregiver('0021', 'Override Assign Subject');
       const toAssigned = await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -593,10 +593,16 @@ describe('Admin (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].target_user_role).toBe('individual');
-      expect(res.body.data[0].target_patient_number).toEqual(expect.any(Number));
-      expect(res.body.data[0].target_caregiver_number).toBeNull();
+      // target_user_id matches either side of the entry now (see
+      // buildWhereClause), so the individual's own self-registration entry
+      // (they're the actor there, target_user_id is null) is also
+      // returned alongside the admin's status_changed/block entry.
+      expect(res.body.data).toHaveLength(2);
+      const blockEntry = res.body.data.find((e: { action: string }) => e.action === 'status_changed');
+      expect(blockEntry.target_user_role).toBe('individual');
+      expect(blockEntry.target_patient_number).toEqual(expect.any(Number));
+      expect(blockEntry.target_caregiver_number).toBeNull();
+      expect(res.body.data.some((e: { action: string }) => e.action === 'registration')).toBe(true);
 
       await db.query('DELETE FROM audit_logs WHERE target_user_id = $1 OR user_id = $1', [
         individual.body.data.user_id,
@@ -617,7 +623,7 @@ describe('Admin (e2e)', () => {
     it('search matches the target caregiver by name, without needing target_user_id/action', async () => {
       const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
         '0041',
-        'Audit Search Unique Subject',
+        'Audit Search Unique',
       );
       await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
@@ -627,7 +633,7 @@ describe('Admin (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .get('/v1/admin/audit-logs')
-        .query({ search: 'Audit Search Unique Subject' })
+        .query({ search: 'Audit Search Unique' })
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
@@ -645,7 +651,7 @@ describe('Admin (e2e)', () => {
     it('search matches the target caregiver by their own NUR-<n> display id', async () => {
       const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
         '0042',
-        'Audit Search Display Id Subject',
+        'Audit Search Display Id',
       );
       await request(app.getHttpServer())
         .patch(`/v1/admin/caregivers/${profileId}/status`)
@@ -798,7 +804,7 @@ describe('Admin (e2e)', () => {
 
   describe('Removed work-type/service-mode/salary assignment endpoints', () => {
     it('work-types, service-modes, and salary endpoints no longer exist (404)', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0013', 'Removed Endpoints Subject');
+      const { profile_id: profileId } = await registerCaregiver('0013', 'Removed Endpoint Subj');
 
       await request(app.getHttpServer())
         .put(`/v1/admin/caregivers/${profileId}/work-types`)
@@ -820,7 +826,7 @@ describe('Admin (e2e)', () => {
     });
 
     it('caregiver detail no longer includes service_modes/work_types/salary fields', async () => {
-      const { profile_id: profileId } = await registerCaregiver('0014', 'No Assignment Fields Subject');
+      const { profile_id: profileId } = await registerCaregiver('0014', 'No Assign Fields Subj');
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/caregivers/${profileId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
