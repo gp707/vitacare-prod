@@ -57,11 +57,12 @@ JobModel _job({
   String? startDate,
   String? careDuration,
   int? applicantCount,
+  String city = 'bangalore',
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
     'admin_job_number': 542,
-    'city': 'bangalore',
+    'city': city,
     'area': 'Indiranagar',
     'description': description,
     'duty_type': 'live_in',
@@ -100,6 +101,8 @@ OrganisationRequirementModel _requirement({
   String? postedAt,
   Map<String, dynamic>? myApplication,
   int? applicantCount,
+  String organisationType = 'hospital',
+  String city = 'bangalore',
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -113,8 +116,8 @@ OrganisationRequirementModel _requirement({
     'status': 'active',
     'posted_at': postedAt ?? '2026-08-01T10:00:00Z',
     'organisation_name': 'City Hospital',
-    'organisation_type': 'hospital',
-    'city': 'bangalore',
+    'organisation_type': organisationType,
+    'city': city,
     'area': 'Indiranagar',
     'my_application': myApplication,
     'applicant_count': applicantCount,
@@ -307,7 +310,7 @@ void main() {
   testWidgets('labels an admin-posted job "Posted by Admin"', (tester) async {
     await _pump(tester, _FakeJobsRepository([_job()]));
     expect(find.text('Job in Posted by Admin'), findsOneWidget);
-    expect(find.textContaining('Home Care'), findsNothing);
+    expect(find.text('Job in Home Care'), findsNothing);
   });
 
   testWidgets('labels a patient-posted job "Home Care"', (tester) async {
@@ -630,6 +633,10 @@ void main() {
         }),
       ]),
     );
+    // Rejected by the caregiver themselves — hidden by default now (see
+    // isHiddenByDefault). The timeline is what this test is about, not
+    // that hiding rule.
+    await _showAllJobs(tester);
 
     expect(find.text('Applied by you: ${_expected('2026-08-17T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Declined by you: ${_expected('2026-08-17T09:05:00Z')}'), findsOneWidget);
@@ -651,6 +658,8 @@ void main() {
         }),
       ]),
     );
+    // Undone acceptance lands on 'rejected' — hidden by default now.
+    await _showAllJobs(tester);
 
     expect(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Accepted by employer: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
@@ -677,6 +686,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.textContaining('Reason: Requirement was cancelled by the patient/family.'), findsOneWidget);
   });
@@ -694,6 +704,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.textContaining('Reason:'), findsNothing);
   });
@@ -797,8 +808,8 @@ void main() {
   });
 
   testWidgets(
-      'does NOT hide a job the caregiver was rejected from — it stays visible with an Apply Again button, '
-      'since this list only ever contains active (re-appliable) jobs', (tester) async {
+      'hides a job the caregiver was rejected from by default too, revealed via Show All Jobs — where it '
+      'shows with an Apply Again button, since the job itself is still active (re-appliable)', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -812,14 +823,16 @@ void main() {
       ]),
     );
 
-    expect(find.text('Show All Jobs'), findsNothing);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsNothing);
+    await _showAllJobs(tester);
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
   });
 
   testWidgets(
-      'does NOT hide a job the caregiver closed themselves (completed) — it stays visible with an Apply Again '
-      'button — the job reopens to active for everyone else, and this caregiver can re-apply too', (tester) async {
+      'hides a job the caregiver closed themselves (completed) by default too, revealed via Show All Jobs — '
+      'where it shows with an Apply Again button — the job reopens to active for everyone else, and this '
+      'caregiver can re-apply too', (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([
@@ -834,7 +847,8 @@ void main() {
       ]),
     );
 
-    expect(find.text('Show All Jobs'), findsNothing);
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsNothing);
+    await _showAllJobs(tester);
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Apply Again'), findsOneWidget);
   });
@@ -851,6 +865,7 @@ void main() {
       }),
     ]);
     await _pump(tester, fakeRepo);
+    await _showAllJobs(tester);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Apply Again'));
     await tester.pumpAndSettle();
@@ -919,6 +934,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     expect(find.text('Applied by you: ${_expected('2026-08-15T09:00:00Z')}'), findsOneWidget);
     expect(find.text('Accepted by employer: ${_expected('2026-08-16T09:00:00Z')}'), findsOneWidget);
@@ -945,6 +961,7 @@ void main() {
         }),
       ]),
     );
+    await _showAllJobs(tester);
 
     final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
     expect(scrollbar.thumbVisibility, isTrue);
@@ -1164,32 +1181,37 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Reject'), findsNothing);
   });
 
-  testWidgets('the "Hospital Jobs Only" filter hides admin/individual jobs, leaving only organisation requirements',
+  testWidgets('the "Hospital Jobs" category chip hides admin/individual jobs and every other organisation type',
       (tester) async {
     await _pump(
       tester,
       _FakeJobsRepository([_job()]),
-      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([
+        _requirement(),
+        _requirement(id: 'req-2', requirementNumber: 8, organisationType: 'clinic'),
+      ]),
     );
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
+    expect(find.text('ORG-JOB-8'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs Only'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
     await tester.pumpAndSettle();
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsNothing);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
+    expect(find.text('ORG-JOB-8'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs Only'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
     await tester.pumpAndSettle();
 
     expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
     expect(find.text('ORG-JOB-7'), findsOneWidget);
+    expect(find.text('ORG-JOB-8'), findsOneWidget);
   });
 
-  testWidgets(
-      '"Hospital Jobs Only" is styled distinctly, not just a subtle tint, so active vs inactive is unmistakable',
+  testWidgets('the "Home Care Jobs" category chip hides every organisation requirement, leaving only jobs',
       (tester) async {
     await _pump(
       tester,
@@ -1197,7 +1219,43 @@ void main() {
       orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
     );
 
-    final chipFinder = find.widgetWithText(FilterChip, 'Hospital Jobs Only');
+    await tester.tap(find.widgetWithText(FilterChip, 'Home Care Jobs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsNothing);
+  });
+
+  testWidgets('selecting more than one category chip shows the union of both (Home Care + Hospital)',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([
+        _requirement(),
+        _requirement(id: 'req-2', requirementNumber: 8, organisationType: 'clinic'),
+      ]),
+    );
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Home Care Jobs'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'Hospital Jobs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
+    expect(find.text('ORG-JOB-8'), findsNothing);
+  });
+
+  testWidgets('"Hospital Jobs" is styled distinctly, not just a subtle tint, so active vs inactive is unmistakable',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job()]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement()]),
+    );
+
+    final chipFinder = find.widgetWithText(FilterChip, 'Hospital Jobs');
     FilterChip chip() => tester.widget<FilterChip>(chipFinder);
 
     expect(chip().selected, isFalse);
@@ -1211,6 +1269,26 @@ void main() {
     expect(chip().selected, isTrue);
     expect((chip().label as Text).style?.fontWeight, FontWeight.bold);
     expect((chip().label as Text).style?.color, Colors.white);
+  });
+
+  testWidgets('the City dropdown filters both jobs and organisation requirements to the selected city',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeJobsRepository([_job(city: 'mumbai')]),
+      orgRepo: _FakeOrganisationOpeningsRepository([_requirement(city: 'bangalore')]),
+    );
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String?>, 'City'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mumbai').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Job Id: ADMIN-JOB-542'), findsOneWidget);
+    expect(find.text('ORG-JOB-7'), findsNothing);
   });
 
   testWidgets('shows the applied timeline instead of buttons for a requirement once already applied',

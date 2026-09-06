@@ -8,15 +8,31 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/job_detail_card.dart';
 
+/// Sentinel category value for a plain admin/individual-posted job (the
+/// `jobs` table) — distinct from every `OrganisationType` value, which
+/// cover the 4 organisation-posted requirement categories instead.
+const _kHomeCareCategory = 'home_care';
+
+/// One filter chip per posting category — "Home Care" (a regular job) plus
+/// every OrganisationType value (an organisation requirement of that
+/// type). Order matches how the user asked for them.
+const _kCategoryOptions = <(String value, String label, IconData icon)>[
+  (_kHomeCareCategory, 'Home Care Jobs', Icons.home),
+  (OrganisationType.hospital, 'Hospital Jobs', Icons.local_hospital),
+  (OrganisationType.clinic, 'Clinic Jobs', Icons.medical_services),
+  (OrganisationType.rehab, 'Rehab Jobs', Icons.healing),
+  (OrganisationType.agency, 'Agency Jobs', Icons.business),
+];
+
 /// Unified list of active postings — admin/individual jobs AND organisation
-/// (hospital/rehab/clinic) requirements shown together, sorted by post
-/// date. Organisation requirements previously lived on their own separate
-/// "Openings" tab; merged into one Jobs section on explicit request so a
-/// caregiver only has to check one place. Applying is gated server-side
-/// (JOB_001 for jobs, the same eligibility rule for requirements) to
-/// available/assigned caregivers only; a caregiver in any other status sees
-/// the server's rejection message when they try, rather than the buttons
-/// being hidden entirely.
+/// (hospital/rehab/clinic/agency) requirements shown together, sorted by
+/// post date. Organisation requirements previously lived on their own
+/// separate "Openings" tab; merged into one Jobs section on explicit
+/// request so a caregiver only has to check one place. Applying is gated
+/// server-side (JOB_001 for jobs, the same eligibility rule for
+/// requirements) to available/assigned caregivers only; a caregiver in any
+/// other status sees the server's rejection message when they try, rather
+/// than the buttons being hidden entirely.
 class JobsScreen extends ConsumerStatefulWidget {
   const JobsScreen({super.key});
 
@@ -30,17 +46,18 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _applyingId = {};
-  // Defaults off — an organisation requirement the caregiver is done with
-  // (rejected by either side, or closed themselves after being accepted —
-  // see _Listing.isHiddenByDefault) is hidden by default to keep the list
+  // Defaults off — a job/requirement the caregiver is done with (rejected
+  // by either side, or closed themselves after being accepted — see
+  // _Listing.isHiddenByDefault) is hidden by default to keep the list
   // focused on what's still open to them. One tap away to see everything.
-  // Jobs are never hidden this way — a rejected/completed job can always be
-  // re-applied to, so it stays visible with its own "Apply Again" action.
   bool _showAllJobs = false;
-  // Filters the merged list down to organisation (hospital/rehab/clinic)
-  // requirements only, hiding every admin/individual-posted job — a plain
-  // client-side filter over the already-fetched lists, no new endpoint.
-  bool _hospitalJobsOnly = false;
+  // Which posting categories to include — a plain client-side filter over
+  // the already-fetched lists, no new endpoint. Empty set means no
+  // narrowing at all (every category shown), matching the same "nothing
+  // selected = show everything" convention as _cityFilter below.
+  final Set<String> _categoryFilter = {};
+  // null means every city.
+  String? _cityFilter;
 
   @override
   void initState() {
@@ -166,13 +183,54 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     return listings;
   }
 
+  /// A plain job is always "Home Care"; an organisation requirement's own
+  /// category is its `organisationType` (hospital/clinic/rehab/agency).
+  String? _categoryOf(_Listing listing) => listing is _JobListing
+      ? _kHomeCareCategory
+      : (listing as _RequirementListing).requirement.organisationType;
+
+  String? _cityOf(_Listing listing) =>
+      listing is _JobListing ? listing.job.city : (listing as _RequirementListing).requirement.city;
+
+  bool _matchesFilters(_Listing listing) {
+    if (_categoryFilter.isNotEmpty && !_categoryFilter.contains(_categoryOf(listing))) return false;
+    if (_cityFilter != null && _cityOf(listing) != _cityFilter) return false;
+    return true;
+  }
+
+  Widget _buildCategoryChip(String value, String label, IconData icon) {
+    final selected = _categoryFilter.contains(value);
+    // A plain default FilterChip's selected/unselected states read as
+    // nearly identical at a glance (a faint tint shift) — styled
+    // explicitly here instead, so on vs off is unmistakable: solid filled
+    // + white checkmark when active, a plain outline when not.
+    return FilterChip(
+      avatar: Icon(icon, size: 18, color: selected ? Colors.white : AppColors.primaryDark),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : AppColors.textPrimary,
+          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: selected,
+      onSelected: (isSelected) => setState(
+        () => isSelected ? _categoryFilter.add(value) : _categoryFilter.remove(value),
+      ),
+      showCheckmark: true,
+      checkmarkColor: Colors.white,
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      side: BorderSide(color: selected ? AppColors.primary : AppColors.border, width: selected ? 0 : 1),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final merged = _mergedListings();
-    final listings =
-        _hospitalJobsOnly ? merged.whereType<_RequirementListing>().toList() : merged;
-    final hasHiddenJobs = listings.any((l) => l.isHiddenByDefault);
-    final visible = _showAllJobs ? listings : listings.where((l) => !l.isHiddenByDefault).toList();
+    final filtered = merged.where(_matchesFilters).toList();
+    final hasHiddenJobs = filtered.any((l) => l.isHiddenByDefault);
+    final visible = _showAllJobs ? filtered : filtered.where((l) => !l.isHiddenByDefault).toList();
     return Scaffold(
       appBar: AppBar(
         title: const VitaAppBarTitle('Jobs'),
@@ -195,34 +253,32 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                       Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      // A plain default FilterChip's selected/unselected states
-                      // read as nearly identical at a glance (a faint tint
-                      // shift) — styled explicitly here instead, so on vs off
-                      // is unmistakable: solid filled + white checkmark when
-                      // active, a plain outline when not.
-                      child: FilterChip(
-                        avatar: Icon(
-                          Icons.local_hospital,
-                          size: 18,
-                          color: _hospitalJobsOnly ? Colors.white : AppColors.primaryDark,
+                      child: Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          for (final option in _kCategoryOptions)
+                            _buildCategoryChip(option.$1, option.$2, option.$3),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        initialValue: _cityFilter,
+                        decoration: const InputDecoration(
+                          labelText: 'City',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          prefixIcon: Icon(Icons.location_on_outlined, size: 18),
                         ),
-                        label: Text(
-                          'Hospital Jobs Only',
-                          style: TextStyle(
-                            color: _hospitalJobsOnly ? Colors.white : AppColors.textPrimary,
-                            fontWeight: _hospitalJobsOnly ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                        selected: _hospitalJobsOnly,
-                        onSelected: (selected) => setState(() => _hospitalJobsOnly = selected),
-                        showCheckmark: true,
-                        checkmarkColor: Colors.white,
-                        selectedColor: AppColors.primary,
-                        backgroundColor: AppColors.surface,
-                        side: BorderSide(
-                          color: _hospitalJobsOnly ? AppColors.primary : AppColors.border,
-                          width: _hospitalJobsOnly ? 0 : 1,
-                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Cities')),
+                          for (final city in City.all)
+                            DropdownMenuItem<String?>(value: city, child: Text(City.displayNames[city] ?? city)),
+                        ],
+                        onChanged: (value) => setState(() => _cityFilter = value),
                       ),
                     ),
                     if (hasHiddenJobs)
@@ -230,28 +286,35 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Show All Jobs'),
                         subtitle: const Text(
-                          'Includes organisation requirements you were rejected from, or closed yourself',
+                          'Includes jobs and organisation requirements you rejected, or closed yourself',
                         ),
                         value: _showAllJobs,
                         onChanged: (value) => setState(() => _showAllJobs = value),
                       ),
-                    if (listings.isEmpty && _errorMessage == null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                    if (merged.isEmpty && _errorMessage == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          _hospitalJobsOnly
-                              ? 'No hospital/rehab/clinic jobs posted right now. Pull down to refresh.'
-                              : 'No jobs posted right now. Pull down to refresh.',
+                          'No jobs posted right now. Pull down to refresh.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    else if (filtered.isEmpty && _errorMessage == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                        child: Text(
+                          'No jobs match your current filters. Try adjusting them.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
                     else if (visible.isEmpty && _errorMessage == null)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
                         child: Text(
-                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see organisation '
-                          'requirements you were rejected from or closed yourself.',
+                          'No jobs you can currently apply to. Turn on "Show All Jobs" to see jobs and '
+                          'organisation requirements you rejected or closed yourself.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
@@ -288,11 +351,12 @@ abstract class _Listing {
   DateTime get postedAt;
 
   /// True once this listing is done from the caregiver's own point of
-  /// view and there's nothing further they can do about it. Requirements
-  /// hide once rejected (by the org, or by closing/withdrawing themselves
-  /// before being accepted) or closed themselves after being accepted
-  /// (`completed`) — the requirement reopens to active for everyone else,
-  /// but this caregiver's own engagement with it is over.
+  /// view and there's nothing further they can do about it. Hides once
+  /// rejected (by either side, or by closing/withdrawing themselves before
+  /// being accepted) or closed themselves after being accepted
+  /// (`completed`) — the job/requirement reopens to active for everyone
+  /// else, but this caregiver's own engagement with it is over. Applies
+  /// equally to jobs and organisation requirements.
   bool get isHiddenByDefault;
 }
 
@@ -301,12 +365,16 @@ class _JobListing extends _Listing {
   _JobListing(this.job);
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
-  // Jobs are never hidden by default, even once rejected/completed — this
-  // list only ever contains active jobs, and a rejected/completed
-  // application on an active job can always be re-applied to (see
-  // _JobCard's "Apply Again" button), so it stays actionable and visible.
+  // Hidden by default once the caregiver rejected it (by either side) or
+  // closed it themselves after being accepted (`completed`) — same rule as
+  // _RequirementListing below. The job itself stays active either way (a
+  // rejected/completed application on it can always be re-applied to, see
+  // _JobCard's "Apply Again" button), it's just tucked out of the default
+  // view until "Show All Jobs" is switched on.
   @override
-  bool get isHiddenByDefault => false;
+  bool get isHiddenByDefault =>
+      job.myApplication?.status == JobApplicationStatus.rejected ||
+      job.myApplication?.status == JobApplicationStatus.completed;
 }
 
 class _RequirementListing extends _Listing {
