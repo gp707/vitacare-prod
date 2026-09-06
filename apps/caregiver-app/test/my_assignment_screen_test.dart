@@ -75,6 +75,7 @@ OrganisationRequirementModel _assignedRequirement({
   int requirementNumber = 7,
   String applicationStatus = 'accepted',
   String acceptedAt = '2026-08-04T10:00:00Z',
+  String? preferredGender = 'female',
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -93,7 +94,7 @@ OrganisationRequirementModel _assignedRequirement({
     'area': 'Indiranagar',
     'organisation_phone': '+919876511111',
     'duration_type': 'long_term',
-    'preferred_gender': 'female',
+    'preferred_gender': preferredGender,
     'my_application': {
       'status': applicationStatus,
       'applied_at': '2026-08-03T10:00:00Z',
@@ -430,7 +431,34 @@ void main() {
     expect(find.text('Vacancies: 1'), findsOneWidget);
     expect(find.text('Long Term'), findsOneWidget);
     expect(find.text('Preferred: Female'), findsOneWidget);
+    // Special Skills is no longer inline — a "View Full Details" link opens
+    // a dedicated page for it instead.
+    expect(find.text('Post-surgery wound care'), findsNothing);
+    expect(find.text('View Full Details'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping View Full Details on an assigned requirement opens a page with the full Special Skills text',
+      (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement()]),
+    );
+
+    await tester.tap(find.text('View Full Details'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Post-surgery wound care'), findsOneWidget);
+  });
+
+  testWidgets('shows "Preferred: No Preference" on an assigned requirement when preferredGender is not set',
+      (tester) async {
+    await _pump(
+      tester,
+      orgRepo: _FakeOrganisationOpeningsRepository([_assignedRequirement(preferredGender: null)]),
+    );
+
+    expect(find.text('Preferred: No Preference'), findsOneWidget);
   });
 
   testWidgets('shows the organisation\'s own contact card (name, phone, Call/WhatsApp) once accepted',

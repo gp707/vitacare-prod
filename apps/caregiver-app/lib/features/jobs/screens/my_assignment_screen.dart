@@ -428,14 +428,35 @@ class _AssignedRequirementCard extends StatelessWidget {
               Tag('Vacancies: ${requirement.numberOfVacancies}'),
               if (requirement.durationType != null)
                 Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
-              if (requirement.preferredGender != null)
-                Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
+              // Always shown, even when there's no preference — never a
+              // blank gap.
+              Tag(
+                'Preferred: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+              ),
             ],
           ),
-          if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(requirement.specialSkills!),
-          ],
+          const SizedBox(height: AppSpacing.xs),
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RequirementFullDetailScreen(requirement: requirement)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    'View Full Details',
+                    style: TextStyle(
+                      fontSize: AppTypography.small,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Icon(Icons.open_in_full, size: 15, color: AppColors.primary),
+              ],
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           if (isCompleted)
             const Text(

@@ -368,6 +368,86 @@ class _Tag extends StatelessWidget {
   }
 }
 
+/// A dedicated page for a requirement's full detail — Special Skills can be
+/// a genuinely long free-text block, so it's shown here rather than inline
+/// on the card. Mirrors caregiver-app's own RequirementFullDetailScreen
+/// (job_detail_card.dart) so both apps show the org's own posting
+/// identically.
+class _RequirementFullDetailScreen extends StatelessWidget {
+  final OrganisationRequirementModel requirement;
+
+  const _RequirementFullDetailScreen({required this.requirement});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(organisationJobDisplayId(requirement))),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                requirement.organisationName ?? '',
+                style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
+              ),
+              if (requirement.organisationType != null || requirement.city != null)
+                Text(
+                  [
+                    if (requirement.organisationType != null)
+                      OrganisationType.displayNames[requirement.organisationType] ?? requirement.organisationType!,
+                    if (requirement.city != null) City.displayNames[requirement.city] ?? requirement.city!,
+                    if (requirement.area != null && requirement.area!.isNotEmpty) requirement.area!,
+                  ].join(' · '),
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'About Nurse/Caregiver Requirement',
+                style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.success),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              IconField(
+                icon: Icons.medical_services,
+                text: requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                    ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
+                    : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                children: [
+                  if (requirement.durationType != null)
+                    _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+                  _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
+                  _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+                  _Tag('Vacancies: ${requirement.numberOfVacancies}'),
+                  _Tag(
+                    'Preferred: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+                  ),
+                ],
+              ),
+              if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const Text(
+                  'Special Skills Required',
+                  style:
+                      TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.bold, color: AppColors.success),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(requirement.specialSkills!),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RequirementCard extends StatelessWidget {
   final OrganisationRequirementModel requirement;
   final List<OrganisationRequirementApplicationModel> applications;
@@ -552,15 +632,39 @@ class _RequirementCard extends StatelessWidget {
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               _Tag('Vacancies: ${requirement.numberOfVacancies}'),
-              if (requirement.preferredGender != null)
-                _Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
+              // Always shown, even when there's no preference — never a
+              // blank gap.
+              _Tag(
+                'Preferred: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+              ),
             ],
           ),
-          if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(requirement.specialSkills!,
-                style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-          ],
+          const SizedBox(height: AppSpacing.xs),
+          // Pushes a dedicated full-screen page rather than showing the
+          // special skills text inline — it can be a genuinely long
+          // free-text block (up to Validation.specialSkillsMaxLength
+          // characters) that would otherwise blow out the card's layout.
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => _RequirementFullDetailScreen(requirement: requirement)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    'View Full Details',
+                    style: TextStyle(
+                      fontSize: AppTypography.small,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Icon(Icons.open_in_full, size: 15, color: AppColors.primary),
+              ],
+            ),
+          ),
           if (requirement.status != JobStatus.pendingReview) ...[
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),

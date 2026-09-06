@@ -524,20 +524,43 @@ class _RequirementCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              _Tag(_typeOfNurseText),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               _Tag('Vacancies: ${requirement.numberOfVacancies}'),
               if (requirement.durationType != null)
                 _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
-              if (requirement.preferredGender != null)
-                _Tag('Preferred: ${Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender}'),
+              // Always shown, even when there's no preference — never a
+              // blank gap.
+              _Tag(
+                'Preferred: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+              ),
             ],
           ),
-          if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(requirement.specialSkills!),
-          ],
+          const SizedBox(height: AppSpacing.xs),
+          // Pushes a dedicated full-screen page rather than expanding inline
+          // — Special Skills can be a genuinely long free-text block, same
+          // reasoning as JobDetailCard's own "View Full Details" link.
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RequirementFullDetailScreen(requirement: requirement)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    'View Full Details',
+                    style: TextStyle(
+                      fontSize: AppTypography.small,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Icon(Icons.open_in_full, size: 15, color: AppColors.primary),
+              ],
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())

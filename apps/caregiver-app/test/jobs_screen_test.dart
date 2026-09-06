@@ -1099,10 +1099,13 @@ void main() {
     expect(find.text('ORG-JOB-7'), findsOneWidget);
     expect(find.text('City Hospital'), findsOneWidget);
     expect(find.text('Hospital · Bangalore · Indiranagar'), findsOneWidget);
-    expect(find.text('Registered Nurse'), findsOneWidget);
+    expect(find.textContaining('Registered Nurse'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
-    expect(find.text('Post-surgery wound care'), findsOneWidget);
+    // Special Skills is no longer inline — a "View Full Details" link opens
+    // a dedicated page for it instead (see the dedicated tests below).
+    expect(find.text('Post-surgery wound care'), findsNothing);
+    expect(find.text('View Full Details'), findsOneWidget);
   });
 
   testWidgets(

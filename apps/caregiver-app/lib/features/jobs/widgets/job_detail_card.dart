@@ -544,6 +544,84 @@ class JobFullDetailScreen extends StatelessWidget {
   }
 }
 
+/// The organisation-requirement equivalent of [JobFullDetailScreen] — a
+/// dedicated page rather than an inline expansion, since Special Skills can
+/// be a genuinely long free-text block (up to
+/// Validation.specialSkillsMaxLength characters) that would otherwise blow
+/// out the card's fixed-height layout on the browse list/MyJobs.
+class RequirementFullDetailScreen extends StatelessWidget {
+  final OrganisationRequirementModel requirement;
+
+  const RequirementFullDetailScreen({super.key, required this.requirement});
+
+  /// The plain "Type of Nurse/Caregiver Needed" text as filled on
+  /// nursenow's own posting form — free text when 'others', else the
+  /// enum's display name.
+  String get _typeOfNurseText => requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+      ? requirement.typeOfNurseOther!
+      : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(organisationJobDisplayId(requirement))),
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                requirement.organisationName ?? '',
+                style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
+              ),
+              if (requirement.organisationType != null || requirement.city != null)
+                Text(
+                  [
+                    if (requirement.organisationType != null)
+                      OrganisationType.displayNames[requirement.organisationType] ?? requirement.organisationType!,
+                    if (requirement.city != null) City.displayNames[requirement.city] ?? requirement.city!,
+                    if (requirement.area != null && requirement.area!.isNotEmpty) requirement.area!,
+                  ].join(' · '),
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.sm),
+              const SectionLabel('About Nurse/Caregiver Requirement'),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                children: [
+                  Tag(_typeOfNurseText),
+                  Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
+                  Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
+                  Tag('Vacancies: ${requirement.numberOfVacancies}'),
+                  if (requirement.durationType != null)
+                    Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+                  // Always shown, even when there's no preference — never a
+                  // blank gap, same convention as the job/requirement's
+                  // other preference fields elsewhere in the app.
+                  Tag(
+                    'Preferred Gender: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
+                    highlighted: true,
+                  ),
+                ],
+              ),
+              if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const SectionLabel('Special Skills Required'),
+                const SizedBox(height: AppSpacing.xs),
+                Text(requirement.specialSkills!),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The caregiver's own full action history on a job/requirement — every
 /// transition with who did it and exactly when, newest first: applied,
 /// re-applied, accepted, and now closed (a caregiver-initiated completion

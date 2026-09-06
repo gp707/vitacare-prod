@@ -246,8 +246,8 @@ void main() {
     expect(find.text('ORG-JOB-2'), findsOneWidget);
   });
 
-  testWidgets('shows requirement details: type of nurse, duration, accommodation/food, special skills',
-      (tester) async {
+  testWidgets('shows requirement details: type of nurse, duration, accommodation/food, and a View Full '
+      'Details link (Special Skills moved to its own page)', (tester) async {
     await _pump(
       tester,
       _FakeOrganisationRepository(requirements: [_requirement(durationType: 'long_term')]),
@@ -258,7 +258,29 @@ void main() {
     expect(find.text('Long Term'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
+    expect(find.text('Wound care'), findsNothing);
+    expect(find.text('View Full Details'), findsOneWidget);
+  });
+
+  testWidgets('tapping View Full Details opens a page with the full Special Skills text', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(requirements: [_requirement()]),
+    );
+
+    await tester.tap(find.text('View Full Details'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Wound care'), findsOneWidget);
+  });
+
+  testWidgets('shows "Preferred: No Preference" on the card when preferredGender is not set', (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(requirements: [_requirement(preferredGender: null)]),
+    );
+
+    expect(find.text('Preferred: No Preference'), findsOneWidget);
   });
 
   testWidgets('highlights the status as a rounded, color-coded pill instead of plain text', (tester) async {
