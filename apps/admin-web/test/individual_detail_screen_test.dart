@@ -154,6 +154,38 @@ void main() {
   });
 
   testWidgets(
+      'shows the linked job id and the rejection reason for a job-decision entry',
+      (tester) async {
+    final auditRepo = _FakeAuditLogsRepository([
+      AuditLogEntry.fromJson({
+        'id': 'log-2',
+        'user_id': 'u1',
+        'user_name': 'Asha Patel',
+        'target_user_id': 'caregiver-user-1',
+        'target_user_name': 'Ramesh Kumar',
+        'target_user_role': 'caregiver',
+        'target_caregiver_number': 542,
+        'target_caregiver_profile_id': 'profile-542',
+        'action': 'job_application_decided',
+        'entity_type': 'job_applications',
+        'entity_id': 'app-1',
+        'admin_job_number': null,
+        'patient_job_number': 512,
+        'job_id': 'job-1',
+        'after_value': {'status': 'rejected', 'reason': 'Not a good fit for the schedule'},
+        'ip_address': null,
+        'created_at': '2026-08-01T10:00:00Z',
+      }),
+    ]);
+    await _pump(tester, _FakeAdminIndividualsRepository(_item()),
+        auditRepo: auditRepo);
+
+    expect(find.textContaining('PAT-JOB-512'), findsOneWidget);
+    expect(find.text('NUR-542'), findsOneWidget);
+    expect(find.text('Reason: Not a good fit for the schedule'), findsOneWidget);
+  });
+
+  testWidgets(
       'tapping Edit reveals a full-name field; saving calls editProfile with only the changed field',
       (tester) async {
     final repo = _FakeAdminIndividualsRepository(_item());

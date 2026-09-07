@@ -410,6 +410,20 @@ describe('AdminService', () => {
       expect(result.data[1]).toMatchObject({ target_user_role: 'organisation', target_org_number: 503 });
     });
 
+    it('passes through target_caregiver_profile_id, so admin-web can link a caregiver target to their detail page', async () => {
+      const row = {
+        id: 'log-5',
+        target_user_role: 'caregiver',
+        target_caregiver_number: 542,
+        target_caregiver_profile_id: 'profile-542',
+      };
+      auditLogsRepo.list.mockResolvedValue({ items: [row], total: 1 });
+
+      const result = await service.listAuditLogs({ page: 1, limit: 20, sort: 'created_at', order: 'desc' } as any);
+
+      expect(result.data[0]).toMatchObject({ target_caregiver_profile_id: 'profile-542' });
+    });
+
     it('passes through requirement_number/requirement_id for organisation-requirement-related entries', async () => {
       const row = {
         id: 'log-5',

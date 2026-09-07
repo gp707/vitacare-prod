@@ -270,6 +270,7 @@ export class AdminService {
       job_id: item.job_id,
       target_user_role: item.target_user_role,
       target_caregiver_number: item.target_caregiver_number,
+      target_caregiver_profile_id: item.target_caregiver_profile_id,
       target_patient_number: item.target_patient_number,
       target_org_number: item.target_org_number,
       requirement_number: item.requirement_number,

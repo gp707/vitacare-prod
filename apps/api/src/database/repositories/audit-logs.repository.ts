@@ -39,6 +39,11 @@ export interface AuditLogListItem {
   target_caregiver_number: number | null;
   target_patient_number: number | null;
   target_org_number: number | null;
+  // The target caregiver's own profile id (distinct from target_user_id,
+  // a users.id) — admin-web's caregiver detail route is keyed by profile
+  // id, not user id, so this is what makes a caregiver target clickable.
+  // Only ever non-null alongside target_caregiver_number.
+  target_caregiver_profile_id: string | null;
   // Resolved the same way as job_id above, but for
   // organisation_requirements — 'organisation_requirements' entries
   // resolve directly (entity_id is the requirement),
@@ -192,6 +197,7 @@ export class AuditLogsRepository {
                 COALESCE(job_direct.id, job_via_app.id) AS job_id,
                 target.role AS target_user_role,
                 target_cp.caregiver_number AS target_caregiver_number,
+                target_cp.id AS target_caregiver_profile_id,
                 target_ip.patient_number AS target_patient_number,
                 target_op.org_number AS target_org_number,
                 COALESCE(org_req_direct.requirement_number, org_req_via_app.requirement_number) AS requirement_number,

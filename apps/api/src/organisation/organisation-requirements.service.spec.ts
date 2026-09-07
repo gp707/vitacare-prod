@@ -600,6 +600,19 @@ describe('OrganisationRequirementsService', () => {
       expect(requirementsRepo.close).not.toHaveBeenCalled();
       expect(requirementsRepo.reopen).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ reason: 'Not a fit' }) }),
+      );
+    });
+
+    it('omits reason from the audit log entirely when none was supplied (organisation\'s own reject is reason-optional)', async () => {
+      applicationsRepo.findById.mockResolvedValue(application);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'rejected' } as any, null);
+
+      const call = auditService.log.mock.calls[0][0];
+      expect(call.afterValue).not.toHaveProperty('reason');
     });
 
     it('accepts a previously-rejected application ("Accept Anyway" — either side can reconsider), assigning '
@@ -765,6 +778,19 @@ describe('OrganisationRequirementsService', () => {
 
       expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(result.verification_status).toBe('assigned');
+    });
+
+    it('targets the posting organisation in the audit log', async () => {
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-user-1' });
+
+      await service.completeRequirement('user-1', 'req-1', {}, null);
+
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ targetUserId: 'org-user-1' }),
+      );
     });
   });
 

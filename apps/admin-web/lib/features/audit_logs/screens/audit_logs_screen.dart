@@ -8,48 +8,13 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/audit_log_models.dart';
 import '../data/audit_logs_repository.dart';
-import '../../jobs/widgets/job_detail_dialog.dart';
+import '../widgets/audit_entry_cells.dart';
 
 /// Renders a JSON value map as a compact "key: value, key: value" string —
 /// enough to see what changed at a glance without a full diff-viewer widget.
 String formatAuditValue(Map<String, dynamic>? value) {
   if (value == null || value.isEmpty) return '-';
   return value.entries.map((e) => '${e.key}: ${e.value}').join(', ');
-}
-
-/// Same convention as the shared jobDisplayId() helper — kept as a local
-/// equivalent since AuditLogEntry only carries the two raw resolved
-/// numbers, not a full JobModel. Only called once entry.jobId is known
-/// non-null (see the DataCell above), so exactly one of
-/// adminJobNumber/patientJobNumber is always set here.
-String _auditJobDisplayId(AuditLogEntry entry) {
-  if (entry.adminJobNumber != null) {
-    return 'ADMIN-JOB-${entry.adminJobNumber}';
-  }
-  return 'PAT-JOB-${entry.patientJobNumber}';
-}
-
-/// Same convention as organisationJobDisplayId() from the shared package —
-/// kept local since AuditLogEntry only carries the raw resolved number,
-/// not a full OrganisationRequirementModel.
-String _auditRequirementDisplayId(AuditLogEntry entry) =>
-    'ORG-JOB-${entry.requirementNumber}';
-
-/// The target user's own display id (NUR-/PAT-/ORG-`<n>`), reusing the same
-/// helpers every other screen uses — null when there's no target at all,
-/// or the target is an admin/super_admin (no display-id convention for
-/// those; the raw name is enough).
-String? _auditTargetDisplayId(AuditLogEntry entry) {
-  switch (entry.targetUserRole) {
-    case 'caregiver':
-      return caregiverDisplayId(entry.targetCaregiverNumber);
-    case 'individual':
-      return patientDisplayId(entry.targetPatientNumber);
-    case 'organisation':
-      return organisationDisplayId(entry.targetOrgNumber);
-    default:
-      return null;
-  }
 }
 
 /// Route arguments for `/audit-logs` beyond the legacy bare target-user-id
@@ -145,13 +110,6 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
   void _applyFilters() {
     _page = 1;
     _load();
-  }
-
-  void _openJob(String jobId) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => JobDetailDialog(jobId: jobId),
-    );
   }
 
   Future<void> _pickDate({required bool isFrom}) async {
@@ -283,6 +241,7 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
             DataColumn(label: Text('Target')),
             DataColumn(label: Text('Before')),
             DataColumn(label: Text('After')),
+            DataColumn(label: Text('Reason')),
             DataColumn(label: Text('IP')),
           ],
           rows: _items
@@ -296,14 +255,17 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
                     DataCell(Text(entry.userName ?? '-')),
                     DataCell(Text(entry.action)),
                     DataCell(Text(entry.entityType)),
-                    DataCell(_buildJobOrRequirementCell(entry)),
-                    DataCell(_buildTargetCell(entry)),
+                    DataCell(buildJobOrRequirementCell(context, entry)),
+                    DataCell(buildTargetCell(context, entry)),
                     DataCell(SizedBox(
                         width: 220,
                         child: Text(formatAuditValue(entry.beforeValue)))),
                     DataCell(SizedBox(
                         width: 220,
                         child: Text(formatAuditValue(entry.afterValue)))),
+                    DataCell(SizedBox(
+                        width: 180,
+                        child: buildAuditReasonLine(entry) ?? const Text('-'))),
                     DataCell(Text(entry.ipAddress ?? '-')),
                   ],
                 ),
@@ -338,83 +300,23 @@ class _AuditLogsScreenState extends ConsumerState<AuditLogsScreen> {
           const Padding(
               padding: EdgeInsets.only(top: 2),
               child: Text('Job / Requirement:', style: _mobileFieldLabelStyle)),
-          _buildJobOrRequirementCell(entry),
+          buildJobOrRequirementCell(context, entry),
         ],
         if (entry.targetUserName != null) ...[
           const Padding(
               padding: EdgeInsets.only(top: 2),
               child: Text('Target:', style: _mobileFieldLabelStyle)),
-          _buildTargetCell(entry),
+          buildTargetCell(context, entry),
         ],
         VitaListCard.kv('Before', formatAuditValue(entry.beforeValue)),
         VitaListCard.kv('After', formatAuditValue(entry.afterValue)),
+        if (buildAuditReasonLine(entry) != null) ...[
+          const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Text('Reason:', style: _mobileFieldLabelStyle)),
+          buildAuditReasonLine(entry)!,
+        ],
         VitaListCard.kv('IP', entry.ipAddress ?? '-'),
-      ],
-    );
-  }
-
-  /// Job entries stay clickable (opens JobDetailDialog, unchanged).
-  /// Organisation-requirement entries show the same "display id + raw
-  /// selectable UUID" shape but aren't clickable — there's no admin-web
-  /// dialog that opens a requirement's detail from outside its own list
-  /// screen, unlike jobs' JobDetailDialog which is already a standalone
-  /// public widget.
-  Widget _buildJobOrRequirementCell(AuditLogEntry entry) {
-    if (entry.jobId != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton(
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onPressed: () => _openJob(entry.jobId!),
-            child: Text(_auditJobDisplayId(entry)),
-          ),
-          // The raw UUID, selectable so it can be copied straight into a
-          // DB query or support ticket — the display id alone isn't
-          // enough when you need the exact id.
-          SelectableText(entry.jobId!,
-              style: const TextStyle(
-                  fontSize: AppTypography.caption, color: AppColors.textSecondary)),
-        ],
-      );
-    }
-    if (entry.requirementNumber != null && entry.requirementId != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_auditRequirementDisplayId(entry),
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          SelectableText(entry.requirementId!,
-              style: const TextStyle(
-                  fontSize: AppTypography.caption, color: AppColors.textSecondary)),
-        ],
-      );
-    }
-    return const Text('-');
-  }
-
-  /// Shows the target's own display id (NUR-/PAT-/ORG-`<n>`) above their
-  /// name when the target is a caregiver/individual/organisation — an
-  /// admin/super_admin target (or no target at all) just shows the name,
-  /// same as before.
-  Widget _buildTargetCell(AuditLogEntry entry) {
-    final displayId = _auditTargetDisplayId(entry);
-    if (entry.targetUserName == null) return const Text('-');
-    if (displayId == null) return Text(entry.targetUserName!);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(displayId, style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(entry.targetUserName!,
-            style:
-                const TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary)),
       ],
     );
   }

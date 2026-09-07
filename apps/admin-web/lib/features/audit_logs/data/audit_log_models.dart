@@ -25,6 +25,12 @@ class AuditLogEntry {
   final int? targetPatientNumber;
   final int? targetOrgNumber;
 
+  /// The target caregiver's own profile id (distinct from [targetUserId], a
+  /// users.id) — CaregiverDetailScreen's route is keyed by profile id, not
+  /// user id, so this is what makes a caregiver target clickable. Only ever
+  /// non-null alongside [targetCaregiverNumber].
+  final String? targetCaregiverProfileId;
+
   /// Resolved the same way as jobId above, but for
   /// organisation_requirements — backs the "ORG-JOB-`<n>`" display id.
   final int? requirementNumber;
@@ -50,6 +56,7 @@ class AuditLogEntry {
     this.targetCaregiverNumber,
     this.targetPatientNumber,
     this.targetOrgNumber,
+    this.targetCaregiverProfileId,
     this.requirementNumber,
     this.requirementId,
     this.beforeValue,
@@ -74,6 +81,7 @@ class AuditLogEntry {
         targetCaregiverNumber: json['target_caregiver_number'] as int?,
         targetPatientNumber: json['target_patient_number'] as int?,
         targetOrgNumber: json['target_org_number'] as int?,
+        targetCaregiverProfileId: json['target_caregiver_profile_id'] as String?,
         requirementNumber: json['requirement_number'] as int?,
         requirementId: json['requirement_id'] as String?,
         beforeValue: json['before_value'] as Map<String, dynamic>?,

@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
+import '../../audit_logs/widgets/audit_entry_cells.dart';
 import '../data/admin_organisations_repository.dart';
 
 /// organisation_profiles.city accepts the existing 7 cities plus this one
@@ -507,28 +508,51 @@ class _OrganisationDetailScreenState
             ..._auditEntries.map(
               (entry) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: 160,
-                      child: Text(
-                          entry.createdAt
-                              .replaceFirst('T', ' ')
-                              .split('.')
-                              .first,
-                          style: const TextStyle(
-                              fontSize: AppTypography.small, color: AppColors.textSecondary)),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 160,
+                          child: Text(
+                              entry.createdAt
+                                  .replaceFirst('T', ' ')
+                                  .split('.')
+                                  .first,
+                              style: const TextStyle(
+                                  fontSize: AppTypography.small, color: AppColors.textSecondary)),
+                        ),
+                        SizedBox(width: 160, child: Text(entry.action)),
+                        Expanded(
+                          child: Text(
+                            entry.afterValue != null
+                                ? formatAuditValue(entry.afterValue)
+                                : '-',
+                            style: const TextStyle(fontSize: AppTypography.small),
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(width: 160, child: Text(entry.action)),
-                    Expanded(
-                      child: Text(
-                        entry.afterValue != null
-                            ? formatAuditValue(entry.afterValue)
-                            : '-',
-                        style: const TextStyle(fontSize: AppTypography.small),
+                    if (entry.jobId != null || entry.requirementNumber != null || entry.targetUserName != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 160, top: 2),
+                        child: Wrap(
+                          spacing: AppSpacing.lg,
+                          crossAxisAlignment: WrapCrossAlignment.start,
+                          children: [
+                            if (entry.jobId != null || entry.requirementNumber != null)
+                              buildJobOrRequirementCell(context, entry),
+                            if (entry.targetUserName != null) buildTargetCell(context, entry),
+                          ],
+                        ),
                       ),
-                    ),
+                    if (buildAuditReasonLine(entry) != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 160, top: 2),
+                        child: buildAuditReasonLine(entry)!,
+                      ),
                   ],
                 ),
               ),

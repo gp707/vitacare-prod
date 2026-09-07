@@ -6,6 +6,7 @@ import {
   DutyType,
   JobApplicationStatus,
   JobStatus,
+  UserRole,
   VerificationStatus,
 } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
@@ -433,8 +434,18 @@ export class JobsService {
       }
     });
 
+    // Surfaces this event on the posting patient's own admin-web audit
+    // history too, not just the caregiver's — only when the job was
+    // posted by a NurseNow individual; an admin-posted job has no such
+    // "patient" account to target. jobs.posted_by_role isn't a stored
+    // column (see JobsRepository.listForAdmin's own join), so it's
+    // resolved here the same way — a users lookup on posted_by.
+    const job = await this.jobsRepo.findById(jobId);
+    const poster = job ? await this.usersRepo.findById(job.posted_by) : null;
+
     await this.auditService.log({
       userId,
+      targetUserId: poster?.role === UserRole.INDIVIDUAL ? poster.id : undefined,
       action: AuditAction.JOB_COMPLETED,
       entityType: 'job_applications',
       entityId: application.id,
@@ -539,6 +550,9 @@ export class JobsService {
         status: dto.status,
         ...(isAccepting ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
         ...(isUndoAccept ? { job_status: 'active', caregiver_status: 'available' } : {}),
+        // Present on a patient's/organisation's own reject (mandatory there,
+        // JOB_012) — never on admin's own reject, which stays reason-optional.
+        ...(dto.reason ? { reason: dto.reason } : {}),
       },
       ipAddress,
     });

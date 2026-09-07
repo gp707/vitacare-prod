@@ -24,10 +24,12 @@ AuditLogEntry _entry({
   String? targetUserName,
   String? targetUserRole,
   int? targetCaregiverNumber,
+  String? targetCaregiverProfileId,
   int? targetPatientNumber,
   int? targetOrgNumber,
   int? requirementNumber,
   String? requirementId,
+  Map<String, dynamic>? afterValue,
 }) {
   return AuditLogEntry.fromJson({
     'id': id,
@@ -43,12 +45,13 @@ AuditLogEntry _entry({
     'job_id': jobId,
     'target_user_role': targetUserRole,
     'target_caregiver_number': targetCaregiverNumber,
+    'target_caregiver_profile_id': targetCaregiverProfileId,
     'target_patient_number': targetPatientNumber,
     'target_org_number': targetOrgNumber,
     'requirement_number': requirementNumber,
     'requirement_id': requirementId,
     'before_value': null,
-    'after_value': null,
+    'after_value': afterValue,
     'ip_address': null,
     'created_at': '2026-08-17T10:00:00Z',
   });
@@ -227,6 +230,80 @@ void main() {
     expect(find.text('Asha Patel'), findsOneWidget);
     expect(find.text('ORG-503'), findsOneWidget);
     expect(find.text('City Rehab Center'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping a caregiver target navigates to /caregiver-detail with their profile id',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.view.reset();
+    });
+
+    String? pushedRoute;
+    Object? pushedArgs;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+          ),
+          auditLogsRepositoryProvider.overrideWithValue(
+            _FakeAuditLogsRepository([
+              _entry(
+                targetUserName: 'Ramesh Kumar',
+                targetUserRole: 'caregiver',
+                targetCaregiverNumber: 542,
+                targetCaregiverProfileId: 'profile-542',
+              ),
+            ]),
+          ),
+        ],
+        child: MaterialApp(
+          home: const AuditLogsScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            pushedArgs = settings.arguments;
+            return MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Detail')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final inkWell = tester.widget<InkWell>(find.ancestor(
+      of: find.text('NUR-542'),
+      matching: find.byType(InkWell),
+    ));
+    inkWell.onTap!();
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, '/caregiver-detail');
+    expect(pushedArgs, 'profile-542');
+  });
+
+  testWidgets('shows a Reason column value for an entry carrying a rejection/close reason',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAuditLogsRepository([
+        _entry(
+          action: 'job_application_decided',
+          entityType: 'job_applications',
+          afterValue: const {'status': 'rejected', 'reason': 'Not a good fit for the schedule'},
+        ),
+      ]),
+    );
+
+    expect(find.text('Reason: Not a good fit for the schedule'), findsOneWidget);
   });
 
   testWidgets(

@@ -175,6 +175,33 @@ void main() {
   });
 
   testWidgets(
+      'shows the linked requirement id and the close reason for a caregiver-closed entry',
+      (tester) async {
+    final auditRepo = _FakeAuditLogsRepository([
+      AuditLogEntry.fromJson({
+        'id': 'log-2',
+        'user_id': 'caregiver-user-1',
+        'user_name': 'Ramesh Kumar',
+        'target_user_id': 'u1',
+        'target_user_name': 'City Rehab Center',
+        'action': 'org_requirement_application_decided',
+        'entity_type': 'organisation_requirement_applications',
+        'entity_id': 'app-1',
+        'requirement_number': 700,
+        'requirement_id': 'req-1',
+        'after_value': {'status': 'completed', 'close_reason': 'need_to_go_hometown'},
+        'ip_address': null,
+        'created_at': '2026-08-01T10:00:00Z',
+      }),
+    ]);
+    await _pump(tester, _FakeAdminOrganisationsRepository(_item()),
+        auditRepo: auditRepo);
+
+    expect(find.textContaining('ORG-JOB-700'), findsOneWidget);
+    expect(find.text('Reason: need_to_go_hometown'), findsOneWidget);
+  });
+
+  testWidgets(
       'tapping Edit reveals editable fields; saving calls editProfile with only the changed fields',
       (tester) async {
     final repo = _FakeAdminOrganisationsRepository(_item());

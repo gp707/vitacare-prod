@@ -161,6 +161,7 @@ void main() {
     await _settle(tester);
 
     expect(find.textContaining('You can edit this job and change salary'), findsOneWidget);
+    expect(find.text('Click on the below message to mark it read.'), findsOneWidget);
     // Still the same route — no page navigation happened, just a sheet.
     expect(find.byType(Scaffold), findsOneWidget);
   });

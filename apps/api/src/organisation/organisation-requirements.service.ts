@@ -347,6 +347,11 @@ export class OrganisationRequirementsService {
         status: dto.status,
         ...(isAccepting ? { caregiver_status: 'assigned' } : {}),
         ...(isUndoAccept ? { caregiver_status: 'available' } : {}),
+        // Reason is optional on an organisation's own reject (unlike
+        // Individual's mandatory JOB_012 rule — see "NurseNow" in
+        // CLAUDE.md) — logged whenever one was actually given, same as
+        // admin's own optional-reason reject.
+        ...(dto.reason ? { reason: dto.reason } : {}),
       },
       ipAddress,
     });
@@ -426,8 +431,15 @@ export class OrganisationRequirementsService {
       }
     });
 
+    // Surfaces this event on the posting organisation's own admin-web
+    // audit history too, not just the caregiver's — unlike a job, a
+    // requirement's poster is always an organisation (see "NurseNow" in
+    // CLAUDE.md), so no role check is needed here.
+    const requirement = await this.requirementsRepo.findById(requirementId);
+
     await this.auditService.log({
       userId,
+      targetUserId: requirement?.posted_by,
       action: AuditAction.ORG_REQUIREMENT_APPLICATION_DECIDED,
       entityType: 'organisation_requirement_applications',
       entityId: application.id,

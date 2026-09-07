@@ -11,6 +11,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
+import '../../audit_logs/widgets/audit_entry_cells.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
@@ -876,6 +877,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                         Text('Before: ${formatAuditValue(entry.beforeValue)}'),
                       if (entry.afterValue != null)
                         Text('After: ${formatAuditValue(entry.afterValue)}'),
+                      if (entry.jobId != null || entry.requirementNumber != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        buildJobOrRequirementCell(context, entry),
+                      ],
+                      if (buildAuditReasonLine(entry) != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        buildAuditReasonLine(entry)!,
+                      ],
                     ],
                   ),
                 ),

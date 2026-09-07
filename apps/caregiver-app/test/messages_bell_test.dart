@@ -154,6 +154,7 @@ void main() {
     await _settle(tester);
 
     expect(find.textContaining('Successfully applied to job ADMIN-JOB-512'), findsOneWidget);
+    expect(find.text('Click on the below message to mark it read.'), findsOneWidget);
     expect(find.byType(Scaffold), findsOneWidget);
   });
 

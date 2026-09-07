@@ -173,8 +173,13 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Padding(
-                        padding: EdgeInsets.only(bottom: AppSpacing.md),
+                        padding: EdgeInsets.only(bottom: AppSpacing.xs),
                         child: Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: AppSpacing.md),
+                        child: Text('Click on the below message to mark it read.',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.caption)),
                       ),
                       if (error != null)
                         Text(error, style: const TextStyle(color: AppColors.error))

@@ -764,6 +764,33 @@ describe('JobsService', () => {
         }),
       );
     });
+
+    it('targets the posting patient in the audit log when the job was posted by a NurseNow individual', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'individual-user-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'individual-user-1', role: 'individual' });
+
+      await service.completeJob('user-1', 'job-1', {}, null);
+
+      expect(usersRepo.findById).toHaveBeenCalledWith('individual-user-1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ targetUserId: 'individual-user-1' }),
+      );
+    });
+
+    it('does not target anyone in the audit log for an admin-posted job', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'admin-user-1' });
+      usersRepo.findById.mockResolvedValue({ id: 'admin-user-1', role: 'admin' });
+
+      await service.completeJob('user-1', 'job-1', {}, null);
+
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ targetUserId: undefined }));
+    });
   });
 
   describe('decideApplication', () => {
@@ -864,6 +891,21 @@ describe('JobsService', () => {
         expect.anything(),
         'Not a good fit for the schedule',
       );
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          afterValue: expect.objectContaining({ reason: 'Not a good fit for the schedule' }),
+        }),
+      );
+    });
+
+    it('omits reason from the audit log entirely when none was supplied (e.g. admin\'s own reason-optional reject)', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue(application);
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+
+      await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
+
+      const call = auditService.log.mock.calls[0][0];
+      expect(call.afterValue).not.toHaveProperty('reason');
     });
 
     it('rejecting a previously-accepted application reopens the job and un-assigns the caregiver', async () => {
