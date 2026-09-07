@@ -9,9 +9,9 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
-import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../../audit_logs/widgets/audit_entry_cells.dart';
+import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
@@ -38,9 +38,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   bool _loading = true;
   String? _errorMessage;
   bool _actionInFlight = false;
-
-  List<AuditLogEntry> _auditEntries = [];
-  bool _auditLoading = true;
 
   /// Which document slot ('selfie', 'qualification', 'aadhaar', 'other') is
   /// currently uploading, or null if none. Only one upload at a time.
@@ -95,26 +92,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         _internalNotesController.text = detail.adminNotes.internalNotes ?? '';
         _remarksController.text = detail.adminNotes.availabilityRemarks ?? '';
       });
-      unawaited(_loadAuditHistory(detail.userId));
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadAuditHistory(String userId) async {
-    setState(() => _auditLoading = true);
-    try {
-      final result = await ref
-          .read(auditLogsRepositoryProvider)
-          .list(AuditLogListFilters(targetUserId: userId, limit: 50));
-      if (mounted) setState(() => _auditEntries = result.items);
-    } on ApiException {
-      // Non-critical: the rest of the caregiver detail page still works
-      // without the audit tab, so failures here don't surface an error banner.
-    } finally {
-      if (mounted) setState(() => _auditLoading = false);
     }
   }
 
@@ -825,13 +806,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Widget _buildAuditTab(AdminCaregiverDetail detail) {
-    if (_auditLoading) {
-      return const Center(child: VitaLoadingIndicator());
-    }
-    if (_auditEntries.isEmpty) {
-      return const Center(
-          child: Text('No audit history for this caregiver yet.'));
-    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -846,51 +820,52 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               label: const Text('View full audit log'),
             ),
           ),
-          for (final entry in _auditEntries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(entry.action,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(width: AppSpacing.sm),
-                          Text(
-                            entry.createdAt
-                                .replaceFirst('T', ' ')
-                                .split('.')
-                                .first,
-                            style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: AppTypography.small),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text('By: ${entry.userName ?? 'system'}'),
-                      if (entry.beforeValue != null)
-                        Text('Before: ${formatAuditValue(entry.beforeValue)}'),
-                      if (entry.afterValue != null)
-                        Text('After: ${formatAuditValue(entry.afterValue)}'),
-                      if (entry.jobId != null || entry.requirementNumber != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        buildJobOrRequirementCell(context, entry),
-                      ],
-                      if (buildAuditReasonLine(entry) != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        buildAuditReasonLine(entry)!,
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          ScopedAuditHistorySection(
+            targetUserId: detail.userId,
+            itemBuilder: _buildAuditEntryCard,
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAuditEntryCard(BuildContext context, AuditLogEntry entry) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(entry.action, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    entry.createdAt.replaceFirst('T', ' ').split('.').first,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: AppTypography.small),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text('By: ${entry.userName ?? 'system'}'),
+              if (entry.beforeValue != null)
+                Text('Before: ${formatAuditValue(entry.beforeValue)}'),
+              if (entry.afterValue != null)
+                Text('After: ${formatAuditValue(entry.afterValue)}'),
+              if (entry.jobId != null || entry.requirementNumber != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                buildJobOrRequirementCell(context, entry),
+              ],
+              if (buildAuditReasonLine(entry) != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                buildAuditReasonLine(entry)!,
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

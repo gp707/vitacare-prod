@@ -118,12 +118,16 @@ function buildWhereClause(filters: AuditLogListFilters): { clause: string; param
     conditions.push(`al.created_at <= $${params.length}::date + INTERVAL '1 day'`);
   }
   // Matches ANY of: actor name/phone, target name/phone, target's own
-  // display id, the entry's entity_type, or the affected job/requirement's
-  // display id — one search box covering everything an admin might already
-  // know about the entry they're looking for. Reuses the same param
-  // placeholder for every branch of the OR (identical %term% value), so
-  // this only ever costs one entry in params regardless of how many
-  // columns it's matched against.
+  // display id, the entry's action/entity_type, the affected job/
+  // requirement's display id, or any value stored in before/after_value
+  // (e.g. a rejection/close reason, or "assigned"/"rejected" itself) — one
+  // search box covering everything an admin might already know about the
+  // entry they're looking for, so a scoped per-account audit history (see
+  // ScopedAuditHistorySection in admin-web) can be searched by job id,
+  // action, or the reason text alike to correlate related entries. Reuses
+  // the same param placeholder for every branch of the OR (identical
+  // %term% value), so this only ever costs one entry in params regardless
+  // of how many columns it's matched against.
   if (filters.search) {
     params.push(`%${filters.search}%`);
     const p = params.length;
@@ -135,7 +139,10 @@ function buildWhereClause(filters: AuditLogListFilters): { clause: string; param
       ('NUR-' || target_cp.caregiver_number::text) ILIKE $${p} OR
       ('PAT-' || target_ip.patient_number::text) ILIKE $${p} OR
       ('ORG-' || target_op.org_number::text) ILIKE $${p} OR
+      al.action ILIKE $${p} OR
       al.entity_type ILIKE $${p} OR
+      al.before_value::text ILIKE $${p} OR
+      al.after_value::text ILIKE $${p} OR
       ('ADMIN-JOB-' || COALESCE(job_direct.admin_job_number, job_via_app.admin_job_number)::text) ILIKE $${p} OR
       ('PAT-JOB-' || COALESCE(job_direct.patient_job_number, job_via_app.patient_job_number)::text) ILIKE $${p} OR
       ('ORG-JOB-' || COALESCE(org_req_direct.requirement_number, org_req_via_app.requirement_number)::text) ILIKE $${p}

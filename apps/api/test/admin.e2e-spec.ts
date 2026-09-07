@@ -694,6 +694,48 @@ describe('Admin (e2e)', () => {
       expect(res.body.data).toEqual([]);
       expect(res.body.meta.total).toBe(0);
     });
+
+    it('search matches a substring of the action itself, so a scoped per-account history can be narrowed to e.g. "status" entries', async () => {
+      const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
+        '0043',
+        'Audit Action Search',
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/caregivers/${profileId}/status`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'available' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ target_user_id: targetUserId, search: 'status_chang' })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(res.body.data.some((e: { action: string }) => e.action === 'status_changed')).toBe(true);
+    });
+
+    it('search matches text stored inside after_value, e.g. a rejection message — lets admin correlate by reason', async () => {
+      const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
+        '0044',
+        'Audit Reason Search',
+      );
+      await request(app.getHttpServer())
+        .patch(`/v1/admin/caregivers/${profileId}/status`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({ status: 'rejected', rejection_message: 'Aadhaar photo unreadable, please reupload' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/admin/audit-logs')
+        .query({ target_user_id: targetUserId, search: 'Aadhaar photo unreadable' })
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      const rejectEntry = res.body.data.find((e: { action: string }) => e.action === 'status_changed');
+      expect(rejectEntry).toBeDefined();
+      expect(rejectEntry.after_value.rejection_message).toBe('Aadhaar photo unreadable, please reupload');
+    });
   });
 
   describe('PUT /v1/admin/caregivers/:id (generic edit)', () => {

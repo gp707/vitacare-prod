@@ -7,9 +7,9 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
-import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../../audit_logs/widgets/audit_entry_cells.dart';
+import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../jobs/screens/admin_jobs_screen.dart' show JobsScreenInitialFilter;
 import '../data/admin_individuals_repository.dart';
 
@@ -33,9 +33,6 @@ class _IndividualDetailScreenState
   AdminIndividualListItem? _detail;
   bool _loading = true;
   String? _errorMessage;
-
-  List<AuditLogEntry> _auditEntries = [];
-  bool _auditLoading = true;
 
   bool _editMode = false;
   bool _savingEdits = false;
@@ -64,25 +61,10 @@ class _IndividualDetailScreenState
           .getDetail(widget.userId);
       if (!mounted) return;
       setState(() => _detail = detail);
-      unawaited(_loadAuditHistory(detail.userId));
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadAuditHistory(String userId) async {
-    setState(() => _auditLoading = true);
-    try {
-      final result = await ref
-          .read(auditLogsRepositoryProvider)
-          .list(AuditLogListFilters(targetUserId: userId, limit: 50));
-      if (mounted) setState(() => _auditEntries = result.items);
-    } on ApiException {
-      // Non-critical: the rest of the page still works without this preview.
-    } finally {
-      if (mounted) setState(() => _auditLoading = false);
     }
   }
 
@@ -434,68 +416,57 @@ class _IndividualDetailScreenState
               ),
             ],
           ),
-          if (_auditLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: Center(child: VitaLoadingIndicator()),
-            )
-          else if (_auditEntries.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Text('No actions recorded for this account yet.'),
-            )
-          else
-            ..._auditEntries.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 160,
-                          child: Text(
-                              entry.createdAt
-                                  .replaceFirst('T', ' ')
-                                  .split('.')
-                                  .first,
-                              style: const TextStyle(
-                                  fontSize: AppTypography.small, color: AppColors.textSecondary)),
-                        ),
-                        SizedBox(width: 160, child: Text(entry.action)),
-                        Expanded(
-                          child: Text(
-                            entry.afterValue != null
-                                ? formatAuditValue(entry.afterValue)
-                                : '-',
-                            style: const TextStyle(fontSize: AppTypography.small),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (entry.jobId != null || entry.requirementNumber != null || entry.targetUserName != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 160, top: 2),
-                        child: Wrap(
-                          spacing: AppSpacing.lg,
-                          crossAxisAlignment: WrapCrossAlignment.start,
-                          children: [
-                            if (entry.jobId != null || entry.requirementNumber != null)
-                              buildJobOrRequirementCell(context, entry),
-                            if (entry.targetUserName != null) buildTargetCell(context, entry),
-                          ],
-                        ),
-                      ),
-                    if (buildAuditReasonLine(entry) != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 160, top: 2),
-                        child: buildAuditReasonLine(entry)!,
-                      ),
-                  ],
+          ScopedAuditHistorySection(
+            targetUserId: widget.userId,
+            itemBuilder: _buildAuditEntryRow,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditEntryRow(BuildContext context, AuditLogEntry entry) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 160,
+                child: Text(
+                    entry.createdAt.replaceFirst('T', ' ').split('.').first,
+                    style: const TextStyle(
+                        fontSize: AppTypography.small, color: AppColors.textSecondary)),
+              ),
+              SizedBox(width: 160, child: Text(entry.action)),
+              Expanded(
+                child: Text(
+                  entry.afterValue != null ? formatAuditValue(entry.afterValue) : '-',
+                  style: const TextStyle(fontSize: AppTypography.small),
                 ),
               ),
+            ],
+          ),
+          if (entry.jobId != null || entry.requirementNumber != null || entry.targetUserName != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 160, top: 2),
+              child: Wrap(
+                spacing: AppSpacing.lg,
+                crossAxisAlignment: WrapCrossAlignment.start,
+                children: [
+                  if (entry.jobId != null || entry.requirementNumber != null)
+                    buildJobOrRequirementCell(context, entry),
+                  if (entry.targetUserName != null) buildTargetCell(context, entry),
+                ],
+              ),
+            ),
+          if (buildAuditReasonLine(entry) != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 160, top: 2),
+              child: buildAuditReasonLine(entry)!,
             ),
         ],
       ),
