@@ -194,14 +194,6 @@ class _JobIdLine extends StatelessWidget {
             style: const TextStyle(
                 fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success),
           ),
-          // Only present on the browse list (GET /caregiver/jobs) — null on
-          // the assigned/MyJobs list, where this doesn't apply.
-          if (job.applicantCount != null)
-            TextSpan(
-              text: '  ·  ${job.applicantCount} applied',
-              style: const TextStyle(
-                  fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-            ),
         ],
       ),
     );
@@ -312,18 +304,41 @@ class _JobHeaderContent extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                color: Colors.yellow,
-                child: Text(
-                  'Job in ${jobPostedByLabel(job)}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: AppTypography.body,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.error,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      color: Colors.yellow,
+                      child: Text(
+                        'Job in ${jobPostedByLabel(job)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: AppTypography.body,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  // Only present on the browse list (GET /caregiver/jobs) —
+                  // null on the assigned/MyJobs list, where this doesn't
+                  // apply. Placed right next to the "Job in <poster>" header
+                  // — same prominence as an organisation requirement's own
+                  // "N applied" line, which sits right at the top too.
+                  if (job.applicantCount != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '${job.applicantCount} applied',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: AppTypography.small,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary),
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(width: AppSpacing.xs),

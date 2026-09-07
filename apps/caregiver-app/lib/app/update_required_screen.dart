@@ -27,7 +27,7 @@ class UpdateRequiredScreen extends StatelessWidget {
       launched = false;
     }
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the app store.')));
+      showVitaErrorBanner(context, 'Could not open the app store.');
     }
   }
 

@@ -128,6 +128,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Could not check for updates. Please check your connection and try again.'), findsOneWidget);
+
+    // Drain the still-pending 5s auto-dismiss timer so the test doesn't
+    // end with a live Timer outliving the widget tree.
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('stops polling once the timer is disposed (no lingering timer error after leaving the screen)',

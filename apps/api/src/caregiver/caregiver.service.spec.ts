@@ -6,6 +6,7 @@ describe('CaregiverService', () => {
   let db: any;
   let usersRepo: any;
   let profilesRepo: any;
+  let documentsRepo: any;
   let languagesRepo: any;
   let preferredCitiesRepo: any;
   let uploadService: any;
@@ -57,6 +58,7 @@ describe('CaregiverService', () => {
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
     };
+    documentsRepo = { recordVersion: jest.fn() };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
     preferredCitiesRepo = {
       findByProfileId: jest.fn().mockResolvedValue([]),
@@ -75,6 +77,7 @@ describe('CaregiverService', () => {
       db,
       usersRepo,
       profilesRepo,
+      documentsRepo,
       languagesRepo,
       preferredCitiesRepo,
       uploadService,
@@ -252,20 +255,28 @@ describe('CaregiverService', () => {
       });
     });
 
-    it('uploads to the correct path and updates the profile', async () => {
+    it('uploads to a unique, versioned path (never the same as a previous upload) and updates the profile', async () => {
       profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
       const file = { originalname: 'me.png', buffer: Buffer.from('x'), mimetype: 'image/png' } as any;
       uploadService.extractExtension.mockReturnValue('png');
 
       const result = await service.uploadSelfie('user-1', file);
+      const expectedPath = expect.stringMatching(/^profile-1\/selfie_\d+\.png$/);
       expect(uploadService.uploadFile).toHaveBeenCalledWith(
         'caregiver-documents',
-        'profile-1/selfie.png',
+        expectedPath,
         file.buffer,
         'image/png',
       );
-      expect(profilesRepo.setSelfieUrl).toHaveBeenCalledWith('profile-1', 'profile-1/selfie.png');
-      expect(result.file_path).toBe('caregiver-documents/profile-1/selfie.png');
+      expect(profilesRepo.setSelfieUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
+        'profile-1',
+        'selfie',
+        expectedPath,
+        'user-1',
+        'caregiver',
+      );
+      expect(result.file_path).toMatch(/^caregiver-documents\/profile-1\/selfie_\d+\.png$/);
     });
 
     it('auto-resubmits a rejected caregiver', async () => {
@@ -293,28 +304,45 @@ describe('CaregiverService', () => {
       ).rejects.toMatchObject({ code: 'UPLOAD_001' });
     });
 
-    it('sets the qualification document URL', async () => {
+    it('sets the qualification document URL to a unique versioned path, and records the version', async () => {
       await service.uploadDocument('user-1', { document_type: 'qualification' as any }, file);
-      expect(profilesRepo.setQualificationDocumentUrl).toHaveBeenCalledWith(
+      const expectedPath = expect.stringMatching(/^profile-1\/qualification_\d+\.pdf$/);
+      expect(profilesRepo.setQualificationDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
         'profile-1',
-        'profile-1/qualification.pdf',
+        'qualification',
+        expectedPath,
+        'user-1',
+        'caregiver',
       );
     });
 
-    it('sets the aadhaar document URL', async () => {
+    it('sets the aadhaar document URL to a unique versioned path, and records the version', async () => {
       await service.uploadDocument('user-1', { document_type: 'aadhaar' as any }, file);
-      expect(profilesRepo.setAadhaarDocumentUrl).toHaveBeenCalledWith(
+      const expectedPath = expect.stringMatching(/^profile-1\/aadhaar_\d+\.pdf$/);
+      expect(profilesRepo.setAadhaarDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
         'profile-1',
-        'profile-1/aadhaar.pdf',
+        'aadhaar',
+        expectedPath,
+        'user-1',
+        'caregiver',
       );
     });
 
-    it('appends an other document at the next index', async () => {
-      profilesRepo.getOtherDocumentUrls.mockResolvedValue(['profile-1/other_1.pdf']);
+    it('appends an other document at the next index, at a unique versioned path, and records the version '
+      + 'with its slot index', async () => {
+      profilesRepo.getOtherDocumentUrls.mockResolvedValue(['profile-1/other_1_1000.pdf']);
       await service.uploadDocument('user-1', { document_type: 'other' as any }, file);
-      expect(profilesRepo.appendOtherDocumentUrl).toHaveBeenCalledWith(
+      const expectedPath = expect.stringMatching(/^profile-1\/other_2_\d+\.pdf$/);
+      expect(profilesRepo.appendOtherDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
         'profile-1',
-        'profile-1/other_2.pdf',
+        'other',
+        expectedPath,
+        'user-1',
+        'caregiver',
+        2,
       );
     });
 

@@ -9,6 +9,10 @@ import { AuditLogsRepository } from '../database/repositories/audit-logs.reposit
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
+import {
+  CaregiverDocumentsRepository,
+  CaregiverDocumentVersionRecord,
+} from '../database/repositories/caregiver-documents.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { AdminIndividualsRepository } from '../database/repositories/admin-individuals.repository';
 import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
@@ -38,6 +42,7 @@ export class AdminService {
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
     private readonly profilesRepo: CaregiverProfilesRepository,
+    private readonly documentsRepo: CaregiverDocumentsRepository,
     private readonly usersRepo: UsersRepository,
     private readonly individualsRepo: AdminIndividualsRepository,
     private readonly organisationsRepo: AdminOrganisationsRepository,
@@ -382,9 +387,10 @@ export class AdminService {
 
     const hadFileBefore = profile.selfie_photo_url !== null;
     const ext = this.uploadService.extractExtension(file.originalname);
-    const path = `${profileId}/selfie${ext ? `.${ext}` : ''}`;
+    const path = `${profileId}/selfie_${Date.now()}${ext ? `.${ext}` : ''}`;
     await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
     await this.profilesRepo.setSelfieUrl(profileId, path);
+    await this.documentsRepo.recordVersion(profileId, 'selfie', path, adminId, 'admin');
 
     await this.auditService.log({
       userId: adminId,
@@ -419,14 +425,16 @@ export class AdminService {
     let hadFileBefore: boolean;
     if (dto.document_type === DocumentType.QUALIFICATION) {
       hadFileBefore = profile.qualification_document_url !== null;
-      path = `${profileId}/qualification${ext ? `.${ext}` : ''}`;
+      path = `${profileId}/qualification_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.setQualificationDocumentUrl(profileId, path);
+      await this.documentsRepo.recordVersion(profileId, 'qualification', path, adminId, 'admin');
     } else if (dto.document_type === DocumentType.AADHAAR) {
       hadFileBefore = profile.aadhaar_document_url !== null;
-      path = `${profileId}/aadhaar${ext ? `.${ext}` : ''}`;
+      path = `${profileId}/aadhaar_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.setAadhaarDocumentUrl(profileId, path);
+      await this.documentsRepo.recordVersion(profileId, 'aadhaar', path, adminId, 'admin');
     } else {
       const existing = await this.profilesRepo.getOtherDocumentUrls(profileId);
       if (existing.length >= Validation.MAX_OTHER_DOCUMENTS) {
@@ -434,9 +442,10 @@ export class AdminService {
       }
       hadFileBefore = false;
       const index = existing.length + 1;
-      path = `${profileId}/other_${index}${ext ? `.${ext}` : ''}`;
+      path = `${profileId}/other_${index}_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.appendOtherDocumentUrl(profileId, path);
+      await this.documentsRepo.recordVersion(profileId, 'other', path, adminId, 'admin', index);
     }
 
     await this.auditService.log({
@@ -455,6 +464,69 @@ export class AdminService {
       document_type: dto.document_type,
       file_path: `${Config.STORAGE_BUCKET}/${path}`,
     };
+  }
+
+  /** Every version ever uploaded for this caregiver — selfie, qualification,
+   *  Aadhaar, and each "other" slot — newest first within each document
+   *  type/slot, each with a fresh signed URL (never persisted) and who
+   *  uploaded it. Lets admin open/download a past version, not just the
+   *  current one caregiver_profiles points at. */
+  async getDocumentHistory(profileId: string) {
+    const profile = await this.caregiversRepo.getDetailById(profileId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    const versions = await this.documentsRepo.listByProfileId(profileId);
+    const data = await Promise.all(
+      versions.map(async (v: CaregiverDocumentVersionRecord) => ({
+        id: v.id,
+        document_type: v.document_type,
+        slot_index: v.slot_index,
+        signed_url: await this.uploadService.getSignedUrl(Config.STORAGE_BUCKET, v.path),
+        uploaded_by_name: v.uploaded_by_name,
+        uploaded_by_role: v.uploaded_by_role,
+        created_at: v.created_at,
+      })),
+    );
+    return data;
+  }
+
+  /** Super-admin-only: permanently deletes one old, superseded document
+   *  version (both the storage object and its caregiver_documents row) to
+   *  reclaim space — the current version (whatever caregiver_profiles
+   *  still points at) can never be deleted this way, only something a
+   *  later re-upload has already superseded. */
+  async deleteDocumentVersion(profileId: string, versionId: string, adminId: string, ipAddress: string | null) {
+    const profile = await this.caregiversRepo.getDetailById(profileId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    const version = await this.documentsRepo.findById(versionId);
+    if (!version || version.profile_id !== profileId) throw new AppException('UPLOAD_006');
+
+    const isCurrent =
+      version.document_type === 'selfie'
+        ? version.path === profile.selfie_photo_url
+        : version.document_type === 'qualification'
+          ? version.path === profile.qualification_document_url
+          : version.document_type === 'aadhaar'
+            ? version.path === profile.aadhaar_document_url
+            : (profile.other_document_urls ?? []).includes(version.path);
+    if (isCurrent) throw new AppException('UPLOAD_007');
+
+    await this.uploadService.deleteFile(Config.STORAGE_BUCKET, version.path);
+    await this.documentsRepo.deleteById(versionId);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId: profile.user_id,
+      action: AuditAction.ADMIN_DOCUMENT_VERSION_DELETED,
+      entityType: 'caregiver_documents',
+      entityId: versionId,
+      beforeValue: { document_type: version.document_type, slot_index: version.slot_index },
+      afterValue: null,
+      ipAddress,
+    });
+
+    return { message: 'Document version deleted' };
   }
 
   /** Self-service — any admin/super_admin changes their own login password

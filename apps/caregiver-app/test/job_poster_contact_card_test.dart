@@ -73,6 +73,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Could not open the dialer'), findsOneWidget);
+
+    // Drain the still-pending 5s auto-dismiss timer so the test doesn't
+    // end with a live Timer outliving the widget tree.
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('showPhone: false hides the phone number and Call/WhatsApp actions, but keeps the name',

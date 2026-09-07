@@ -28,13 +28,20 @@ describe('Caregiver (e2e)', () => {
   let profileId: string;
   let userId: string;
 
-  // audit_logs.user_id/target_user_id reference users without ON DELETE
-  // CASCADE, so the referencing rows must go first or the user delete
-  // 409s on the FK constraint.
+  // audit_logs.user_id/target_user_id and caregiver_documents.uploaded_by
+  // reference users without ON DELETE CASCADE, so the referencing rows
+  // must go first or the user delete 409s on the FK constraint.
+  // caregiver_documents.profile_id DOES cascade from caregiver_profiles,
+  // but uploaded_by (this file only ever self-uploads, so it's always the
+  // caregiver's own user id) does not — a leftover row from an earlier,
+  // never-cleaned-up run blocks this delete otherwise.
   async function cleanup() {
     await db.query(
       `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700001%')
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700001%')`,
+    );
+    await db.query(
+      `DELETE FROM caregiver_documents WHERE uploaded_by IN (SELECT id FROM users WHERE phone LIKE '+91700001%')`,
     );
     await db.query("DELETE FROM users WHERE phone LIKE '+91700001%'");
   }
@@ -97,16 +104,15 @@ describe('Caregiver (e2e)', () => {
   });
 
   afterAll(async () => {
-    // Best-effort: remove any files that tests may have uploaded under this profile.
-    await storage.storage.from('caregiver-documents').remove([
-      `${profileId}/selfie.jpg`,
-      `${profileId}/qualification.pdf`,
-      `${profileId}/aadhaar.pdf`,
-      `${profileId}/other_1.txt`,
-      `${profileId}/other_2.txt`,
-      `${profileId}/other_3.txt`,
-      `${profileId}/other_4.txt`,
-    ]);
+    // Best-effort: remove every file tests may have uploaded under this
+    // profile. Every upload now gets its own timestamped path (see
+    // document versioning — a replace no longer overwrites the previous
+    // file's path), so there's no longer a fixed filename list to target;
+    // list the profile's whole storage folder and remove whatever's there.
+    const { data: files } = await storage.storage.from('caregiver-documents').list(profileId);
+    if (files && files.length > 0) {
+      await storage.storage.from('caregiver-documents').remove(files.map((f) => `${profileId}/${f.name}`));
+    }
     await cleanup();
     await db.end();
     await app.close();
@@ -277,7 +283,9 @@ describe('Caregiver (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .attach('file', Buffer.from('fake selfie bytes'), 'selfie.jpg')
         .expect(200);
-      expect(selfieRes.body.data.file_path).toBe(`caregiver-documents/${profileId}/selfie.jpg`);
+      expect(selfieRes.body.data.file_path).toMatch(
+        new RegExp(`^caregiver-documents/${profileId}/selfie_\\d+\\.jpg$`),
+      );
 
       await request(app.getHttpServer())
         .post('/v1/caregiver/profile/documents')

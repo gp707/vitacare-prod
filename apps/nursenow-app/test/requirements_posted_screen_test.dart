@@ -809,6 +809,10 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Your account is blocked from posting new requirements'), findsOneWidget);
+
+    // Drain the still-pending 5s auto-dismiss timer so the test doesn't
+    // end with a live Timer outliving the widget tree.
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('confirming Hide Job for New Applications calls cancelRequirement and reloads', (tester) async {

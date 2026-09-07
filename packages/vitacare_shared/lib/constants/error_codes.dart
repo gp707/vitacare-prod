@@ -35,6 +35,8 @@ class ErrorCodes {
     'UPLOAD_003': 'Maximum 3 additional documents allowed',
     'UPLOAD_004': 'Invalid document_type. Must be: qualification, aadhaar, or other',
     'UPLOAD_005': 'File upload failed. Please try again.',
+    'UPLOAD_006': 'Document version not found',
+    'UPLOAD_007': 'Cannot delete the current version of a document',
 
     // Admin
     'ADMIN_001': 'Invalid status transition',

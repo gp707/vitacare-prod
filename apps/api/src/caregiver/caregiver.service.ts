@@ -6,6 +6,7 @@ import {
   CaregiverProfilesRepository,
   CaregiverProfileFullRecord,
 } from '../database/repositories/caregiver-profiles.repository';
+import { CaregiverDocumentsRepository } from '../database/repositories/caregiver-documents.repository';
 import { CaregiverLanguagesRepository } from '../database/repositories/caregiver-languages.repository';
 import { CaregiverPreferredCitiesRepository } from '../database/repositories/caregiver-preferred-cities.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -32,6 +33,7 @@ export class CaregiverService {
     private readonly db: DatabaseService,
     private readonly usersRepo: UsersRepository,
     private readonly profilesRepo: CaregiverProfilesRepository,
+    private readonly documentsRepo: CaregiverDocumentsRepository,
     private readonly languagesRepo: CaregiverLanguagesRepository,
     private readonly preferredCitiesRepo: CaregiverPreferredCitiesRepository,
     private readonly uploadService: UploadService,
@@ -304,9 +306,14 @@ export class CaregiverService {
     const profile = await this.requireFullProfile(userId);
 
     const ext = this.uploadService.extractExtension(file.originalname);
-    const path = `${profile.id}/selfie${ext ? `.${ext}` : ''}`;
+    // Every version gets its own path (timestamp suffix) instead of a
+    // fixed filename, so a replace never overwrites the previous file in
+    // storage — see CLAUDE.md's document-versioning note. The old path
+    // stays exactly as recorded on its own caregiver_documents row.
+    const path = `${profile.id}/selfie_${Date.now()}${ext ? `.${ext}` : ''}`;
     await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
     await this.profilesRepo.setSelfieUrl(profile.id, path);
+    await this.documentsRepo.recordVersion(profile.id, 'selfie', path, userId, 'caregiver');
     await this.triggerResubmitIfRejected(profile);
 
     return { message: 'Selfie uploaded', file_path: `${Config.STORAGE_BUCKET}/${path}` };
@@ -323,14 +330,16 @@ export class CaregiverService {
 
     let path: string;
     if (dto.document_type === DocumentType.QUALIFICATION) {
-      path = `${profile.id}/qualification${ext ? `.${ext}` : ''}`;
+      path = `${profile.id}/qualification_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.setQualificationDocumentUrl(profile.id, path);
+      await this.documentsRepo.recordVersion(profile.id, 'qualification', path, userId, 'caregiver');
       await this.triggerResubmitIfRejected(profile);
     } else if (dto.document_type === DocumentType.AADHAAR) {
-      path = `${profile.id}/aadhaar${ext ? `.${ext}` : ''}`;
+      path = `${profile.id}/aadhaar_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.setAadhaarDocumentUrl(profile.id, path);
+      await this.documentsRepo.recordVersion(profile.id, 'aadhaar', path, userId, 'caregiver');
       // Re-uploading Aadhaar on an already-verified profile is identity-
       // sensitive — send it back for review, same rule as phone changes.
       await this.triggerReReviewIfEligible(profile);
@@ -340,9 +349,10 @@ export class CaregiverService {
         throw new AppException('UPLOAD_003');
       }
       const index = existing.length + 1;
-      path = `${profile.id}/other_${index}${ext ? `.${ext}` : ''}`;
+      path = `${profile.id}/other_${index}_${Date.now()}${ext ? `.${ext}` : ''}`;
       await this.uploadService.uploadFile(Config.STORAGE_BUCKET, path, file.buffer, file.mimetype);
       await this.profilesRepo.appendOtherDocumentUrl(profile.id, path);
+      await this.documentsRepo.recordVersion(profile.id, 'other', path, userId, 'caregiver', index);
       await this.triggerResubmitIfRejected(profile);
     }
 

@@ -11,6 +11,8 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/data/audit_logs_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
+import '../../auth/state/session_notifier.dart';
+import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
 
 /// Allowed status action buttons per SPEC.md 13.3 — every field (including
@@ -676,22 +678,29 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           ),
           _documentRow('Selfie', detail.selfiePhotoUrl,
               onUpload: _pickAndUploadSelfie,
-              isUploading: _uploadingDocType == 'selfie'),
+              isUploading: _uploadingDocType == 'selfie',
+              documentType: 'selfie'),
           _documentRow(
             'Qualification Document',
             detail.qualificationDocumentUrl,
             onUpload: () => _pickAndUploadDocument(DocumentType.qualification),
             isUploading: _uploadingDocType == DocumentType.qualification,
+            documentType: DocumentType.qualification,
           ),
           _documentRow(
             'Aadhaar Card',
             detail.aadhaarDocumentUrl,
             onUpload: () => _pickAndUploadDocument(DocumentType.aadhaar),
             isUploading: _uploadingDocType == DocumentType.aadhaar,
+            documentType: DocumentType.aadhaar,
           ),
           for (var i = 0; i < detail.otherDocumentUrls.length; i++)
             _documentRow(
-                'Other Document ${i + 1}', detail.otherDocumentUrls[i]),
+              'Other Document ${i + 1}',
+              detail.otherDocumentUrls[i],
+              documentType: DocumentType.other,
+              slotIndex: i + 1,
+            ),
           if (detail.otherDocumentUrls.length <
               Validation.maxOtherDocuments) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -713,8 +722,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   /// [onUpload] is omitted for already-full "other document" slots, which
   /// are add-only (a new slot each time, not replaceable in place).
+  /// [documentType]/[slotIndex] scope the "History" button — replacing a
+  /// document never deletes the previous file (see document versioning),
+  /// so every past version stays available here, not just the current one.
   Widget _documentRow(String label, String? url,
-      {VoidCallback? onUpload, bool isUploading = false}) {
+      {VoidCallback? onUpload,
+      bool isUploading = false,
+      String? documentType,
+      int? slotIndex}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
@@ -734,6 +749,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     label: const Text('View / Download'),
                   ),
           ),
+          if (url != null && documentType != null) ...[
+            TextButton.icon(
+              onPressed: () =>
+                  _showDocumentHistory(label, documentType, slotIndex),
+              icon: const Icon(Icons.history, size: 16),
+              label: const Text('History'),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           if (onUpload != null)
             if (isUploading)
               const SizedBox(
@@ -745,6 +769,24 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                 label: Text(url == null ? 'Upload' : 'Replace'),
               ),
         ],
+      ),
+    );
+  }
+
+  /// Every past version of one document (selfie/qualification/aadhaar, or
+  /// one specific "other" slot) — a replace never deletes the previous
+  /// file, so this is the only place to reach anything but the current
+  /// one. Super_admins additionally get a Delete action per version, to
+  /// permanently reclaim storage space (never offered for whichever
+  /// version is still current — the server enforces that too).
+  void _showDocumentHistory(String label, String documentType, int? slotIndex) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _DocumentHistoryDialog(
+        profileId: widget.profileId,
+        label: label,
+        documentType: documentType,
+        slotIndex: slotIndex,
       ),
     );
   }
@@ -857,6 +899,159 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           Expanded(child: Text(value)),
         ],
       ),
+    );
+  }
+}
+
+/// Own StatefulWidget (not just a FutureBuilder in a showDialog builder)
+/// because deleting a version needs to refetch and redraw this same
+/// dialog in place, not just close it.
+class _DocumentHistoryDialog extends ConsumerStatefulWidget {
+  final String profileId;
+  final String label;
+  final String documentType;
+  final int? slotIndex;
+
+  const _DocumentHistoryDialog({
+    required this.profileId,
+    required this.label,
+    required this.documentType,
+    required this.slotIndex,
+  });
+
+  @override
+  ConsumerState<_DocumentHistoryDialog> createState() => _DocumentHistoryDialogState();
+}
+
+class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> {
+  late Future<List<CaregiverDocumentVersion>> _future;
+  String? _deletingId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _future = ref.read(adminCaregiversRepositoryProvider).getDocumentHistory(widget.profileId);
+  }
+
+  Future<void> _deleteVersion(CaregiverDocumentVersion version) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this version?'),
+        content: const Text(
+          'This permanently removes the file from storage. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deletingId = version.id);
+    try {
+      await ref.read(adminCaregiversRepositoryProvider).deleteDocumentVersion(widget.profileId, version.id);
+      if (mounted) setState(_load);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _deletingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final isSuperAdmin = session is AdminSessionAuthenticated && session.isSuperAdmin;
+
+    return FutureBuilder<List<CaregiverDocumentVersion>>(
+      future: _future,
+      builder: (context, snapshot) {
+        Widget content;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          content = const SizedBox(height: 80, child: Center(child: VitaLoadingIndicator()));
+        } else if (snapshot.hasError) {
+          content = Text(
+            snapshot.error is ApiException ? (snapshot.error as ApiException).message : 'Failed to load history',
+            style: const TextStyle(color: AppColors.error),
+          );
+        } else {
+          final versions = snapshot.data!
+              .where((v) => v.documentType == widget.documentType && v.slotIndex == widget.slotIndex)
+              .toList();
+          content = versions.isEmpty
+              ? const Text('No history recorded for this document.')
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final v in versions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(v.createdAt.replaceFirst('T', ' ').split('.').first),
+                                  Text(
+                                    v.uploadedByRole == 'admin'
+                                        ? 'Uploaded by admin${v.uploadedByName != null ? ' — ${v.uploadedByName}' : ''}'
+                                        : 'Uploaded by caregiver',
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary, fontSize: AppTypography.small),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => launchUrl(Uri.parse(v.signedUrl), webOnlyWindowName: '_blank'),
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('View'),
+                            ),
+                            // Deleting the current version is refused
+                            // server-side (UPLOAD_007) — offered here
+                            // regardless, rather than trying to predict
+                            // which one is current client-side, since the
+                            // resulting error message already explains why.
+                            if (isSuperAdmin)
+                              _deletingId == v.id
+                                  ? const SizedBox(
+                                      height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+                                  : IconButton(
+                                      onPressed: () => _deleteVersion(v),
+                                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                                      tooltip: 'Delete this version',
+                                    ),
+                          ],
+                        ),
+                      ),
+                  ],
+                );
+        }
+        return AlertDialog(
+          title: Text('${widget.label} — Version History'),
+          content: SizedBox(width: context.dialogWidth(420), child: content),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

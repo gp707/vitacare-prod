@@ -93,7 +93,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        showVitaErrorBanner(context, e.message);
       }
     } finally {
       if (mounted) setState(() => _applyingId.remove(job.id));
@@ -107,7 +107,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        showVitaErrorBanner(context, e.message);
       }
     } finally {
       if (mounted) setState(() => _applyingId.remove(requirement.id));

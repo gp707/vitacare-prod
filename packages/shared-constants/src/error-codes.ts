@@ -49,6 +49,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
     message: 'Invalid document_type. Must be: qualification, aadhaar, or other',
   },
   UPLOAD_005: { status: 500, message: 'File upload failed. Please try again.' },
+  UPLOAD_006: { status: 404, message: 'Document version not found' },
+  UPLOAD_007: { status: 400, message: 'Cannot delete the current version of a document' },
 
   // Admin errors
   ADMIN_001: { status: 400, message: 'Invalid status transition' },

@@ -41,6 +41,18 @@ export class UploadService {
     }
   }
 
+  /** Permanently removes one object — used only for admin's superadmin-only
+   *  "delete an old document version" cleanup (see AdminService.
+   *  deleteDocumentVersion). Never called as part of a normal upload/
+   *  replace flow, which always keeps every past version. */
+  async deleteFile(bucket: string, path: string): Promise<void> {
+    const { error } = await this.client.storage.from(bucket).remove([path]);
+    if (error) {
+      this.logger.error(`Delete failed for ${bucket}/${path}: ${error.message}`);
+      throw new AppException('UPLOAD_005');
+    }
+  }
+
   async getSignedUrl(
     bucket: string,
     path: string,

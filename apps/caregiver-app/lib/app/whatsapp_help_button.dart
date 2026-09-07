@@ -25,9 +25,7 @@ class WhatsAppHelpButton extends StatelessWidget {
       launched = false;
     }
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp. Message us at +91 7259255869.')),
-      );
+      showVitaErrorBanner(context, 'Could not open WhatsApp. Message us at +91 7259255869.');
     }
   }
 

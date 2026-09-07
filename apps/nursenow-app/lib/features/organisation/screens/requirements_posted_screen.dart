@@ -84,7 +84,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
       await ref.read(organisationRepositoryProvider).decideApplication(requirementId, applicationId, 'accepted');
       await _load();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) showVitaErrorBanner(context, e.message);
     } finally {
       if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
     }
@@ -129,7 +129,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
           .decideApplication(requirementId, applicationId, 'rejected', reason: reason);
       await _load();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) showVitaErrorBanner(context, e.message);
     } finally {
       if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
     }
@@ -197,7 +197,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
       await ref.read(organisationRepositoryProvider).cancelRequirement(requirement.id);
       await _load();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) showVitaErrorBanner(context, e.message);
     }
   }
 
@@ -211,7 +211,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
       await ref.read(organisationRepositoryProvider).reactivateRequirement(requirement.id);
       await _load();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) showVitaErrorBanner(context, e.message);
     }
   }
 

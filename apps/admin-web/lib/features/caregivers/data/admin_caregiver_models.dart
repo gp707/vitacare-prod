@@ -136,3 +136,39 @@ class AdminCaregiverDetail {
         verifiedAt: json['verified_at'] as String?,
       );
 }
+
+/// One previously-uploaded version of a document — selfie/qualification/
+/// aadhaar/other are never overwritten in storage on replace, so every
+/// upload ever made shows up here, newest first within its own document
+/// type/slot. [signedUrl] is generated fresh per request (never persisted),
+/// same as every other document link in this app.
+class CaregiverDocumentVersion {
+  final String id;
+  final String documentType;
+  final int? slotIndex;
+  final String signedUrl;
+  final String? uploadedByName;
+  final String uploadedByRole;
+  final String createdAt;
+
+  const CaregiverDocumentVersion({
+    required this.id,
+    required this.documentType,
+    this.slotIndex,
+    required this.signedUrl,
+    this.uploadedByName,
+    required this.uploadedByRole,
+    required this.createdAt,
+  });
+
+  factory CaregiverDocumentVersion.fromJson(Map<String, dynamic> json) =>
+      CaregiverDocumentVersion(
+        id: json['id'] as String,
+        documentType: json['document_type'] as String,
+        slotIndex: json['slot_index'] as int?,
+        signedUrl: json['signed_url'] as String,
+        uploadedByName: json['uploaded_by_name'] as String?,
+        uploadedByRole: json['uploaded_by_role'] as String,
+        createdAt: json['created_at'] as String,
+      );
+}

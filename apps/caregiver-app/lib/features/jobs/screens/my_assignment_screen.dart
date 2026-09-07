@@ -103,7 +103,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        showVitaErrorBanner(context, e.message);
       }
     } finally {
       if (mounted) setState(() => _completingId = null);
@@ -140,7 +140,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        showVitaErrorBanner(context, e.message);
       }
     } finally {
       if (mounted) setState(() => _completingId = null);

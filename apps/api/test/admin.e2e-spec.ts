@@ -44,6 +44,14 @@ describe('Admin (e2e)', () => {
       `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700003%')
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700003%')`,
     );
+    // caregiver_documents.uploaded_by (this file's admin uploads) has no
+    // ON DELETE CASCADE either — every row here is also reachable via
+    // profile_id's own cascade from the caregiver delete below, but
+    // clearing it explicitly first removes any dependency on which of the
+    // two FK triggers Postgres happens to check first within that delete.
+    await db.query(
+      `DELETE FROM caregiver_documents WHERE uploaded_by IN (SELECT id FROM users WHERE phone LIKE '+91700003%')`,
+    );
     await db.query(
       "DELETE FROM users WHERE phone LIKE '+91700003%' AND role = 'caregiver'",
     );
@@ -852,43 +860,66 @@ describe('Admin (e2e)', () => {
       expect(res.body.error.code).toBe('AUTH_007');
     });
 
-    it('uploads/replaces a selfie, and the signed URL resolves to the new content', async () => {
-      const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
-        '0017',
-        'Doc Upload Subject',
-      );
+    it(
+      'uploads/replaces a selfie without deleting the previous version — both remain independently ' +
+        'downloadable, and the history endpoint lists both, newest first',
+      async () => {
+        const { profile_id: profileId, user_id: targetUserId } = await registerCaregiver(
+          '0017',
+          'Doc Upload Subject',
+        );
 
-      const first = await request(app.getHttpServer())
-        .post(`/v1/admin/caregivers/${profileId}/selfie`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .attach('file', Buffer.from('original selfie bytes'), 'selfie.jpg')
-        .expect(200);
-      expect(first.body.data.file_path).toBe(`caregiver-documents/${profileId}/selfie.jpg`);
+        const first = await request(app.getHttpServer())
+          .post(`/v1/admin/caregivers/${profileId}/selfie`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .attach('file', Buffer.from('original selfie bytes'), 'selfie.jpg')
+          .expect(200);
+        expect(first.body.data.file_path).toMatch(new RegExp(`^caregiver-documents/${profileId}/selfie_\\d+\\.jpg$`));
 
-      const second = await request(app.getHttpServer())
-        .post(`/v1/admin/caregivers/${profileId}/selfie`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .attach('file', Buffer.from('replaced by admin'), 'selfie.jpg')
-        .expect(200);
-      expect(second.body.data.file_path).toBe(`caregiver-documents/${profileId}/selfie.jpg`);
-      uploadedStoragePaths.push(`${profileId}/selfie.jpg`);
+        const second = await request(app.getHttpServer())
+          .post(`/v1/admin/caregivers/${profileId}/selfie`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .attach('file', Buffer.from('replaced by admin'), 'selfie.jpg')
+          .expect(200);
+        expect(second.body.data.file_path).toMatch(new RegExp(`^caregiver-documents/${profileId}/selfie_\\d+\\.jpg$`));
+        // The two uploads must land at genuinely different paths — this is
+        // the core of non-destructive versioning.
+        expect(second.body.data.file_path).not.toBe(first.body.data.file_path);
+        uploadedStoragePaths.push(
+          first.body.data.file_path.replace('caregiver-documents/', ''),
+          second.body.data.file_path.replace('caregiver-documents/', ''),
+        );
 
-      const detail = await request(app.getHttpServer())
-        .get(`/v1/admin/caregivers/${profileId}`)
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      const content = await fetch(detail.body.data.selfie_photo_url).then((r) => r.text());
-      expect(content).toBe('replaced by admin');
+        const detail = await request(app.getHttpServer())
+          .get(`/v1/admin/caregivers/${profileId}`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        const content = await fetch(detail.body.data.selfie_photo_url).then((r) => r.text());
+        expect(content).toBe('replaced by admin');
 
-      const auditRes = await request(app.getHttpServer())
-        .get('/v1/admin/audit-logs')
-        .query({ target_user_id: targetUserId, action: 'admin_document_uploaded' })
-        .set('Authorization', `Bearer ${superAdminToken}`)
-        .expect(200);
-      expect(auditRes.body.data).toHaveLength(2);
-      expect(auditRes.body.data[0].before_value).toEqual({ document_type: 'selfie', had_file: true });
-      expect(auditRes.body.data[1].before_value).toEqual({ document_type: 'selfie', had_file: false });
-    });
+        const history = await request(app.getHttpServer())
+          .get(`/v1/admin/caregivers/${profileId}/documents/history`)
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(history.body.data).toHaveLength(2);
+        // Newest first.
+        expect(history.body.data[0].uploaded_by_role).toBe('admin');
+        expect(history.body.data[0].document_type).toBe('selfie');
+        const oldContent = await fetch(history.body.data[1].signed_url).then((r) => r.text());
+        expect(oldContent).toBe('original selfie bytes');
+        const newContent = await fetch(history.body.data[0].signed_url).then((r) => r.text());
+        expect(newContent).toBe('replaced by admin');
+
+        const auditRes = await request(app.getHttpServer())
+          .get('/v1/admin/audit-logs')
+          .query({ target_user_id: targetUserId, action: 'admin_document_uploaded' })
+          .set('Authorization', `Bearer ${superAdminToken}`)
+          .expect(200);
+        expect(auditRes.body.data).toHaveLength(2);
+        expect(auditRes.body.data[0].before_value).toEqual({ document_type: 'selfie', had_file: true });
+        expect(auditRes.body.data[1].before_value).toEqual({ document_type: 'selfie', had_file: false });
+      },
+    );
 
     it('uploads qualification and aadhaar documents', async () => {
       const { profile_id: profileId } = await registerCaregiver('0018', 'Qual Aadhaar Subject');
@@ -899,19 +930,22 @@ describe('Admin (e2e)', () => {
         .field('document_type', 'qualification')
         .attach('file', Buffer.from('admin-uploaded qualification'), 'qualification.pdf')
         .expect(200);
-      expect(qual.body.data).toEqual({
-        message: 'Document uploaded',
-        document_type: 'qualification',
-        file_path: `caregiver-documents/${profileId}/qualification.pdf`,
-      });
+      expect(qual.body.data.message).toBe('Document uploaded');
+      expect(qual.body.data.document_type).toBe('qualification');
+      expect(qual.body.data.file_path).toMatch(
+        new RegExp(`^caregiver-documents/${profileId}/qualification_\\d+\\.pdf$`),
+      );
 
-      await request(app.getHttpServer())
+      const aadhaar = await request(app.getHttpServer())
         .post(`/v1/admin/caregivers/${profileId}/documents`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .field('document_type', 'aadhaar')
         .attach('file', Buffer.from('admin-uploaded aadhaar'), 'aadhaar.pdf')
         .expect(200);
-      uploadedStoragePaths.push(`${profileId}/qualification.pdf`, `${profileId}/aadhaar.pdf`);
+      uploadedStoragePaths.push(
+        qual.body.data.file_path.replace('caregiver-documents/', ''),
+        aadhaar.body.data.file_path.replace('caregiver-documents/', ''),
+      );
 
       const detail = await request(app.getHttpServer())
         .get(`/v1/admin/caregivers/${profileId}`)
@@ -924,13 +958,13 @@ describe('Admin (e2e)', () => {
     it('rejects a 4th "other" document (UPLOAD_003)', async () => {
       const { profile_id: profileId } = await registerCaregiver('0019', 'Other Docs Subject');
       for (let i = 1; i <= 3; i++) {
-        await request(app.getHttpServer())
+        const res = await request(app.getHttpServer())
           .post(`/v1/admin/caregivers/${profileId}/documents`)
           .set('Authorization', `Bearer ${superAdminToken}`)
           .field('document_type', 'other')
           .attach('file', Buffer.from(`other ${i}`), `other${i}.txt`)
           .expect(200);
-        uploadedStoragePaths.push(`${profileId}/other_${i}.txt`);
+        uploadedStoragePaths.push(res.body.data.file_path.replace('caregiver-documents/', ''));
       }
       const res = await request(app.getHttpServer())
         .post(`/v1/admin/caregivers/${profileId}/documents`)

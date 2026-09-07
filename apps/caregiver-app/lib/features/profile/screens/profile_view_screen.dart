@@ -241,7 +241,15 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('My Profile'),
+        title: Row(
+          children: [
+            const Flexible(child: VitaAppBarTitle('My Profile')),
+            if (_profile != null) ...[
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(child: VitaStatusBadge(status: _profile!.verificationStatus)),
+            ],
+          ],
+        ),
         actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
@@ -268,37 +276,19 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        Center(child: VitaStatusBadge(status: profile.verificationStatus)),
-        if (caregiverDisplayId(profile.caregiverNumber) != null) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Center(
-            child: Text(
-              caregiverDisplayId(profile.caregiverNumber)!,
-              style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.sm),
         Text(
           statusMessageFor(profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.lg),
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.primaryLight,
-            borderRadius: BorderRadius.circular(AppSpacing.sm),
-          ),
-          child: const Text(
-            "You can edit your profile wherever you can see a pen mark. No admin approval is needed for "
-            "this editing. If you wish to edit any other field, you can reach out to admin by clicking on "
-            "Help.",
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',
+          trailing: caregiverDisplayId(profile.caregiverNumber) != null
+              ? Text(
+                  'Nurse Id: ${caregiverDisplayId(profile.caregiverNumber)}',
+                  style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600),
+                )
+              : null,
           children: [
             _Field(Icons.badge, 'Full Name', profile.fullName),
             _Field(Icons.phone, 'Phone', profile.phone),
@@ -415,8 +405,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
 class _Section extends StatelessWidget {
   final String title;
   final List<Widget> children;
+  // Shown at the far end of the title row — currently only the Basic Info
+  // section's own "Nurse Id: <id>" line.
+  final Widget? trailing;
 
-  const _Section({required this.title, required this.children});
+  const _Section({required this.title, required this.children, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -430,9 +423,21 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success)),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                trailing!,
+              ],
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
           ...children,
         ],

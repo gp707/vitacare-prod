@@ -31,7 +31,7 @@ class JobPosterContactCard extends StatelessWidget {
       launched = false;
     }
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failureMessage)));
+      showVitaErrorBanner(context, failureMessage);
     }
   }
 

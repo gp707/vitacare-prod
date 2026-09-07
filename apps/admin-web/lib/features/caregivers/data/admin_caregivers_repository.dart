@@ -167,4 +167,33 @@ class AdminCaregiversRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// Every version ever uploaded for this caregiver, across every document
+  /// type/slot — newest first within each. Fetched fresh on every call, no
+  /// caching (same convention as every other signed-URL-bearing endpoint).
+  Future<List<CaregiverDocumentVersion>> getDocumentHistory(
+      String profileId) async {
+    try {
+      final res =
+          await _dio.get('/admin/caregivers/$profileId/documents/history');
+      return (res.data['data'] as List)
+          .map((json) =>
+              CaregiverDocumentVersion.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Permanent — super_admin-only (enforced server-side too), and the
+  /// backend itself refuses to delete whichever version is still the
+  /// current one for that document/slot.
+  Future<void> deleteDocumentVersion(String profileId, String versionId) async {
+    try {
+      await _dio.delete(
+          '/admin/caregivers/$profileId/documents/history/$versionId');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

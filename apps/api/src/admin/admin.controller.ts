@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -115,6 +116,25 @@ export class AdminController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminService.uploadDocument(id, user.sub, dto, file, ip);
+  }
+
+  @Get('caregivers/:id/documents/history')
+  getDocumentHistory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getDocumentHistory(id);
+  }
+
+  // Permanent — reclaiming storage space is destructive and irreversible,
+  // same super_admin-only bar as the bulk job/requirement delete.
+  @Delete('caregivers/:id/documents/history/:versionId')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.SUPER_ADMIN)
+  deleteDocumentVersion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @CurrentUser() user: JwtPayload,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminService.deleteDocumentVersion(id, versionId, user.sub, ip);
   }
 
   @Patch('profile/password')

@@ -57,9 +57,7 @@ class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
     // server, rather than silently seeing nothing happen and wondering
     // whether their pull even registered.
     if (!succeeded && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not check for updates. Please check your connection and try again.')),
-      );
+      showVitaErrorBanner(context, 'Could not check for updates. Please check your connection and try again.');
     }
   }
 

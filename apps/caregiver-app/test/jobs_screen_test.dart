@@ -379,10 +379,19 @@ void main() {
     expect(find.text('Need a caregiver for an elderly patient'), findsOneWidget);
   });
 
-  testWidgets('shows "N applied" next to the job id when applicant_count is set', (tester) async {
+  testWidgets('shows "N applied" next to the "Job in <poster>" header, not next to the job id',
+      (tester) async {
     await _pump(tester, _FakeJobsRepository([_job(applicantCount: 3)]));
 
     expect(find.textContaining('3 applied'), findsOneWidget);
+    // Same row as the top "Job in Posted by Admin" header, not the lower
+    // "Job Id: ..." line — matches where an organisation requirement's own
+    // applicant count sits, right at the top.
+    final headerTop = tester.getTopLeft(find.text('Job in Posted by Admin')).dy;
+    final appliedTop = tester.getTopLeft(find.textContaining('3 applied')).dy;
+    // Same row (center-aligned), so only a sub-pixel baseline difference
+    // between the two font sizes is expected — not stacked on separate rows.
+    expect(appliedTop, closeTo(headerTop, 5));
   });
 
   testWidgets('shows no applicant count line for a job when applicant_count is not set', (tester) async {

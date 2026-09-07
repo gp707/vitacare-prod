@@ -13,6 +13,7 @@ describe('AdminService', () => {
   let auditService: any;
   let fcmService: any;
   let profilesRepo: any;
+  let documentsRepo: any;
   let usersRepo: any;
   let individualsRepo: any;
   let organisationsRepo: any;
@@ -60,6 +61,7 @@ describe('AdminService', () => {
       getSignedUrlOrNull: jest.fn().mockResolvedValue(null),
       getSignedUrl: jest.fn().mockResolvedValue('https://signed/url'),
       uploadFile: jest.fn(),
+      deleteFile: jest.fn(),
       extractExtension: jest.fn().mockReturnValue('jpg'),
     };
     auditLogsRepo = { list: jest.fn().mockResolvedValue({ items: [], total: 0 }) };
@@ -72,6 +74,12 @@ describe('AdminService', () => {
       setAadhaarDocumentUrl: jest.fn(),
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
+    };
+    documentsRepo = {
+      recordVersion: jest.fn(),
+      listByProfileId: jest.fn().mockResolvedValue([]),
+      findById: jest.fn(),
+      deleteById: jest.fn(),
     };
     usersRepo = { updateFullName: jest.fn(), findById: jest.fn(), updatePasswordHash: jest.fn() };
     individualsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
@@ -90,6 +98,7 @@ describe('AdminService', () => {
       auditService,
       fcmService,
       profilesRepo,
+      documentsRepo,
       usersRepo,
       individualsRepo,
       organisationsRepo,
@@ -566,24 +575,30 @@ describe('AdminService', () => {
       });
     });
 
-    it('uploads to the correct path, overwrites, and audit-logs before/after', async () => {
-      caregiversRepo.getDetailById.mockResolvedValue({ ...detail, selfie_photo_url: 'profile-1/selfie.jpg' });
+    it('uploads to a unique versioned path (never overwriting the previous one), records the version, and audit-logs before/after', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue({ ...detail, selfie_photo_url: 'profile-1/selfie_1000.jpg' });
       const file = { originalname: 'new.png', buffer: Buffer.from('x'), mimetype: 'image/png' } as any;
       uploadService.extractExtension.mockReturnValue('png');
 
       const result = await service.uploadSelfie('profile-1', 'admin-1', file);
 
+      const expectedPath = expect.stringMatching(/^profile-1\/selfie_\d+\.png$/);
       expect(uploadService.uploadFile).toHaveBeenCalledWith(
         'caregiver-documents',
-        'profile-1/selfie.png',
+        expectedPath,
         file.buffer,
         'image/png',
       );
-      expect(profilesRepo.setSelfieUrl).toHaveBeenCalledWith('profile-1', 'profile-1/selfie.png');
-      expect(result).toEqual({
-        message: 'Selfie uploaded',
-        file_path: 'caregiver-documents/profile-1/selfie.png',
-      });
+      expect(profilesRepo.setSelfieUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
+        'profile-1',
+        'selfie',
+        expectedPath,
+        'admin-1',
+        'admin',
+      );
+      expect(result.message).toBe('Selfie uploaded');
+      expect(result.file_path).toMatch(/^caregiver-documents\/profile-1\/selfie_\d+\.png$/);
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
@@ -614,15 +629,20 @@ describe('AdminService', () => {
       ).rejects.toMatchObject({ code: 'PROFILE_019' });
     });
 
-    it('sets the qualification document URL and logs had_file: false when none existed', async () => {
+    it('sets the qualification document URL to a unique versioned path, records the version, and logs had_file: false when none existed', async () => {
       caregiversRepo.getDetailById.mockResolvedValue(detail);
       uploadService.extractExtension.mockReturnValue('pdf');
 
       await service.uploadDocument('profile-1', 'admin-1', { document_type: 'qualification' } as any, file);
 
-      expect(profilesRepo.setQualificationDocumentUrl).toHaveBeenCalledWith(
+      const expectedPath = expect.stringMatching(/^profile-1\/qualification_\d+\.pdf$/);
+      expect(profilesRepo.setQualificationDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
         'profile-1',
-        'profile-1/qualification.pdf',
+        'qualification',
+        expectedPath,
+        'admin-1',
+        'admin',
       );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -632,13 +652,21 @@ describe('AdminService', () => {
       );
     });
 
-    it('sets the aadhaar document URL', async () => {
+    it('sets the aadhaar document URL to a unique versioned path, never overwriting the previous one', async () => {
       caregiversRepo.getDetailById.mockResolvedValue({ ...detail, aadhaar_document_url: 'p/old.pdf' });
       uploadService.extractExtension.mockReturnValue('pdf');
 
       await service.uploadDocument('profile-1', 'admin-1', { document_type: 'aadhaar' } as any, file);
 
-      expect(profilesRepo.setAadhaarDocumentUrl).toHaveBeenCalledWith('profile-1', 'profile-1/aadhaar.pdf');
+      const expectedPath = expect.stringMatching(/^profile-1\/aadhaar_\d+\.pdf$/);
+      expect(profilesRepo.setAadhaarDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
+        'profile-1',
+        'aadhaar',
+        expectedPath,
+        'admin-1',
+        'admin',
+      );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
           beforeValue: { document_type: 'aadhaar', had_file: true },
@@ -646,14 +674,23 @@ describe('AdminService', () => {
       );
     });
 
-    it('appends an other document at the next index', async () => {
+    it('appends an other document at the next index, at a unique versioned path, recording its slot index', async () => {
       caregiversRepo.getDetailById.mockResolvedValue(detail);
-      profilesRepo.getOtherDocumentUrls.mockResolvedValue(['profile-1/other_1.pdf']);
+      profilesRepo.getOtherDocumentUrls.mockResolvedValue(['profile-1/other_1_1000.pdf']);
       uploadService.extractExtension.mockReturnValue('pdf');
 
       await service.uploadDocument('profile-1', 'admin-1', { document_type: 'other' } as any, file);
 
-      expect(profilesRepo.appendOtherDocumentUrl).toHaveBeenCalledWith('profile-1', 'profile-1/other_2.pdf');
+      const expectedPath = expect.stringMatching(/^profile-1\/other_2_\d+\.pdf$/);
+      expect(profilesRepo.appendOtherDocumentUrl).toHaveBeenCalledWith('profile-1', expectedPath);
+      expect(documentsRepo.recordVersion).toHaveBeenCalledWith(
+        'profile-1',
+        'other',
+        expectedPath,
+        'admin-1',
+        'admin',
+        2,
+      );
     });
 
     it('throws UPLOAD_003 when 3 other documents already exist', async () => {
@@ -666,6 +703,160 @@ describe('AdminService', () => {
       await expect(
         service.uploadDocument('profile-1', 'admin-1', { document_type: 'other' } as any, file),
       ).rejects.toMatchObject({ code: 'UPLOAD_003' });
+    });
+  });
+
+  describe('getDocumentHistory', () => {
+    it('throws PROFILE_019 when the profile does not exist', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(null);
+      await expect(service.getDocumentHistory('missing')).rejects.toMatchObject({ code: 'PROFILE_019' });
+    });
+
+    it('returns every recorded version with a fresh signed URL, newest first', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      documentsRepo.listByProfileId.mockResolvedValue([
+        {
+          id: 'doc-2',
+          document_type: 'selfie',
+          slot_index: null,
+          path: 'profile-1/selfie_2000.jpg',
+          uploaded_by: 'user-1',
+          uploaded_by_name: 'Ramesh Kumar',
+          uploaded_by_role: 'caregiver',
+          created_at: new Date('2026-08-02T00:00:00Z'),
+        },
+        {
+          id: 'doc-1',
+          document_type: 'selfie',
+          slot_index: null,
+          path: 'profile-1/selfie_1000.jpg',
+          uploaded_by: 'admin-1',
+          uploaded_by_name: 'Admin One',
+          uploaded_by_role: 'admin',
+          created_at: new Date('2026-08-01T00:00:00Z'),
+        },
+      ]);
+      uploadService.getSignedUrl.mockImplementation(async (_bucket: string, path: string) => `https://signed/${path}`);
+
+      const result = await service.getDocumentHistory('profile-1');
+
+      expect(documentsRepo.listByProfileId).toHaveBeenCalledWith('profile-1');
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'doc-2',
+          document_type: 'selfie',
+          signed_url: 'https://signed/profile-1/selfie_2000.jpg',
+          uploaded_by_name: 'Ramesh Kumar',
+          uploaded_by_role: 'caregiver',
+        }),
+        expect.objectContaining({
+          id: 'doc-1',
+          document_type: 'selfie',
+          signed_url: 'https://signed/profile-1/selfie_1000.jpg',
+          uploaded_by_name: 'Admin One',
+          uploaded_by_role: 'admin',
+        }),
+      ]);
+    });
+  });
+
+  describe('deleteDocumentVersion', () => {
+    it('throws PROFILE_019 when the profile does not exist', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(null);
+      await expect(
+        service.deleteDocumentVersion('missing', 'doc-1', 'admin-1', null),
+      ).rejects.toMatchObject({ code: 'PROFILE_019' });
+    });
+
+    it('throws UPLOAD_006 when the version does not exist', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      documentsRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.deleteDocumentVersion('profile-1', 'missing-doc', 'admin-1', null),
+      ).rejects.toMatchObject({ code: 'UPLOAD_006' });
+    });
+
+    it('throws UPLOAD_006 when the version belongs to a different profile', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      documentsRepo.findById.mockResolvedValue({
+        id: 'doc-1',
+        profile_id: 'someone-elses-profile',
+        document_type: 'selfie',
+        slot_index: null,
+        path: 'someone-elses-profile/selfie_1000.jpg',
+      });
+      await expect(
+        service.deleteDocumentVersion('profile-1', 'doc-1', 'admin-1', null),
+      ).rejects.toMatchObject({ code: 'UPLOAD_006' });
+    });
+
+    it('throws UPLOAD_007 and never deletes the file/row when the version is the current selfie', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue({
+        ...detail,
+        selfie_photo_url: 'profile-1/selfie_2000.jpg',
+      });
+      documentsRepo.findById.mockResolvedValue({
+        id: 'doc-2',
+        profile_id: 'profile-1',
+        document_type: 'selfie',
+        slot_index: null,
+        path: 'profile-1/selfie_2000.jpg',
+      });
+      await expect(
+        service.deleteDocumentVersion('profile-1', 'doc-2', 'admin-1', null),
+      ).rejects.toMatchObject({ code: 'UPLOAD_007' });
+      expect(uploadService.deleteFile).not.toHaveBeenCalled();
+      expect(documentsRepo.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('throws UPLOAD_007 when the version is one of the current "other" documents', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue({
+        ...detail,
+        other_document_urls: ['profile-1/other_1_1000.pdf'],
+      });
+      documentsRepo.findById.mockResolvedValue({
+        id: 'doc-other',
+        profile_id: 'profile-1',
+        document_type: 'other',
+        slot_index: 1,
+        path: 'profile-1/other_1_1000.pdf',
+      });
+      await expect(
+        service.deleteDocumentVersion('profile-1', 'doc-other', 'admin-1', null),
+      ).rejects.toMatchObject({ code: 'UPLOAD_007' });
+    });
+
+    it('deletes the storage object and the row, and audit-logs it, for a superseded (non-current) version', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue({
+        ...detail,
+        user_id: 'user-1',
+        selfie_photo_url: 'profile-1/selfie_2000.jpg',
+      });
+      documentsRepo.findById.mockResolvedValue({
+        id: 'doc-1',
+        profile_id: 'profile-1',
+        document_type: 'selfie',
+        slot_index: null,
+        path: 'profile-1/selfie_1000.jpg',
+      });
+
+      const result = await service.deleteDocumentVersion('profile-1', 'doc-1', 'admin-1', '1.2.3.4');
+
+      expect(uploadService.deleteFile).toHaveBeenCalledWith('caregiver-documents', 'profile-1/selfie_1000.jpg');
+      expect(documentsRepo.deleteById).toHaveBeenCalledWith('doc-1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'user-1',
+          action: 'admin_document_version_deleted',
+          entityType: 'caregiver_documents',
+          entityId: 'doc-1',
+          beforeValue: { document_type: 'selfie', slot_index: null },
+          afterValue: null,
+          ipAddress: '1.2.3.4',
+        }),
+      );
+      expect(result).toEqual({ message: 'Document version deleted' });
     });
   });
 
