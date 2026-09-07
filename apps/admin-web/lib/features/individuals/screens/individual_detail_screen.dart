@@ -116,6 +116,54 @@ class _IndividualDetailScreenState
     }
   }
 
+  /// Same block/unblock flow as IndividualsListScreen's own row menu —
+  /// previously only reachable from the list, never from this full-profile
+  /// view.
+  Future<void> _showBlockDialog(AdminIndividualListItem detail, String level) async {
+    final controller = TextEditingController();
+    final label = level == 'full' ? 'Block completely' : 'Block from posting new requirements';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$label — ${detail.fullName}'),
+        content: TextField(
+          controller: controller,
+          maxLength: 1000,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason (shown to the individual)'),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(adminIndividualsRepositoryProvider).block(detail.userId, level, controller.text.trim());
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
+  Future<void> _unblock(AdminIndividualListItem detail, String level) async {
+    try {
+      await ref.read(adminIndividualsRepositoryProvider).unblock(detail.userId, level);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
   /// Same redirect as IndividualsListScreen's own "View Jobs" row action —
   /// the merged Jobs tab, pre-filtered to just this individual's own
   /// postings (every other Jobs filter stays available to narrow further).
@@ -190,10 +238,44 @@ class _IndividualDetailScreenState
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: () => _viewJobs(detail),
-            icon: const Icon(Icons.work_outline, size: 16),
-            label: const Text('View Jobs Posted'),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _viewJobs(detail),
+                icon: const Icon(Icons.work_outline, size: 16),
+                label: const Text('View Jobs Posted'),
+              ),
+              if (detail.isJobPostingBlocked)
+                OutlinedButton.icon(
+                  onPressed: () => _unblock(detail, 'job_posting'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                  icon: const Icon(Icons.lock_open, size: 16),
+                  label: const Text('Unblock Posting'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => _showBlockDialog(detail, 'job_posting'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                  icon: const Icon(Icons.block, size: 16),
+                  label: const Text('Block Posting'),
+                ),
+              if (detail.isActive)
+                OutlinedButton.icon(
+                  onPressed: () => _showBlockDialog(detail, 'full'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                  icon: const Icon(Icons.person_off, size: 16),
+                  label: const Text('Block Profile'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => _unblock(detail, 'full'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                  icon: const Icon(Icons.lock_open, size: 16),
+                  label: const Text('Unblock'),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.lg),
           Container(

@@ -1469,7 +1469,7 @@ describe('Individual (NurseNow) (e2e)', () => {
 
   describe('PATCH /v1/individual/profile/name', () => {
     it("changes the name, reflected in GET /individual/me", async () => {
-      const individual = await registerIndividual('0027');
+      const individual = await registerIndividual('0060');
       await request(app.getHttpServer())
         .patch('/v1/individual/profile/name')
         .set('Authorization', `Bearer ${individual.access_token}`)
@@ -1484,7 +1484,7 @@ describe('Individual (NurseNow) (e2e)', () => {
     });
 
     it('rejects a name containing digits (PROFILE_020)', async () => {
-      const individual = await registerIndividual('0028');
+      const individual = await registerIndividual('0061');
       const res = await request(app.getHttpServer())
         .patch('/v1/individual/profile/name')
         .set('Authorization', `Bearer ${individual.access_token}`)
@@ -1494,7 +1494,7 @@ describe('Individual (NurseNow) (e2e)', () => {
     });
 
     it('rejects a caregiver token (AUTH_007)', async () => {
-      const caregiver = await registerCaregiver('0122');
+      const caregiver = await registerCaregiver('0151');
       await request(app.getHttpServer())
         .patch('/v1/individual/profile/name')
         .set('Authorization', `Bearer ${caregiver.access_token}`)

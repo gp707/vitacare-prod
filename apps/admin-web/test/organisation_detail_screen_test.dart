@@ -42,6 +42,11 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   AdminOrganisationListItem detail;
   String? editedUserId;
   Map<String, dynamic>? editedFields;
+  String? blockedUserId;
+  String? blockedLevel;
+  String? blockedReason;
+  String? unblockedUserId;
+  String? unblockedLevel;
 
   _FakeAdminOrganisationsRepository(this.detail) : super(Dio());
 
@@ -52,6 +57,34 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   Future<void> editProfile(String userId, Map<String, dynamic> fields) async {
     editedUserId = userId;
     editedFields = fields;
+  }
+
+  @override
+  Future<void> block(String userId, String level, String reason) async {
+    blockedUserId = userId;
+    blockedLevel = level;
+    blockedReason = reason;
+    detail = level == 'full'
+        ? _item(
+            userId: detail.userId,
+            fullName: detail.fullName,
+            organisationName: detail.organisationName,
+            isActive: false)
+        : _item(
+            userId: detail.userId,
+            fullName: detail.fullName,
+            organisationName: detail.organisationName,
+            isJobPostingBlocked: true);
+  }
+
+  @override
+  Future<void> unblock(String userId, String level) async {
+    unblockedUserId = userId;
+    unblockedLevel = level;
+    detail = _item(
+        userId: detail.userId,
+        fullName: detail.fullName,
+        organisationName: detail.organisationName);
   }
 }
 
@@ -204,5 +237,84 @@ void main() {
 
     expect(pushedRoute, '/audit-logs');
     expect(pushedArgs, 'u1');
+  });
+
+  testWidgets('shows Block Posting and Block Profile for an active, unblocked account', (tester) async {
+    await _pump(tester, _FakeAdminOrganisationsRepository(_item()));
+
+    expect(find.widgetWithText(OutlinedButton, 'Block Posting'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Block Profile'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Unblock Posting'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Unblock'), findsNothing);
+  });
+
+  testWidgets('tapping Block Posting asks for a reason and calls block with level job_posting', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Block Posting'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Reason (shown to the organisation)'), 'Spam postings');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.blockedUserId, 'u1');
+    expect(repo.blockedLevel, 'job_posting');
+    expect(repo.blockedReason, 'Spam postings');
+    expect(find.widgetWithText(OutlinedButton, 'Unblock Posting'), findsOneWidget);
+  });
+
+  testWidgets('tapping Block Profile calls block with level full', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Block Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(repo.blockedUserId, 'u1');
+    expect(repo.blockedLevel, 'full');
+    expect(find.widgetWithText(OutlinedButton, 'Unblock'), findsOneWidget);
+  });
+
+  testWidgets('cancelling the block dialog does not call block', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Block Posting'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.blockedUserId, isNull);
+  });
+
+  testWidgets('shows Unblock Posting for a job-posting-blocked account; tapping calls unblock', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item(isJobPostingBlocked: true));
+    await _pump(tester, repo);
+
+    expect(find.widgetWithText(OutlinedButton, 'Unblock Posting'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Block Posting'), findsNothing);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Unblock Posting'));
+    await tester.pumpAndSettle();
+
+    expect(repo.unblockedUserId, 'u1');
+    expect(repo.unblockedLevel, 'job_posting');
+  });
+
+  testWidgets('shows Unblock for a fully-blocked account; tapping calls unblock with level full', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item(isActive: false));
+    await _pump(tester, repo);
+
+    expect(find.widgetWithText(OutlinedButton, 'Unblock'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Block Profile'), findsNothing);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Unblock'));
+    await tester.pumpAndSettle();
+
+    expect(repo.unblockedUserId, 'u1');
+    expect(repo.unblockedLevel, 'full');
   });
 }

@@ -446,10 +446,19 @@ describe('Organisation (NurseNow) (e2e)', () => {
           .query({ target_user_id: org.user_id })
           .set('Authorization', `Bearer ${superAdminToken}`)
           .expect(200);
-        expect(blockAudit.body.data).toHaveLength(1);
-        expect(blockAudit.body.data[0].target_user_role).toBe('organisation');
-        expect(blockAudit.body.data[0].target_org_number).toEqual(expect.any(Number));
-        expect(blockAudit.body.data[0].target_caregiver_number).toBeNull();
+        // target_user_id matches either side of the entry (see
+        // buildWhereClause), so the org's own self-registration and
+        // org_requirement_posted entries (they're the actor there, not the
+        // target) are also returned alongside the actual block entry.
+        expect(blockAudit.body.data).toHaveLength(3);
+        const blockEntry = blockAudit.body.data.find((e: { action: string }) => e.action === 'status_changed');
+        expect(blockEntry.target_user_role).toBe('organisation');
+        expect(blockEntry.target_org_number).toEqual(expect.any(Number));
+        expect(blockEntry.target_caregiver_number).toBeNull();
+        expect(blockAudit.body.data.some((e: { action: string }) => e.action === 'registration')).toBe(true);
+        expect(blockAudit.body.data.some((e: { action: string }) => e.action === 'org_requirement_posted')).toBe(
+          true,
+        );
       });
 
     it('an approved (active) requirement shows up on GET /v1/caregiver/organisation-requirements, and a caregiver can apply', async () => {

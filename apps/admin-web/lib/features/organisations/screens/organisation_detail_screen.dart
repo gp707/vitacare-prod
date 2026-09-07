@@ -145,6 +145,54 @@ class _OrganisationDetailScreenState
     }
   }
 
+  /// Same block/unblock flow as OrganisationsListScreen's own row menu —
+  /// previously only reachable from the list, never from this full-profile
+  /// view.
+  Future<void> _showBlockDialog(AdminOrganisationListItem detail, String level) async {
+    final controller = TextEditingController();
+    final label = level == 'full' ? 'Block completely' : 'Block from posting new requirements';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$label — ${detail.organisationName}'),
+        content: TextField(
+          controller: controller,
+          maxLength: 1000,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Reason (shown to the organisation)'),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(adminOrganisationsRepositoryProvider).block(detail.userId, level, controller.text.trim());
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
+  Future<void> _unblock(AdminOrganisationListItem detail, String level) async {
+    try {
+      await ref.read(adminOrganisationsRepositoryProvider).unblock(detail.userId, level);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -202,6 +250,41 @@ class _OrganisationDetailScreenState
               _statusBadge(detail),
               const SizedBox(width: AppSpacing.md),
               Text('Registered ${detail.createdAt.split('T').first}'),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              if (detail.isJobPostingBlocked)
+                OutlinedButton.icon(
+                  onPressed: () => _unblock(detail, 'job_posting'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                  icon: const Icon(Icons.lock_open, size: 16),
+                  label: const Text('Unblock Posting'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => _showBlockDialog(detail, 'job_posting'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                  icon: const Icon(Icons.block, size: 16),
+                  label: const Text('Block Posting'),
+                ),
+              if (detail.isActive)
+                OutlinedButton.icon(
+                  onPressed: () => _showBlockDialog(detail, 'full'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                  icon: const Icon(Icons.person_off, size: 16),
+                  label: const Text('Block Profile'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => _unblock(detail, 'full'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                  icon: const Icon(Icons.lock_open, size: 16),
+                  label: const Text('Unblock'),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
