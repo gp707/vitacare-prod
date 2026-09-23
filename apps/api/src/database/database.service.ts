@@ -28,6 +28,12 @@ export class DatabaseService implements OnModuleDestroy {
       connectionString: configService.getOrThrow<string>('DATABASE_URL'),
       ssl: { rejectUnauthorized: false },
     });
+    // pg crashes the whole process on an unhandled 'error' event from an idle
+    // client (e.g. the pooler dropping a stale connection) unless a listener
+    // is attached — see node-postgres docs on pool error handling.
+    this.pool.on('error', (error) => {
+      console.error('Unexpected error on idle Postgres client', error);
+    });
   }
 
   query<T extends QueryResultRow = QueryResultRow>(
