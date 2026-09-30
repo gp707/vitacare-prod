@@ -17,7 +17,6 @@ import '../widgets/section_box.dart';
 // array at submission time, which the backend treats as "No Preference"
 // (see CreateIndividualRequirementDto/UpdateIndividualRequirementDto).
 const _noPreferenceLanguage = 'no_preference';
-const _noPreferenceLanguageLabel = 'No Preference';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
 // with every real condition: picking a real condition drops this, picking
@@ -110,7 +109,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   final _careDurationKey = GlobalKey();
   final _toiletAssistanceKey = GlobalKey();
   final _feedingTypeKey = GlobalKey();
-  final _languagesKey = GlobalKey();
   final _salaryKey = GlobalKey();
 
   bool _showValidationErrors = false;
@@ -277,18 +275,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
   bool get _showGenderMismatchWarning =>
       _gender == Gender.male && _preferredGender == Gender.female;
 
-  /// Purely advisory, never blocks submission — picking any real language
-  /// (rather than leaving it at "No Preference") narrows the caregiver pool
-  /// down to just those who speak it, so we say so up front.
-  bool get _showLanguagePreferenceWarning =>
-      !_languages.contains(_noPreferenceLanguage);
-
-  /// Purely advisory, never blocks submission — same rationale as the
-  /// language-preference warning above, for the same reason: a specific
-  /// religion preference eliminates a large pool of candidates who could
-  /// otherwise help the patient.
-  bool get _showReligionPreferenceWarning => _preferredReligion != null;
-
   /// Purely advisory, never blocks submission — many nurses decline
   /// short-term (few days/weeks) assignments, so the family is warned up
   /// front that they may get fewer or no applicants, with a suggestion to
@@ -342,31 +328,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (picked != null) setState(() => _startDate = picked);
-  }
-
-  /// "No Preference" is mutually exclusive with every real language:
-  /// picking it clears any real selections, and picking a real language
-  /// clears "No Preference". Deselecting the last real language (or
-  /// re-tapping "No Preference" while it's the only thing selected) falls
-  /// back to "No Preference" — there's no truly-empty state. Must be
-  /// called inside setState.
-  void _applyLanguageSelection(List<String> next) {
-    final added = next.where((l) => !_languages.contains(l));
-    final removed = _languages.where((l) => !next.contains(l));
-    if (added.contains(_noPreferenceLanguage)) {
-      _languages
-        ..clear()
-        ..add(_noPreferenceLanguage);
-    } else if (added.isNotEmpty) {
-      _languages
-        ..clear()
-        ..addAll(next.where((l) => l != _noPreferenceLanguage));
-    } else if (removed.isNotEmpty) {
-      final remaining = next.where((l) => l != _noPreferenceLanguage).toList();
-      _languages
-        ..clear()
-        ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
-    }
   }
 
   /// "None" is mutually exclusive with every real condition: picking it
@@ -880,109 +841,6 @@ class _EditRequirementScreenState extends ConsumerState<EditRequirementScreen> {
                                 child: Text(
                                   'Requesting a female caregiver for a male patient reduces your chances of '
                                   'getting matched by about 90%.',
-                                  style: TextStyle(color: AppColors.warning),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      KeyedSubtree(
-                        key: _languagesKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.language, size: 18, color: AppColors.primaryDark),
-                                SizedBox(width: AppSpacing.xs),
-                                Flexible(
-                                  child: Text('Language Preference', style: SectionBox.fieldGroupLabelStyle),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            VitaMultiSelectChips(
-                              options: [_noPreferenceLanguage, ...Language.all],
-                              labels: {
-                                _noPreferenceLanguage:
-                                    _noPreferenceLanguageLabel,
-                                ...Language.displayNames
-                              },
-                              selected: _languages,
-                              onChanged: (next) =>
-                                  setState(() => _applyLanguageSelection(next)),
-                            ),
-                            if (_showLanguagePreferenceWarning) ...[
-                              const SizedBox(height: AppSpacing.xs),
-                              Container(
-                                padding: const EdgeInsets.all(AppSpacing.sm),
-                                decoration: BoxDecoration(
-                                  color:
-                                      AppColors.warning.withValues(alpha: 0.1),
-                                  border: Border.all(color: AppColors.warning),
-                                  borderRadius:
-                                      BorderRadius.circular(AppSpacing.sm),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.warning_amber,
-                                        color: AppColors.warning, size: 20),
-                                    SizedBox(width: AppSpacing.xs),
-                                    Expanded(
-                                      child: Text(
-                                        'A specific language preference may restrict potential candidates significantly.',
-                                        style:
-                                            TextStyle(color: AppColors.warning),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: _preferredReligion,
-                        decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.diversity_3),
-                            labelText: 'Preferred Caregiver Religion',
-                            border: OutlineInputBorder()),
-                        items: [
-                          const DropdownMenuItem(
-                              value: null, child: Text('No preference')),
-                          ...[
-                            Religion.hindu,
-                            Religion.muslim,
-                            Religion.christian
-                          ].map((r) => DropdownMenuItem(
-                              value: r, child: Text(_capitalize(r)))),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _preferredReligion = value),
-                      ),
-                      if (_showReligionPreferenceWarning) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Container(
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withValues(alpha: 0.1),
-                            border: Border.all(color: AppColors.warning),
-                            borderRadius: BorderRadius.circular(AppSpacing.sm),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.warning_amber,
-                                  color: AppColors.warning, size: 20),
-                              SizedBox(width: AppSpacing.xs),
-                              Expanded(
-                                child: Text(
-                                  'We strongly suggest No Preference for the religion. Selecting a specific '
-                                  'religion eliminates a large pool of candidates who could really help the patient.',
                                   style: TextStyle(color: AppColors.warning),
                                 ),
                               ),

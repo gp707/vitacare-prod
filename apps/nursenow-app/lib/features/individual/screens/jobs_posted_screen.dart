@@ -545,7 +545,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       // cancelled or closed — so the border itself signals whether this
       // posting still needs attention.
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.06),
+        color: Colors.white,
         border: Border.all(color: _cardBorderColor, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
@@ -745,21 +745,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               'Preferred Caregiver Gender',
               requirement.preferredGender != null
                   ? _capitalize(requirement.preferredGender!)
-                  : 'No preference',
-            ),
-            _DetailRow(
-              'Language Preference',
-              requirement.languages.isEmpty
-                  ? 'No Preference'
-                  : requirement.languages
-                      .map((l) => Language.displayNames[l] ?? l)
-                      .join(', '),
-            ),
-            _DetailRow(
-              'Preferred Caregiver Religion',
-              requirement.preferredReligion != null
-                  ? (Religion.displayNames[requirement.preferredReligion] ??
-                      requirement.preferredReligion!)
                   : 'No preference',
             ),
             const SizedBox(height: AppSpacing.md),

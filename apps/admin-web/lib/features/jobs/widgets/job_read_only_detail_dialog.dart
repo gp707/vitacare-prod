@@ -139,18 +139,6 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                     'Preferred Caregiver Gender',
                     Gender.displayNames[job.preferredGender] ??
                         job.preferredGender!),
-              _DetailRow(
-                  'Language Preference',
-                  job.languages.isEmpty
-                      ? 'No Preference'
-                      : job.languages
-                          .map((l) => Language.displayNames[l] ?? l)
-                          .join(', ')),
-              if (job.preferredReligion != null)
-                _DetailRow(
-                    'Preferred Caregiver Religion',
-                    Religion.displayNames[job.preferredReligion] ??
-                        job.preferredReligion!),
               const SizedBox(height: AppSpacing.md),
               const Text('Nurse Fee Guidance',
                   style: TextStyle(fontWeight: FontWeight.bold)),

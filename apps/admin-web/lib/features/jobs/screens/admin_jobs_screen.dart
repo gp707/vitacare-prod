@@ -1343,7 +1343,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _careDurationKey = GlobalKey();
   final _toiletAssistanceKey = GlobalKey();
   final _feedingTypeKey = GlobalKey();
-  final _languagesKey = GlobalKey();
 
   // Only turns true once Post has been pressed with something missing —
   // before that, fields don't show red just because they're empty.
@@ -1555,28 +1554,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
             focusNode: _salaryFocusNode),
       ];
 
-  /// Mirrors nursenow-app's Post/Edit Requirement screens exactly: picking
-  /// a real language drops "No Preference"; picking "No Preference" clears
-  /// any real selections; deselecting the only remaining real language
-  /// falls back to "No Preference" rather than leaving the field empty.
-  void _applyLanguageSelection(List<String> next) {
-    final added = next.where((l) => !_languages.contains(l));
-    final removed = _languages.where((l) => !next.contains(l));
-    if (added.contains(_noPreferenceLanguage)) {
-      _languages
-        ..clear()
-        ..add(_noPreferenceLanguage);
-    } else if (added.isNotEmpty) {
-      _languages
-        ..clear()
-        ..addAll(next.where((l) => l != _noPreferenceLanguage));
-    } else if (removed.isNotEmpty) {
-      final remaining = next.where((l) => l != _noPreferenceLanguage).toList();
-      _languages
-        ..clear()
-        ..addAll(remaining.isEmpty ? [_noPreferenceLanguage] : remaining);
-    }
-  }
 
   /// "None" is mutually exclusive with every real condition: picking it
   /// clears any real selections, and picking a real condition clears
@@ -2011,25 +1988,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ),
       ];
 
-  List<Widget> _languagesField() => [
-        KeyedSubtree(
-          key: _languagesKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Language Preference', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              VitaMultiSelectChips(
-                options: [_noPreferenceLanguage, ...Language.all],
-                labels: {_noPreferenceLanguage: _noPreferenceLanguageLabel, ...Language.displayNames},
-                selected: _languages,
-                onChanged: (next) => setState(() => _applyLanguageSelection(next)),
-              ),
-            ],
-          ),
-        ),
-      ];
-
   List<Widget> _preferredGenderField() => [
         DropdownButtonFormField<String?>(
           isExpanded: true,
@@ -2044,22 +2002,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ),
       ];
 
-  List<Widget> _preferredReligionField() => [
-        DropdownButtonFormField<String?>(
-          isExpanded: true,
-          initialValue: _preferredReligion,
-          decoration: const InputDecoration(labelText: 'Preferred Caregiver Religion'),
-          items: [
-            const DropdownMenuItem<String?>(value: null, child: Text('No preference')),
-            // "Others" is excluded — a valid caregiver's own religion at
-            // registration, but not offered as a job preference.
-            ...Religion.all
-                .where((r) => r != Religion.others)
-                .map((r) => DropdownMenuItem<String?>(value: r, child: Text(Religion.displayNames[r] ?? r))),
-          ],
-          onChanged: (value) => setState(() => _preferredReligion = value),
-        ),
-      ];
 
   static const _sectionHeading = TextStyle(fontWeight: FontWeight.bold);
   static const _spacerSm = SizedBox(height: AppSpacing.sm);
@@ -2099,10 +2041,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ..._feedingField(),
         _spacerSm,
         ..._preferredGenderField(),
-        _spacerSm,
-        ..._languagesField(),
-        _spacerSm,
-        ..._preferredReligionField(),
         _spacerLg,
         const Text('Nurse Fee Guidance', style: _sectionHeading),
         _spacerSm,
