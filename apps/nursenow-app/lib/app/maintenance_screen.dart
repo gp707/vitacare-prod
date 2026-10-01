@@ -33,7 +33,7 @@ class MaintenanceScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  message ?? 'NurseNow is temporarily unavailable for maintenance. Please check back shortly.',
+                  message ?? 'JustHeal is temporarily unavailable for maintenance. Please check back shortly.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),

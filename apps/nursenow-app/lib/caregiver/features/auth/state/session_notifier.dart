@@ -1,0 +1,90 @@
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/providers.dart';
+import '../../../core/fcm/fcm_service.dart';
+import '../../../core/storage/local_storage.dart';
+import '../../profile/data/profile_repository.dart';
+import 'session_state.dart';
+
+/// Single source of truth for "who is logged in and what's their status".
+/// Reused at splash (loadSession) and right after register/login, since
+/// both cases just need to read the token from storage and hydrate from
+/// GET /caregiver/profile.
+class SessionNotifier extends StateNotifier<SessionState> {
+  final LocalStorage _localStorage;
+  final ProfileRepository _profileRepository;
+  final FcmService _fcmService;
+
+  SessionNotifier(this._localStorage, this._profileRepository, this._fcmService)
+      : super(const SessionLoading());
+
+  Future<void> loadSession() async {
+    final token = _localStorage.accessToken;
+    if (token == null) {
+      state = const SessionUnauthenticated();
+      return;
+    }
+    try {
+      final profile = await _profileRepository.getProfile();
+      state = SessionAuthenticated(
+        fullName: profile.fullName,
+        phone: profile.phone,
+        verificationStatus: profile.verificationStatus,
+        hasRequiredDocuments: profile.hasRequiredDocuments,
+        rejectionMessage: profile.rejectionMessage,
+      );
+      // SPEC.md 6.4: register on every app launch / login, not just once.
+      unawaited(_fcmService.register());
+    } on ApiException catch (e) {
+      if (tokenInvalidErrorCodes.contains(e.code)) {
+        await _localStorage.clearTokens();
+        state = const SessionUnauthenticated();
+      } else {
+        // Server-side error (5xx, GEN_003 network-unreachable, ...) — the
+        // token is left in storage; loadSession can simply be called again.
+        state = SessionLoadError(e.message);
+      }
+    } catch (_) {
+      // Anything not already wrapped as an ApiException (e.g. no
+      // connectivity at all) — same fail-open treatment.
+      state = const SessionLoadError('Could not reach the server. Please check your connection and try again.');
+    }
+  }
+
+  /// Cheap re-check used by pull-to-refresh and PendingCallScreen's own
+  /// periodic auto-poll (avoids re-fetching the whole profile). Returns
+  /// whether the check actually reached the server — pull-to-refresh uses
+  /// this to tell the caregiver their attempt genuinely failed (e.g. poor
+  /// mobile signal) instead of leaving them guessing why the status still
+  /// looks unchanged; the periodic auto-poll ignores the return value
+  /// entirely (a background tick failing silently and just trying again
+  /// in another few seconds is the whole point of polling).
+  Future<bool> refreshStatus() async {
+    final current = state;
+    if (current is! SessionAuthenticated) return false;
+    try {
+      final status = await _profileRepository.getVerificationStatus();
+      state = current.copyWith(
+        verificationStatus: status.verificationStatus,
+        rejectionMessage: status.rejectionMessage,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> logout() async {
+    await _localStorage.clearTokens();
+    state = const SessionUnauthenticated();
+  }
+}
+
+final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((ref) {
+  return SessionNotifier(
+    ref.watch(localStorageProvider),
+    ref.watch(profileRepositoryProvider),
+    ref.watch(fcmServiceProvider),
+  );
+});

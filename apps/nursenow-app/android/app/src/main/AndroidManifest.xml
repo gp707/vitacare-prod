@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for all network calls (API requests, FCM) — the debug-only
+         manifest grants this automatically for `flutter run`, but release
+         builds need it declared here or the app has no network access at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="nursenow_app"
+        android:label="JustHeal"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

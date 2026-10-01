@@ -1,4 +1,4 @@
-package `in`.vitacasahealth.nursenow_app
+package `in`.vitacasahealth.justheal
 
 import io.flutter.embedding.android.FlutterActivity
 

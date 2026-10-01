@@ -6,6 +6,7 @@ import '../core/connectivity/connectivity_banner.dart';
 import '../core/navigation/navigator_key.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
+import '../caregiver/app/app.dart' show CaregiverSessionWatcher;
 import 'router.dart';
 
 /// Redirects to /login the moment the session becomes unauthenticated,
@@ -48,7 +49,7 @@ class NurseNowApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'NurseNow',
+      title: 'JustHeal',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -63,7 +64,12 @@ class NurseNowApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       initialRoute: '/',
       routes: buildRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
-      builder: (context, child) => SessionWatcher(child: ConnectivityBanner(child: child!)),
+      // Both session watchers are independent — each only listens to its
+      // own flow's sessionProvider (this app's own Individual/Organisation
+      // session vs. the ported caregiver flow's own session) and redirects
+      // only when its own flow logs out, never the other's.
+      builder: (context, child) =>
+          SessionWatcher(child: CaregiverSessionWatcher(child: ConnectivityBanner(child: child!))),
     );
   }
 }

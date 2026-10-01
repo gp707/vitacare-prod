@@ -12,7 +12,7 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 |-----|------|------|
 | Backend API | `apps/api/` | NestJS 10.x, Node.js 20 LTS, TypeScript |
 | Caregiver Mobile ("NurseJobs") | `apps/caregiver-app/` | Flutter 3.19+, Dart, Riverpod |
-| Patient/Hospital Mobile ("NurseNow") | `apps/nursenow-app/` | Flutter 3.19+, Dart, Riverpod |
+| Patient/Hospital Mobile ("NurseNow" internally, published as **JustHeal**) | `apps/nursenow-app/` | Flutter 3.19+, Dart, Riverpod |
 | Admin Web | `apps/admin-web/` | Flutter Web 3.19+, Dart, Riverpod |
 | Shared Constants (TS) | `packages/shared-constants/` | TypeScript |
 | Shared Models (Dart) | `packages/vitacare_shared/` | Pure Dart (no Flutter imports) |
@@ -109,13 +109,32 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 - **Caregivers cannot edit their own full_name or gender.** Both are locked from self-edit past registration — only admins can change them (via the admin edit endpoint). **Religion** follows the same rule: set once at registration, it's locked from the self-edit endpoint (`PATCH /caregiver/profile`) — only admins can change it from that point on. Every other field remains caregiver-editable via self-edit.
 - **Force-upgrade:** admin-web has an "App Versions" screen (any admin, not just super_admin) where an admin sets a `min_version` (and optional `store_url`/`update_message`) per platform (`android`/`ios`) in the `app_min_versions` table (one row per platform, seeded at `1.0.0`). The caregiver app checks `GET /app-versions/check?platform=&version=` (public, no auth) on every cold launch — before the splash screen even loads the session, via `AppVersionRepository.checkForUpdate()` — and if its own build (`PackageInfo.version`) is below `min_version`, shows a full-screen, non-dismissible `UpdateRequiredScreen` with the admin's `update_message` (or a generic default) and an "Update Now" button linking to `store_url`; nothing else in the app loads until the caregiver updates. Platform is determined via `defaultTargetPlatform` (not `dart:io Platform`, which doesn't compile for the web dev target this app is also tested against) — anything other than iOS is treated as `android`. The version check is deliberately **fail-open**: any error (network down, backend unreachable, malformed response) is caught and treated as "no update needed," since a broken check must never be able to lock every caregiver out. admin-web itself has no equivalent gate — it's a web app that just needs a browser reload to pick up a new deploy (see Firebase Hosting cache note), not a store-distributed binary.
 
-## NurseNow (Patient/Family + Hospital/Rehab)
+## NurseNow (Patient/Family + Hospital/Rehab) — published as JustHeal
 
-A separate companion app, **NurseNow** (`apps/nursenow-app/`), lets patients/families and
+**Naming (2026-10):** this app/codebase is still referred to as "NurseNow" throughout this
+doc and in Dart code (package name `nursenow_app`, class names like `NurseNowApp`/
+`NurseNowBottomNav`) — that internal name was never changed. What *did* change is the
+public identity: the app is published to the app stores as **JustHeal** (Android
+`applicationId`/iOS bundle id `in.vitacasahealth.justheal`, `MaterialApp.title` and every
+on-screen brand string), and — per the next paragraph — it is no longer a standalone
+binary. The company/legal entity remains **VitaCasaHealth Services**, deliberately distinct
+from the consumer-facing app name.
+
+**Merged into one binary with NurseJobs (2026-10):** `apps/nursenow-app` is now the **host
+app** for a single published binary that also contains NurseJobs' entire caregiver flow,
+ported into `apps/nursenow-app/lib/caregiver/` (own `core/`, own route table, every route
+prefixed `/caregiver/...` to avoid colliding with this app's own `/login`, `/register`,
+`/profile`, etc. — see `apps/caregiver-app`'s own CLAUDE.md entry for why the two flows
+stay internally separate rather than being redesigned into one UX). A caregiver reaches
+that flow via a **"Caregivers Registration"** button in the top-right of this app's
+`LoginScreen`, which pushes `/caregiver/register`. `apps/caregiver-app` itself is left in
+place, unpublished, as the source of truth for that ported code until the merged flow is
+fully verified.
+
+A separate companion app, **NurseNow**, lets patients/families and
 hospitals/rehabs/clinics post care requirements and get matched against the same caregiver
-pool NurseJobs (`apps/caregiver-app/`) already serves. It is a genuinely separate Flutter app
-(own app-store listing, own registration/login) — not a merged "one app for everyone" build —
-sharing the same backend (`apps/api`) and Postgres DB. **Both account types are now built:
+pool NurseJobs already serves, sharing the same backend (`apps/api`) and Postgres DB.
+**Both account types are now built:
 Individual (patient/family), covered first below, and Organisation (hospital/rehab/clinic),
 covered in its own subsection further down.** Organisation was deliberately built on
 brand-new dedicated tables/codepath rather than reusing `jobs`/`care_receivers` — a

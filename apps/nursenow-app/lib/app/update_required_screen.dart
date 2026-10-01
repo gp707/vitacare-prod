@@ -51,7 +51,7 @@ class UpdateRequiredScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  message ?? 'A new version of NurseNow is available. Please update to continue.',
+                  message ?? 'A new version of JustHeal is available. Please update to continue.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),

@@ -7,6 +7,7 @@ import '../features/individual/screens/post_requirement_screen.dart';
 import '../features/individual/screens/profile_screen.dart';
 import '../features/organisation/screens/requirements_posted_screen.dart';
 import '../features/organisation/screens/post_organisation_requirement_screen.dart';
+import '../caregiver/app/router.dart' show buildCaregiverRoutes;
 
 /// Two account types, one app: Individual and Organisation both log in
 /// through the same Splash/Login/Register flow, but land on a different
@@ -18,6 +19,13 @@ import '../features/organisation/screens/post_organisation_requirement_screen.da
 /// neither account type has a verification pipeline, just the two
 /// independent block levers described in the NurseNow section of
 /// CLAUDE.md.
+///
+/// Merged with the caregiver flow's own route table (see CLAUDE.md's
+/// "Merged into one binary with NurseJobs") — every caregiver route is
+/// prefixed `/caregiver/...` by buildCaregiverRoutes() itself, so there's
+/// no collision with this table's own `/`, `/login`, `/register`,
+/// `/profile`. One flat Map, one MaterialApp, one Navigator for the whole
+/// app — not a nested Navigator per flow.
 Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
     '/': (context) => SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
@@ -28,5 +36,6 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/post-requirement': (context) => const PostRequirementScreen(),
     '/org-home': (context) => const RequirementsPostedScreen(),
     '/org-post-requirement': (context) => const PostOrganisationRequirementScreen(),
+    ...buildCaregiverRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
   };
 }

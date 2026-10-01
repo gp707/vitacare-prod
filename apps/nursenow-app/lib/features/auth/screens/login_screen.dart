@@ -140,7 +140,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final otpMode = ref.watch(otpModeProvider);
 
     return Scaffold(
-      appBar: AppBar(actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(
+        actions: [
+          // Entry point into the ported caregiver (NurseJobs) flow living
+          // inside this same app/binary post-merge — see CLAUDE.md's
+          // "Merged into one binary with NurseJobs". Goes straight to the
+          // caregiver's own registration screen, not its splash/login,
+          // matching this button's own label — an existing caregiver can
+          // still reach their own login from there ("Already registered?"
+          // equivalent link on that screen).
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/caregiver/register'),
+            child: const Text('Caregivers Registration', style: TextStyle(color: AppColors.primary)),
+          ),
+          const WhatsAppHelpButton(),
+        ],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -155,7 +170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: AppSpacing.sm),
               const Text(
-                'NurseNow',
+                'JustHeal',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: AppTypography.jumbo, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
