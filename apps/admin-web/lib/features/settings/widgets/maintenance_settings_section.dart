@@ -5,18 +5,17 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_maintenance/data/app_maintenance_repository.dart';
 
-/// Same local-helper convention as app_versions_settings_section.dart.
-String _appDisplayName(String app) => app == 'nursejobs' ? 'NurseJobs' : 'NurseNow';
-
-/// The "Maintenance Mode" tab of the Settings hub — lets an admin take
-/// either mobile app down entirely with a custom message (e.g. "App is in
-/// maintenance mode, it will be available after 10am IST"). Enabling this
-/// blocks every user of that app with a non-dismissible full-screen notice
-/// on their next launch, checked before login (see
-/// AppMaintenanceRepository.checkForMaintenance in each app). NurseJobs and
-/// NurseNow are switched independently of each other — each is its own
-/// bordered box with its own Save button, same pattern as Rate Card's
-/// per-frequency sections.
+/// The "Maintenance Mode" tab of the Settings hub — lets an admin take the
+/// single JustHeal binary down entirely with a custom message (e.g. "App is
+/// in maintenance mode, it will be available after 10am IST"). Enabling
+/// this blocks every user — caregiver and patient/hospital alike, since
+/// both flows ship in the one binary (see CLAUDE.md's "Merged into one
+/// binary with NurseJobs") — with a non-dismissible full-screen notice on
+/// their next launch, checked before login (see
+/// AppMaintenanceRepository.checkForMaintenance). Used to carry an
+/// independent NurseJobs/NurseNow switch (migration 068), back when they
+/// shipped as two separate binaries; collapsed to one singleton control by
+/// migration 074 once they merged into one.
 class MaintenanceSettingsSection extends ConsumerStatefulWidget {
   const MaintenanceSettingsSection({super.key});
 
@@ -27,7 +26,7 @@ class MaintenanceSettingsSection extends ConsumerStatefulWidget {
 class _MaintenanceSettingsSectionState extends ConsumerState<MaintenanceSettingsSection> {
   bool _loading = true;
   String? _errorMessage;
-  List<AppMaintenance>? _rows;
+  AppMaintenance? _row;
 
   @override
   void initState() {
@@ -41,8 +40,8 @@ class _MaintenanceSettingsSectionState extends ConsumerState<MaintenanceSettings
       _errorMessage = null;
     });
     try {
-      final rows = await ref.read(appMaintenanceRepositoryProvider).list();
-      if (mounted) setState(() => _rows = rows);
+      final row = await ref.read(appMaintenanceRepositoryProvider).get();
+      if (mounted) setState(() => _row = row);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
@@ -61,47 +60,38 @@ class _MaintenanceSettingsSectionState extends ConsumerState<MaintenanceSettings
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Take an app down entirely for maintenance, with a custom message shown to '
-            'every user on their next launch (e.g. "App is in maintenance mode, it will be '
-            'available after 10am IST"). NurseJobs and NurseNow are switched independently.',
+            'Take the JustHeal app down entirely for maintenance, with a custom message shown '
+            'to every user on their next launch (e.g. "App is in maintenance mode, it will be '
+            'available after 10am IST").',
             style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),
           if (_errorMessage != null)
             Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-          else
-            for (final row in _rows!)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-                child: _MaintenanceAppSection(
-                  key: ValueKey(row.app),
-                  initial: row,
-                ),
-              ),
+          else if (_row != null)
+            _MaintenanceSection(key: ValueKey(_row!.updatedAt), initial: _row!),
         ],
       ),
     );
   }
 }
 
-class _MaintenanceAppSection extends ConsumerStatefulWidget {
+class _MaintenanceSection extends ConsumerStatefulWidget {
   final AppMaintenance initial;
 
-  const _MaintenanceAppSection({super.key, required this.initial});
+  const _MaintenanceSection({super.key, required this.initial});
 
   @override
-  ConsumerState<_MaintenanceAppSection> createState() => _MaintenanceAppSectionState();
+  ConsumerState<_MaintenanceSection> createState() => _MaintenanceSectionState();
 }
 
-class _MaintenanceAppSectionState extends ConsumerState<_MaintenanceAppSection> {
+class _MaintenanceSectionState extends ConsumerState<_MaintenanceSection> {
   bool _saving = false;
   String? _errorMessage;
   late bool _enabled;
   late String? _updatedByName;
   late String _updatedAt;
   late TextEditingController _messageController;
-
-  String get _app => widget.initial.app;
 
   @override
   void initState() {
@@ -125,18 +115,17 @@ class _MaintenanceAppSectionState extends ConsumerState<_MaintenanceAppSection> 
     });
     try {
       final repository = ref.read(appMaintenanceRepositoryProvider);
-      await repository.update(_app, enabled: _enabled, message: _messageController.text.trim());
+      await repository.update(enabled: _enabled, message: _messageController.text.trim());
       // Re-fetch to pick up the server-set updated_by/updated_at — the
       // update endpoint itself only returns void.
-      final refreshed = await repository.list();
-      final own = refreshed.firstWhere((r) => r.app == _app);
+      final refreshed = await repository.get();
       if (mounted) {
         setState(() {
-          _updatedByName = own.updatedByName;
-          _updatedAt = own.updatedAt;
+          _updatedByName = refreshed.updatedByName;
+          _updatedAt = refreshed.updatedAt;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${_appDisplayName(_app)} maintenance settings saved')),
+          const SnackBar(content: Text('Maintenance settings saved')),
         );
       }
     } on ApiException catch (e) {
@@ -157,17 +146,6 @@ class _MaintenanceAppSectionState extends ConsumerState<_MaintenanceAppSection> 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.build_circle_outlined, size: 18, color: AppColors.primaryDark),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                _appDisplayName(_app),
-                style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
           if (_errorMessage != null) ...[
             Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
             const SizedBox(height: AppSpacing.sm),

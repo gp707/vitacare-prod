@@ -20,14 +20,13 @@ export class AdminAppVersionsController {
     return this.appConfigService.adminList();
   }
 
-  @Patch(':app/:platform')
+  @Patch(':platform')
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('app') app: string,
     @Param('platform') platform: string,
     @Body() dto: UpdateAppVersionDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.appConfigService.adminUpdate(user.sub, app, platform, dto, ip);
+    return this.appConfigService.adminUpdate(user.sub, platform, dto, ip);
   }
 }

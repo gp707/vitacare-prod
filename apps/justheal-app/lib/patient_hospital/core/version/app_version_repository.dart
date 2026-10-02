@@ -20,10 +20,12 @@ class AppVersionRepository {
   /// takes no token). Returns null when no update is required. Deliberately
   /// fails open on any error (network down, backend unreachable, unexpected
   /// response shape): a broken version check must never be the thing that
-  /// locks every Individual/Organisation account out of the app.
-  /// Mirrors caregiver-app's own AppVersionRepository exactly, except this
-  /// app identifies itself as LoginApp.nursenow so admin can force-upgrade
-  /// NurseNow independently of NurseJobs (see migration 068).
+  /// locks every user out of the app. This is the single real check for
+  /// the whole JustHeal binary (covers both the caregiver and patient/
+  /// hospital flows) — it used to pass an `app` bucket so NurseJobs and
+  /// NurseNow could be force-upgraded independently (migration 068), back
+  /// when they shipped as two separate binaries; collapsed to one
+  /// platform-only check by migration 074 once they merged into one.
   Future<UpdateRequiredInfo?> checkForUpdate() async {
     try {
       // defaultTargetPlatform (not dart:io Platform) so this still compiles
@@ -32,7 +34,6 @@ class AppVersionRepository {
       final packageInfo = await PackageInfo.fromPlatform();
 
       final res = await _dio.get(ApiRoutes.appVersionCheck, queryParameters: {
-        'app': LoginApp.nursenow,
         'platform': platform,
         'version': packageInfo.version,
       });

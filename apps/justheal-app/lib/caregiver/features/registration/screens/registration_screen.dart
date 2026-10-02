@@ -84,9 +84,25 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   // before that, fields don't show red just because they're empty.
   bool _showValidationErrors = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // This screen (and login_screen.dart) is a real, reachable entry point
+    // into the caregiver flow post-merge, unlike the caregiver splash
+    // screen that used to fetch this (now unreachable — see
+    // splash_screen.dart's own note). Each fetches its own OTP-mode
+    // setting independently rather than relying on a splash screen having
+    // already run first. Fails open to the provider's own default (false,
+    // PIN mode) on any error.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final enabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+      if (mounted) ref.read(otpModeProvider.notifier).state = enabled;
+    });
+  }
+
   String get _phone => '+91${_phoneController.text.trim()}';
   int? get _age => int.tryParse(_ageController.text.trim());
-  bool get _otpMode => ref.read(otpModeProvider);
+  bool get _otpMode => ref.watch(otpModeProvider);
 
   bool get _isFullNameValid => Validators.isValidName(_fullNameController.text.trim());
   bool get _isPhoneValid => Validators.isValidPhone(_phone);

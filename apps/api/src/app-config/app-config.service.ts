@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AppPlatform, AuditAction, LoginApp } from '@vitacare/shared-constants';
+import { AppPlatform, AuditAction } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AuditService } from '../audit/audit.service';
 import { AppMinVersionsRepository } from '../database/repositories/app-min-versions.repository';
@@ -27,13 +27,15 @@ export class AppConfigService {
     private readonly auditService: AuditService,
   ) {}
 
-  /** Public — called by each app on every launch, before login. An
-   *  unrecognized app/platform combination 404s (GEN_002) rather than
+  /** Public — called once on every cold launch, before login, by the
+   *  single JustHeal binary (covers both the caregiver and patient/
+   *  hospital flows — see CLAUDE.md's "Merged into one binary with
+   *  NurseJobs"). An unrecognized platform 404s (GEN_002) rather than
    *  silently passing, since a malformed/unexpected client is exactly the
    *  case we don't want to fail open on the "does this row exist" check
    *  for. */
-  async checkVersion(app: LoginApp, platform: AppPlatform, version: string): Promise<VersionCheckResult> {
-    const row = await this.appMinVersionsRepo.findByAppAndPlatform(app, platform);
+  async checkVersion(platform: AppPlatform, version: string): Promise<VersionCheckResult> {
+    const row = await this.appMinVersionsRepo.findByPlatform(platform);
     if (!row) throw new AppException('GEN_002');
 
     const updateRequired = this.isBelowMinVersion(version, row.min_version);
@@ -49,39 +51,32 @@ export class AppConfigService {
     return this.appMinVersionsRepo.findAll();
   }
 
-  /** app/platform come from unvalidated @Param segments — an invalid
-   *  value simply won't match a row (findByAppAndPlatform returns null),
-   *  which we turn into the same GEN_002 as a legitimate combination
-   *  that's somehow missing. */
-  async adminUpdate(
-    adminId: string,
-    app: string,
-    platform: string,
-    dto: UpdateAppVersionDto,
-    ipAddress: string | null,
-  ) {
-    const existing = await this.appMinVersionsRepo.findByAppAndPlatform(app, platform);
+  /** platform comes from an unvalidated @Param segment — an invalid value
+   *  simply won't match a row (findByPlatform returns null), which we
+   *  turn into the same GEN_002 as a legitimate platform that's somehow
+   *  missing. */
+  async adminUpdate(adminId: string, platform: string, dto: UpdateAppVersionDto, ipAddress: string | null) {
+    const existing = await this.appMinVersionsRepo.findByPlatform(platform);
     if (!existing) throw new AppException('GEN_002');
 
-    const updated = await this.appMinVersionsRepo.update(app, platform, dto, adminId);
+    const updated = await this.appMinVersionsRepo.update(platform, dto, adminId);
 
     await this.auditService.log({
       userId: adminId,
       action: AuditAction.APP_VERSION_UPDATED,
       entityType: 'app_min_versions',
-      beforeValue: { app, platform, min_version: existing.min_version, store_url: existing.store_url },
-      afterValue: { app, platform, min_version: dto.min_version, store_url: dto.store_url ?? null },
+      beforeValue: { platform, min_version: existing.min_version, store_url: existing.store_url },
+      afterValue: { platform, min_version: dto.min_version, store_url: dto.store_url ?? null },
       ipAddress,
     });
 
     return updated;
   }
 
-  /** Public — called by each app on every launch, before login, alongside
-   *  checkVersion. An unrecognized app 404s (GEN_002), same reasoning as
-   *  checkVersion above. */
-  async checkMaintenance(app: LoginApp): Promise<MaintenanceCheckResult> {
-    const row = await this.appMaintenanceRepo.findByApp(app);
+  /** Public — called once on every cold launch, before login, alongside
+   *  checkVersion, by the single JustHeal binary. */
+  async checkMaintenance(): Promise<MaintenanceCheckResult> {
+    const row = await this.appMaintenanceRepo.find();
     if (!row) throw new AppException('GEN_002');
 
     return {
@@ -90,30 +85,22 @@ export class AppConfigService {
     };
   }
 
-  adminMaintenanceList() {
-    return this.appMaintenanceRepo.findAll();
+  adminMaintenance() {
+    return this.appMaintenanceRepo.findWithUpdater();
   }
 
-  /** app comes from an unvalidated @Param — an invalid value simply won't
-   *  match a row, turned into GEN_002 the same way adminUpdate above
-   *  handles it. */
-  async adminMaintenanceUpdate(
-    adminId: string,
-    app: string,
-    dto: UpdateAppMaintenanceDto,
-    ipAddress: string | null,
-  ) {
-    const existing = await this.appMaintenanceRepo.findByApp(app);
+  async adminMaintenanceUpdate(adminId: string, dto: UpdateAppMaintenanceDto, ipAddress: string | null) {
+    const existing = await this.appMaintenanceRepo.find();
     if (!existing) throw new AppException('GEN_002');
 
-    const updated = await this.appMaintenanceRepo.update(app, dto, adminId);
+    const updated = await this.appMaintenanceRepo.update(dto, adminId);
 
     await this.auditService.log({
       userId: adminId,
       action: AuditAction.APP_MAINTENANCE_UPDATED,
       entityType: 'app_maintenance',
-      beforeValue: { app, enabled: existing.enabled, message: existing.message },
-      afterValue: { app, enabled: dto.enabled, message: dto.message ?? null },
+      beforeValue: { enabled: existing.enabled, message: existing.message },
+      afterValue: { enabled: dto.enabled, message: dto.message ?? null },
       ipAddress,
     });
 

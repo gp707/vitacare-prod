@@ -4,8 +4,6 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'network/api_client.dart';
 import 'storage/local_storage.dart';
 import 'fcm/fcm_service.dart';
-import 'version/app_version_repository.dart';
-import 'version/app_maintenance_repository.dart';
 import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
@@ -51,14 +49,6 @@ final jobsRepositoryProvider = Provider<JobsRepository>((ref) {
 
 final organisationOpeningsRepositoryProvider = Provider<OrganisationOpeningsRepository>((ref) {
   return OrganisationOpeningsRepository(ref.watch(apiClientProvider).dio);
-});
-
-final appVersionRepositoryProvider = Provider<AppVersionRepository>((ref) {
-  return AppVersionRepository(ref.watch(apiClientProvider).dio);
-});
-
-final appMaintenanceRepositoryProvider = Provider<AppMaintenanceRepository>((ref) {
-  return AppMaintenanceRepository(ref.watch(apiClientProvider).dio);
 });
 
 final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {

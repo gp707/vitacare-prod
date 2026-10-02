@@ -37,6 +37,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String get _phone => '+91${_phoneController.text.trim()}';
 
   @override
+  void initState() {
+    super.initState();
+    // This screen (and registration_screen.dart) is a real, reachable
+    // entry point into the caregiver flow post-merge, unlike the caregiver
+    // splash screen that used to fetch this (now unreachable — see
+    // splash_screen.dart's own note). Each fetches its own OTP-mode
+    // setting independently rather than relying on a splash screen having
+    // already run first. Fails open to the provider's own default (false,
+    // PIN mode) on any error.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final enabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+      if (mounted) ref.read(otpModeProvider.notifier).state = enabled;
+    });
+  }
+
+  @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();

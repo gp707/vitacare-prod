@@ -5,18 +5,15 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_versions/data/app_versions_repository.dart';
 
-/// NurseJobs and NurseNow each brand-display as their own name rather than
-/// the raw 'nursejobs'/'nursenow' app bucket value — same local-helper
-/// convention as e.g. audit_logs_screen.dart's _auditJobDisplayId.
-String _appDisplayName(String app) => app == 'nursejobs' ? 'NurseJobs' : 'NurseNow';
-
 /// The "App Versions" tab of the Settings hub — lets an admin force-upgrade
-/// either mobile app independently: raising an app+platform's min_version
-/// above what a user has installed blocks them with an "Update Required"
-/// screen on their next launch (see AppVersionRepository.checkForUpdate in
-/// each app). NurseJobs and NurseNow each maintain their own 2 rows
-/// (android/ios), grouped into their own section here — 4 rows total (see
-/// migration 068).
+/// the single JustHeal binary (covers both the caregiver and patient/
+/// hospital flows — see CLAUDE.md's "Merged into one binary with
+/// NurseJobs"): raising a platform's min_version above what a user has
+/// installed blocks them with an "Update Required" screen on their next
+/// launch (see AppVersionRepository.checkForUpdate). One row per platform
+/// (android/ios) — used to carry an independent NurseJobs/NurseNow copy of
+/// each row (migration 068), back when they shipped as two separate
+/// binaries; collapsed by migration 074 once they merged into one.
 class AppVersionsSettingsSection extends ConsumerStatefulWidget {
   const AppVersionsSettingsSection({super.key});
 
@@ -60,7 +57,7 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('${_appDisplayName(version.app)} — ${version.platform} minimum version'),
+          title: Text('${version.platform} minimum version'),
           content: SizedBox(
             width: context.dialogWidth(420),
             child: Column(
@@ -94,7 +91,6 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
               onPressed: () async {
                 try {
                   await ref.read(appVersionsRepositoryProvider).update(
-                        version.app,
                         version.platform,
                         minVersion: minVersionController.text.trim(),
                         storeUrl: storeUrlController.text.trim(),
@@ -126,89 +122,58 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Raise an app\'s minimum version above what a user has installed to '
-            'force them to update before they can use that app again. NurseJobs and '
-            'NurseNow are force-updated independently of each other.',
+            'Raise the minimum version above what a user has installed to force them to '
+            'update the JustHeal app before they can use it again. One control per platform '
+            '(Android/iOS) — the caregiver and patient/hospital flows ship together in the '
+            'same binary, so there\'s a single version to enforce, not two.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),
           if (_errorMessage != null)
             Text(_errorMessage!, style: const TextStyle(color: AppColors.error))
-          else ...[
-            for (final app in const ['nursejobs', 'nursenow'])
+          else
+            for (final version in _versions)
               Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-                child: _AppVersionsAppSection(
-                  app: app,
-                  versions: _versions.where((v) => v.app == app).toList(),
-                  onEdit: _showEditDialog,
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(AppSpacing.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              version.platform[0].toUpperCase() + version.platform.substring(1),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Minimum version: ${version.minVersion}'),
+                            if (version.storeUrl != null && version.storeUrl!.isNotEmpty)
+                              Text('Store URL: ${version.storeUrl}',
+                                  style: const TextStyle(color: AppColors.textSecondary)),
+                            if (version.updateMessage != null && version.updateMessage!.isNotEmpty)
+                              Text('Message: ${version.updateMessage}',
+                                  style: const TextStyle(color: AppColors.textSecondary)),
+                            if (version.updatedByName != null)
+                              Text(
+                                'Last updated by ${version.updatedByName}',
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                              ),
+                          ],
+                        ),
+                      ),
+                      TextButton(onPressed: () => _showEditDialog(version), child: const Text('Edit')),
+                    ],
+                  ),
                 ),
               ),
-          ],
         ],
       ),
-    );
-  }
-}
-
-class _AppVersionsAppSection extends StatelessWidget {
-  final String app;
-  final List<AppMinVersion> versions;
-  final void Function(AppMinVersion) onEdit;
-
-  const _AppVersionsAppSection({required this.app, required this.versions, required this.onEdit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _appDisplayName(app),
-          style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        for (final version in versions)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(AppSpacing.sm),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          version.platform[0].toUpperCase() + version.platform.substring(1),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle),
-                        ),
-                        const SizedBox(height: 4),
-                        Text('Minimum version: ${version.minVersion}'),
-                        if (version.storeUrl != null && version.storeUrl!.isNotEmpty)
-                          Text('Store URL: ${version.storeUrl}',
-                              style: const TextStyle(color: AppColors.textSecondary)),
-                        if (version.updateMessage != null && version.updateMessage!.isNotEmpty)
-                          Text('Message: ${version.updateMessage}',
-                              style: const TextStyle(color: AppColors.textSecondary)),
-                        if (version.updatedByName != null)
-                          Text(
-                            'Last updated by ${version.updatedByName}',
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
-                          ),
-                      ],
-                    ),
-                  ),
-                  TextButton(onPressed: () => onEdit(version), child: const Text('Edit')),
-                ],
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

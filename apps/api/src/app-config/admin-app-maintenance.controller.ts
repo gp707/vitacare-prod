@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -16,17 +16,16 @@ export class AdminAppMaintenanceController {
   constructor(private readonly appConfigService: AppConfigService) {}
 
   @Get()
-  list() {
-    return this.appConfigService.adminMaintenanceList();
+  get() {
+    return this.appConfigService.adminMaintenance();
   }
 
-  @Patch(':app')
+  @Patch()
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('app') app: string,
     @Body() dto: UpdateAppMaintenanceDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.appConfigService.adminMaintenanceUpdate(user.sub, app, dto, ip);
+    return this.appConfigService.adminMaintenanceUpdate(user.sub, dto, ip);
   }
 }
