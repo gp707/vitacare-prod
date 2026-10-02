@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/app.dart';
 import 'core/providers.dart';
 import 'core/storage/local_storage.dart';
+import 'caregiver/core/providers.dart' as caregiver;
+import 'caregiver/core/storage/local_storage.dart' as caregiver_storage;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,10 +33,18 @@ Future<void> main() async {
   // refresh instead of always landing on their home tab.
   final initialDeepLinkRoute = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   final localStorage = await LocalStorage.create();
+  // The ported caregiver flow is a second, independent session sharing
+  // this one binary (see CLAUDE.md's JustHeal merge notes) — it needs its
+  // own LocalStorage override too, not just this app's own, or any
+  // caregiver login/session read throws UnimplementedError.
+  final caregiverLocalStorage = await caregiver_storage.LocalStorage.create();
 
   runApp(
     ProviderScope(
-      overrides: [localStorageProvider.overrideWithValue(localStorage)],
+      overrides: [
+        localStorageProvider.overrideWithValue(localStorage),
+        caregiver.localStorageProvider.overrideWithValue(caregiverLocalStorage),
+      ],
       child: NurseNowApp(initialDeepLinkRoute: initialDeepLinkRoute),
     ),
   );

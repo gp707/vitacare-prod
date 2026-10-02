@@ -32,6 +32,23 @@ const CODE_LOGIN_ROLES_BY_APP: Record<string, UserRole[]> = {
   [LoginApp.NURSENOW]: [UserRole.INDIVIDUAL, UserRole.ORGANISATION],
 };
 
+/** Human-readable role name for the AUTH_016 cross-bucket registration
+ *  error message — see CLAUDE.md's phone-uniqueness note. Admin roles
+ *  can't actually be hit via the public registration endpoints this is
+ *  used from, but are handled defensively rather than crashing. */
+function roleLabel(role: UserRole): string {
+  switch (role) {
+    case UserRole.CAREGIVER:
+      return 'a caregiver (NurseJobs) account';
+    case UserRole.INDIVIDUAL:
+      return 'a patient/family account';
+    case UserRole.ORGANISATION:
+      return 'a hospital/rehab/clinic account';
+    default:
+      return 'another account';
+  }
+}
+
 export interface IssuedTokens {
   access_token: string;
   refresh_token: string;
@@ -57,6 +74,13 @@ export class AuthService {
     const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.CAREGIVER]);
     if (existing) {
       throw new AppException('AUTH_001');
+    }
+    const crossBucket = await this.usersRepo.findByPhoneAnyRole(dto.phone);
+    if (crossBucket) {
+      throw new AppException(
+        'AUTH_016',
+        `This phone number is already registered as ${roleLabel(crossBucket.role)}. Each phone number can only be used for one account.`,
+      );
     }
 
     const { codeHash } = await this.resolveCredential(LoginApp.NURSEJOBS, dto, OtpPurpose.REGISTER, dto.phone);
@@ -196,6 +220,13 @@ export class AuthService {
     if (existing) {
       throw new AppException('AUTH_001');
     }
+    const crossBucket = await this.usersRepo.findByPhoneAnyRole(dto.phone);
+    if (crossBucket) {
+      throw new AppException(
+        'AUTH_016',
+        `This phone number is already registered as ${roleLabel(crossBucket.role)}. Each phone number can only be used for one account.`,
+      );
+    }
 
     const { codeHash } = await this.resolveCredential(LoginApp.NURSENOW, dto, OtpPurpose.REGISTER, dto.phone);
 
@@ -235,6 +266,13 @@ export class AuthService {
     ]);
     if (existing) {
       throw new AppException('AUTH_001');
+    }
+    const crossBucket = await this.usersRepo.findByPhoneAnyRole(dto.phone);
+    if (crossBucket) {
+      throw new AppException(
+        'AUTH_016',
+        `This phone number is already registered as ${roleLabel(crossBucket.role)}. Each phone number can only be used for one account.`,
+      );
     }
 
     const { codeHash } = await this.resolveCredential(LoginApp.NURSENOW, dto, OtpPurpose.REGISTER, dto.phone);

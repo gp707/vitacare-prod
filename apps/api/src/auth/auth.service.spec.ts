@@ -30,7 +30,15 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     db = { withTransaction: jest.fn() };
-    usersRepo = { findByPhoneAndRoles: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
+    usersRepo = {
+      findByPhoneAndRoles: jest.fn(),
+      // Default null — only the new AUTH_016 cross-bucket tests below give
+      // this a real user, so every pre-existing test (which only sets up
+      // findByPhoneAndRoles) is unaffected.
+      findByPhoneAnyRole: jest.fn().mockResolvedValue(null),
+      findByEmail: jest.fn(),
+      findById: jest.fn(),
+    };
     caregiverProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
     caregiverLanguagesRepo = { createMany: jest.fn() };
     individualProfilesRepo = { create: jest.fn(), findByUserId: jest.fn() };
@@ -90,6 +98,27 @@ describe('AuthService', () => {
           code: '1234',
         }),
       ).rejects.toMatchObject({ code: 'AUTH_001' });
+    });
+
+    it('throws AUTH_016 naming the existing role when the phone is already registered in a different bucket', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      usersRepo.findByPhoneAnyRole.mockResolvedValue({ ...baseUser, role: UserRole.INDIVIDUAL });
+      await expect(
+        service.register({
+          phone: baseUser.phone,
+          full_name: 'X',
+          gender: 'male' as any,
+          age: 30,
+          languages: ['hindi'] as any,
+          religion: 'hindu' as any,
+          highest_qualification: 'rn_above_2_years' as any,
+          terms_accepted: true,
+          code: '1234',
+        }),
+      ).rejects.toMatchObject({
+        code: 'AUTH_016',
+        message: expect.stringContaining('a patient/family account'),
+      });
     });
 
     it('creates user + profile + languages in a transaction and returns pending_call', async () => {
@@ -278,6 +307,22 @@ describe('AuthService', () => {
       ).rejects.toMatchObject({ code: 'AUTH_001' });
     });
 
+    it('throws AUTH_016 naming the existing role when the phone is already registered in a different bucket', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      usersRepo.findByPhoneAnyRole.mockResolvedValue({ ...baseUser, role: UserRole.CAREGIVER });
+      await expect(
+        service.registerIndividual({
+          phone: individualUser.phone,
+          full_name: 'Asha Patel',
+          terms_accepted: true,
+          code: '1234',
+        }),
+      ).rejects.toMatchObject({
+        code: 'AUTH_016',
+        message: expect.stringContaining('a caregiver (NurseJobs) account'),
+      });
+    });
+
     it('creates user + individual_profiles in a transaction and returns no verification_status', async () => {
       usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
       const client = { query: jest.fn().mockResolvedValue({ rows: [individualUser] }) };
@@ -318,6 +363,15 @@ describe('AuthService', () => {
     it('throws AUTH_001 when phone already registered', async () => {
       usersRepo.findByPhoneAndRoles.mockResolvedValue(orgUser);
       await expect(service.registerOrganisation(orgDto)).rejects.toMatchObject({ code: 'AUTH_001' });
+    });
+
+    it('throws AUTH_016 naming the existing role when the phone is already registered in a different bucket', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      usersRepo.findByPhoneAnyRole.mockResolvedValue({ ...baseUser, role: UserRole.INDIVIDUAL });
+      await expect(service.registerOrganisation(orgDto)).rejects.toMatchObject({
+        code: 'AUTH_016',
+        message: expect.stringContaining('a patient/family account'),
+      });
     });
 
     it('creates user (full_name = contact_person_name) + organisation_profiles, returns no verification_status', async () => {

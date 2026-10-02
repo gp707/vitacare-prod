@@ -13,6 +13,11 @@ import 'package:nursenow_app/features/auth/data/auth_result.dart';
 import 'package:nursenow_app/features/auth/screens/login_screen.dart';
 import 'package:nursenow_app/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/features/individual/data/individual_model.dart';
+import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
+import 'package:nursenow_app/caregiver/core/network/api_exception.dart' as caregiver_net;
+import 'package:nursenow_app/caregiver/core/storage/local_storage.dart' as caregiver_storage;
+import 'package:nursenow_app/caregiver/features/auth/data/auth_repository.dart' as caregiver_auth_repo;
+import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart' as caregiver_auth;
 
 class _FakeAuthRepository extends AuthRepository {
   final ApiException? loginCodeError;
@@ -64,6 +69,29 @@ class _FakeAuthRepository extends AuthRepository {
   }
 }
 
+class _FakeCaregiverAuthRepository extends caregiver_auth_repo.AuthRepository {
+  final caregiver_net.ApiException? loginCodeError;
+  bool loginCodeCalled = false;
+  String? capturedPhone;
+  String? capturedCode;
+
+  _FakeCaregiverAuthRepository({this.loginCodeError}) : super(Dio());
+
+  @override
+  Future<caregiver_auth.AuthResult> loginCode(String phone, String code) async {
+    loginCodeCalled = true;
+    capturedPhone = phone;
+    capturedCode = code;
+    if (loginCodeError != null) throw loginCodeError!;
+    return const caregiver_auth.AuthResult(
+      userId: 'c1',
+      accessToken: 'caregiver-access',
+      refreshToken: 'caregiver-refresh',
+      verificationStatus: 'available',
+    );
+  }
+}
+
 class _FakeIndividualRepository extends IndividualRepository {
   _FakeIndividualRepository() : super(Dio());
 
@@ -76,10 +104,16 @@ class _FakeIndividualRepository extends IndividualRepository {
       );
 }
 
-Future<void> _pumpLogin(WidgetTester tester, {required _FakeAuthRepository authRepo, bool otpMode = false}) async {
+Future<void> _pumpLogin(
+  WidgetTester tester, {
+  required _FakeAuthRepository authRepo,
+  bool otpMode = false,
+  _FakeCaregiverAuthRepository? caregiverAuthRepo,
+}) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
+  final caregiverLocalStorage = await caregiver_storage.LocalStorage.create();
 
   await tester.pumpWidget(
     ProviderScope(
@@ -88,6 +122,8 @@ Future<void> _pumpLogin(WidgetTester tester, {required _FakeAuthRepository authR
         authRepositoryProvider.overrideWithValue(authRepo),
         individualRepositoryProvider.overrideWithValue(_FakeIndividualRepository()),
         otpModeProvider.overrideWith((ref) => otpMode),
+        caregiver.localStorageProvider.overrideWithValue(caregiverLocalStorage),
+        if (caregiverAuthRepo != null) caregiver.authRepositoryProvider.overrideWithValue(caregiverAuthRepo),
       ],
       child: MaterialApp(
         home: const LoginScreen(),
@@ -144,6 +180,60 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Invalid code'), findsOneWidget);
+  });
+
+  group('caregiver login fallback', () {
+    testWidgets('AUTH_002 from the nursenow login falls back to caregiver login with the same phone + code',
+        (tester) async {
+      final authRepo = _FakeAuthRepository(
+        loginCodeError: const ApiException(code: 'AUTH_002', message: 'No account found with this phone number'),
+      );
+      final caregiverAuthRepo = _FakeCaregiverAuthRepository();
+      await _pumpLogin(tester, authRepo: authRepo, caregiverAuthRepo: caregiverAuthRepo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
+      await tester.tap(find.text('Login'));
+      await tester.pumpAndSettle();
+
+      expect(authRepo.loginCodeCalled, isTrue);
+      expect(caregiverAuthRepo.loginCodeCalled, isTrue);
+      expect(caregiverAuthRepo.capturedPhone, '+919876543210');
+      expect(caregiverAuthRepo.capturedCode, '1234');
+    });
+
+    testWidgets('a non-AUTH_002 error surfaces directly without trying the caregiver login', (tester) async {
+      final authRepo = _FakeAuthRepository(
+        loginCodeError: const ApiException(code: 'AUTH_008', message: 'Invalid code'),
+      );
+      final caregiverAuthRepo = _FakeCaregiverAuthRepository();
+      await _pumpLogin(tester, authRepo: authRepo, caregiverAuthRepo: caregiverAuthRepo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '0000');
+      await tester.tap(find.text('Login'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid code'), findsOneWidget);
+      expect(caregiverAuthRepo.loginCodeCalled, isFalse);
+    });
+
+    testWidgets('shows the caregiver error message when the fallback login also fails', (tester) async {
+      final authRepo = _FakeAuthRepository(
+        loginCodeError: const ApiException(code: 'AUTH_002', message: 'No account found with this phone number'),
+      );
+      final caregiverAuthRepo = _FakeCaregiverAuthRepository(
+        loginCodeError: const caregiver_net.ApiException(code: 'AUTH_008', message: 'Invalid code'),
+      );
+      await _pumpLogin(tester, authRepo: authRepo, caregiverAuthRepo: caregiverAuthRepo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '9999');
+      await tester.tap(find.text('Login'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid code'), findsOneWidget);
+    });
   });
 
   group('OTP mode', () {

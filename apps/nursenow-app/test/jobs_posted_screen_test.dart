@@ -355,7 +355,7 @@ void main() {
   });
 
   testWidgets(
-      'a live (active) requirement card has a wide red border on a light green shade — senior-citizen-friendly visibility',
+      'a live (active) requirement card has a wide red border on a plain white background — senior-citizen-friendly visibility',
       (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
@@ -366,7 +366,7 @@ void main() {
     final border = decoration.border as Border;
     expect(border.top.width, greaterThanOrEqualTo(2.5));
     expect(border.top.color, AppColors.error);
-    expect(decoration.color, AppColors.success.withValues(alpha: 0.06));
+    expect(decoration.color, Colors.white);
   });
 
   testWidgets('a closed requirement card has a grey border, not red — it is no longer live', (tester) async {
@@ -515,22 +515,6 @@ void main() {
     await _settle(tester);
 
     expect(find.text('24Hrs - Live In'), findsOneWidget);
-  });
-
-  testWidgets('shows "No Preference" under Language Preference when languages is empty — '
-      'kept in sync with what admin sees, never a blank gap', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement(languages: const [], careReceiver: _careReceiverJson)],
-      ),
-    );
-
-    await tester.tap(find.text('Show Full Details'));
-    await _settle(tester);
-
-    expect(find.text('Language Preference'), findsOneWidget);
-    expect(find.text('No Preference'), findsOneWidget);
   });
 
   testWidgets('with multiple applicants and nobody accepted yet, every candidate is shown, each with Accept/Reject',

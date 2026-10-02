@@ -12,6 +12,7 @@ class ErrorCodes {
     'AUTH_007': 'Insufficient permissions',
     'AUTH_008': 'Invalid code',
     'AUTH_015': 'Current password is incorrect',
+    'AUTH_016': 'This phone number is already registered under a different account type',
 
     // Profile
     'PROFILE_001': 'Full name is required',

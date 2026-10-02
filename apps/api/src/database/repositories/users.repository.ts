@@ -42,6 +42,20 @@ export class UsersRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Unscoped by role — used only for the cross-bucket registration check
+   *  (see AuthService.register/registerIndividual/registerOrganisation),
+   *  which calls this *after* findByPhoneAndRoles already found nothing in
+   *  the caller's own bucket, so any row this returns is guaranteed to
+   *  belong to a different role. Phone numbers are no longer allowed to
+   *  register in more than one role at all (reversing the old
+   *  per-bucket-uniqueness design from migration 045) — see CLAUDE.md. */
+  async findByPhoneAnyRole(phone: string): Promise<UserRecord | null> {
+    const result = await this.db.query<UserRecord>('SELECT * FROM users WHERE phone = $1', [
+      phone,
+    ]);
+    return result.rows[0] ?? null;
+  }
+
   async findByEmail(email: string): Promise<UserRecord | null> {
     const result = await this.db.query<UserRecord>('SELECT * FROM users WHERE email = $1', [
       email,

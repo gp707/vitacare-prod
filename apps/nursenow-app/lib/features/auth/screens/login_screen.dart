@@ -8,6 +8,12 @@ import '../../../core/providers.dart';
 import '../data/auth_result.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
+import '../../../caregiver/core/providers.dart' as caregiver;
+import '../../../caregiver/core/network/api_exception.dart' as caregiver_net;
+import '../../../caregiver/app/route_for_status.dart' as caregiver_route;
+import '../../../caregiver/features/auth/data/auth_result.dart' as caregiver_auth;
+import '../../../caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
+import '../../../caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
 
 /// Every individual/organisation account sets their 4-digit code at
 /// registration, so login always requires phone + code — same mechanism as
@@ -64,9 +70,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final AuthResult result = await authRepo.loginCode(_phone, _codeController.text.trim());
       await _onLoggedIn(result);
     } on ApiException catch (e) {
-      setState(() => _errorMessage = e.message);
+      // AUTH_002 ("no account found with this phone number") means this
+      // phone definitely isn't a nursenow (individual/organisation)
+      // account — now that phone numbers are globally unique across every
+      // registration-facing role (see CLAUDE.md), it's safe to retry as a
+      // caregiver login instead of surfacing the error. Any other code
+      // (wrong PIN, AUTH_004 deactivated, etc.) surfaces exactly as before.
+      if (e.code == 'AUTH_002') {
+        await _tryCaregiverLogin();
+      } else {
+        setState(() => _errorMessage = e.message);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _tryCaregiverLogin() async {
+    try {
+      final authRepo = ref.read(caregiver.authRepositoryProvider);
+      final result = await authRepo.loginCode(_phone, _codeController.text.trim());
+      await _onCaregiverLoggedIn(result);
+    } on caregiver_net.ApiException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message);
     }
   }
 
@@ -132,6 +158,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final session = ref.read(sessionProvider);
     if (session is SessionAuthenticated) {
       Navigator.of(context).pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
+    }
+  }
+
+  /// Mirrors _onLoggedIn but saves into the caregiver's own (prefixed)
+  /// LocalStorage keys and routes via the caregiver's own routeForStatus —
+  /// this app and the ported caregiver flow are two independent sessions
+  /// sharing one binary, not one shared session (see CLAUDE.md's JustHeal
+  /// merge notes).
+  Future<void> _onCaregiverLoggedIn(caregiver_auth.AuthResult result) async {
+    final localStorage = ref.read(caregiver.localStorageProvider);
+    await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+    await ref.read(caregiver_session.sessionProvider.notifier).loadSession();
+    if (!mounted) return;
+    final session = ref.read(caregiver_session.sessionProvider);
+    if (session is caregiver_session_state.SessionAuthenticated) {
+      Navigator.of(context).pushNamedAndRemoveUntil(caregiver_route.routeForStatus(session), (route) => false);
     }
   }
 

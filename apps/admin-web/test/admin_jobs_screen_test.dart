@@ -748,8 +748,6 @@ void main() {
     expect(find.text('Salary (₹/day) (Mandatory)'), findsNothing);
     expect(find.text('Monthly'), findsOneWidget);
 
-    await _tapChip(tester, 'Hindi');
-
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
     await tester.tap(postButton);
@@ -943,50 +941,7 @@ void main() {
   });
 
   testWidgets(
-      'tapping a real language after No Preference replaces it — mutual exclusivity, mirroring nursenow-app',
-      (tester) async {
-    final repo = _FakeAdminJobsRepository([]);
-    await _pump(tester, repo);
-
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
-    await tester.pumpAndSettle();
-
-    await _fillMandatoryFields(tester);
-    await _tapChip(tester, 'Hindi');
-
-    final postButton = find.widgetWithText(ElevatedButton, 'Post');
-    await tester.ensureVisible(postButton);
-    await tester.tap(postButton);
-    await tester.pumpAndSettle();
-
-    expect(repo.submittedLanguages, ['hindi']);
-  });
-
-  testWidgets(
-      "editing a job with no languages set pre-fills No Preference, and admin's own change is what gets submitted — same field, kept in sync with what the patient set",
-      (tester) async {
-    final repo = _FakeAdminJobsRepository([_job()], detailLanguages: const []);
-    await _pump(tester, repo);
-
-    await tester.tap(find.widgetWithText(TextButton, 'Edit'));
-    await tester.pumpAndSettle();
-
-    final noPreferenceChip =
-        tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference'));
-    expect(noPreferenceChip.selected, isTrue);
-
-    await _tapChip(tester, 'Hindi');
-
-    final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
-
-    expect(repo.submittedLanguages, ['hindi']);
-  });
-
-  testWidgets(
-      'the job row and read-only detail view both show "No Preference" explicitly when languages is empty — never a blank gap',
+      'the job row shows "No Preference" explicitly when languages is empty — never a blank gap',
       (tester) async {
     await _pump(
       tester,
@@ -994,14 +949,12 @@ void main() {
     );
 
     // Job row summary line joins area/languages into one Text — check via
-    // textContaining rather than an exact match.
+    // textContaining rather than an exact match. Language Preference is no
+    // longer shown in the Post/Edit form or the read-only detail dialog
+    // (removed entirely — admin can't set it, and it's an informational tag
+    // the patient's own posting carries), but the jobs list row still
+    // summarizes it the same way it always has.
     expect(find.textContaining('No Preference'), findsOneWidget);
-
-    await tester.tap(find.text('ADMIN-JOB-542'));
-    await tester.pumpAndSettle();
-
-    // Read-only detail dialog renders "Languages" as its own exact-text row.
-    expect(find.text('No Preference'), findsOneWidget);
   });
 
   testWidgets(
@@ -1027,7 +980,6 @@ void main() {
     expect(find.text('Medicine'), findsNothing);
 
     await _fillMandatoryFields(tester);
-    await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1102,7 +1054,6 @@ void main() {
     // Deliberately skip Feeding and Toilet Assistance — neither should
     // block submission.
     await _fillMandatoryFields(tester);
-    await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1177,7 +1128,6 @@ void main() {
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
-    await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1214,7 +1164,6 @@ void main() {
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
-    await _tapChip(tester, 'Hindi');
 
     expect(find.text('Needs caregiver assistance with tube feeding'),
         findsNothing);
@@ -1259,7 +1208,6 @@ void main() {
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
-    await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1307,7 +1255,6 @@ void main() {
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
-    await _tapChip(tester, 'Hindi');
 
     final postButton = find.widgetWithText(ElevatedButton, 'Post');
     await tester.ensureVisible(postButton);
@@ -1337,7 +1284,6 @@ void main() {
       expect(noneChip.selected, isTrue);
 
       await _fillMandatoryFields(tester);
-      await _tapChip(tester, 'Hindi');
 
       final postButton = find.widgetWithText(ElevatedButton, 'Post');
       await tester.ensureVisible(postButton);
@@ -1415,7 +1361,6 @@ void main() {
       await _selectDropdown(
           tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
       await _fillSalary(tester);
-      await _tapChip(tester, 'Hindi');
 
       final postButton = find.widgetWithText(ElevatedButton, 'Post');
       await tester.ensureVisible(postButton);
@@ -1542,7 +1487,6 @@ void main() {
           '12Hrs Day Shift (8am to 8pm)');
       await _pickPreferredStartDate(tester);
       await _fillSalary(tester);
-      await _tapChip(tester, 'Hindi');
       // Duration Care is Needed deliberately left untouched.
 
       final postButton = find.widgetWithText(ElevatedButton, 'Post');

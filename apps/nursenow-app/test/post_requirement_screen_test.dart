@@ -214,8 +214,6 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await tester.tap(find.text('Oral feeding').last);
   await tester.pumpAndSettle();
 
-  await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -244,9 +242,6 @@ void main() {
       find.textContaining('Salary will appear here once'),
       findsOneWidget,
     );
-    // Language Preference is never invalid — it defaults to "No
-    // Preference" rather than requiring an active choice.
-    expect(find.text('No Preference'), findsOneWidget);
     expect(repo.createCalled, isFalse);
   });
 
@@ -276,8 +271,6 @@ void main() {
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Need for Few Weeks').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Submit for Review'));
@@ -342,67 +335,12 @@ void main() {
     expect(repo.capturedArea, 'Indiranagar');
     expect(repo.capturedDutyType, 'live_in');
     expect(repo.capturedCareDuration, 'few_weeks');
-    expect(repo.capturedLanguages, ['hindi']);
+    expect(repo.capturedLanguages, <String>[]);
     // Derived from care_duration ('few_weeks' -> daily) and the Rate
     // Card's Companion-tier daily suggestion (independent/oral-feeding
     // defaults, no medical condition).
     expect(repo.capturedFrequencyOfCare, 'daily');
     expect(repo.capturedSalaryAmount, 'DAILY_COMPANION_RATE');
-  });
-
-  testWidgets('defaults Language Preference to No Preference, submitting an empty array when untouched',
-      (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    final noPreferenceChip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference'));
-    expect(noPreferenceChip.selected, isTrue);
-
-    await _fillMandatoryFields(tester); // taps 'Hindi' at the end — undo it for this test.
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Submit for Review'));
-    await tester.pumpAndSettle();
-
-    expect(repo.createCalled, isTrue);
-    expect(repo.capturedLanguages, <String>[]);
-  });
-
-  testWidgets('tapping a real language deselects No Preference', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isFalse);
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Hindi')).selected, isTrue);
-  });
-
-  testWidgets('tapping No Preference after selecting a language clears the language selection', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'No Preference'));
-    await tester.pumpAndSettle();
-
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isTrue);
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Hindi')).selected, isFalse);
-  });
-
-  testWidgets('deselecting the only selected language falls back to No Preference', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi')); // deselect
-    await tester.pumpAndSettle();
-
-    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'No Preference')).selected, isTrue);
   });
 
   testWidgets('shows the server error message (e.g. JOB_009) when submission fails', (tester) async {
@@ -463,9 +401,6 @@ void main() {
     await tester.tap(find.text('Oral feeding').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-
     // No warning yet — no caregiver gender preference set.
     expect(find.textContaining('reduces your chances'), findsNothing);
 
@@ -494,57 +429,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('reduces your chances'), findsNothing);
-  });
-
-  testWidgets('shows no language-preference warning while Language Preference is untouched (No Preference)',
-      (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    expect(find.textContaining('restrict potential candidates'), findsNothing);
-  });
-
-  testWidgets('shows a warning that a specific language preference may restrict candidates', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('restrict potential candidates'), findsOneWidget);
-
-    // Falling back to No Preference clears the warning too.
-    await tester.tap(find.widgetWithText(FilterChip, 'Hindi'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('restrict potential candidates'), findsNothing);
-  });
-
-  testWidgets('shows no religion-preference warning while Preferred Caregiver Religion is untouched (No preference)',
-      (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
-  });
-
-  testWidgets('shows a warning that a specific religion preference eliminates candidates', (tester) async {
-    final repo = _FakeIndividualRepository();
-    await _pumpTall(tester, repo);
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Religion'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hindu').last);
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('strongly suggest No Preference for the religion'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Preferred Caregiver Religion'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('No preference').last);
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('strongly suggest No Preference for the religion'), findsNothing);
   });
 
   testWidgets('shows no short-term-duration warning while Duration Care is Needed is untouched', (tester) async {
