@@ -215,7 +215,7 @@ export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 // When each individual_messages row is shown on NurseNow's Messages tab —
 // picked by admin per message, evaluated client-side against the
 // individual's own already-fetched requirement data (see
-// apps/nursenow-app/lib/features/individual/data/requirement_messages.dart).
+// apps/justheal-app/lib/patient_hospital/features/individual/data/requirement_messages.dart).
 export const MessageEvent = {
   WELCOME: 'welcome',
   REQUIREMENT_LIVE: 'requirement_live',
@@ -262,7 +262,7 @@ export type MessageIcon = (typeof MessageIcon)[keyof typeof MessageIcon];
 // Messages bell — the caregiver-side counterpart to MessageEvent, evaluated
 // against the caregiver's own application lifecycle instead of an
 // Individual's posted requirement (see resolveCaregiverMessages() in
-// apps/caregiver-app/lib/features/jobs/data/caregiver_messages_logic.dart).
+// apps/justheal-app/lib/caregiver/features/jobs/data/caregiver_messages_logic.dart).
 // Reuses MessageIcon for icon selection — no separate icon enum needed.
 export const CaregiverMessageEvent = {
   // Caregiver has never applied to any job yet.

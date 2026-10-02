@@ -8,9 +8,8 @@ environment:
   sdk: ">=3.6.0 <4.0.0"
 
 workspace:
-  - apps/caregiver-app
   - apps/admin-web
-  - apps/nursenow-app
+  - apps/justheal-app
   - packages/vitacare_shared
   - packages/vitacare_ui
 

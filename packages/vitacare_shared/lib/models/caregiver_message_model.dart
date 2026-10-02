@@ -4,7 +4,7 @@
 /// CaregiverMessageEvent) decides when it's shown; [message] may contain
 /// the literal token "{job_id}", substituted client-side with the relevant
 /// job's display id (see resolveCaregiverMessages()/interpolate() in
-/// apps/caregiver-app/lib/features/jobs/data/caregiver_messages_logic.dart).
+/// apps/justheal-app/lib/caregiver/features/jobs/data/caregiver_messages_logic.dart).
 class CaregiverMessageModel {
   final String id;
   final String event;

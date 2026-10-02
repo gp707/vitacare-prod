@@ -11,12 +11,22 @@ VitaCare is an in-home caregiver onboarding platform by VitaCasaHealth (vitacasa
 | App | Path | Tech |
 |-----|------|------|
 | Backend API | `apps/api/` | NestJS 10.x, Node.js 20 LTS, TypeScript |
-| Caregiver Mobile ("NurseJobs") | `apps/caregiver-app/` | Flutter 3.19+, Dart, Riverpod |
-| Patient/Hospital Mobile ("NurseNow" internally, published as **JustHeal**) | `apps/nursenow-app/` | Flutter 3.19+, Dart, Riverpod |
+| Caregiver Mobile ("NurseJobs") | `apps/justheal-app/lib/caregiver/` | Flutter 3.19+, Dart, Riverpod |
+| Patient/Hospital Mobile ("NurseNow" internally, published as **JustHeal**) | `apps/justheal-app/lib/patient_hospital/` | Flutter 3.19+, Dart, Riverpod |
 | Admin Web | `apps/admin-web/` | Flutter Web 3.19+, Dart, Riverpod |
 | Shared Constants (TS) | `packages/shared-constants/` | TypeScript |
 | Shared Models (Dart) | `packages/vitacare_shared/` | Pure Dart (no Flutter imports) |
 | Shared UI Tokens | `packages/vitacare_ui/` | Flutter (colors, spacing, micro-widgets only) |
+
+**Both mobile rows above are one single published binary** (`apps/justheal-app`, published
+to the app stores as **JustHeal** — see "NurseNow" below for the merge history). The old
+standalone `apps/caregiver-app` has been deleted (it was a now-superseded duplicate of
+`apps/justheal-app/lib/caregiver/`, kept around only until the merged flow was verified).
+Elsewhere in this doc, **"caregiver-app"/"NurseJobs"** and **"nursenow-app"/"NurseNow"**
+continue to be used as prose shorthand for these two internal code trees
+(`apps/justheal-app/lib/caregiver/` and `apps/justheal-app/lib/patient_hospital/`
+respectively) — treat them as names for "the caregiver-facing part" / "the patient/hospital-
+facing part" of the one JustHeal app, not as references to separate directories or binaries.
 
 ## Key Decisions
 
@@ -120,16 +130,21 @@ on-screen brand string), and — per the next paragraph — it is no longer a st
 binary. The company/legal entity remains **VitaCasaHealth Services**, deliberately distinct
 from the consumer-facing app name.
 
-**Merged into one binary with NurseJobs (2026-10):** `apps/nursenow-app` is now the **host
+**Merged into one binary with NurseJobs (2026-10):** `apps/justheal-app` is the **host
 app** for a single published binary that also contains NurseJobs' entire caregiver flow,
-ported into `apps/nursenow-app/lib/caregiver/` (own `core/`, own route table, every route
+ported into `apps/justheal-app/lib/caregiver/` (own `core/`, own route table, every route
 prefixed `/caregiver/...` to avoid colliding with this app's own `/login`, `/register`,
-`/profile`, etc. — see `apps/caregiver-app`'s own CLAUDE.md entry for why the two flows
-stay internally separate rather than being redesigned into one UX). A caregiver reaches
-that flow via a **"Caregivers Registration"** button in the top-right of this app's
-`LoginScreen`, which pushes `/caregiver/register`. `apps/caregiver-app` itself is left in
-place, unpublished, as the source of truth for that ported code until the merged flow is
-fully verified.
+`/profile`, etc. — see the "caregiver-app" mentions elsewhere in this doc for why the two
+flows stay internally separate rather than being redesigned into one UX). A caregiver
+reaches that flow via a **"Caregivers Registration"** button in the top-right of this app's
+`LoginScreen`, which pushes `/caregiver/register`. The app's own non-caregiver code
+(individual/organisation) lives in `apps/justheal-app/lib/patient_hospital/`, sitting
+alongside `lib/caregiver/` — the two trees stay internally separate on disk as well as in
+routing. **The old standalone `apps/caregiver-app`** (kept in place, unpublished, as the
+source of truth for the ported code until the merged flow was fully verified) **has since
+been deleted** — the merge was verified end-to-end (unit/widget tests, live Chrome
+smoke-testing of registration/login/the unified-login fallback) and the directory was a
+pure duplicate at that point, so it was removed rather than left to drift out of sync.
 
 A separate companion app, **NurseNow**, lets patients/families and
 hospitals/rehabs/clinics post care requirements and get matched against the same caregiver
@@ -771,8 +786,9 @@ since a caregiver may be weighing either a daily or a monthly engagement.
   with a note) wraps onto multiple lines instead. The outer vertical `SingleChildScrollView` stays
   as a defensive fallback (in case of an unusually long admin-typed value on a very short screen)
   but is not expected to engage on a typical phone, since each card is just a title + a 2-row
-  table. This is identical duplicated code in both `apps/caregiver-app` and `apps/nursenow-app`'s
-  own `rate_card_button.dart`, same duplication precedent as the rest of this button.
+  table. This is identical duplicated code in both `apps/justheal-app/lib/caregiver/` and
+  `apps/justheal-app/lib/patient_hospital/`'s own `rate_card_button.dart`, same duplication
+  precedent as the rest of this button.
 
 ## Scope of Work
 
@@ -780,7 +796,7 @@ A single, admin-editable set of 3 cumulative bullet lists — **Companion Care**
 ("Everything in Companion Care, plus…"), **Critical Care** ("Everything in Bedside Care,
 plus…") — stored in the `scope_of_work` table (migration 055, a singleton row like `rate_card`).
 Shown to caregivers (NurseJobs) via a per-job **"Scope of Work"** button on `JobDetailCard`
-(`apps/caregiver-app/lib/features/jobs/widgets/job_detail_card.dart`, next to "Show details" —
+(`apps/justheal-app/lib/caregiver/features/jobs/widgets/job_detail_card.dart`, next to "Show details" —
 shared by both the Jobs list and MyJobs, and only rendered when `job.careReceiver != null`), never
 shown on Organisation-posted requirements (`_RequirementCard`), which have no `care_receiver` to
 derive a tier from — same exclusion `RateCardButton` already applies to Organisation accounts, for
@@ -823,9 +839,9 @@ the same "these guidelines are for individual hiring, not institutional bulk hir
   `RateCardButton`/`WhatsAppHelpButton`, `ScopeOfWorkButton` is NOT an AppBar action in any app —
   it takes a `CareReceiverModel` constructor param and lives inline wherever a specific job's
   detail is shown, since which tier it opens depends on that one job:
-  - **caregiver-app** (`apps/caregiver-app/lib/app/scope_of_work_button.dart`): inline on
+  - **caregiver-app** (`apps/justheal-app/lib/caregiver/app/scope_of_work_button.dart`): inline on
     `JobDetailCard`, next to "Show details" — shared by the Jobs list and MyJobs.
-  - **nursenow-app** (`apps/nursenow-app/lib/app/scope_of_work_button.dart`, own
+  - **nursenow-app** (`apps/justheal-app/lib/patient_hospital/app/scope_of_work_button.dart`, own
     `ScopeOfWorkRepository`/`scopeOfWorkRepositoryProvider`, hitting the same public
     `GET /scope-of-work`): inline on `JobsPostedScreen`'s `_RequirementCard`, shown up front
     (not gated behind "Show Full Details") whenever the individual's own posted requirement has a
@@ -845,8 +861,8 @@ the same "these guidelines are for individual hiring, not institutional bulk hir
 - **nursenow-app's Post/Edit Requirement screens surface the derived tier directly under the
   Salary ribbon, as a clickable line** — "Based on the requirements you entered, this appears to
   be a `<tier>`." with the tier name itself tappable, opening the exact same Scope of Work dialog
-  the standalone `ScopeOfWorkButton` uses. To make this reusable, `apps/nursenow-app/lib/app/
-  scope_of_work_button.dart`'s dialog widget was renamed from private `_ScopeOfWorkDialog` to
+  the standalone `ScopeOfWorkButton` uses. To make this reusable, `apps/justheal-app/lib/
+  patient_hospital/app/scope_of_work_button.dart`'s dialog widget was renamed from private `_ScopeOfWorkDialog` to
   public `ScopeOfWorkDialog` (and its `State` class to `ScopeOfWorkDialogState`) — both
   `ScopeOfWorkButton` and `PostRequirementScreen`/`EditRequirementScreen`'s own
   `_buildDerivedTierLine()` construct it directly (`showDialog(builder: (_) => ScopeOfWorkDialog(
@@ -1041,8 +1057,8 @@ Field labeled "Hours Care Needed" in the admin-web UI (underlying field/column n
 - `night_duty` — "12Hrs Night Shift (8pm to 8am)"
 
 **nursenow-app's Individual Post/Edit Requirement forms show a ⓘ info button next to "Hours Care
-Needed"** (`DutyRequirementsInfoButton`, `apps/nursenow-app/lib/features/individual/widgets/
-duty_requirements_button.dart`) — tapping it opens a dialog listing what the patient/family must
+Needed"** (`DutyRequirementsInfoButton`, `apps/justheal-app/lib/patient_hospital/features/
+individual/widgets/duty_requirements_button.dart`) — tapping it opens a dialog listing what the patient/family must
 arrange for the nurse under whichever shift is currently selected (bedding/meals for Live-In,
 meals for Day/Night shift, gloves/masks/supplies, no cooking or household chores, etc. — a fixed
 per-shift bullet list). Disabled (greyed out) until a shift is actually picked, since the content

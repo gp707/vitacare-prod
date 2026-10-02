@@ -194,7 +194,8 @@ export class DailyReminderService {
 2. Package name: `com.vitacasahealth.caregiver`
 3. App nickname: "VitaCare Caregiver"
 4. Download `google-services.json`
-5. Place at: `apps/caregiver-app/android/app/google-services.json`
+5. Place at: `apps/justheal-app/android/app/google-services.json` (the single JustHeal
+   binary now covers both the caregiver and patient/hospital flows)
 
 **C. Get service account key (for backend):**
 1. Project Settings → Service accounts

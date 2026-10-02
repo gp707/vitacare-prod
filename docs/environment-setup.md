@@ -73,11 +73,13 @@ Place these values in `apps/api/.env` (see Section 6 below).
    - Click **Generate new private key**.
    - From the downloaded JSON, extract `project_id`, `private_key`, and `client_email` for env vars.
 4. Add Android app:
-   - Register with your package name.
-   - Download `google-services.json` and place it in `apps/caregiver-app/android/app/`.
+   - Register with your package name (`in.vitacasahealth.justheal` — the single JustHeal
+     binary now covers both the caregiver and patient/hospital flows, see CLAUDE.md's
+     "Merged into one binary with NurseJobs" notes).
+   - Download `google-services.json` and place it in `apps/justheal-app/android/app/`.
 5. Add iOS app:
-   - Register with your bundle ID.
-   - Download `GoogleService-Info.plist` and place it in `apps/caregiver-app/ios/Runner/`.
+   - Register with your bundle ID (`in.vitacasahealth.justheal`).
+   - Download `GoogleService-Info.plist` and place it in `apps/justheal-app/ios/Runner/`.
 
 ---
 
@@ -149,9 +151,9 @@ npm run start:dev
 # Runs on http://localhost:3000
 ```
 
-**Terminal 2 - Flutter Caregiver App:**
+**Terminal 2 - JustHeal (caregiver + patient/hospital, one binary):**
 ```bash
-cd apps/caregiver-app
+cd apps/justheal-app
 flutter run
 ```
 

@@ -16,7 +16,7 @@ import '../widgets/job_read_only_detail_dialog.dart';
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
 /// screen covers post/list/close/view-applicants/accept-or-reject;
-/// caregiver-facing browsing lives in apps/caregiver-app's Jobs tab.
+/// caregiver-facing browsing lives in apps/justheal-app's (lib/caregiver) Jobs tab.
 ///
 /// A single "Jobs" tab also shows every NurseNow organisation (hospital/
 /// clinic/rehab) requirement merged into the same list, sorted by post date
@@ -556,7 +556,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   /// Both lists are unpaginated (limit 100 each), so they're simply merged
   /// and re-sorted client-side by post date, newest first — mirroring
-  /// apps/caregiver-app's JobsScreen, which merges the same two sources the
+  /// apps/justheal-app's (lib/caregiver) JobsScreen, which merges the same two sources the
   /// same way for caregiver-facing browsing.
   List<_JobsListEntry> get _mergedEntries {
     final entries = <_JobsListEntry>[

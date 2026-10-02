@@ -47,7 +47,7 @@ tags:
   - name: NurseNow - Individual
     description: >
       Patient/family account endpoints for the separate NurseNow app
-      (apps/nursenow-app). Requirements reuse the jobs/care_receivers/
+      (apps/justheal-app). Requirements reuse the jobs/care_receivers/
       job_applications tables and the caregiver-facing job endpoints above
       — see "NurseNow" in CLAUDE.md. Compare with NurseNow - Organisation
       below, which is built on entirely separate dedicated tables.
@@ -56,7 +56,7 @@ tags:
   - name: NurseNow - Organisation
     description: >
       Hospital/rehab/clinic account endpoints for the separate NurseNow app
-      (apps/nursenow-app). Entirely separate tables/codepath from jobs/
+      (apps/justheal-app). Entirely separate tables/codepath from jobs/
       care_receivers/job_applications (which NurseNow - Individual reuses)
       — organisation_profiles/organisation_requirements/
       organisation_requirement_applications (migration 041). No

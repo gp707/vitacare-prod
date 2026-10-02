@@ -4,7 +4,7 @@
 /// when it's shown; [message] may contain the literal token "{tier}" when
 /// [event] is MessageEvent.requirementCareTier, substituted client-side
 /// with the derived care tier's display name (see
-/// resolveMessages()/interpolate() in apps/nursenow-app/lib/features/
+/// resolveMessages()/interpolate() in apps/justheal-app/lib/patient_hospital/features/
 /// individual/data/requirement_messages.dart).
 class IndividualMessageModel {
   final String id;
