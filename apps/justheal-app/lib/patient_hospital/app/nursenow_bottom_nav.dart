@@ -41,7 +41,7 @@ class NurseNowBottomNav extends ConsumerWidget {
             ]
           : const [
               BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-              BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Jobs Posted'),
+              BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Requirement Posted'),
             ],
     );
   }

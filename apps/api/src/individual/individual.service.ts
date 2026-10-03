@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
+import { FcmService } from '../fcm/fcm.service';
 import { JobsRepository } from '../database/repositories/jobs.repository';
 import { JobApplicationsRepository } from '../database/repositories/job-applications.repository';
 import { CareReceiversRepository } from '../database/repositories/care-receivers.repository';
@@ -32,6 +33,7 @@ export class IndividualService {
     private readonly auditService: AuditService,
     private readonly caregiverService: CaregiverService,
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
+    private readonly fcmService: FcmService,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -236,6 +238,50 @@ export class IndividualService {
     });
 
     return { message: 'Requirement cancelled', status: 'closed', rejected_applications: activeApplications.length };
+  }
+
+  /** Self-service — brings a requirement the individual previously
+   *  cancelled back to active, without needing admin to re-review (the
+   *  content was already vetted the first time it went live; cancelling
+   *  only ever meant "stop taking new applications", not "this needs
+   *  re-approval"). Only valid from a requirement the individual itself
+   *  cancelled (cancelled_at set) — an admin-rejected requirement
+   *  (rejection_reason set) can never be self-reactivated, same as it can
+   *  never be self-cancelled either (JOB_015 covers that case; JOB_017
+   *  covers this one). Re-broadcasts a "New Job" push and stamps a fresh
+   *  posted_at (restarting the apply-by urgency window), same as a repost
+   *  — mirrors OrganisationRequirementsService.reactivateRequirement.
+   *  Blocked the same as a brand new posting (JOB_010) while the account
+   *  is job-posting-blocked — reactivating makes it visible/appliable
+   *  again, same as posting new. There is no one-live-requirement check
+   *  here (JOB_009) since a cancelled requirement is this account's only
+   *  requirement — nothing else could be live to conflict with it. */
+  async reactivateRequirement(userId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+    if (existing.cancelled_at == null) throw new AppException('JOB_017');
+
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (profile?.is_job_posting_blocked) throw new AppException('JOB_010');
+
+    const job = await this.jobsRepo.activate(jobId);
+
+    await this.fcmService.sendToAllCaregivers(
+      'New Job Available',
+      'A patient/family is looking for a caregiver — check the Jobs tab.',
+    );
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: existing.status, cancelled: true },
+      afterValue: { status: job.status, cancelled: false },
+      ipAddress,
+    });
+
+    return job;
   }
 
   /** Full history (durable — a closed/rejected requirement stays visible,

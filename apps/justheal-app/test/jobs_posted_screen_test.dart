@@ -8,6 +8,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/patient_hospital/core/duty_requirements/duty_requirements_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/individual_messages/individual_messages_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
 import 'package:nursenow_app/patient_hospital/core/providers.dart';
 import 'package:nursenow_app/patient_hospital/core/scope_of_work/scope_of_work_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/storage/local_storage.dart';
@@ -158,8 +159,11 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? profileFetchedApplicationId;
   String? editedJobId;
   String? cancelledJobId;
+  String? reactivatedJobId;
+  ApiException? reactivateError;
 
-  _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}}) : super(Dio());
+  _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}, this.reactivateError})
+      : super(Dio());
 
   @override
   Future<List<JobModel>> listMyRequirements() async => requirements;
@@ -187,6 +191,13 @@ class _FakeIndividualRepository extends IndividualRepository {
   @override
   Future<void> cancelRequirement(String jobId) async {
     cancelledJobId = jobId;
+  }
+
+  @override
+  Future<JobModel> reactivateRequirement(String jobId) async {
+    reactivatedJobId = jobId;
+    if (reactivateError != null) throw reactivateError!;
+    return requirements.firstWhere((r) => r.id == jobId);
   }
 
   @override
@@ -259,14 +270,6 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
   await _settle(tester);
 }
 
-/// Closed/cancelled/rejected requirements are hidden by default behind a
-/// toggle button — tests exercising their card content need to reveal them
-/// first.
-Future<void> _revealClosedRequirements(WidgetTester tester) async {
-  await tester.tap(find.textContaining('Show Closed/Cancelled Requirements'));
-  await _settle(tester);
-}
-
 void main() {
   testWidgets('shows an empty state with no posting CTA when there are no requirements yet', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
@@ -290,9 +293,7 @@ void main() {
     }
   });
 
-  testWidgets(
-      'shows the live requirement up front, and the full history (most recent first) once Show Closed/Cancelled is tapped',
-      (tester) async {
+  testWidgets('shows every requirement in history directly — no toggle, nothing hidden', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -303,12 +304,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Job Id: PAT-JOB-543'), findsOneWidget);
-    expect(find.text('Job Id: PAT-JOB-542'), findsNothing);
-    expect(find.text('Show Closed/Cancelled Requirements (1)'), findsOneWidget);
-
-    await _revealClosedRequirements(tester);
-
+    expect(find.textContaining('Show Closed/Cancelled Requirements'), findsNothing);
     expect(find.text('Job Id: PAT-JOB-543'), findsOneWidget);
     expect(find.text('Job Id: PAT-JOB-542'), findsOneWidget);
   });
@@ -356,7 +352,6 @@ void main() {
         requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)],
       ),
     );
-    await _revealClosedRequirements(tester);
 
     final container = tester.widget<Container>(
       find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
@@ -372,7 +367,6 @@ void main() {
         requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
       ),
     );
-    await _revealClosedRequirements(tester);
 
     final container = tester.widget<Container>(
       find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first,
@@ -731,7 +725,6 @@ void main() {
         },
       ),
     );
-    await _revealClosedRequirements(tester);
 
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
@@ -747,7 +740,6 @@ void main() {
       },
     );
     await _pump(tester, repo);
-    await _revealClosedRequirements(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
     await _settle(tester);
@@ -808,33 +800,6 @@ void main() {
     expect(repo.profileFetchedJobId, 'job-1');
     expect(repo.profileFetchedApplicationId, 'app-1');
     expect(find.text('30 yrs'), findsOneWidget);
-  });
-
-  testWidgets(
-      'a closed requirement with a currently-accepted candidate stays visible up front, unlike a plain closed one which stays hidden behind the toggle',
-      (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [
-          _requirement(id: 'job-1', requirementNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
-          _requirement(id: 'job-2', requirementNumber: 43, status: 'closed', salaryAmount: null, frequencyOfCare: null),
-        ],
-        applicationsByJobId: {
-          'job-2': [_application(status: 'accepted')],
-        },
-      ),
-    );
-
-    // job-2 (accepted candidate) is up front; job-1 (no accepted candidate)
-    // stays behind the toggle.
-    expect(find.text('Job Id: PAT-JOB-543'), findsOneWidget);
-    expect(find.text('Job Id: PAT-JOB-542'), findsNothing);
-    expect(find.text('Show Closed/Cancelled Requirements (1)'), findsOneWidget);
-
-    await _revealClosedRequirements(tester);
-
-    expect(find.text('Job Id: PAT-JOB-542'), findsOneWidget);
   });
 
   testWidgets('rejecting requires a reason — Confirm stays disabled until something is typed', (tester) async {
@@ -1057,7 +1022,6 @@ void main() {
         },
       ),
     );
-    await _revealClosedRequirements(tester);
 
     expect(find.text('Closed by Caregiver'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
@@ -1084,7 +1048,6 @@ void main() {
         },
       ),
     );
-    await _revealClosedRequirements(tester);
 
     expect(find.textContaining('Reason: Need to Go to Hometown'), findsOneWidget);
   });
@@ -1146,7 +1109,6 @@ void main() {
         },
       ),
     );
-    await _revealClosedRequirements(tester);
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
@@ -1209,25 +1171,54 @@ void main() {
     expect(repo.cancelledJobId, isNull);
   });
 
-  testWidgets('shows a Cancelled status and hides the applicants section once cancelled', (tester) async {
+  testWidgets('shows a Cancelled status, hides the applicants section, and offers Make Active Again instead of Cancel',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
         requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
       ),
     );
-    await _revealClosedRequirements(tester);
 
     expect(find.text('Cancelled'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
-    // Disabled — tapping it does nothing, no confirmation dialog opens.
-    await tester.tap(find.text('Cancel the Job (Unavailable)'));
-    await _settle(tester);
-    expect(find.text('Cancel this requirement?'), findsNothing);
-    expect(find.textContaining('This requirement was cancelled.'), findsOneWidget);
+    expect(find.text('Make Active Again'), findsOneWidget);
+    expect(find.text('Cancel the Job'), findsNothing);
+    expect(find.text('Cancel the Job (Unavailable)'), findsNothing);
     expect(find.textContaining('candidate applied in total'), findsNothing);
+  });
+
+  testWidgets('tapping Make Active Again calls reactivateRequirement and reloads', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await _settle(tester);
+    await tester.tap(find.text('Make Active Again'));
+    await _settle(tester);
+
+    expect(repo.reactivatedJobId, 'job-1');
+  });
+
+  testWidgets('shows the server error message if reactivating fails (e.g. JOB_017)', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-22T10:00:00Z')],
+      reactivateError: const ApiException(code: 'JOB_017', message: 'Only a cancelled requirement can be reactivated'),
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await _settle(tester);
+    await tester.tap(find.text('Make Active Again'));
+    await _settle(tester);
+
+    expect(find.text('Only a cancelled requirement can be reactivated'), findsOneWidget);
+    // showVitaErrorBanner auto-dismisses after 5s — flush that timer so it
+    // doesn't leak past this test.
+    await tester.pump(const Duration(seconds: 6));
   });
 
   testWidgets('Cancel the Job is disabled once the requirement was admin-rejected', (tester) async {
@@ -1239,7 +1230,6 @@ void main() {
         ],
       ),
     );
-    await _revealClosedRequirements(tester);
 
     expect(find.text('Rejected'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));

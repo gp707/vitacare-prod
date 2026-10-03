@@ -281,13 +281,27 @@ location) that didn't fit the Individual/admin jobs-table model.
   **nursenow-app has a 2-tab bottom nav for Organisation and a 3-tab one for Individual**
   (`NurseNowBottomNav`, mirroring NurseJobs' `CaregiverBottomNav`): **Profile** (`/profile` —
   identity, phone/PIN self-edit, Logout, shared route for both account types) and, Individual only,
-  **Messages** (`/messages` — `MessagesScreen`, see below) in between, then **Jobs Posted**
-  (`/home` — `JobsPostedScreen`, the full requirement history described above,
-  each card showing the full About Patient / About Nurse-Caregiver Requirement detail inline, an
-  always-visible applicants list once a requirement leaves `pending_review` [so an accepted
-  caregiver's name/phone stay visible after the job closes]. **No "Post a Requirement" CTA** —
-  posting only ever happens once, as part of registration itself (see "Registration IS posting"
-  above), so this screen's history list holds exactly one requirement per account, full stop).
+  **Messages** (`/messages` — `MessagesScreen`, see below) in between, then **Requirement Posted**
+  (`/home` — `JobsPostedScreen`'s AppBar title and bottom-nav label, both renamed from "Jobs
+  Posted"/"Jobs Posted" — the class/file name itself is unchanged — reflecting that there is now
+  only ever one requirement, never a plural list of separately-posted jobs; the full requirement
+  history described above, each card showing the full About Patient / About Nurse-Caregiver
+  Requirement detail inline, an always-visible applicants list once a requirement leaves
+  `pending_review` [so an accepted caregiver's name/phone stay visible after the job closes].
+  **No "Post a Requirement" CTA** — posting only ever happens once, as part of registration itself
+  (see "Registration IS posting" above), so this screen's history list holds exactly one
+  requirement per account, full stop. **No "Show Closed/Cancelled Requirements" toggle either** —
+  that only ever made sense when an account could accumulate multiple past postings; now every
+  requirement in history (0 or 1 in practice) is shown directly. A cancelled requirement is not a
+  dead end: `POST /individual/requirements/:jobId/reactivate` (`IndividualService
+  .reactivateRequirement`, mirrors `OrganisationRequirementsService.reactivateRequirement` —
+  `JobsRepository.activate()` flips `status` back to `active`, clears `cancelled_at`, bumps
+  `posted_at`, same as a repost) brings it back to active with no admin re-review needed (the
+  content was already vetted the first time it went live) — `JOB_017` if the requirement was never
+  cancelled (an admin-rejected one, `rejection_reason` set, can never be self-reactivated, same
+  asymmetry as cancel's own `JOB_015`), `JOB_010` if the account is job-posting-blocked. The
+  per-card "More options" menu shows **"Make Active Again"** instead of "Cancel the Job" once a
+  requirement is cancelled — the two are mutually exclusive, never both offered at once.
 - **Messages** (`/messages` — `MessagesScreen`, Individual-only) is a purely **client-computed**
   tab — no new backend endpoint, no persistence, no read/unread state. It re-fetches the account's
   own requirements via the same `GET /individual/requirements` call `JobsPostedScreen` makes, then

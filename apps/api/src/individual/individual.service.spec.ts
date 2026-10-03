@@ -12,6 +12,7 @@ describe('IndividualService', () => {
   let auditService: any;
   let caregiverService: any;
   let caregiverProfilesRepo: any;
+  let fcmService: any;
 
   const careReceiverDto = {
     age: 70,
@@ -40,6 +41,7 @@ describe('IndividualService', () => {
       findLiveByPostedBy: jest.fn(),
       update: jest.fn(),
       cancel: jest.fn(),
+      activate: jest.fn(),
     };
     jobApplicationsRepo = {
       findByJobId: jest.fn(),
@@ -65,6 +67,7 @@ describe('IndividualService', () => {
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
     caregiverProfilesRepo = { markAvailable: jest.fn() };
+    fcmService = { sendToAllCaregivers: jest.fn() };
 
     service = new IndividualService(
       db,
@@ -77,6 +80,7 @@ describe('IndividualService', () => {
       auditService,
       caregiverService,
       caregiverProfilesRepo,
+      fcmService,
     );
   });
 
@@ -545,6 +549,55 @@ describe('IndividualService', () => {
       expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('profile-2', client);
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
       expect(result.rejected_applications).toBe(2);
+    });
+  });
+
+  describe('reactivateRequirement', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.reactivateRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws GEN_002 when the job belongs to someone else', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else', cancelled_at: new Date() });
+      await expect(service.reactivateRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_017 when the requirement was never cancelled', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active', cancelled_at: null });
+      await expect(service.reactivateRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_017',
+      });
+    });
+
+    it('throws JOB_010 when job posting is blocked for this account', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date() });
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: true });
+      await expect(service.reactivateRequirement('user-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_010',
+      });
+    });
+
+    it('activates the job, broadcasts a push, and audit-logs the transition', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date() });
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      jobsRepo.activate.mockResolvedValue({ id: 'job-1', status: 'active', cancelled_at: null });
+
+      const result = await service.reactivateRequirement('user-1', 'job-1', '127.0.0.1');
+
+      expect(jobsRepo.activate).toHaveBeenCalledWith('job-1');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
+        'New Job Available',
+        expect.any(String),
+      );
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'job_updated', entityId: 'job-1' }),
+      );
+      expect(result).toEqual({ id: 'job-1', status: 'active', cancelled_at: null });
     });
   });
 

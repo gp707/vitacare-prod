@@ -11,12 +11,6 @@ import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import '../widgets/duty_requirements_button.dart';
 import 'edit_requirement_screen.dart';
 
-/// Statuses that count as "live" for the one-live-requirement-at-a-time
-/// rule (JOB_009 server-side) — a not-yet-approved pending_review posting
-/// blocks a new one exactly the same as an already-active one.
-bool _isLive(JobModel job) =>
-    job.status == JobStatus.pendingReview || job.status == JobStatus.active;
-
 /// Full requirement history for this account — every past posting stays
 /// visible (pending review / live / rejected / closed), not just the
 /// current one, so a patient/family can always see who was accepted on a
@@ -37,11 +31,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   List<JobModel> _requirements = [];
   Map<String, List<JobApplicationModel>> _applicationsByJobId = {};
   final Set<String> _decidingApplicationId = {};
-  // Past (closed/cancelled/rejected) requirements are hidden by default —
-  // only the live one (if any) shows up-front — and revealed on demand via
-  // a single toggle button, instead of cluttering the screen with every
-  // past posting at once.
-  bool _showClosed = false;
 
   @override
   void initState() {
@@ -186,7 +175,8 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
         title: const Text('Cancel this requirement?'),
         content: const Text(
           'Any candidates who applied or were accepted will have their application declined as '
-          "cancelled. You won't be able to see who applied afterward. This cannot be undone.",
+          "cancelled, and you won't be able to see who applied afterward. You can make this "
+          'requirement active again later, but today\'s applicant list will not come back.',
         ),
         actions: [
           TextButton(
@@ -214,20 +204,26 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
-  /// Whether this requirement should surface up front rather than behind
-  /// the "Show Closed/Cancelled Requirements" toggle — true for a live one
-  /// (_isLive), but ALSO true for a closed one with a currently-accepted
-  /// candidate: `status: closed` there just means "no longer accepting new
-  /// applicants", not "this engagement is over" — a family with an actual
-  /// caregiver assigned should still see it without digging through the
-  /// closed/cancelled section. It only drops into that section once the
-  /// engagement genuinely ends (rejected, or completed).
-  bool _shouldShowUpFront(JobModel requirement) {
-    if (_isLive(requirement)) return true;
-    final applications = _applicationsByJobId[requirement.id] ?? const [];
-    return applications.any((a) => a.status == JobApplicationStatus.accepted);
+  /// Brings a cancelled requirement back to active — no confirmation
+  /// dialog needed (unlike cancel, this isn't destructive), matching
+  /// Organisation's own "Unhide and Make it Live" action.
+  Future<void> _reactivateRequirement(JobModel requirement) async {
+    try {
+      await ref
+          .read(individualRepositoryProvider)
+          .reactivateRequirement(requirement.id);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        showVitaErrorBanner(context, e.message);
+      }
+    }
   }
 
+  /// An individual account only ever has one requirement in its whole
+  /// history (see "Registration IS posting" in CLAUDE.md), so there is no
+  /// reason to hide anything behind a toggle — every requirement found is
+  /// always shown directly.
   Widget _buildCard(JobModel requirement) {
     return _RequirementCard(
       requirement: requirement,
@@ -240,19 +236,15 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onEdit: () => _editRequirement(requirement),
       onCancel: () => _cancelRequirement(requirement),
+      onReactivate: () => _reactivateRequirement(requirement),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final upFrontRequirements =
-        _requirements.where(_shouldShowUpFront).toList();
-    final closedRequirements =
-        _requirements.where((r) => !_shouldShowUpFront(r)).toList();
-
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('Jobs Posted'),
+        title: const VitaAppBarTitle('Requirement Posted'),
         actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
@@ -277,32 +269,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       )
-                    else ...[
-                      for (final requirement in upFrontRequirements) ...[
+                    else
+                      for (final requirement in _requirements) ...[
                         _buildCard(requirement),
                         const SizedBox(height: AppSpacing.md),
                       ],
-                      if (closedRequirements.isNotEmpty) ...[
-                        OutlinedButton.icon(
-                          onPressed: () =>
-                              setState(() => _showClosed = !_showClosed),
-                          icon: Icon(_showClosed
-                              ? Icons.expand_less
-                              : Icons.expand_more),
-                          label: Text(
-                            _showClosed
-                                ? 'Hide Closed/Cancelled Requirements'
-                                : 'Show Closed/Cancelled Requirements (${closedRequirements.length})',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        if (_showClosed)
-                          for (final requirement in closedRequirements) ...[
-                            _buildCard(requirement),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                      ],
-                    ],
                   ],
                 ),
         ),
@@ -380,6 +351,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onViewProfile;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
+  final VoidCallback onReactivate;
 
   const _RequirementCard({
     required this.requirement,
@@ -390,6 +362,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onViewProfile,
     required this.onEdit,
     required this.onCancel,
+    required this.onReactivate,
   });
 
   @override
@@ -408,6 +381,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _canCancel =>
       !widget.requirement.isCancelled &&
       widget.requirement.rejectionReason == null;
+
+  /// Mirrors the backend's own JOB_017 check — only a requirement this
+  /// account cancelled itself can be self-reactivated; an admin-rejected
+  /// one never can (same asymmetry as _canCancel above).
+  bool get _canReactivate => widget.requirement.isCancelled;
 
   /// Mirrors the backend's own JOB_014 check (job_applications.status IN
   /// ('applied', 'accepted')) — editing is blocked once a caregiver has
@@ -464,19 +442,28 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     // A fixed 2-item menu, always offered — each item individually
     // disabled (not hidden) when its own precondition doesn't hold, so the
     // set of actions is always predictable rather than shifting around
-    // based on state.
+    // based on state. The second slot is Reactivate (not Cancel) once the
+    // requirement is cancelled — cancelling an already-cancelled one makes
+    // no sense, but bringing it back does.
     final menuActions = <_MenuAction>[
       _MenuAction(
         label: locked ? 'Edit the Job (Locked)' : 'Edit the Job',
         enabled: !locked,
         onSelected: widget.onEdit,
       ),
-      _MenuAction(
-        label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
-        enabled: _canCancel,
-        destructive: true,
-        onSelected: widget.onCancel,
-      ),
+      if (widget.requirement.isCancelled)
+        _MenuAction(
+          label: 'Make Active Again',
+          enabled: _canReactivate,
+          onSelected: widget.onReactivate,
+        )
+      else
+        _MenuAction(
+          label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
+          enabled: _canCancel,
+          destructive: true,
+          onSelected: widget.onCancel,
+        ),
     ];
 
     return Container(

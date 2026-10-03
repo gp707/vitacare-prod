@@ -547,4 +547,21 @@ export class JobsRepository {
       [id],
     );
   }
+
+  /** The posting individual self-reactivates a requirement it previously
+   *  cancelled — see IndividualService.reactivateRequirement. Bumps
+   *  posted_at (restarts the apply-by urgency window, same as a repost)
+   *  and clears cancelled_at unconditionally — mirrors
+   *  OrganisationRequirementsRepository.activate(). */
+  async activate(id: string, client?: PoolClient): Promise<JobRecord> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<JobRecord>(
+      `UPDATE jobs
+       SET status = 'active', cancelled_at = NULL, posted_at = NOW(), updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id],
+    );
+    return result.rows[0];
+  }
 }

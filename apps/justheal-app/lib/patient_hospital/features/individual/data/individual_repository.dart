@@ -151,12 +151,25 @@ class IndividualRepository {
   /// fixed reason, and an accepted caregiver is flipped back to
   /// available. After this call the individual can no longer see who
   /// applied on this requirement (see listApplications/getApplicantProfile
-  /// below), and — since a cancelled requirement no longer counts as
-  /// "live" — can immediately post a new one, including a clone of this
-  /// one's fields.
+  /// below). Not a dead end — see [reactivateRequirement].
   Future<void> cancelRequirement(String jobId) async {
     try {
       await _dio.post(ApiRoutes.individualRequirementCancel(jobId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Self-service — brings a requirement the individual previously
+  /// cancelled back to active, no admin re-review needed (the content was
+  /// already vetted the first time it went live). Only valid from a
+  /// requirement this account itself cancelled (JOB_017 otherwise, e.g. an
+  /// admin-rejected one). Re-broadcasts the "New Job" push and restarts
+  /// the apply-by urgency window, same as a repost.
+  Future<JobModel> reactivateRequirement(String jobId) async {
+    try {
+      final res = await _dio.post(ApiRoutes.individualRequirementReactivate(jobId));
+      return JobModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

@@ -61,6 +61,16 @@ export class IndividualController {
     return this.individualService.cancelRequirement(user.sub, jobId, ip);
   }
 
+  @Post('requirements/:jobId/reactivate')
+  @HttpCode(HttpStatus.OK)
+  reactivateRequirement(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.reactivateRequirement(user.sub, jobId, ip);
+  }
+
   @Patch('profile/phone')
   @HttpCode(HttpStatus.OK)
   updatePhone(@CurrentUser() user: JwtPayload, @Body() dto: UpdatePhoneDto, @ClientIp() ip: string | null) {
