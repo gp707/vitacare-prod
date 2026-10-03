@@ -407,6 +407,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
+            const Text(
+              'Nurse/Caregivers Registration Form',
+              style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               key: _fullNameKey,
               controller: _fullNameController,

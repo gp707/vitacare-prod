@@ -579,7 +579,7 @@ void main() {
       await _fillMandatoryFields(tester); // picks 'Need for Few Weeks' -> daily
 
       expect(find.text('Frequency of Care'), findsNothing);
-      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Guidance only)'), findsOneWidget);
     });
 
     testWidgets('the Salary unit switches to ₹/month when Duration is changed to Long Term', (tester) async {
@@ -592,7 +592,7 @@ void main() {
       await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Negotiable)'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Guidance only)'), findsOneWidget);
     });
 
     testWidgets('Salary is pre-filled with the Companion daily suggestion once Duration is picked', (tester) async {
@@ -623,19 +623,23 @@ void main() {
       expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
     });
 
-    testWidgets('a manually-typed Salary is not clobbered by a later field change', (tester) async {
+    testWidgets('Salary is read-only guidance — the patient cannot type over the suggested figure', (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester);
       expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
 
-      await tester.enterText(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), '30000 my own figure');
-      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Diapers/bedside support').last);
-      await tester.pumpAndSettle();
+      final salaryField = tester.widget<TextField>(find.byWidgetPredicate(
+        (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
+      ));
+      expect(salaryField.readOnly, isTrue);
 
-      expect(find.text('30000 my own figure'), findsOneWidget);
+      expect(
+        find.text(
+          'This is just a guidance, you must discuss it directly with caregivers. Fees are paid directly to the Nurse/Caregivers.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('leaves Salary empty (not a crash) when the Rate Card has no matching suggestion', (tester) async {
@@ -647,6 +651,56 @@ void main() {
         (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
       ));
       expect(salaryField.controller?.text, '');
+    });
+  });
+
+  group('"None" option — Feeding/Medicine Assistance and Toilet Assistance', () {
+    testWidgets('None (Feeding/Medicine Assistance) submits as oral_feeding and suggests the same Salary as '
+        'Oral feeding', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester); // picks 'Oral feeding' by default
+
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Feeding/Medicine Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('None').last);
+      await tester.pumpAndSettle();
+
+      // Same tier/Salary suggestion as 'Oral feeding' — None doesn't bump
+      // the derived care tier.
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+
+      expect(repo.createCalled, isTrue);
+      expect(repo.capturedCareReceiver?.feedingType, FeedingType.oralFeeding);
+    });
+
+    testWidgets('None (Toilet Assistance) submits as [independent] and suggests the same Salary as '
+        'Independent/minimal support', (tester) async {
+      final repo = _FakeIndividualRepository();
+      await _pumpTall(tester, repo);
+      await _fillMandatoryFields(tester); // picks 'Independent/minimal support' by default
+
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('None').last);
+      await tester.pumpAndSettle();
+
+      // Same tier/Salary suggestion as 'Independent/minimal support' — None
+      // doesn't bump the derived care tier.
+      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+
+      expect(repo.createCalled, isTrue);
+      expect(repo.capturedCareReceiver?.toiletAssistance, [ToiletAssistance.independent]);
     });
   });
 }

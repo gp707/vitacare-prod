@@ -27,6 +27,22 @@ const _noPreferenceLanguage = 'no_preference';
 const _noneMedicalCondition = 'none';
 const _noneMedicalConditionLabel = 'None';
 
+// A UI-only sentinel — never sent to the backend as-is, and never fed into
+// deriveCareTier()/the Rate Card lookup as-is either. Lets a patient who
+// isn't sure their family member needs any feeding assistance pick a plain
+// "None" instead of having to recognise that "Oral feeding" is the
+// no-assistance-needed option — translated to FeedingType.oralFeeding
+// (same salary guidance, same tier) everywhere it's read from. See
+// _effectiveFeedingType.
+const _noneFeedingType = 'none';
+const _noneFeedingTypeLabel = 'None';
+
+// Same idea as _noneFeedingType above, for Toilet Assistance — translated
+// to ToiletAssistance.independent (same salary guidance, same tier)
+// everywhere it's read from. See _effectiveToiletAssistance.
+const _noneToiletAssistance = 'none';
+const _noneToiletAssistanceLabel = 'None';
+
 class _MandatoryField {
   final GlobalKey key;
   final bool isValid;
@@ -186,6 +202,19 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     }
   }
 
+  // "None" reads/writes as _noneFeedingType/_noneToiletAssistance on the
+  // dropdowns themselves (so the field's own selected-value matching stays
+  // simple), but is never the value actually sent to deriveCareTier() or
+  // the backend — both read through these getters instead of the raw
+  // fields.
+  String get _effectiveFeedingType => _feedingType == _noneFeedingType
+      ? FeedingType.oralFeeding
+      : (_feedingType ?? FeedingType.oralFeeding);
+  List<String> get _effectiveToiletAssistance =>
+      _toiletAssistance.contains(_noneToiletAssistance)
+          ? const [ToiletAssistance.independent]
+          : _toiletAssistance;
+
   /// Rebuilds a [CareReceiverModel] from whatever's currently selected on
   /// this form, for [deriveCareTier] — vitals aren't collected on this form
   /// at all, so they're just fixed at their server-side default.
@@ -194,13 +223,13 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         age: _age ?? 0,
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
-        feedingType: _feedingType ?? FeedingType.oralFeeding,
+        feedingType: _effectiveFeedingType,
         hasMedicalCondition:
             !_medicalConditions.contains(_noneMedicalCondition),
         medicalConditions: _medicalConditions.contains(_noneMedicalCondition)
             ? const []
             : _medicalConditions,
-        toiletAssistance: _toiletAssistance,
+        toiletAssistance: _effectiveToiletAssistance,
         requiresVitalMonitoring: false,
         vitalMonitoringTypes: const [],
       );
@@ -405,7 +434,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               age: _age!,
               gender: _gender!,
               weightKg: _weightKg!,
-              feedingType: _feedingType,
+              feedingType: _effectiveFeedingType,
               hasMedicalCondition:
                   !_medicalConditions.contains(_noneMedicalCondition),
               medicalConditions:
@@ -414,8 +443,9 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                       : _medicalConditions,
               medicalConditionOther:
                   _medicalConditionOtherController.text.trim(),
-              toiletAssistance:
-                  _toiletAssistance.isEmpty ? null : _toiletAssistance,
+              toiletAssistance: _effectiveToiletAssistance.isEmpty
+                  ? null
+                  : _effectiveToiletAssistance,
               toiletAssistanceOther:
                   _toiletAssistanceOtherController.text.trim(),
             ),
@@ -751,12 +781,15 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                                   ? 'Please select toilet assistance'
                                   : null,
                         ),
-                        items: ToiletAssistance.all
-                            .map((t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(
-                                    ToiletAssistance.displayNames[t] ?? t)))
-                            .toList(),
+                        items: [
+                          const DropdownMenuItem(
+                              value: _noneToiletAssistance,
+                              child: Text(_noneToiletAssistanceLabel)),
+                          ...ToiletAssistance.all.map((t) => DropdownMenuItem(
+                              value: t,
+                              child: Text(
+                                  ToiletAssistance.displayNames[t] ?? t))),
+                        ],
                         onChanged: (value) => setState(() {
                           _toiletAssistance
                             ..clear()
@@ -790,11 +823,14 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                                   ? 'Please select feeding/medicine assistance'
                                   : null,
                         ),
-                        items: FeedingType.all
-                            .map((f) => DropdownMenuItem(
-                                value: f,
-                                child: Text(FeedingType.displayNames[f] ?? f)))
-                            .toList(),
+                        items: [
+                          const DropdownMenuItem(
+                              value: _noneFeedingType,
+                              child: Text(_noneFeedingTypeLabel)),
+                          ...FeedingType.all.map((f) => DropdownMenuItem(
+                              value: f,
+                              child: Text(FeedingType.displayNames[f] ?? f))),
+                        ],
                         onChanged: (value) => setState(() {
                           _feedingType = value;
                           _refreshSuggestedSalary();
@@ -934,21 +970,32 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Pre-filled with the Rate Card's suggested figure for the
-                // derived care tier + frequency once it's available (see
-                // _refreshSuggestedSalary), refreshed as related fields
-                // change — but never overwriting something the patient
-                // already typed themselves. Free text, not a number, so it
-                // can carry a range or a note exactly as admin wrote it in
-                // the Rate Card.
+                const Text(
+                  'This is just a guidance, you must discuss it directly '
+                  'with caregivers. Fees are paid directly to the '
+                  'Nurse/Caregivers.',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: AppTypography.caption,
+                      fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                // Read-only — filled purely from the Rate Card's suggested
+                // figure for the derived care tier + frequency (see
+                // _refreshSuggestedSalary, re-run as related fields
+                // change). The patient can see it but can't type over it;
+                // see the guidance line above for why. Free text (not a
+                // number) internally so it can still carry a range or a
+                // note exactly as admin wrote it in the Rate Card.
                 TextField(
                   key: _salaryKey,
                   controller: _salaryController,
                   focusNode: _salaryFocusNode,
+                  readOnly: true,
                   maxLines: null,
                   decoration: InputDecoration(
                     labelText:
-                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Negotiable)',
+                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Guidance only)',
                     filled: true,
                     fillColor: Colors.white,
                     border: const OutlineInputBorder(),
@@ -957,7 +1004,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                         ? 'Salary is required'
                         : null,
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 _buildDerivedTierLine(),
