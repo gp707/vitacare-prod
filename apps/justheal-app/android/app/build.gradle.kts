@@ -31,6 +31,18 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // R8 code shrinking + resource shrinking — strips unused
+            // classes (Firebase/Play Services pull in far more than this
+            // app actually calls) and unused resources from the release
+            // binary. Was off entirely before; see proguard-rules.pro for
+            // why that file starts empty.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
