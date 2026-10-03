@@ -16,7 +16,7 @@ dependencies:
   dio: ^5.5.0
   shared_preferences: ^2.3.2
   url_launcher: ^6.3.1
-  file_picker: ^8.1.2
+  file_picker: ^13.1.0
   vitacare_shared:
     path: ../../packages/vitacare_shared
   vitacare_ui:

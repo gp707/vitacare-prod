@@ -12,7 +12,18 @@ class VitaSplashBranding extends StatelessWidget {
   final String appLabel;
   final double logoWidth;
 
-  const VitaSplashBranding({super.key, required this.appLabel, this.logoWidth = 200});
+  /// Defaults to the original company tagline so admin-web's own splash
+  /// (VITACARE ADMIN) renders unchanged — JustHeal's two splash screens
+  /// (host + ported caregiver) override this to "By VitaCasaHealth.in"
+  /// instead, matching the byline under the login screen's own title.
+  final String tagline;
+
+  const VitaSplashBranding({
+    super.key,
+    required this.appLabel,
+    this.logoWidth = 200,
+    this.tagline = 'Helping Hands, Healing Hearts',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -31,9 +42,9 @@ class VitaSplashBranding extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        const Text(
-          'Helping Hands, Healing Hearts',
-          style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+        Text(
+          tagline,
+          style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
         ),
       ],
     );

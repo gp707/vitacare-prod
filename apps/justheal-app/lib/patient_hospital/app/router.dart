@@ -30,7 +30,13 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
     '/': (context) => SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
-    '/register': (context) => const RegistrationScreen(),
+    // The login screen's "Organisation" registration row passes
+    // `arguments: true` to preselect that account type on this one shared
+    // form — see RegistrationScreen.startAsOrganisation.
+    '/register': (context) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      return RegistrationScreen(startAsOrganisation: args == true);
+    },
     '/home': (context) => const JobsPostedScreen(),
     '/profile': (context) => const ProfileScreen(),
     '/post-requirement': (context) => const PostRequirementScreen(),

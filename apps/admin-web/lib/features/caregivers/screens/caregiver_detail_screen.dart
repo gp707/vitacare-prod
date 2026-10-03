@@ -205,16 +205,17 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Future<void> _pickAndUploadSelfie() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
+    if (_rejectIfTooLarge(pickedBytes.length)) return;
 
     setState(() => _uploadingDocType = 'selfie');
     try {
       await ref
           .read(adminCaregiversRepositoryProvider)
-          .uploadSelfie(widget.profileId, picked.bytes!, picked.name);
+          .uploadSelfie(widget.profileId, pickedBytes, picked.name);
       if (mounted) _showSnackBar('Selfie uploaded');
       await _load();
     } on ApiException catch (e) {
@@ -225,15 +226,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Future<void> _pickAndUploadDocument(String documentType) async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
-    if (_rejectIfTooLarge(picked.size)) return;
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
+    if (_rejectIfTooLarge(pickedBytes.length)) return;
 
     setState(() => _uploadingDocType = documentType);
     try {
       await ref.read(adminCaregiversRepositoryProvider).uploadDocument(
-          widget.profileId, picked.bytes!, picked.name, documentType);
+          widget.profileId, pickedBytes, picked.name, documentType);
       if (mounted) _showSnackBar('Document uploaded');
       await _load();
     } on ApiException catch (e) {

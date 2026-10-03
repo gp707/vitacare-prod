@@ -78,7 +78,7 @@ class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: const VitaAppBarTitle('NurseJobs'),
+          title: const VitaAppBarTitle('JustHeal'),
           automaticallyImplyLeading: false,
           // Logout lives only on the Profile screen now (moved to the
           // bottom of the page there) — no longer duplicated in every

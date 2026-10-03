@@ -195,13 +195,14 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<void> _pickAndUploadDocument(String documentType) async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
     // Compressed first, then size-checked against the compressed bytes —
     // a high-res photo that's over the limit uncompressed can still
     // succeed once shrunk. Non-image files pass through untouched.
-    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    final compressed = await compressImageIfPossible(pickedBytes, picked.name);
     final isAadhaar = documentType == DocumentType.aadhaar;
     if (_rejectIfTooLarge(
       compressed.bytes.length,
@@ -234,7 +235,10 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   Future<void> _logout() async {
     final navigator = Navigator.of(context);
     await ref.read(sessionProvider.notifier).logout();
-    navigator.pushNamedAndRemoveUntil('/caregiver/login', (route) => false);
+    // JustHeal's own unified login, not the ported NurseJobs-only screen —
+    // see CaregiverSessionWatcher in app/app.dart for the same fix on the
+    // mid-session-invalidation path.
+    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   @override

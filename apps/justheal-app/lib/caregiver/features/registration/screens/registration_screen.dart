@@ -60,7 +60,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String? _aadhaarFilename;
   Uint8List? _qualificationDocBytes;
   String? _qualificationDocFilename;
-  final List<PlatformFile> _otherDocs = [];
+  final List<({String name, Uint8List bytes})> _otherDocs = [];
   bool _loading = false;
   String? _errorMessage;
 
@@ -240,13 +240,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickAadhaar() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
     // Compressed first, then size-checked against the compressed bytes —
     // a high-res photo that's over the limit uncompressed can still
     // succeed once shrunk. Non-image files pass through untouched.
-    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    final compressed = await compressImageIfPossible(pickedBytes, picked.name);
     if (_rejectIfTooLarge(compressed.bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
       return;
     }
@@ -258,10 +259,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickQualificationDoc() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
-    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
+    final compressed = await compressImageIfPossible(pickedBytes, picked.name);
     if (_rejectIfTooLarge(compressed.bytes.length)) return;
     setState(() {
       _qualificationDocBytes = compressed.bytes;
@@ -271,17 +273,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickOtherDoc() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final picked = result?.files.single;
-    if (picked == null || picked.bytes == null) return;
-    final compressed = await compressImageIfPossible(picked.bytes!, picked.name);
+    final result = await FilePickerPlatform.instance.pickFiles();
+    if (result.isEmpty) return;
+    final picked = result.single;
+    final pickedBytes = await picked.readAsBytes();
+    final compressed = await compressImageIfPossible(pickedBytes, picked.name);
     if (_rejectIfTooLarge(compressed.bytes.length)) return;
     setState(() {
-      _otherDocs.add(PlatformFile(
-        name: compressed.filename,
-        size: compressed.bytes.length,
-        bytes: compressed.bytes,
-      ));
+      _otherDocs.add((name: compressed.filename, bytes: compressed.bytes));
       _errorMessage = null;
     });
   }
@@ -366,7 +365,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         );
       }
       for (final doc in _otherDocs) {
-        await profileRepo.uploadDocument(doc.bytes!, doc.name, DocumentType.other);
+        await profileRepo.uploadDocument(doc.bytes, doc.name, DocumentType.other);
       }
 
       if (!mounted) return;

@@ -109,6 +109,7 @@ Future<void> _pumpLogin(
   required _FakeAuthRepository authRepo,
   bool otpMode = false,
   _FakeCaregiverAuthRepository? caregiverAuthRepo,
+  List<RouteSettings>? pushedRoutes,
 }) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
@@ -128,12 +129,70 @@ Future<void> _pumpLogin(
       child: MaterialApp(
         home: const LoginScreen(),
         routes: {'/home': (_) => const Scaffold(body: Text('home'))},
+        // Records every named push the three "New here? Register as:" rows
+        // make (route name + arguments), rather than actually resolving
+        // '/register'/'/caregiver/register' — those screens pull in far
+        // more providers than this login-screen test sets up.
+        onGenerateRoute: (settings) {
+          pushedRoutes?.add(settings);
+          return MaterialPageRoute(settings: settings, builder: (_) => Scaffold(body: Text('route:${settings.name}')));
+        },
       ),
     ),
   );
 }
 
 void main() {
+  group('fits without scrolling on common phone sizes', () {
+    // `tester.binding.setSurfaceSize` only affects real pixel-level
+    // rendering/hit-testing; MediaQuery (which SingleChildScrollView's
+    // layout ultimately depends on) reads tester.view.physicalSize /
+    // devicePixelRatio instead — both must be set together, per this
+    // project's own flutter-widget-test-gotchas memory note.
+    Future<double> maxScrollExtentAt(WidgetTester tester, Size size) async {
+      final view = tester.view;
+      addTearDown(() {
+        tester.binding.setSurfaceSize(null);
+        view.reset();
+      });
+      await tester.binding.setSurfaceSize(size);
+      view.physicalSize = size;
+      view.devicePixelRatio = 1.0;
+
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+      await tester.pumpAndSettle();
+
+      final scrollableState = tester.state<ScrollableState>(
+        find.ancestor(of: find.text('New here? Register as:'), matching: find.byType(Scrollable)),
+      );
+      return scrollableState.position.maxScrollExtent;
+    }
+
+    testWidgets('390x844 (iPhone 14/15/16 class) — no scroll needed', (tester) async {
+      expect(await maxScrollExtentAt(tester, const Size(390, 844)), 0);
+    });
+
+    // 360x800 no longer fits with zero scroll once the login/register
+    // sections were given more breathing room (explicit follow-up request)
+    // — same designed fallback as the 667pt-tall case below: scroll
+    // gracefully rather than clip, confirmed here rather than asserted
+    // as zero.
+    testWidgets('360x800 (common Android) — falls back to a small scroll rather than clipping', (tester) async {
+      expect(await maxScrollExtentAt(tester, const Size(360, 800)), greaterThan(0));
+    });
+
+    // 667pt tall is a genuinely old/small device (iPhone SE) that neither
+    // the task's own target sizes (360/390 wide) nor its "no scroll" goal
+    // were written against — the explicit fallback for exactly this case
+    // (per the original spec) is to scroll rather than clip, so this just
+    // confirms that fallback engages cleanly instead of asserting zero
+    // scroll like the two sizes above.
+    testWidgets('375x667 (iPhone SE) — falls back to a small scroll rather than clipping', (tester) async {
+      expect(await maxScrollExtentAt(tester, const Size(375, 667)), greaterThan(0));
+    });
+  });
+
+
   testWidgets('shows phone and code fields', (tester) async {
     await _pumpLogin(tester, authRepo: _FakeAuthRepository());
 
@@ -147,7 +206,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '123');
     await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
-    await tester.tap(find.text('Login'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
     await tester.pump();
 
     expect(find.text('Enter a valid 10-digit mobile number'), findsOneWidget);
@@ -160,7 +219,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
-    await tester.tap(find.text('Login'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
     await tester.pumpAndSettle();
 
     expect(authRepo.loginCodeCalled, isTrue);
@@ -176,7 +235,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '0000');
-    await tester.tap(find.text('Login'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
     await tester.pumpAndSettle();
 
     expect(find.text('Invalid code'), findsOneWidget);
@@ -193,7 +252,7 @@ void main() {
 
       await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
       await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
-      await tester.tap(find.text('Login'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
       await tester.pumpAndSettle();
 
       expect(authRepo.loginCodeCalled, isTrue);
@@ -211,7 +270,7 @@ void main() {
 
       await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
       await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '0000');
-      await tester.tap(find.text('Login'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
       await tester.pumpAndSettle();
 
       expect(find.text('Invalid code'), findsOneWidget);
@@ -229,7 +288,7 @@ void main() {
 
       await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
       await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '9999');
-      await tester.tap(find.text('Login'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
       await tester.pumpAndSettle();
 
       expect(find.text('Invalid code'), findsOneWidget);
@@ -310,11 +369,62 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextField, '6-digit OTP'), findsOneWidget);
 
+      // The redesigned screen's extra content (Log in heading/subtext,
+      // divider, three registration rows) pushes this button below the
+      // test surface's default viewport — scroll it into view before
+      // tapping, same as a real short screen would require.
+      await tester.ensureVisible(find.text('Change phone number'));
       await tester.tap(find.text('Change phone number'));
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(TextField, '6-digit OTP'), findsNothing);
       expect(find.text('Send OTP'), findsOneWidget);
+    });
+  });
+
+  group('New here? Register as: rows', () {
+    testWidgets('Patient row pushes /register with no arguments (defaults to Individual)', (tester) async {
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+
+      await tester.ensureVisible(find.text('Patient'));
+      await tester.tap(find.text('Patient'));
+      await tester.pumpAndSettle();
+
+      expect(pushedRoutes.single.name, '/register');
+      expect(pushedRoutes.single.arguments, isNull);
+    });
+
+    testWidgets('Nurses/Caregivers row pushes /caregiver/register — same as the old top-bar button', (tester) async {
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+
+      await tester.ensureVisible(find.text('Nurses/Caregivers'));
+      await tester.tap(find.text('Nurses/Caregivers'));
+      await tester.pumpAndSettle();
+
+      expect(pushedRoutes.single.name, '/caregiver/register');
+    });
+
+    testWidgets('Organisation row pushes /register with arguments: true, to preselect that account type',
+        (tester) async {
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+
+      await tester.ensureVisible(find.text('Organisation'));
+      await tester.tap(find.text('Organisation'));
+      await tester.pumpAndSettle();
+
+      expect(pushedRoutes.single.name, '/register');
+      expect(pushedRoutes.single.arguments, isTrue);
+    });
+
+    testWidgets('the old "Caregivers Registration" top-bar button and "New here? Register" link are both gone',
+        (tester) async {
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+
+      expect(find.text('Caregivers Registration'), findsNothing);
+      expect(find.text('New here? Register'), findsNothing);
     });
   });
 }

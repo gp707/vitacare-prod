@@ -15,6 +15,115 @@ import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart' as c
 import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
 import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
 
+/// Colors from this screen's redesign spec that don't already match
+/// vitacare_ui's shared AppColors palette (that palette is shared across
+/// all 3 apps — these are specific to this one screen's refreshed look,
+/// so they're kept local rather than added to the cross-app theme file).
+/// AppColors.background (#F9FAFB) already matches the spec exactly and is
+/// reused as-is below.
+class _LoginPalette {
+  _LoginPalette._();
+  static const primaryBlue = Color(0xFF3662E3);
+  static const helpRed = Color(0xFFCA3A31);
+  static const textPrimary = Color(0xFF1B1B21);
+  static const textSecondary = Color(0xFF555866);
+  static const fieldBorder = Color(0xFF777680);
+  static const rowBorder = Color(0xFFC4C6D0);
+  static const divider = Color(0xFFD8D9E3);
+  static const patientIconBg = Color(0xFFFBE7E1);
+  static const patientIconFg = Color(0xFFA8412A);
+  static const nurseIconBg = Color(0xFFDCEEEF);
+  static const nurseIconFg = Color(0xFF2A666C);
+  static const orgIconBg = Color(0xFFE3E8FD);
+  static const orgIconFg = Color(0xFF2C4CC4);
+}
+
+/// One row in the "New here? Register as:" section — a full-width tappable
+/// card with a coloured icon tile, title, one-line description, and a
+/// trailing chevron. Exposed as a real button (Material+InkWell, ≥64px
+/// tall so it clears the 44px minimum tap-target with room to spare) with
+/// an explicit Semantics label, since the title/description are two
+/// separate Text widgets a screen reader would otherwise announce as two
+/// unrelated static lines rather than one tappable control.
+class _RegisterOptionRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  const _RegisterOptionRow({
+    required this.icon,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$title. $description',
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _LoginPalette.rowBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: AppTypography.subtitle,
+                          fontWeight: FontWeight.w500,
+                          color: _LoginPalette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        description,
+                        style: const TextStyle(fontSize: 13, color: _LoginPalette.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: _LoginPalette.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Every individual/organisation account sets their 4-digit code at
 /// registration, so login always requires phone + code — same mechanism as
 /// caregiver login (same backend endpoint, POST /auth/login/code).
@@ -182,56 +291,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final otpMode = ref.watch(otpModeProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        actions: [
-          // Entry point into the ported caregiver (NurseJobs) flow living
-          // inside this same app/binary post-merge — see CLAUDE.md's
-          // "Merged into one binary with NurseJobs". Goes straight to the
-          // caregiver's own registration screen, not its splash/login,
-          // matching this button's own label — an existing caregiver can
-          // still reach their own login from there ("Already registered?"
-          // equivalent link on that screen).
-          TextButton(
-            onPressed: () => Navigator.of(context).pushNamed('/caregiver/register'),
-            child: const Text('Caregivers Registration', style: TextStyle(color: AppColors.primary)),
-          ),
-          const WhatsAppHelpButton(),
-        ],
-      ),
+      // No AppBar — a dedicated toolbar strip left Help as the only thing
+      // in an otherwise-empty full-width row. Instead it's positioned in
+      // the corner of the same block as the logo/title (a Stack, not a
+      // separate section), so it shares that space rather than pushing
+      // everything else down a whole extra row's worth of height.
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Image.asset(
-                'packages/vitacare_ui/assets/branding/logo_icon.webp',
-                width: 120,
-                height: 120,
+              Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'packages/vitacare_ui/assets/branding/logo_lockup.webp',
+                          width: 80,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        const Text(
+                          'JustHeal',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: AppTypography.jumbo,
+                            fontWeight: FontWeight.bold,
+                            color: _LoginPalette.primaryBlue,
+                          ),
+                        ),
+                        const Text(
+                          'By VitaCasaHealth.in',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Positioned(
+                    top: 0,
+                    right: 0,
+                    child: WhatsAppHelpButton(
+                      backgroundColor: _LoginPalette.helpRed,
+                      margin: EdgeInsets.zero,
+                      minimumSize: Size(0, 44),
+                      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      iconSize: 16,
+                      fontSize: AppTypography.body,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: 2),
               const Text(
-                'JustHeal',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: AppTypography.jumbo, fontWeight: FontWeight.bold, color: AppColors.primary),
+                'Log in',
+                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
               ),
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: 2),
+              const Text(
+                'Already registered? Patients, nurses/caregivers and organisations all log in here.',
+                style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
               if (otpMode) ..._buildOtpFields() else ..._buildPinFields(),
               if (_errorMessage != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs),
                 Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
               ],
               const SizedBox(height: AppSpacing.md),
-              ElevatedButton(
-                onPressed: _loading ? null : (otpMode ? (_otpSent ? _verifyAndLogin : _sendOtp) : _submitPin),
-                child: _loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(otpMode ? (_otpSent ? 'Verify & Login' : 'Send OTP') : 'Login'),
+              SizedBox(
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : (otpMode ? (_otpSent ? _verifyAndLogin : _sendOtp) : _submitPin),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _LoginPalette.primaryBlue,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _LoginPalette.primaryBlue.withValues(alpha: 0.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(otpMode ? (_otpSent ? 'Verify & Login' : 'Send OTP') : 'Log in'),
+                ),
               ),
               if (otpMode && _otpSent) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -245,9 +392,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
-              TextButton(
-                onPressed: () => Navigator.of(context).pushNamed('/register'),
-                child: const Text('New here? Register'),
+              const Divider(color: _LoginPalette.divider, height: 1),
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                'New here? Register as:',
+                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Goes where "New here? Register" used to go — this screen's
+              // RegistrationScreen defaults to the Individual/patient
+              // account type.
+              _RegisterOptionRow(
+                icon: Icons.person,
+                iconBackground: _LoginPalette.patientIconBg,
+                iconColor: _LoginPalette.patientIconFg,
+                title: 'Patient',
+                description: 'I need care for me or my family',
+                onTap: () => Navigator.of(context).pushNamed('/register'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Goes where the old top-bar "Caregivers Registration" button
+              // used to go — straight into the ported caregiver (NurseJobs)
+              // flow's own registration screen (see CLAUDE.md's "Merged
+              // into one binary with NurseJobs").
+              _RegisterOptionRow(
+                icon: Icons.favorite,
+                iconBackground: _LoginPalette.nurseIconBg,
+                iconColor: _LoginPalette.nurseIconFg,
+                title: 'Nurses/Caregivers',
+                description: 'I provide care and want to join',
+                onTap: () => Navigator.of(context).pushNamed('/caregiver/register'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Same RegistrationScreen as the Patient row, pre-selecting
+              // its "Register as Organisation" checkbox — there is no
+              // separate organisation registration flow (see
+              // RegistrationScreen.startAsOrganisation).
+              _RegisterOptionRow(
+                icon: Icons.apartment,
+                iconBackground: _LoginPalette.orgIconBg,
+                iconColor: _LoginPalette.orgIconFg,
+                title: 'Organisation',
+                description: 'We arrange care for our patients',
+                onTap: () => Navigator.of(context).pushNamed('/register', arguments: true),
               ),
             ],
           ),
@@ -262,9 +449,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         controller: _phoneController,
         keyboardType: TextInputType.phone,
         decoration: const InputDecoration(
+          isDense: true,
           prefixText: '+91 ',
           labelText: 'Phone number',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
       ),
       const SizedBox(height: AppSpacing.md),
@@ -274,8 +462,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         maxLength: 4,
         obscureText: true,
         decoration: const InputDecoration(
+          isDense: true,
           labelText: '4-digit code',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
         onSubmitted: (_) => _submitPin(),
       ),
@@ -289,9 +478,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         enabled: !_otpSent,
         keyboardType: TextInputType.phone,
         decoration: const InputDecoration(
+          isDense: true,
           prefixText: '+91 ',
           labelText: 'Phone number',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
       ),
       if (_otpSent) ...[
@@ -301,8 +491,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           keyboardType: TextInputType.number,
           maxLength: 6,
           decoration: const InputDecoration(
+            isDense: true,
             labelText: '6-digit OTP',
-            border: OutlineInputBorder(),
+            border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
           ),
           onSubmitted: (_) => _verifyAndLogin(),
         ),

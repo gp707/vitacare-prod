@@ -118,7 +118,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const VitaSplashBranding(appLabel: 'NURSENOW'),
+            const VitaSplashBranding(appLabel: 'JUSTHEAL', tagline: 'By VitaCasaHealth.in'),
             const SizedBox(height: AppSpacing.xl),
             if (session is SessionLoadError) ...[
               Padding(

@@ -15,7 +15,29 @@ class WhatsAppHelpButton extends StatelessWidget {
   /// Injectable for widget tests — defaults to the real url_launcher call.
   final Future<bool> Function(Uri uri)? launcher;
 
-  const WhatsAppHelpButton({super.key, this.launcher});
+  /// Style overrides, all defaulted to this button's original compact
+  /// look — every existing call site (`const WhatsAppHelpButton()`) across
+  /// this app's other AppBars renders identically to before. The login
+  /// screen is the one place that overrides these, since it's the only
+  /// screen where this is the sole AppBar action and needed to stop being
+  /// cut off / hard to spot on narrow screens — see login_screen.dart.
+  final Color backgroundColor;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final Size minimumSize;
+  final double iconSize;
+  final double fontSize;
+
+  const WhatsAppHelpButton({
+    super.key,
+    this.launcher,
+    this.backgroundColor = AppColors.error,
+    this.padding = const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+    this.margin = const EdgeInsets.only(right: 6),
+    this.minimumSize = Size.zero,
+    this.iconSize = 12,
+    this.fontSize = AppTypography.caption,
+  });
 
   Future<void> _open(BuildContext context) async {
     final uri = Uri.parse('https://wa.me/$phoneNumber');
@@ -42,25 +64,26 @@ class WhatsAppHelpButton extends StatelessWidget {
     // in this AppBar's tight budget. Wrapped in a right-margin Padding so
     // it never sits flush against the screen edge when it's the last
     // AppBar action.
+    final isCompact = minimumSize == Size.zero;
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: margin,
       child: ElevatedButton(
         onPressed: () => _open(context),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.error,
+          backgroundColor: backgroundColor,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
+          padding: padding,
+          minimumSize: minimumSize,
+          tapTargetSize: isCompact ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded,
+          visualDensity: isCompact ? VisualDensity.compact : VisualDensity.standard,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.phone_in_talk, size: 12),
-            SizedBox(width: 1),
-            Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
+            Icon(Icons.phone_in_talk, size: iconSize),
+            SizedBox(width: isCompact ? 1 : 6),
+            Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fontSize, color: Colors.white)),
           ],
         ),
       ),

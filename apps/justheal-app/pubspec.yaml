@@ -17,13 +17,13 @@ dependencies:
   shared_preferences: ^2.3.2
   url_launcher: ^6.3.1
   connectivity_plus: ^6.0.0
-  package_info_plus: ^8.0.0
+  package_info_plus: ^10.0.0
   firebase_core: ^3.6.0
   # Below: only needed by the ported caregiver flow (lib/caregiver/) —
   # image_picker/file_picker/image for selfie + document uploads at
   # caregiver registration, firebase_messaging for the "New Job" FCM push.
   image_picker: ^1.1.2
-  file_picker: ^8.1.2
+  file_picker: ^13.1.0
   image: ^4.2.0
   firebase_messaging: ^15.1.3
   vitacare_shared:

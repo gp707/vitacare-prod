@@ -163,16 +163,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Image.asset(
-                'packages/vitacare_ui/assets/branding/logo_icon.webp',
-                width: 120,
-                height: 120,
+              Center(
+                child: Image.asset(
+                  'packages/vitacare_ui/assets/branding/logo_lockup.webp',
+                  width: 120,
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               const Text(
-                'NurseJobs',
+                'JustHeal',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: AppTypography.jumbo, fontWeight: FontWeight.bold, color: AppColors.primary),
+              ),
+              const Text(
+                'By VitaCasaHealth.in',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.xl),
               if (otpMode) ..._buildOtpFields() else ..._buildPinFields(),

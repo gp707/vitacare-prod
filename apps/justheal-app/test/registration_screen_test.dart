@@ -114,6 +114,7 @@ Future<void> _pumpRegistration(
   WidgetTester tester, {
   required _FakeAuthRepository authRepo,
   bool otpMode = false,
+  bool startAsOrganisation = false,
 }) async {
   // The organisation fields push the form well past the default 800x600
   // viewport + cache extent — a plain ListView's sliver won't mount
@@ -134,7 +135,7 @@ Future<void> _pumpRegistration(
         otpModeProvider.overrideWith((ref) => otpMode),
       ],
       child: MaterialApp(
-        home: const RegistrationScreen(),
+        home: RegistrationScreen(startAsOrganisation: startAsOrganisation),
         routes: {'/home': (_) => const Scaffold(body: Text('home'))},
       ),
     ),
@@ -217,19 +218,24 @@ void main() {
     expect(authRepo.capturedCode, '1234');
   });
 
-  testWidgets('selecting Hospital/Rehab shows the organisation fields, relabeled to Contact person name',
-      (tester) async {
+  testWidgets('Individual (the default) shows Full name and no Organisation Details', (tester) async {
     final authRepo = _FakeAuthRepository();
     await _pumpRegistration(tester, authRepo: authRepo);
 
     expect(find.text('Full name (Mandatory)'), findsOneWidget);
+    expect(find.text('Contact person name (Mandatory)'), findsNothing);
     expect(find.text('Organisation Details'), findsNothing);
+  });
 
-    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-    await tester.pumpAndSettle();
+  testWidgets(
+      'reaching this screen via the Organisation row (startAsOrganisation: true) shows the organisation '
+      'fields immediately, relabeled to Contact person name — there is no in-form toggle', (tester) async {
+    final authRepo = _FakeAuthRepository();
+    await _pumpRegistration(tester, authRepo: authRepo, startAsOrganisation: true);
 
     expect(find.text('Contact person name (Mandatory)'), findsOneWidget);
     expect(find.text('Full name (Mandatory)'), findsNothing);
+    expect(find.byKey(const Key('registerAsOrganisationCheckbox')), findsNothing);
     expect(find.text('Organisation Details'), findsOneWidget);
     expect(find.text('Organisation name (Mandatory)'), findsOneWidget);
     expect(find.text('Type of organisation (Mandatory)'), findsOneWidget);
@@ -241,12 +247,10 @@ void main() {
       'tapping Register for Hospital/Rehab with the org fields empty highlights them red and does not submit',
       (tester) async {
     final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo: authRepo);
+    await _pumpRegistration(tester, authRepo: authRepo, startAsOrganisation: true);
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
-    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
@@ -260,13 +264,11 @@ void main() {
 
   testWidgets('registers an Organisation account with all its fields', (tester) async {
     final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo: authRepo);
+    await _pumpRegistration(tester, authRepo: authRepo, startAsOrganisation: true);
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
-    await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Ravi Sharma');
-    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
 
     await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
 
@@ -299,13 +301,11 @@ void main() {
   testWidgets('registers an Organisation account with Area left blank — it is optional, not required',
       (tester) async {
     final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo: authRepo);
+    await _pumpRegistration(tester, authRepo: authRepo, startAsOrganisation: true);
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
-    await tester.enterText(find.widgetWithText(TextField, 'Full name (Mandatory)'), 'Ravi Sharma');
-    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
 
     await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
 
@@ -333,9 +333,7 @@ void main() {
   testWidgets('offers Others as a city option for organisations, distinct from the shared City enum',
       (tester) async {
     final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo: authRepo);
-    await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-    await tester.pumpAndSettle();
+    await _pumpRegistration(tester, authRepo: authRepo, startAsOrganisation: true);
 
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'City (Mandatory)'));
     await tester.pumpAndSettle();
@@ -365,30 +363,6 @@ void main() {
 
     expect(find.byKey(const Key('termsCheckbox')), findsOneWidget);
     expect(find.textContaining('Terms & Conditions', findRichText: true), findsOneWidget);
-  });
-
-  testWidgets(
-      '"Register as Organisation" is a checkbox, unchecked (Individual) by default; checking it toggles to '
-      'Organisation and unchecking it goes back to Individual — no separate radio buttons', (tester) async {
-    final authRepo = _FakeAuthRepository();
-    await _pumpRegistration(tester, authRepo: authRepo);
-
-    final checkbox = find.byKey(const Key('registerAsOrganisationCheckbox'));
-    expect(checkbox, findsOneWidget);
-    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
-    expect(find.text('Full name (Mandatory)'), findsOneWidget);
-    expect(find.text('Organisation Details'), findsNothing);
-
-    await tester.tap(checkbox);
-    await tester.pumpAndSettle();
-    expect(tester.widget<CheckboxListTile>(checkbox).value, isTrue);
-    expect(find.text('Organisation Details'), findsOneWidget);
-
-    await tester.tap(checkbox);
-    await tester.pumpAndSettle();
-    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
-    expect(find.text('Organisation Details'), findsNothing);
-    expect(find.text('Full name (Mandatory)'), findsOneWidget);
   });
 
   group('OTP mode', () {
@@ -439,7 +413,7 @@ void main() {
         'registers an Organisation account with a verified phone, sending phoneVerificationToken and no code',
         (tester) async {
       final authRepo = _FakeAuthRepository();
-      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true);
+      await _pumpRegistration(tester, authRepo: authRepo, otpMode: true, startAsOrganisation: true);
 
       await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
       await tester.tap(find.text('Send OTP to verify'));
@@ -448,8 +422,6 @@ void main() {
       await tester.tap(find.text('Verify'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('registerAsOrganisationCheckbox')));
-      await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Contact person name (Mandatory)'), 'Ravi Sharma');
       await tester.enterText(find.widgetWithText(TextField, 'Organisation name (Mandatory)'), 'City Hospital');
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of organisation (Mandatory)'));

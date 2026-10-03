@@ -11,8 +11,6 @@ import '../data/auth_result.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 
-enum _AccountType { individual, organisation }
-
 // organisation_profiles.city accepts the existing 7 cities plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the
 // shared City enum (see "NurseNow" in CLAUDE.md).
@@ -34,16 +32,29 @@ class _MandatoryField {
   const _MandatoryField(this.key, this.isValid, {this.focusNode});
 }
 
-/// Flow: phone -> PIN -> name -> account type -> (Individual: done;
-/// Organisation: org name/type/city/area, shown once selected — the
-/// "name" field above doubles as contact person name for an org).
+/// Flow: phone -> PIN -> name -> (Individual: done; Organisation: org
+/// name/type/city/area) — account type itself is fixed on entry
+/// (widget.startAsOrganisation), not chosen on this screen; the "name"
+/// field above doubles as contact person name for an org.
 ///
 /// Submit is always tappable (mirrors admin-web's job-posting form and
 /// nursenow-app's own PostRequirementScreen): if a mandatory field is
 /// missing, tapping it flags every missing mandatory field red and
 /// scrolls/focuses straight to the first one instead of submitting.
 class RegistrationScreen extends ConsumerStatefulWidget {
-  const RegistrationScreen({super.key});
+  /// Fixes this registration as Organisation vs. Individual for the whole
+  /// screen's lifetime — set from which row the login screen's "New here?
+  /// Register as:" section was reached through (Patient = false,
+  /// Organisation = true), the only way this form is ever opened. There is
+  /// no separate organisation registration screen/flow and no in-form
+  /// toggle to switch between them (there used to be a "Register as
+  /// Organisation" checkbox here, back when this form had only one
+  /// ambiguous entry point — see CLAUDE.md's "NurseNow" section); now that
+  /// the login screen's three rows already say which account type you're
+  /// registering, re-asking inside the form would be redundant.
+  final bool startAsOrganisation;
+
+  const RegistrationScreen({super.key, this.startAsOrganisation = false});
 
   @override
   ConsumerState<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -60,11 +71,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _sendingOtp = false;
   bool _verifyingOtp = false;
   String? _verificationToken;
-  // Unchecked (the default) = Individual, checked = Organisation — see the
-  // "Register as Organisation" checkbox below. Not nullable/mandatory the
-  // way a two-radio-button choice was: a checkbox always has a definite
-  // state, so there's no "account type" validation left to do.
-  _AccountType _accountType = _AccountType.individual;
   String? _organisationType;
   String? _city;
   bool _termsAccepted = false;
@@ -88,7 +94,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   // before that, fields don't show red just because they're empty.
   bool _showValidationErrors = false;
 
-  bool get _isOrganisation => _accountType == _AccountType.organisation;
+  bool get _isOrganisation => widget.startAsOrganisation;
 
   String get _phone => '+91${_phoneController.text.trim()}';
   bool get _otpMode => ref.read(otpModeProvider);
@@ -295,22 +301,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 errorText: _showValidationErrors && !_isFullNameValid
                     ? 'Enter a name (letters and spaces only)'
                     : null,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            CheckboxListTile(
-              key: const Key('registerAsOrganisationCheckbox'),
-              title: const Text('If an Organisation click here (Hospitals/Rehab/Clinics/Agencies)'),
-              subtitle: const Text(
-                'Hospital / Rehab — post care requirements on behalf of your organisation. '
-                'Leave unchecked to register as an Individual (patient, or a family '
-                'member/caregiver acting on their behalf).',
-              ),
-              value: _isOrganisation,
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              onChanged: (checked) => setState(
-                () => _accountType = checked == true ? _AccountType.organisation : _AccountType.individual,
               ),
             ),
             if (_isOrganisation) ...[

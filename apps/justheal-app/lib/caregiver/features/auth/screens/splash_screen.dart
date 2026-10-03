@@ -68,7 +68,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Widget build(BuildContext context) {
     ref.listen<SessionState>(sessionProvider, (previous, next) {
       if (next is SessionUnauthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/caregiver/login', (route) => false);
+        // JustHeal's own unified login, not the ported NurseJobs-only
+        // screen — this route is already documented as unreachable in
+        // normal flow (see this file's own header comment), but kept
+        // consistent with the same fix in CaregiverSessionWatcher
+        // (app/app.dart) in case it's ever hit via a stale deep link.
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is SessionAuthenticated) {
         final restoreRoute = widget.initialDeepLinkRoute;
         final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute)
@@ -86,7 +91,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const VitaSplashBranding(appLabel: 'NURSEJOBS'),
+            const VitaSplashBranding(appLabel: 'JUSTHEAL', tagline: 'By VitaCasaHealth.in'),
             const SizedBox(height: AppSpacing.xl),
             if (session is SessionLoadError) ...[
               Padding(
