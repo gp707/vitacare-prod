@@ -86,6 +86,7 @@ JobModel _requirement({
     'description': 'Needs help with daily routine.',
     'duty_type': 'live_in',
     'frequency_of_care': frequencyOfCare,
+    'care_duration': 'few_weeks',
     'start_date': '2026-09-01',
     'languages': languages,
     'salary_amount': salaryAmount,
@@ -239,7 +240,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
   // of hit-testable range for some fixtures. A generous default surface
   // avoids that for every test in this file, not just the ones that
   // happened to need it first.
-  await tester.binding.setSurfaceSize(const Size(360, 3000));
+  await tester.binding.setSurfaceSize(const Size(360, 6000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -391,58 +392,30 @@ void main() {
     expect(border.top.color, AppColors.textSecondary);
   });
 
-  testWidgets('the Salary Guidance Range figure is red, distinct from every other field line\'s dark green',
-      (tester) async {
-    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
-
-    final salaryText = tester.widget<Text>(find.text('Salary Guidance Range: ₹1800/day'));
-    final span = salaryText.textSpan! as TextSpan;
-    final valueSpan = span.children![1] as TextSpan;
-    expect(valueSpan.style!.color, AppColors.error);
-  });
-
-  testWidgets('the full Patient Details / Care Preferences detail is collapsed by default, and expands on tap',
+  testWidgets('shows Patient Details and Care Preferences directly, pre-filled — no Show Full Details toggle',
       (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
-    // Collapsed by default — not confusing the screen with every field.
-    expect(find.text('Patient Details'), findsNothing);
-    expect(find.text('74 yrs'), findsNothing);
-    expect(find.text('Show Full Details'), findsOneWidget);
-
-    await tester.tap(find.text('Show Full Details'));
-    await _settle(tester);
-
-    // Same three headings, in the same field order, as the Post/Edit
-    // Requirement form — labeled rows, not an undifferentiated chip cloud.
+    // Always shown, no tap needed — both section headings and the
+    // pre-filled field values are visible immediately.
+    expect(find.text('Show Full Details'), findsNothing);
     expect(find.text('Patient Details'), findsOneWidget);
-    expect(find.text('74 yrs'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
-    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
-    expect(find.text('Daily'), findsOneWidget);
-    expect(find.text('₹1800/day'), findsWidgets);
-    expect(find.text('Needs help with daily routine.'), findsOneWidget);
-    expect(find.text('Hide Full Details'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '74'), findsOneWidget);
+    expect(find.text('1800'), findsOneWidget);
   });
 
-  testWidgets(
-      'shows Frequency of Care/Salary on the card and in Show Full Details for a pending_review requirement too — '
+  testWidgets('shows the pre-filled Salary field directly for a pending_review requirement too — '
       'no longer gated behind admin approval', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(requirements: [_requirement(status: 'pending_review')]),
     );
 
-    expect(find.text('Salary Guidance Range: ₹1800/day'), findsOneWidget);
-
-    await tester.tap(find.text('Show Full Details'));
-    await _settle(tester);
-
-    expect(find.text('Nurse Fee Guidance'), findsOneWidget);
-    expect(find.text('Daily'), findsOneWidget);
+    expect(find.text('1800'), findsOneWidget);
   });
 
   testWidgets(
@@ -478,17 +451,21 @@ void main() {
     expect(find.text('Scope Of Work: Click Here'), findsNothing);
   });
 
-  testWidgets('shows Job Id, Salary Guidance Range, and a Duty Requirements link on every card', (tester) async {
+  testWidgets('shows Job Id and a Duty Requirements link on every card', (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
 
     expect(find.text('Job Id: PAT-JOB-542'), findsOneWidget);
-    expect(find.text('Salary Guidance Range: ₹1800/day'), findsOneWidget);
     expect(find.text('Duty Requirements: Click Here'), findsOneWidget);
 
     await tester.tap(find.text('Duty Requirements: Click Here'));
     await _settle(tester);
 
-    expect(find.text('24Hrs - Live In'), findsOneWidget);
+    // "24Hrs - Live In" also appears as the card's own pre-filled "Hours
+    // Care Needed" dropdown value — scope to the dialog specifically.
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('24Hrs - Live In')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('with multiple applicants and nobody accepted yet, every candidate is shown, each with Accept/Reject',
@@ -660,7 +637,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Decline this candidate'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Changed our mind');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Changed our mind');
     await tester.pump();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm'));
     await _settle(tester);
@@ -818,7 +795,7 @@ void main() {
     var confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
     expect(confirmButton.onPressed, isNull);
 
-    await tester.enterText(find.byType(TextField), 'Schedule does not match');
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'Schedule does not match');
     await tester.pump();
     confirmButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Confirm'));
     expect(confirmButton.onPressed, isNotNull);
@@ -1052,90 +1029,80 @@ void main() {
     expect(find.textContaining('Reason: Need to Go to Hometown'), findsOneWidget);
   });
 
-  testWidgets('the More options menu always offers exactly 2 actions: Edit, Cancel — there is no Post Similar',
+  testWidgets('the More options menu offers only Cancel — there is no Edit action (fields are editable on the card itself)',
       (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
 
-    // Posting is no longer a repeatable action anywhere on this screen —
-    // only Edit (the one requirement this account will ever have) and
-    // Cancel remain.
-    expect(find.text('Edit the Job'), findsOneWidget);
+    expect(find.text('Edit the Job'), findsNothing);
     expect(find.text('Post Similar Requirement'), findsNothing);
-    expect(find.text('Post Similar Requirement (Unavailable)'), findsNothing);
     expect(find.text('Cancel the Job'), findsOneWidget);
   });
 
-  testWidgets('Edit the Job is offered (not locked) when there is no active application', (tester) async {
-    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
+  testWidgets('fields are editable (not disabled) when there is no active application', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
+    );
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _settle(tester);
-
-    expect(find.text('Edit the Job'), findsOneWidget);
-    expect(find.text('Edit the Job (Locked)'), findsNothing);
+    expect(find.textContaining('Editing is locked'), findsNothing);
+    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
   });
 
-  testWidgets('Edit the Job is disabled (locked) while there is an active (applied) application', (tester) async {
+  testWidgets('fields are locked (disabled, with an explanatory note, no Save button) while there is an active application',
+      (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
-        requirements: [_requirement()],
+        requirements: [_requirement(careReceiver: _careReceiverJson)],
         applicationsByJobId: {
           'job-1': [_application(status: 'applied')],
         },
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _settle(tester);
-
-    expect(find.text('Edit the Job (Locked)'), findsOneWidget);
-    // Disabled — tapping it does nothing, no navigation happens.
-    await tester.tap(find.text('Edit the Job (Locked)'));
-    await _settle(tester);
-    expect(find.text('Edit Requirement'), findsNothing);
+    expect(find.textContaining('Editing is locked while a candidate has an active application'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
+    // Still fully visible, per "show all details by default" — just
+    // non-interactive (IgnorePointer), which this widget test can't
+    // directly assert, so we confirm the field's value is still shown.
+    expect(find.widgetWithText(TextField, '74'), findsOneWidget);
   });
 
-  testWidgets('rejected/completed applications do not lock editing — Edit the Job stays enabled', (tester) async {
+  testWidgets('rejected/completed applications do not lock editing — Save Changes stays available', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
-        requirements: [_requirement(status: 'closed')],
+        requirements: [_requirement(status: 'closed', careReceiver: _careReceiverJson)],
         applicationsByJobId: {
           'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
         },
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _settle(tester);
-
-    expect(find.text('Edit the Job'), findsOneWidget);
-    expect(find.text('Edit the Job (Locked)'), findsNothing);
+    expect(find.textContaining('Editing is locked'), findsNothing);
+    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
   });
 
-  testWidgets('tapping Edit the Job opens the edit screen pre-filled with the requirement\'s current values',
+  testWidgets('editing the Area field and tapping Save Changes calls editRequirement with the updated value',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(360, 3000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await _pump(
-      tester,
-      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
-    );
+    final repo = _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]);
+    await _pump(tester, repo);
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _settle(tester);
-    await tester.tap(find.text('Edit the Job'));
-    await _settle(tester);
-
-    expect(find.text('Edit Requirement'), findsOneWidget);
-    expect(find.text('74'), findsOneWidget); // age, pre-filled
-    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
+    final ageField = tester.widget<TextField>(find.widgetWithText(TextField, "Patient's Age (Mandatory)"));
+    expect(ageField.controller!.text, '74');
     final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
     expect(areaField.controller!.text, 'Indiranagar');
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Save Changes'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+    await _settle(tester);
+
+    expect(repo.editedJobId, 'job-1');
   });
 
   testWidgets(

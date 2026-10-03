@@ -302,6 +302,30 @@ location) that didn't fit the Individual/admin jobs-table model.
   asymmetry as cancel's own `JOB_015`), `JOB_010` if the account is job-posting-blocked. The
   per-card "More options" menu shows **"Make Active Again"** instead of "Cancel the Job" once a
   requirement is cancelled — the two are mutually exclusive, never both offered at once.
+- **`JobsPostedScreen`'s requirement card is the only place a requirement is ever edited — every
+  field is always shown, pre-filled, and directly editable right there, with its own "Save
+  Changes" button.** The old "Show Full Details" collapse/expand toggle and the separate, full-
+  screen `EditRequirementScreen` (reached via a now-deleted "Edit the Job" menu action) are both
+  gone — deleted entirely, not just hidden. `_RequirementCardState` carries the same field
+  set/validation/Rate-Card-salary-suggestion logic `EditRequirementScreen` used to (ported
+  verbatim: `SectionBox`-grouped "Patient Details"/"Care Preferences", the amber Salary block with
+  its derived-tier line, the same mandatory-field highlight-and-scroll), initialized from the
+  requirement in `initState` and submitted via the same `IndividualRepository.editRequirement`
+  call on Save. **Locked while a candidate has an active application** (mirrors the backend's own
+  `JOB_014`) — but locked still means *visible*, just non-interactive: the whole field block is
+  wrapped in a single `IgnorePointer` + reduced-opacity `Opacity`, with an explanatory amber note
+  above it and no Save button, rather than swapping in a separate read-only rendering path. The
+  per-card "More options" menu dropped its "Edit the Job" action entirely, now offering only
+  Cancel/Make Active Again (see above). **Unlike every other field in this card, Salary is
+  deliberately read-only — not a text field, same as the registration form's own salary display**
+  (see "Registration IS posting" above): bold standout `Text`, never user-typed, auto-filled
+  purely from the Rate Card suggestion for the derived care tier/frequency and re-derived live as
+  Toilet Assistance/Feeding Type/Medical Condition/Duration Care is Needed change on this same
+  card. A fixed guidance line sits above it — "This is just a guidance, you must discuss it
+  directly with caregivers. Fees are paid directly to the Nurse/Caregivers." — and the derived-tier
+  line (tap the tier name for the Scope of Work popup) sits below it. Still what gets submitted as
+  `salary_amount` on Save, and still mandatory (`_isSalaryValid`) for the highlight-and-scroll
+  validation, just with no `FocusNode` of its own (there's no field to focus on a `Text` widget).
 - **Messages** (`/messages` — `MessagesScreen`, Individual-only) is a purely **client-computed**
   tab — no new backend endpoint, no persistence, no read/unread state. It re-fetches the account's
   own requirements via the same `GET /individual/requirements` call `JobsPostedScreen` makes, then

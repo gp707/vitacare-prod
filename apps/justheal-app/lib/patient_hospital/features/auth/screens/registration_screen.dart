@@ -80,9 +80,9 @@ class _MandatoryField {
 /// this means an individual can only ever post exactly one requirement in
 /// the lifetime of that phone number — there is no "post a new one later"
 /// entry point anywhere else in the app any more (JobsPostedScreen no
-/// longer has a Post CTA or a Post Similar action; EditRequirementScreen
-/// still lets the one requirement already posted be edited, which is not
-/// the same as posting a new one).
+/// longer has a Post CTA or a Post Similar action; every field on the one
+/// requirement already posted stays directly editable right there on its
+/// own card, which is not the same as posting a new one).
 ///
 /// Submit is always tappable (mirrors admin-web's job-posting form and the
 /// old standalone PostRequirementScreen): if a mandatory field is missing,

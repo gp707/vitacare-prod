@@ -8,8 +8,34 @@ import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
+import '../data/individual_repository.dart';
+import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
-import 'edit_requirement_screen.dart';
+import '../widgets/section_box.dart';
+
+// A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
+// with every real language: picking a real language drops this, picking
+// this drops every real language. Translated to an empty `languages: []`
+// array at submission time, which the backend treats as "No Preference"
+// (see UpdateIndividualRequirementDto).
+const _noPreferenceLanguage = 'no_preference';
+
+// A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
+// with every real condition: picking a real condition drops this, picking
+// this drops every real condition. Translated to
+// `has_medical_condition: false` (and no `medical_conditions`) at
+// submission time — the mandatory-but-can-be-none equivalent of
+// _noPreferenceLanguage above.
+const _noneMedicalCondition = 'none';
+const _noneMedicalConditionLabel = 'None';
+
+class _MandatoryField {
+  final GlobalKey key;
+  final bool isValid;
+  final FocusNode? focusNode;
+
+  const _MandatoryField(this.key, this.isValid, {this.focusNode});
+}
 
 /// Full requirement history for this account — every past posting stays
 /// visible (pending review / live / rejected / closed), not just the
@@ -150,18 +176,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     );
   }
 
-  /// Allowed regardless of the requirement's own status (pending_review/
-  /// active/closed) — only gated on there being no active application
-  /// (see _RequirementCard._hasActiveApplication), matching the backend's
-  /// own JOB_014 check.
-  Future<void> _editRequirement(JobModel requirement) async {
-    final edited = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-          builder: (_) => EditRequirementScreen(requirement: requirement)),
-    );
-    if (edited == true) await _load();
-  }
-
   /// Allowed at any point in the requirement's lifecycle — regardless of
   /// applications, and regardless of whether it's already closed by an
   /// acceptance (see the backend's JOB_015, which only blocks cancelling
@@ -234,9 +248,9 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _rejectWithReason(requirement.id, applicationId),
       onViewProfile: (applicationId) =>
           _viewProfile(requirement.id, applicationId),
-      onEdit: () => _editRequirement(requirement),
       onCancel: () => _cancelRequirement(requirement),
       onReactivate: () => _reactivateRequirement(requirement),
+      onSaved: _load,
     );
   }
 
@@ -298,50 +312,6 @@ String _formatDateTime(DateTime date) =>
     '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
     '${date.second.toString().padLeft(2, '0')}';
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-          fontSize: AppTypography.small,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary),
-    );
-  }
-}
-
-/// A single label/value line in the expanded details — label on its own
-/// line in a small secondary color, value below it in the default body
-/// style, so every field is unambiguous at a glance instead of relying on
-/// a reader to infer meaning from a bare chip's text alone.
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DetailRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: AppTypography.small, color: AppColors.textSecondary)),
-          Text(value),
-        ],
-      ),
-    );
-  }
-}
-
 class _RequirementCard extends ConsumerStatefulWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
@@ -349,9 +319,9 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
-  final VoidCallback onEdit;
   final VoidCallback onCancel;
   final VoidCallback onReactivate;
+  final VoidCallback onSaved;
 
   const _RequirementCard({
     required this.requirement,
@@ -360,9 +330,9 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
-    required this.onEdit,
     required this.onCancel,
     required this.onReactivate,
+    required this.onSaved,
   });
 
   @override
@@ -370,7 +340,317 @@ class _RequirementCard extends ConsumerStatefulWidget {
 }
 
 class _RequirementCardState extends ConsumerState<_RequirementCard> {
-  bool _detailsExpanded = false;
+  // --- Inline edit state, pre-filled from widget.requirement in initState
+  // and submitted via editRequirement on Save — replaces the old
+  // standalone EditRequirementScreen entirely; every field is always shown
+  // and always editable right here on the card (disabled, not hidden,
+  // while locked — see _hasActiveApplication). Field set/order/validation
+  // mirrors the old PostRequirementScreen/EditRequirementScreen exactly. ---
+  final _ageController = TextEditingController();
+  String? _gender;
+  final _weightController = TextEditingController();
+  String? _feedingType;
+  final List<String> _medicalConditions = [_noneMedicalCondition];
+  final _medicalConditionOtherController = TextEditingController();
+  final List<String> _toiletAssistance = [];
+  final _toiletAssistanceOtherController = TextEditingController();
+  String? _city;
+  final _areaController = TextEditingController();
+  String? _dutyType;
+  DateTime? _startDate;
+  String? _careDuration;
+  final List<String> _languages = [_noPreferenceLanguage];
+  String? _preferredGender;
+  String? _preferredReligion;
+  final _salaryController = TextEditingController();
+  String? _lastAutoSuggestedSalary;
+  List<RateCardModel> _rateCards = const [];
+
+  bool _saving = false;
+  String? _error;
+
+  final _ageFocusNode = FocusNode();
+  final _weightFocusNode = FocusNode();
+  final _areaFocusNode = FocusNode();
+
+  final _ageKey = GlobalKey();
+  final _genderKey = GlobalKey();
+  final _weightKey = GlobalKey();
+  final _cityKey = GlobalKey();
+  final _areaKey = GlobalKey();
+  final _dutyTypeKey = GlobalKey();
+  final _startDateKey = GlobalKey();
+  final _careDurationKey = GlobalKey();
+  final _toiletAssistanceKey = GlobalKey();
+  final _feedingTypeKey = GlobalKey();
+  final _salaryKey = GlobalKey();
+
+  bool _showValidationErrors = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final job = widget.requirement;
+    final cr = job.careReceiver;
+    if (cr != null) {
+      _ageController.text = cr.age.toString();
+      _gender = cr.gender;
+      _weightController.text = cr.weightKg.toString();
+      _feedingType = cr.feedingType;
+      if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
+        _medicalConditions
+          ..clear()
+          ..addAll(cr.medicalConditions);
+      }
+      _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
+      _toiletAssistance.addAll(cr.toiletAssistance);
+      _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
+    }
+    _city = job.city;
+    _areaController.text = job.area ?? '';
+    _dutyType = job.dutyType;
+    _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+    _careDuration = job.careDuration;
+    if (job.languages.isNotEmpty) {
+      _languages
+        ..clear()
+        ..addAll(job.languages);
+    }
+    _preferredGender = job.preferredGender;
+    _preferredReligion = job.preferredReligion;
+    _salaryController.text = job.salaryAmount ?? '';
+    _loadRateCards();
+  }
+
+  @override
+  void dispose() {
+    _ageController.dispose();
+    _weightController.dispose();
+    _medicalConditionOtherController.dispose();
+    _toiletAssistanceOtherController.dispose();
+    _areaController.dispose();
+    _salaryController.dispose();
+    _ageFocusNode.dispose();
+    _weightFocusNode.dispose();
+    _areaFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Fire-and-forget, called once from initState — fetches the Rate Card,
+  /// then applies the first suggestion it resolves to. Fails open: a
+  /// network error just leaves the existing salary_amount untouched. After
+  /// this, further field changes go through _refreshSuggestedSalary
+  /// instead, which never overwrites something the patient has typed.
+  Future<void> _loadRateCards() async {
+    try {
+      final rateCards = await ref.read(rateCardRepositoryProvider).get();
+      if (!mounted) return;
+      setState(() => _rateCards = rateCards);
+      final careReceiver = _careReceiverForTierDerivation;
+      final careDuration = _careDuration;
+      if (careReceiver == null || careDuration == null) return;
+      final tier = deriveCareTier(careReceiver);
+      final frequency = frequencyForCareDuration(careDuration);
+      final suggestion = suggestedRate(_rateCards, tier, frequency);
+      if (suggestion != null) {
+        setState(() {
+          _salaryController.text = suggestion;
+          _lastAutoSuggestedSalary = suggestion;
+        });
+      }
+    } catch (_) {
+      // Fail open — see doc comment above.
+    }
+  }
+
+  void _refreshSuggestedSalary() {
+    final careReceiver = _careReceiverForTierDerivation;
+    final careDuration = _careDuration;
+    if (careReceiver == null || careDuration == null) return;
+    final tier = deriveCareTier(careReceiver);
+    final frequency = frequencyForCareDuration(careDuration);
+    final suggestion = suggestedRate(_rateCards, tier, frequency);
+    if (suggestion == null) return;
+    if (_salaryController.text.isEmpty || _salaryController.text == _lastAutoSuggestedSalary) {
+      _salaryController.text = suggestion;
+      _lastAutoSuggestedSalary = suggestion;
+    }
+  }
+
+  /// Rebuilds a CareReceiverModel from whatever's currently live-edited on
+  /// this card (toilet assistance, feeding type, medical condition), mixed
+  /// with the field this card never edits (vitals monitoring) preserved
+  /// from the original — so the derived tier always reflects the latest
+  /// in-progress edits, not a stale snapshot from when first posted.
+  CareReceiverModel? get _careReceiverForTierDerivation {
+    final cr = widget.requirement.careReceiver;
+    if (cr == null) return null;
+    return CareReceiverModel(
+      id: cr.id,
+      age: cr.age,
+      gender: cr.gender,
+      weightKg: cr.weightKg,
+      feedingType: _feedingType ?? FeedingType.oralFeeding,
+      hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+      medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? [] : _medicalConditions,
+      toiletAssistance: _toiletAssistance,
+      requiresVitalMonitoring: cr.requiresVitalMonitoring,
+      vitalMonitoringTypes: cr.vitalMonitoringTypes,
+    );
+  }
+
+  String? get _derivedFrequencyOfCare =>
+      _careDuration == null ? null : frequencyForCareDuration(_careDuration!);
+
+  int? get _age => int.tryParse(_ageController.text.trim());
+  int? get _weightKg => int.tryParse(_weightController.text.trim());
+
+  bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
+  bool get _isGenderValid => _gender != null;
+  bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
+  bool get _isCityValid => _city != null;
+  bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
+  bool get _isDutyTypeValid => _dutyType != null;
+  bool get _isStartDateValid => _startDate != null;
+  bool get _isCareDurationValid => _careDuration != null;
+  bool get _isToiletAssistanceValid => _toiletAssistance.isNotEmpty;
+  bool get _isFeedingTypeValid => _feedingType != null;
+  bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
+
+  bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
+  bool get _showShortTermDurationWarning =>
+      _careDuration == CareDuration.fewDays || _careDuration == CareDuration.fewWeeks;
+
+  bool get _canSave =>
+      !_saving &&
+      _isAgeValid &&
+      _isGenderValid &&
+      _isWeightValid &&
+      _isCityValid &&
+      _isAreaValid &&
+      _isDutyTypeValid &&
+      _isStartDateValid &&
+      _isCareDurationValid &&
+      _isToiletAssistanceValid &&
+      _isFeedingTypeValid &&
+      _isSalaryValid;
+
+  List<_MandatoryField> get _mandatoryFieldsInOrder => [
+        _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
+        _MandatoryField(_genderKey, _isGenderValid),
+        _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+        _MandatoryField(_cityKey, _isCityValid),
+        _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
+        _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
+        _MandatoryField(_startDateKey, _isStartDateValid),
+        _MandatoryField(_careDurationKey, _isCareDurationValid),
+        _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
+        _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
+        _MandatoryField(_salaryKey, _isSalaryValid),
+      ];
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
+
+  void _applyMedicalConditionSelection(List<String> next) {
+    final added = next.where((c) => !_medicalConditions.contains(c));
+    final removed = _medicalConditions.where((c) => !next.contains(c));
+    if (added.contains(_noneMedicalCondition)) {
+      _medicalConditions
+        ..clear()
+        ..add(_noneMedicalCondition);
+    } else if (added.isNotEmpty) {
+      _medicalConditions
+        ..clear()
+        ..addAll(next.where((c) => c != _noneMedicalCondition));
+    } else if (removed.isNotEmpty) {
+      final remaining = next.where((c) => c != _noneMedicalCondition).toList();
+      _medicalConditions
+        ..clear()
+        ..addAll(remaining.isEmpty ? [_noneMedicalCondition] : remaining);
+    }
+  }
+
+  Future<void> _handleSavePressed() async {
+    if (_saving) return;
+    if (!_canSave) {
+      setState(() => _showValidationErrors = true);
+      _MandatoryField? firstInvalid;
+      for (final field in _mandatoryFieldsInOrder) {
+        if (!field.isValid) {
+          firstInvalid = field;
+          break;
+        }
+      }
+      if (firstInvalid != null) {
+        final target = firstInvalid;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          target.focusNode?.requestFocus();
+          if (target.focusNode != null) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
+          final ctx = target.key.currentContext;
+          if (ctx != null && ctx.mounted) {
+            await Scrollable.ensureVisible(
+              ctx,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: 0.1,
+            );
+          }
+        });
+      }
+      return;
+    }
+    await _save();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(individualRepositoryProvider).editRequirement(
+            widget.requirement.id,
+            careReceiver: CareReceiverInput(
+              age: _age!,
+              gender: _gender!,
+              weightKg: _weightKg!,
+              feedingType: _feedingType,
+              hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
+              medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? null : _medicalConditions,
+              medicalConditionOther: _medicalConditionOtherController.text.trim(),
+              toiletAssistance: _toiletAssistance.isEmpty ? null : _toiletAssistance,
+              toiletAssistanceOther: _toiletAssistanceOtherController.text.trim(),
+            ),
+            city: _city!,
+            area: _areaController.text.trim(),
+            dutyType: _dutyType!,
+            startDate:
+                '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+            careDuration: _careDuration!,
+            languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
+            preferredGender: _preferredGender,
+            preferredReligion: _preferredReligion,
+            frequencyOfCare: _derivedFrequencyOfCare!,
+            salaryAmount: _salaryController.text.trim(),
+          );
+      if (mounted) widget.onSaved();
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   bool get _hasAcceptedApplicant =>
       widget.applications.any((a) => a.status == JobApplicationStatus.accepted);
@@ -390,7 +670,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   /// Mirrors the backend's own JOB_014 check (job_applications.status IN
   /// ('applied', 'accepted')) — editing is blocked once a caregiver has
   /// responded, regardless of the requirement's own status. Rejected/
-  /// completed applications never count.
+  /// completed applications never count. Every field still renders (see
+  /// "show all details by default") but is disabled (IgnorePointer +
+  /// reduced opacity below), not hidden.
   bool get _hasActiveApplication => widget.applications.any((a) =>
       a.status == JobApplicationStatus.applied ||
       a.status == JobApplicationStatus.accepted);
@@ -439,18 +721,13 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     final requirement = widget.requirement;
     final careReceiver = requirement.careReceiver;
     final locked = _hasActiveApplication;
-    // A fixed 2-item menu, always offered — each item individually
-    // disabled (not hidden) when its own precondition doesn't hold, so the
-    // set of actions is always predictable rather than shifting around
-    // based on state. The second slot is Reactivate (not Cancel) once the
-    // requirement is cancelled — cancelling an already-cancelled one makes
-    // no sense, but bringing it back does.
+    // A fixed menu, always offered — each item individually disabled (not
+    // hidden) when its own precondition doesn't hold. No Edit action here
+    // any more — every field is already editable directly on the card
+    // below. The one slot is Reactivate (not Cancel) once the requirement
+    // is cancelled — cancelling an already-cancelled one makes no sense,
+    // but bringing it back does.
     final menuActions = <_MenuAction>[
-      _MenuAction(
-        label: locked ? 'Edit the Job (Locked)' : 'Edit the Job',
-        enabled: !locked,
-        onSelected: widget.onEdit,
-      ),
       if (widget.requirement.isCancelled)
         _MenuAction(
           label: 'Make Active Again',
@@ -506,10 +783,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   ],
                 ),
               ),
-              // Always exactly 2 actions — Edit / Cancel — each individually
-              // disabled (not hidden) when its own precondition doesn't
-              // hold, so the set of actions is predictable rather than
-              // shifting around based on state.
               PopupMenuButton<_MenuAction>(
                 icon: const Icon(Icons.more_vert),
                 tooltip: 'More options',
@@ -536,14 +809,15 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             Text('Reason: ${requirement.rejectionReason}',
                 style: const TextStyle(color: AppColors.error)),
           ],
-          // A clean, uniform label/value record — consistent font
-          // size/weight/color across every line (matching clinical/hospital
-          // documentation conventions).
           const SizedBox(height: AppSpacing.sm),
           if (careReceiver != null)
             _FieldLine(
               label: 'Type Of Care',
-              value: CareTier.displayNames[deriveCareTier(careReceiver)] ?? deriveCareTier(careReceiver),
+              value: () {
+                final live = _careReceiverForTierDerivation ?? careReceiver;
+                final tier = deriveCareTier(live);
+                return CareTier.displayNames[tier] ?? tier;
+              }(),
             ),
           const SizedBox(height: AppSpacing.xs),
           Row(
@@ -558,7 +832,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     onTap: () => showDialog(
                       context: context,
                       builder: (_) => ScopeOfWorkDialog(
-                        tier: deriveCareTier(careReceiver),
+                        tier: deriveCareTier(_careReceiverForTierDerivation ?? careReceiver),
                         repository: ref.read(scopeOfWorkRepositoryProvider),
                       ),
                     ),
@@ -574,7 +848,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   onTap: () => showDialog(
                     context: context,
                     builder: (_) => DutyRequirementsDialog(
-                      dutyType: requirement.dutyType,
+                      dutyType: _dutyType ?? requirement.dutyType,
                       repository: ref.read(dutyRequirementsRepositoryProvider),
                     ),
                   ),
@@ -582,120 +856,452 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.xs),
-          _FieldLine(
-            label: 'Salary Guidance Range',
-            value: requirement.salaryAmount != null
-                ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
-                : 'Not set',
-            valueColor: AppColors.error,
-          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () =>
-                  setState(() => _detailsExpanded = !_detailsExpanded),
-              icon: Icon(
-                  _detailsExpanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18),
-              label: Text(
-                  _detailsExpanded ? 'Hide Full Details' : 'Show Full Details'),
+          if (locked)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                border: Border.all(color: AppColors.warning),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+              ),
+              child: const Text(
+                'Editing is locked while a candidate has an active application.',
+                style: TextStyle(color: AppColors.warning),
+              ),
+            ),
+          // Every field is always shown — editable when not locked, greyed
+          // out and non-interactive (but still fully visible, per "show
+          // all details by default") when locked, via a single
+          // IgnorePointer + reduced opacity around the whole form instead
+          // of plumbing an enabled/disabled flag through every individual
+          // field widget.
+          IgnorePointer(
+            ignoring: locked,
+            child: Opacity(
+              opacity: locked ? 0.55 : 1.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (careReceiver != null) ...[
+                    SectionBox(
+                      icon: Icons.person,
+                      title: 'Patient Details',
+                      children: [
+                        TextField(
+                          key: _ageKey,
+                          controller: _ageController,
+                          focusNode: _ageFocusNode,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.cake),
+                            labelText: "Patient's Age (Mandatory)",
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        DropdownButtonFormField<String>(
+                          key: _genderKey,
+                          isExpanded: true,
+                          initialValue: _gender,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.wc),
+                            labelText: "Patient's Gender (Mandatory)",
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+                          ),
+                          items: Gender.all.map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g)))).toList(),
+                          onChanged: (value) => setState(() => _gender = value),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          key: _weightKey,
+                          controller: _weightController,
+                          focusNode: _weightFocusNode,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.monitor_weight_outlined),
+                            labelText: "Patient's Weight (kg) (Mandatory)",
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        DropdownButtonFormField<String>(
+                          key: _cityKey,
+                          isExpanded: true,
+                          initialValue: _city,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.location_city),
+                            labelText: 'City (Mandatory)',
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+                          ),
+                          items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
+                          onChanged: (value) => setState(() => _city = value),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          key: _areaKey,
+                          controller: _areaController,
+                          focusNode: _areaFocusNode,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.location_on),
+                            labelText: 'Area (Mandatory)',
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        AreaCharLimitNote(currentLength: _areaController.text.length),
+                        const SizedBox(height: AppSpacing.md),
+                        const Row(
+                          children: [
+                            Icon(Icons.medical_information, size: 18, color: AppColors.primaryDark),
+                            SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        VitaMultiSelectChips(
+                          options: [_noneMedicalCondition, ...MedicalCondition.all],
+                          labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
+                          selected: _medicalConditions,
+                          onChanged: (next) => setState(() {
+                            _applyMedicalConditionSelection(next);
+                            _refreshSuggestedSalary();
+                          }),
+                        ),
+                        if (_medicalConditions.contains(MedicalCondition.other)) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          TextField(
+                            controller: _medicalConditionOtherController,
+                            decoration: const InputDecoration(
+                              labelText: 'Please describe the other condition',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  SectionBox(
+                    icon: Icons.tune,
+                    title: 'Care Preferences',
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              key: _dutyTypeKey,
+                              isExpanded: true,
+                              initialValue: _dutyType,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.access_time),
+                                labelText: 'Hours Care Needed (Mandatory)',
+                                border: const OutlineInputBorder(),
+                                errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+                              ),
+                              items: DutyType.all
+                                  .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
+                                  .toList(),
+                              onChanged: (value) => setState(() => _dutyType = value),
+                            ),
+                          ),
+                          DutyRequirementsInfoButton(dutyType: _dutyType),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      KeyedSubtree(
+                        key: _startDateKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 16,
+                                  color: _showValidationErrors && !_isStartDateValid
+                                      ? AppColors.error
+                                      : AppColors.primaryDark,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    'Preferred Start Date (Mandatory)',
+                                    style: SectionBox.fieldGroupLabelStyle.copyWith(
+                                      color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            OutlinedButton.icon(
+                              onPressed: _pickStartDate,
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: Text(
+                                _startDate == null
+                                    ? 'Select date'
+                                    : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
+                              ),
+                            ),
+                            if (_showValidationErrors && !_isStartDateValid)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text('Select a preferred start date',
+                                    style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _careDurationKey,
+                        isExpanded: true,
+                        initialValue: _careDuration,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.timelapse),
+                          labelText: 'How long you need the care for? (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
+                        ),
+                        items: CareDuration.all
+                            .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _careDuration = value;
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      if (_showShortTermDurationWarning) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.warning),
+                            borderRadius: BorderRadius.circular(AppSpacing.sm),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                              SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Short-term requirement',
+                                      style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Many nurses do not accept short-term assignments. You can '
+                                      'continue with this requirement, but you may receive fewer '
+                                      "or no applicants. If you don't find a suitable nurse, you "
+                                      'may edit this to "Need for minimum a month".',
+                                      style: TextStyle(color: AppColors.warning),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _toiletAssistanceKey,
+                        isExpanded: true,
+                        initialValue: _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.wash),
+                          labelText: 'Toilet Assistance (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
+                        ),
+                        items: ToiletAssistance.all
+                            .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _toiletAssistance
+                            ..clear()
+                            ..add(value!);
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      if (_toiletAssistance.contains(ToiletAssistance.others)) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _toiletAssistanceOtherController,
+                          decoration: const InputDecoration(
+                            labelText: 'Please describe the other toilet assistance',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        key: _feedingTypeKey,
+                        isExpanded: true,
+                        initialValue: _feedingType,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.restaurant),
+                          labelText: 'Feeding/Medicine Assistance (Mandatory)',
+                          border: const OutlineInputBorder(),
+                          errorText:
+                              _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
+                        ),
+                        items: FeedingType.all
+                            .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          _feedingType = value;
+                          _refreshSuggestedSalary();
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _preferredGender,
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.people_outline), labelText: 'Preferred Caregiver Gender', border: OutlineInputBorder()),
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('No preference')),
+                          DropdownMenuItem(value: Gender.male, child: Text('Male')),
+                          DropdownMenuItem(value: Gender.female, child: Text('Female')),
+                        ],
+                        onChanged: (value) => setState(() => _preferredGender = value),
+                      ),
+                      if (_showGenderMismatchWarning) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.warning),
+                            borderRadius: BorderRadius.circular(AppSpacing.sm),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                              SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  'Requesting a female caregiver for a male patient reduces your chances of '
+                                  'getting matched by about 90%.',
+                                  style: TextStyle(color: AppColors.warning),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'This is just a guidance, you must discuss it directly '
+                          'with caregivers. Fees are paid directly to the '
+                          'Nurse/Caregivers.',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: AppTypography.caption,
+                              fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        // Not a text field — just bold standout text, same
+                        // as the registration form's own salary display.
+                        // Still auto-filled from the Rate Card suggestion
+                        // (see _refreshSuggestedSalary) and still what gets
+                        // submitted as salary_amount on Save, but nothing
+                        // the patient types into directly.
+                        SizedBox(
+                          key: _salaryKey,
+                          width: double.infinity,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
+                                style: const TextStyle(
+                                    fontSize: AppTypography.small,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _salaryController.text.isEmpty ? '—' : _salaryController.text,
+                                style: const TextStyle(
+                                    fontSize: AppTypography.heading,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary),
+                              ),
+                              if (_showValidationErrors && !_isSalaryValid) ...[
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Salary is required',
+                                  style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (careReceiver != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          _buildDerivedTierLine(),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          if (_detailsExpanded) ...[
-            const Divider(height: 1),
+          if (!locked) ...[
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: const TextStyle(color: AppColors.error)),
+            ],
             const SizedBox(height: AppSpacing.sm),
-            // Labeled rows grouped under the same two headings as the
-            // Post/Edit Requirement form (Patient Details / Care
-            // Preferences), in the same field order — so what a patient
-            // sees here when reviewing matches what they filled in when
-            // posting, instead of an undifferentiated wall of chips where
-            // e.g. a bare "Male" tag couldn't say whether it meant the
-            // patient's own gender or a caregiver preference.
-            if (careReceiver != null) ...[
-              const _SectionLabel('Patient Details'),
-              const SizedBox(height: AppSpacing.xs),
-              _DetailRow('Age', '${careReceiver.age} yrs'),
-              _DetailRow('Gender', _capitalize(careReceiver.gender)),
-              _DetailRow('Weight', '${careReceiver.weightKg} kg'),
-              _DetailRow('City',
-                  City.displayNames[requirement.city] ?? requirement.city),
-              if (requirement.area != null && requirement.area!.isNotEmpty)
-                _DetailRow('Area', requirement.area!),
-              _DetailRow(
-                'Medical Condition',
-                careReceiver.hasMedicalCondition &&
-                        careReceiver.medicalConditions.isNotEmpty
-                    ? careReceiver.medicalConditions
-                        .map((c) => MedicalCondition.displayNames[c] ?? c)
-                        .join(', ')
-                    : 'None',
-              ),
-              if (careReceiver.medicalConditionOther != null &&
-                  careReceiver.medicalConditionOther!.isNotEmpty)
-                _DetailRow(
-                    'Other Condition', careReceiver.medicalConditionOther!),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            const _SectionLabel('Care Preferences'),
-            const SizedBox(height: AppSpacing.xs),
-            _DetailRow(
-                'Hours Care Needed',
-                DutyType.displayNames[requirement.dutyType] ??
-                    requirement.dutyType),
-            if (requirement.startDate != null)
-              _DetailRow('Preferred Start Date', requirement.startDate!),
-            if (requirement.careDuration != null)
-              _DetailRow(
-                'Duration Care is Needed',
-                CareDuration.displayNames[requirement.careDuration] ??
-                    requirement.careDuration!,
-              ),
-            if (careReceiver != null) ...[
-              _DetailRow(
-                'Toilet Assistance',
-                careReceiver.toiletAssistance.isEmpty
-                    ? 'None'
-                    : careReceiver.toiletAssistance
-                        .map((t) => ToiletAssistance.displayNames[t] ?? t)
-                        .join(', '),
-              ),
-              if (careReceiver.toiletAssistanceOther != null &&
-                  careReceiver.toiletAssistanceOther!.isNotEmpty)
-                _DetailRow('Other Toilet Assistance',
-                    careReceiver.toiletAssistanceOther!),
-              _DetailRow(
-                'Feeding/Medicine Assistance',
-                FeedingType.displayNames[careReceiver.feedingType] ??
-                    careReceiver.feedingType,
-              ),
-            ],
-            _DetailRow(
-              'Preferred Caregiver Gender',
-              requirement.preferredGender != null
-                  ? _capitalize(requirement.preferredGender!)
-                  : 'No preference',
+            ElevatedButton.icon(
+              onPressed: _saving ? null : _handleSavePressed,
+              icon: _saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Save Changes'),
             ),
-            const SizedBox(height: AppSpacing.md),
-            const _SectionLabel('Nurse Fee Guidance'),
-            const SizedBox(height: AppSpacing.xs),
-            _DetailRow(
-              'Frequency of Care',
-              requirement.frequencyOfCare != null
-                  ? FrequencyOfCare.displayNames[requirement.frequencyOfCare] ??
-                      requirement.frequencyOfCare!
-                  : 'Not set',
-            ),
-            _DetailRow(
-              'Salary',
-              requirement.salaryAmount != null
-                  ? '₹${requirement.salaryAmount}/${requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}'
-                  : 'Not set',
-            ),
-            if (requirement.description != null &&
-                requirement.description!.isNotEmpty)
-              _DetailRow('More Details', requirement.description!),
           ],
           if (requirement.status != JobStatus.pendingReview) ...[
             const SizedBox(height: AppSpacing.md),
@@ -719,6 +1325,45 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           ],
         ],
       ),
+    );
+  }
+
+  /// "Based on the requirements you entered, this appears to be a
+  /// `<tier>`." with the tier name itself tappable — opens the Scope of
+  /// Work dialog for the exact tier deriveCareTier derives from the card's
+  /// current (possibly in-progress-edited) selections.
+  Widget _buildDerivedTierLine() {
+    final careReceiver = _careReceiverForTierDerivation;
+    if (careReceiver == null) return const SizedBox.shrink();
+    final tier = deriveCareTier(careReceiver);
+    final tierLabel = CareTier.displayNames[tier] ?? tier;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'Based on the requirements you entered, this appears to be a ',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small),
+        ),
+        GestureDetector(
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => ScopeOfWorkDialog(
+              tier: tier,
+              repository: ref.read(scopeOfWorkRepositoryProvider),
+            ),
+          ),
+          child: Text(
+            tierLabel,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: AppTypography.small,
+              fontWeight: FontWeight.bold,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+        const Text('.', style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small)),
+      ],
     );
   }
 }
@@ -853,17 +1498,12 @@ class _FieldLine extends StatelessWidget {
   final String value;
   final bool isLink;
   final VoidCallback? onTap;
-  // Overrides the value's color only — e.g. the Salary Guidance Range
-  // figure stays red regardless of the shared dark-green value color every
-  // other field line uses, to draw the eye straight to the number.
-  final Color? valueColor;
 
   const _FieldLine({
     required this.label,
     required this.value,
     this.isLink = false,
     this.onTap,
-    this.valueColor,
   });
 
   @override
@@ -873,12 +1513,7 @@ class _FieldLine extends StatelessWidget {
       TextSpan(
         children: [
           TextSpan(text: '$label: ', style: _fieldLabelStyle),
-          TextSpan(
-            text: value,
-            style: valueColor != null
-                ? baseValueStyle.copyWith(color: valueColor)
-                : baseValueStyle,
-          ),
+          TextSpan(text: value, style: baseValueStyle),
         ],
       ),
     );
