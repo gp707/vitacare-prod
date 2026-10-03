@@ -133,7 +133,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
-  final _salaryFocusNode = FocusNode();
 
   // One key per mandatory field, in the order they appear on the form, so
   // Submit can scroll to whichever one is first still-invalid.
@@ -264,7 +263,6 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
-    _salaryFocusNode.dispose();
     super.dispose();
   }
 
@@ -336,8 +334,7 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
         _MandatoryField(_careDurationKey, _isCareDurationValid),
         _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
-        _MandatoryField(_salaryKey, _isSalaryValid,
-            focusNode: _salaryFocusNode),
+        _MandatoryField(_salaryKey, _isSalaryValid),
       ];
 
   Future<void> _pickStartDate() async {
@@ -980,29 +977,42 @@ class _PostRequirementScreenState extends ConsumerState<PostRequirementScreen> {
                       fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                // Read-only — filled purely from the Rate Card's suggested
-                // figure for the derived care tier + frequency (see
-                // _refreshSuggestedSalary, re-run as related fields
-                // change). The patient can see it but can't type over it;
-                // see the guidance line above for why. Free text (not a
-                // number) internally so it can still carry a range or a
-                // note exactly as admin wrote it in the Rate Card.
-                TextField(
+                // Not a text field — just bold standout text. Filled purely
+                // from the Rate Card's suggested figure for the derived
+                // care tier + frequency (see _refreshSuggestedSalary,
+                // re-run as related fields change); the patient can see it
+                // but there's nothing to type into, matching the guidance
+                // line above.
+                SizedBox(
                   key: _salaryKey,
-                  controller: _salaryController,
-                  focusNode: _salaryFocusNode,
-                  readOnly: true,
-                  maxLines: null,
-                  decoration: InputDecoration(
-                    labelText:
-                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Guidance only)',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    errorText: _showValidationErrors && !_isSalaryValid
-                        ? 'Salary is required'
-                        : null,
+                  width: double.infinity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
+                        style: const TextStyle(
+                            fontSize: AppTypography.small,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _salaryController.text.isEmpty ? '—' : _salaryController.text,
+                        style: const TextStyle(
+                            fontSize: AppTypography.heading,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
+                      ),
+                      if (_showValidationErrors && !_isSalaryValid) ...[
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Salary is required',
+                          style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),

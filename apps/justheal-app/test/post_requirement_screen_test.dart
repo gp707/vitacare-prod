@@ -540,7 +540,7 @@ void main() {
     // bar sits above all of this, pinned below the AppBar.
     final salaryTop = tester
         .getTopLeft(find.byWidgetPredicate(
-            (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary')))
+            (w) => w is Text && (w.data ?? '').startsWith('Salary (₹/')))
         .dy;
     final patientDetailsTop = tester.getTopLeft(find.text('Patient Details')).dy;
     final carePreferencesTop = tester.getTopLeft(find.text('Care Preferences')).dy;
@@ -579,7 +579,7 @@ void main() {
       await _fillMandatoryFields(tester); // picks 'Need for Few Weeks' -> daily
 
       expect(find.text('Frequency of Care'), findsNothing);
-      expect(find.widgetWithText(TextField, 'Salary (₹/day) (Guidance only)'), findsOneWidget);
+      expect(find.text('Salary (₹/day) — Guidance only'), findsOneWidget);
     });
 
     testWidgets('the Salary unit switches to ₹/month when Duration is changed to Long Term', (tester) async {
@@ -592,7 +592,7 @@ void main() {
       await tester.tap(find.text('Need for Long Term').last);
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'Salary (₹/month) (Guidance only)'), findsOneWidget);
+      expect(find.text('Salary (₹/month) — Guidance only'), findsOneWidget);
     });
 
     testWidgets('Salary is pre-filled with the Companion daily suggestion once Duration is picked', (tester) async {
@@ -600,7 +600,7 @@ void main() {
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester);
 
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
     });
 
     testWidgets('Salary refreshes to the Critical suggestion when toilet assistance is bumped up', (tester) async {
@@ -613,26 +613,28 @@ void main() {
         ],
       );
       await _fillMandatoryFields(tester);
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Catheter support').last);
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(TextField, 'DAILY_CRITICAL_RATE'), findsOneWidget);
+      expect(find.text('DAILY_CRITICAL_RATE'), findsOneWidget);
     });
 
-    testWidgets('Salary is read-only guidance — the patient cannot type over the suggested figure', (tester) async {
+    testWidgets('Salary is not an editable field — just bold standout text, with guidance above it', (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester);
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
-      final salaryField = tester.widget<TextField>(find.byWidgetPredicate(
-        (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
-      ));
-      expect(salaryField.readOnly, isTrue);
+      // No TextField anywhere carries the Salary label — there's nothing
+      // to tap into or type over, it's plain text now.
+      expect(
+        find.byWidgetPredicate((w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary')),
+        findsNothing,
+      );
 
       expect(
         find.text(
@@ -642,15 +644,13 @@ void main() {
       );
     });
 
-    testWidgets('leaves Salary empty (not a crash) when the Rate Card has no matching suggestion', (tester) async {
+    testWidgets('shows a placeholder dash (not a crash) when the Rate Card has no matching suggestion',
+        (tester) async {
       final repo = _FakeIndividualRepository();
       await _pumpTall(tester, repo, rateCards: const []);
       await _fillMandatoryFields(tester);
 
-      final salaryField = tester.widget<TextField>(find.byWidgetPredicate(
-        (w) => w is TextField && (w.decoration?.labelText ?? '').startsWith('Salary'),
-      ));
-      expect(salaryField.controller?.text, '');
+      expect(find.text('—'), findsOneWidget);
     });
   });
 
@@ -661,7 +661,7 @@ void main() {
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester); // picks 'Oral feeding' by default
 
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Feeding/Medicine Assistance (Mandatory)'));
       await tester.pumpAndSettle();
@@ -670,7 +670,7 @@ void main() {
 
       // Same tier/Salary suggestion as 'Oral feeding' — None doesn't bump
       // the derived care tier.
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.tap(find.text('Submit for Review'));
       await tester.pumpAndSettle();
@@ -685,7 +685,7 @@ void main() {
       await _pumpTall(tester, repo);
       await _fillMandatoryFields(tester); // picks 'Independent/minimal support' by default
 
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Toilet Assistance (Mandatory)'));
       await tester.pumpAndSettle();
@@ -694,7 +694,7 @@ void main() {
 
       // Same tier/Salary suggestion as 'Independent/minimal support' — None
       // doesn't bump the derived care tier.
-      expect(find.widgetWithText(TextField, 'DAILY_COMPANION_RATE'), findsOneWidget);
+      expect(find.text('DAILY_COMPANION_RATE'), findsOneWidget);
 
       await tester.tap(find.text('Submit for Review'));
       await tester.pumpAndSettle();
