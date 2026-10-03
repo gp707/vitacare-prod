@@ -75,7 +75,6 @@ Future<void> _pumpSplash(
           '/login': (_) => const Scaffold(body: Text('Login Page')),
           '/home': (_) => const Scaffold(body: Text('Home Page')),
           '/profile': (_) => const Scaffold(body: Text('Profile Page')),
-          '/post-requirement': (_) => const Scaffold(body: Text('Post Requirement Page')),
         },
       ),
     ),

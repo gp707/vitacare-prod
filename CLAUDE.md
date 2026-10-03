@@ -172,10 +172,42 @@ location) that didn't fit the Individual/admin jobs-table model.
   machine (acceptance flips a caregiver to `assigned`), identical to any other job.
 - **Auth:** `individual` is a new `users.role` value, authenticating exactly like a caregiver —
   phone + 4-digit PIN (bcrypt `code_hash`), non-expiring JWT (no `exp` claim, same as
-  caregiver-app). `POST /auth/register/individual` (`phone`, `full_name`, `code`) creates the
-  `users` row plus a 1:1 `individual_profiles` row; `POST /auth/login/code` is shared with
-  caregiver login (role-generalized check). No account-level admin approval gate — an individual
-  can post a requirement immediately after registering.
+  caregiver-app). `POST /auth/register/individual` (`phone`, `code`) creates the `users` row plus
+  a 1:1 `individual_profiles` row; `POST /auth/login/code` is shared with caregiver login
+  (role-generalized check). No account-level admin approval gate — an individual can post a
+  requirement immediately after registering. **`full_name` is no longer collected on the
+  registration form at all** (`RegisterIndividualDto.full_name` is optional; the JustHeal
+  registration screen's Individual branch has no name field — only Organisation still has one,
+  labeled "Contact person name") — `AuthService.registerIndividual` defaults `users.full_name` to
+  the phone number itself when omitted, so `users.full_name` stays `NOT NULL` with no schema
+  change, and every existing display spot (admin-web's Patients/Family list/search, the job-poster
+  contact card shown to an accepted caregiver, audit logs, etc.) still has something identifiable
+  to show rather than a blank. The individual's own Profile screen already has a self-edit "Full
+  Name" field (`updateName`, pre-existing, unaffected by this change) — an individual can still set
+  a real name anytime after registering, it's just no longer required up front.
+- **Registration IS posting, for Individual accounts.** The old standalone "Post a Requirement"
+  screen (`PostRequirementScreen`) has been deleted entirely — every field it used to collect
+  (About Patient / Care Preferences / the Salary guidance bar / the derived-tier line) is now
+  merged directly into `RegistrationScreen`'s Individual branch (Organisation's own registration
+  fields — contact name, org name/type/city/area — are untouched; Organisation still posts
+  separately via its own `PostOrganisationRequirementScreen`, unaffected). The Terms & Conditions
+  checkbox sits at the very bottom of the form, after every requirement field, right above the
+  submit button — which reads **"Post Requirement"** for Individual (still "Register" for
+  Organisation). Submitting calls `POST /auth/register/individual` followed immediately by
+  `POST /individual/requirements` in the same action — registering the account and creating its
+  one requirement together. **Since a phone number can only ever register once** (`AUTH_001`/
+  `AUTH_016`), this means an individual can post **at most one requirement in the lifetime of that
+  phone number** — there is no "post a new one later" entry point anywhere else in the app:
+  `JobsPostedScreen` no longer has a "Post a Requirement" CTA (not even once the one requirement
+  closes/is rejected — the old "no live requirement" gating that allowed reposting is gone), and
+  its per-card "More options" menu dropped "Post Similar Requirement" (now just Edit/Cancel,
+  2 actions instead of 3). `EditRequirementScreen` is untouched — editing the one requirement
+  already posted is not the same as posting a new one, and remains available at any point in its
+  lifecycle exactly as before. If `POST /individual/requirements` fails right after a successful
+  registration (e.g. a transient network error), the user is left on the registration screen with
+  the error shown and can simply tap "Post Requirement" again — `RegistrationScreen._submit()`
+  checks `sessionProvider` first and skips straight to the create-requirement call if the account
+  is already authenticated, rather than attempting to re-register (which would just 409).
 - **Posting flow:** `POST /individual/requirements` takes the same shape as admin's job-posting
   form (About Patient + city/area/duty_type/start_date/languages/preferred_gender/
   preferred_religion), created with `status: 'pending_review'` (admin still reviews for
@@ -253,10 +285,9 @@ location) that didn't fit the Individual/admin jobs-table model.
   (`/home` — `JobsPostedScreen`, the full requirement history described above,
   each card showing the full About Patient / About Nurse-Caregiver Requirement detail inline, an
   always-visible applicants list once a requirement leaves `pending_review` [so an accepted
-  caregiver's name/phone stay visible after the job closes], and a "Post a Requirement" CTA that's
-  shown whenever the account has **no live requirement** — i.e. none `pending_review` or
-  `active` — not merely whenever the history list is non-empty, so posting again is always
-  possible once the current one closes or is rejected).
+  caregiver's name/phone stay visible after the job closes]. **No "Post a Requirement" CTA** —
+  posting only ever happens once, as part of registration itself (see "Registration IS posting"
+  above), so this screen's history list holds exactly one requirement per account, full stop).
 - **Messages** (`/messages` — `MessagesScreen`, Individual-only) is a purely **client-computed**
   tab — no new backend endpoint, no persistence, no read/unread state. It re-fetches the account's
   own requirements via the same `GET /individual/requirements` call `JobsPostedScreen` makes, then

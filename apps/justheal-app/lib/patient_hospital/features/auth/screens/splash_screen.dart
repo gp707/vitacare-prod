@@ -13,16 +13,16 @@ import '../../../core/version/app_maintenance_repository.dart';
 /// registered in router.dart's buildRoutes() map except the pre-auth ones
 /// ('/', '/login', '/register'). All are argument-free. Kept in sync with
 /// router.dart by hand, same convention as the other two apps' equivalent
-/// sets. '/org-home'/'/org-post-requirement' are organisation-only and
-/// '/post-requirement' is individual-only — restoring the wrong one for
-/// the resolved session's role is guarded against separately below, not by
-/// this set (an individual account could still have this route sitting
-/// stale in the URL from a previous different-role session on a shared
-/// browser).
+/// sets. '/org-home'/'/org-post-requirement' are organisation-only —
+/// restoring the wrong one for the resolved session's role is guarded
+/// against separately below, not by this set (an individual account could
+/// still have this route sitting stale in the URL from a previous
+/// different-role session on a shared browser). There is no individual-only
+/// equivalent any more — posting a requirement is now part of registration
+/// itself (RegistrationScreen), not a separate post-auth route.
 const _restorableRoutes = {
   '/home',
   '/profile',
-  '/post-requirement',
   '/org-home',
   '/org-post-requirement',
 };
@@ -100,9 +100,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       } else if (next is SessionAuthenticated) {
         final restoreRoute = widget.initialDeepLinkRoute;
         final isOrgOnlyRoute = restoreRoute == '/org-home' || restoreRoute == '/org-post-requirement';
-        final isIndividualOnlyRoute = restoreRoute == '/post-requirement';
-        final roleMismatch =
-            (isOrgOnlyRoute && !next.isOrganisation) || (isIndividualOnlyRoute && next.isOrganisation);
+        final roleMismatch = isOrgOnlyRoute && !next.isOrganisation;
         final target = restoreRoute != null && _restorableRoutes.contains(restoreRoute) && !roleMismatch
             ? restoreRoute
             : next.homeRoute;

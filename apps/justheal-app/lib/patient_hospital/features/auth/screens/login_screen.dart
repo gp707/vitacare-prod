@@ -305,30 +305,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               Stack(
                 children: [
-                  Center(
-                    child: Column(
-                      children: [
-                        Image.asset(
-                          'packages/vitacare_ui/assets/branding/logo_lockup.webp',
-                          width: 80,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        const Text(
-                          'JustHeal',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: AppTypography.jumbo,
-                            fontWeight: FontWeight.bold,
-                            color: _LoginPalette.primaryBlue,
-                          ),
-                        ),
-                        const Text(
-                          'By VitaCasaHealth.in',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
-                        ),
-                      ],
-                    ),
+                  Image.asset(
+                    'packages/vitacare_ui/assets/branding/logo_lockup.webp',
+                    width: 56,
                   ),
                   const Positioned(
                     top: 0,
@@ -343,6 +322,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'JustHeal',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppTypography.jumbo,
+                  fontWeight: FontWeight.bold,
+                  color: _LoginPalette.primaryBlue,
+                ),
+              ),
+              const Text(
+                'By VitaCasaHealth.in',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
               ),
               const SizedBox(height: 2),
               const Text(

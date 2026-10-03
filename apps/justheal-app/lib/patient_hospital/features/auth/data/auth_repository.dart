@@ -12,7 +12,9 @@ class AuthRepository {
   /// this code from the very first session onward, same mechanism as a
   /// caregiver. Deliberately minimal compared to caregiver registration —
   /// no gender/age/religion/qualification/documents; those don't apply to
-  /// this account type.
+  /// this account type. [fullName] is no longer collected at registration
+  /// at all — the backend defaults the account's display name itself when
+  /// omitted.
   ///
   /// [code] and [phoneVerificationToken] are mutually exclusive — exactly
   /// one is required depending on whether OTP mode is enabled for this app
@@ -20,15 +22,15 @@ class AuthRepository {
   /// verifyOtp(purpose: OtpPurpose.register) call.
   Future<AuthResult> register({
     required String phone,
-    required String fullName,
     required bool termsAccepted,
+    String? fullName,
     String? code,
     String? phoneVerificationToken,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.registerIndividual, data: {
         'phone': phone,
-        'full_name': fullName,
+        if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
         'terms_accepted': termsAccepted,
         if (code != null) 'code': code,
         if (phoneVerificationToken != null) 'phone_verification_token': phoneVerificationToken,

@@ -230,10 +230,17 @@ export class AuthService {
 
     const { codeHash } = await this.resolveCredential(LoginApp.NURSENOW, dto, OtpPurpose.REGISTER, dto.phone);
 
+    // full_name is no longer collected at registration — default to the
+    // phone number so every downstream consumer that displays this
+    // account's name (admin-web lists/search, audit logs, the job-poster
+    // contact card shown to an accepted caregiver, etc.) still has
+    // something identifiable rather than a blank/null field.
+    const fullName = dto.full_name?.trim() || dto.phone;
+
     const user = await this.db.withTransaction(async (client) => {
       const userResult = await client.query<UserRecord>(
         `INSERT INTO users (phone, full_name, role, code_hash) VALUES ($1, $2, $3, $4) RETURNING *`,
-        [dto.phone, dto.full_name, UserRole.INDIVIDUAL, codeHash],
+        [dto.phone, fullName, UserRole.INDIVIDUAL, codeHash],
       );
       const user = userResult.rows[0];
       await this.individualProfilesRepo.create(user.id, dto.terms_accepted, client);
@@ -247,7 +254,7 @@ export class AuthService {
       action: AuditAction.REGISTRATION,
       entityType: 'users',
       entityId: user.id,
-      afterValue: { full_name: dto.full_name, phone: dto.phone, role: UserRole.INDIVIDUAL },
+      afterValue: { full_name: fullName, phone: dto.phone, role: UserRole.INDIVIDUAL },
       ipAddress,
     });
 

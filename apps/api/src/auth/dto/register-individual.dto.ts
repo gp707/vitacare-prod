@@ -1,18 +1,21 @@
-import { Equals, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { Equals, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { Validation } from '@vitacare/shared-constants';
 
 /** Individual (patient/family) registration is deliberately minimal —
- *  phone, name, and a login PIN. No gender/age/religion/qualification
+ *  just phone and a login PIN. No gender/age/religion/qualification
  *  fields like caregiver registration; those don't apply to this account
- *  type. */
+ *  type. full_name is no longer collected on the registration form at
+ *  all — AuthService.registerIndividual defaults it to the phone number
+ *  when omitted, so every downstream consumer that displays a name still
+ *  has something identifiable to show. */
 export class RegisterIndividualDto {
   @Matches(Validation.PHONE_REGEX, { message: 'PROFILE_007' })
   phone!: string;
 
-  @IsNotEmpty({ message: 'PROFILE_001' })
+  @IsOptional()
   @Matches(Validation.NAME_REGEX, { message: 'PROFILE_020' })
   @MaxLength(Validation.NAME_MAX_LENGTH, { message: 'PROFILE_022' })
-  full_name!: string;
+  full_name?: string;
 
   /** Same PROFILE_009 code caregiver registration uses — nursenow-app
    *  links out to an Individual-specific Terms & Conditions document

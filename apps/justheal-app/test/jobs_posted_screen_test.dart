@@ -268,46 +268,26 @@ Future<void> _revealClosedRequirements(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('shows an empty state with a Post CTA when there are no requirements yet', (tester) async {
+  testWidgets('shows an empty state with no posting CTA when there are no requirements yet', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 
     expect(find.textContaining("don't have any requirements posted yet"), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsOneWidget);
-  });
-
-  testWidgets('shows the Post CTA again once the only requirement is closed (not live)', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null)]),
-    );
-
-    expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsOneWidget);
-  });
-
-  testWidgets('shows the Post CTA again once the only requirement was rejected', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, rejectionReason: 'Duplicate posting')],
-      ),
-    );
-
-    expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsOneWidget);
-  });
-
-  testWidgets('hides the Post CTA while a pending_review requirement is live', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(requirements: [_requirement(status: 'pending_review', salaryAmount: null, frequencyOfCare: null)]),
-    );
-
+    // There is no "Post a Requirement" action anywhere on this screen any
+    // more — posting only ever happens once, as part of registration
+    // itself. A brand-new account with zero requirements has no way to
+    // post one from here (nor anywhere else in the app).
     expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsNothing);
   });
 
-  testWidgets('hides the Post CTA while an active requirement is live', (tester) async {
-    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
-
-    expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsNothing);
+  testWidgets('never shows a posting CTA regardless of requirement status — closed, rejected, pending, or active',
+      (tester) async {
+    for (final status in ['closed', 'pending_review', 'active']) {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(requirements: [_requirement(status: status, salaryAmount: null, frequencyOfCare: null)]),
+      );
+      expect(find.widgetWithText(ElevatedButton, 'Post a Requirement'), findsNothing);
+    }
   });
 
   testWidgets(
@@ -1109,17 +1089,19 @@ void main() {
     expect(find.textContaining('Reason: Need to Go to Hometown'), findsOneWidget);
   });
 
-  testWidgets('the More options menu always offers exactly 3 actions: Edit, Post Similar, Cancel', (tester) async {
+  testWidgets('the More options menu always offers exactly 2 actions: Edit, Cancel — there is no Post Similar',
+      (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
 
-    // This requirement is itself the account's only live one, so Post
-    // Similar is unavailable, while Edit/Cancel stay available (no active
-    // application, not yet cancelled/rejected).
+    // Posting is no longer a repeatable action anywhere on this screen —
+    // only Edit (the one requirement this account will ever have) and
+    // Cancel remain.
     expect(find.text('Edit the Job'), findsOneWidget);
-    expect(find.text('Post Similar Requirement (Unavailable)'), findsOneWidget);
+    expect(find.text('Post Similar Requirement'), findsNothing);
+    expect(find.text('Post Similar Requirement (Unavailable)'), findsNothing);
     expect(find.text('Cancel the Job'), findsOneWidget);
   });
 
@@ -1265,51 +1247,4 @@ void main() {
     expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
   });
 
-  testWidgets(
-      'Post Similar Requirement is enabled on a non-live requirement when there is no other live requirement, '
-      'and it opens a pre-filled clone', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(360, 3000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement(status: 'closed', salaryAmount: null, frequencyOfCare: null, careReceiver: _careReceiverJson)],
-      ),
-    );
-    await _revealClosedRequirements(tester);
-
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _settle(tester);
-    expect(find.text('Post Similar Requirement'), findsOneWidget);
-    await tester.tap(find.text('Post Similar Requirement'));
-    await _settle(tester);
-
-    expect(find.text('Post Similar Requirement'), findsWidgets);
-    expect(find.text('74'), findsOneWidget);
-  });
-
-  testWidgets('Post Similar Requirement is disabled while another requirement is still live', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(
-        requirements: [
-          _requirement(id: 'job-1', requirementNumber: 42, status: 'closed', salaryAmount: null, frequencyOfCare: null),
-          _requirement(id: 'job-2', requirementNumber: 43, status: 'active'),
-        ],
-      ),
-    );
-    await _revealClosedRequirements(tester);
-
-    await tester.tap(find.byIcon(Icons.more_vert).first);
-    await _settle(tester);
-    expect(find.text('Post Similar Requirement (Unavailable)'), findsOneWidget);
-  });
-
-  testWidgets('disables the Post CTA and shows a message when job posting is blocked', (tester) async {
-    await _pump(tester, _FakeIndividualRepository(), isJobPostingBlocked: true);
-
-    final button = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Post a Requirement'));
-    expect(button.onPressed, isNull);
-    expect(find.textContaining('Posting is currently blocked'), findsOneWidget);
-  });
 }

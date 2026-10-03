@@ -345,6 +345,24 @@ describe('AuthService', () => {
         expect.objectContaining({ userId: individualUser.id, action: 'registration' }),
       );
     });
+
+    it('defaults full_name to the phone number when not provided', async () => {
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      const client = { query: jest.fn().mockResolvedValue({ rows: [individualUser] }) };
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+
+      await service.registerIndividual({
+        phone: individualUser.phone,
+        terms_accepted: true,
+        code: '1234',
+      });
+
+      const [, insertParams] = client.query.mock.calls[0];
+      expect(insertParams).toEqual([individualUser.phone, individualUser.phone, UserRole.INDIVIDUAL, expect.any(String)]);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ full_name: individualUser.phone }) }),
+      );
+    });
   });
 
   describe('registerOrganisation', () => {

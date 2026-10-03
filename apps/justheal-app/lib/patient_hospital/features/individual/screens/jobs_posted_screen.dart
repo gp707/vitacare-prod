@@ -7,12 +7,9 @@ import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/scope_of_work_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
-import '../../auth/state/session_notifier.dart';
-import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import '../widgets/duty_requirements_button.dart';
 import 'edit_requirement_screen.dart';
-import 'post_requirement_screen.dart';
 
 /// Statuses that count as "live" for the one-live-requirement-at-a-time
 /// rule (JOB_009 server-side) — a not-yet-approved pending_review posting
@@ -23,9 +20,10 @@ bool _isLive(JobModel job) =>
 /// Full requirement history for this account — every past posting stays
 /// visible (pending review / live / rejected / closed), not just the
 /// current one, so a patient/family can always see who was accepted on a
-/// past requirement even after it's closed. Posting a new requirement is
-/// only blocked while a LIVE one exists (pending_review or active) — a
-/// closed or rejected requirement never blocks posting again.
+/// past requirement even after it's closed. There is no "post a new
+/// requirement" action anywhere in this screen any more — posting only
+/// ever happens once, as part of registration itself (RegistrationScreen),
+/// so every individual account has exactly one requirement in its history.
 class JobsPostedScreen extends ConsumerStatefulWidget {
   const JobsPostedScreen({super.key});
 
@@ -163,13 +161,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     );
   }
 
-  Future<void> _postRequirement() async {
-    final posted = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const PostRequirementScreen()),
-    );
-    if (posted == true) await _load();
-  }
-
   /// Allowed regardless of the requirement's own status (pending_review/
   /// active/closed) — only gated on there being no active application
   /// (see _RequirementCard._hasActiveApplication), matching the backend's
@@ -223,18 +214,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
-  /// Pre-fills a new posting from a past requirement's fields (see
-  /// PostRequirementScreen.cloneFrom) — only offered once there's no
-  /// current live requirement (mirrors the top Post CTA's own gating),
-  /// since attempting it otherwise would just 409 with JOB_009 anyway.
-  Future<void> _postSimilarRequirement(JobModel requirement) async {
-    final posted = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-          builder: (_) => PostRequirementScreen(cloneFrom: requirement)),
-    );
-    if (posted == true) await _load();
-  }
-
   /// Whether this requirement should surface up front rather than behind
   /// the "Show Closed/Cancelled Requirements" toggle — true for a live one
   /// (_isLive), but ALSO true for a closed one with a currently-accepted
@@ -249,12 +228,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     return applications.any((a) => a.status == JobApplicationStatus.accepted);
   }
 
-  Widget _buildCard(JobModel requirement, bool hasLiveRequirement) {
+  Widget _buildCard(JobModel requirement) {
     return _RequirementCard(
       requirement: requirement,
       applications: _applicationsByJobId[requirement.id] ?? const [],
       decidingApplicationId: _decidingApplicationId,
-      canPostNew: !hasLiveRequirement,
       onAccept: (applicationId) => _accept(requirement.id, applicationId),
       onReject: (applicationId) =>
           _rejectWithReason(requirement.id, applicationId),
@@ -262,16 +240,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onEdit: () => _editRequirement(requirement),
       onCancel: () => _cancelRequirement(requirement),
-      onPostSimilar: () => _postSimilarRequirement(requirement),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionProvider);
-    final isJobPostingBlocked =
-        session is SessionAuthenticated && session.isJobPostingBlocked;
-    final hasLiveRequirement = _requirements.any(_isLive);
     final upFrontRequirements =
         _requirements.where(_shouldShowUpFront).toList();
     final closedRequirements =
@@ -295,22 +268,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                     if (_error != null)
                       Text(_error!,
                           style: const TextStyle(color: AppColors.error)),
-                    if (!hasLiveRequirement) ...[
-                      ElevatedButton.icon(
-                        onPressed:
-                            isJobPostingBlocked ? null : _postRequirement,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Post a Requirement'),
-                      ),
-                      if (isJobPostingBlocked) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        const Text(
-                          'Posting is currently blocked. Contact the office for details.',
-                          style: TextStyle(color: AppColors.error),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
                     if (_requirements.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
@@ -322,7 +279,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                       )
                     else ...[
                       for (final requirement in upFrontRequirements) ...[
-                        _buildCard(requirement, hasLiveRequirement),
+                        _buildCard(requirement),
                         const SizedBox(height: AppSpacing.md),
                       ],
                       if (closedRequirements.isNotEmpty) ...[
@@ -341,7 +298,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                         const SizedBox(height: AppSpacing.md),
                         if (_showClosed)
                           for (final requirement in closedRequirements) ...[
-                            _buildCard(requirement, hasLiveRequirement),
+                            _buildCard(requirement),
                             const SizedBox(height: AppSpacing.md),
                           ],
                       ],
@@ -418,28 +375,21 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
-
-  /// Whether the account currently has no other live requirement — gates
-  /// the "Post Similar Requirement" action, matching the top Post CTA.
-  final bool canPostNew;
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
-  final VoidCallback onPostSimilar;
 
   const _RequirementCard({
     required this.requirement,
     required this.applications,
     required this.decidingApplicationId,
-    required this.canPostNew,
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
     required this.onEdit,
     required this.onCancel,
-    required this.onPostSimilar,
   });
 
   @override
@@ -511,7 +461,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     final requirement = widget.requirement;
     final careReceiver = requirement.careReceiver;
     final locked = _hasActiveApplication;
-    // A fixed 3-item menu, always offered — each item individually
+    // A fixed 2-item menu, always offered — each item individually
     // disabled (not hidden) when its own precondition doesn't hold, so the
     // set of actions is always predictable rather than shifting around
     // based on state.
@@ -520,13 +470,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         label: locked ? 'Edit the Job (Locked)' : 'Edit the Job',
         enabled: !locked,
         onSelected: widget.onEdit,
-      ),
-      _MenuAction(
-        label: widget.canPostNew
-            ? 'Post Similar Requirement'
-            : 'Post Similar Requirement (Unavailable)',
-        enabled: widget.canPostNew,
-        onSelected: widget.onPostSimilar,
       ),
       _MenuAction(
         label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
@@ -576,10 +519,10 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   ],
                 ),
               ),
-              // Always exactly 3 actions — Edit / Post Similar / Cancel —
-              // each individually disabled (not hidden) when its own
-              // precondition doesn't hold, so the set of actions is
-              // predictable rather than shifting around based on state.
+              // Always exactly 2 actions — Edit / Cancel — each individually
+              // disabled (not hidden) when its own precondition doesn't
+              // hold, so the set of actions is predictable rather than
+              // shifting around based on state.
               PopupMenuButton<_MenuAction>(
                 icon: const Icon(Icons.more_vert),
                 tooltip: 'More options',
