@@ -15,11 +15,17 @@ import 'package:nursenow_app/patient_hospital/features/individual/data/individua
 
 class _FakeIndividualRepository extends IndividualRepository {
   final ApiException? error;
-  _FakeIndividualRepository({this.error}) : super(Dio());
+  // When set, getMe() throws [error] on the first N calls, then succeeds —
+  // simulates a transient cold-launch failure that clears up on its own.
+  final int failFirstNCalls;
+  int callCount = 0;
+  _FakeIndividualRepository({this.error, this.failFirstNCalls = 0}) : super(Dio());
 
   @override
   Future<IndividualModel> getMe() async {
-    if (error != null) throw error!;
+    callCount++;
+    if (error != null && callCount <= failFirstNCalls) throw error!;
+    if (error != null && failFirstNCalls == 0) throw error!;
     return const IndividualModel(
       userId: 'u1',
       fullName: 'Test Individual',
@@ -54,6 +60,7 @@ Future<void> _pumpSplash(
   String? initialDeepLinkRoute,
   bool authenticated = true,
   ApiException? getMeError,
+  int getMeFailFirstNCalls = 0,
   AppVersionRepository? appVersionRepo,
   AppMaintenanceRepository? maintenanceRepo,
 }) async {
@@ -65,7 +72,9 @@ Future<void> _pumpSplash(
     ProviderScope(
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
-        individualRepositoryProvider.overrideWithValue(_FakeIndividualRepository(error: getMeError)),
+        individualRepositoryProvider.overrideWithValue(
+          _FakeIndividualRepository(error: getMeError, failFirstNCalls: getMeFailFirstNCalls),
+        ),
         appVersionRepositoryProvider.overrideWithValue(appVersionRepo ?? _FakeAppVersionRepository(null)),
         appMaintenanceRepositoryProvider.overrideWithValue(maintenanceRepo ?? _FakeAppMaintenanceRepository(null)),
       ],
@@ -126,7 +135,7 @@ void main() {
     expect(find.text('Login Page'), findsOneWidget);
   });
 
-  testWidgets('a transient load failure (e.g. network/server error) fails open with a retry, not a forced logout',
+  testWidgets('a persistent load failure (e.g. network/server error) fails open with a retry, not a forced logout',
       (tester) async {
     await _pumpSplash(
       tester,
@@ -137,6 +146,24 @@ void main() {
     expect(find.text('Login Page'), findsNothing);
     expect(find.text('Could not reach the server.'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a transient load failure that clears up within SessionNotifier\'s own retries never surfaces the error screen',
+      (tester) async {
+    await _pumpSplash(
+      tester,
+      getMeError: const ApiException(code: 'GEN_003', message: 'Could not reach the server.'),
+      // Fails the first 2 attempts (e.g. network/DNS not ready yet right
+      // after a cold launch), succeeds on the 3rd — exactly what
+      // SessionNotifier.loadSession's own silent retry loop is for.
+      getMeFailFirstNCalls: 2,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not reach the server.'), findsNothing);
+    expect(find.widgetWithText(ElevatedButton, 'Retry'), findsNothing);
+    expect(find.text('Home Page'), findsOneWidget);
   });
 
   testWidgets('blocks with Update Required and never navigates when an update is required', (tester) async {

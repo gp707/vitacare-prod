@@ -303,20 +303,33 @@ location) that didn't fit the Individual/admin jobs-table model.
   per-card "More options" menu shows **"Make Active Again"** instead of "Cancel the Job" once a
   requirement is cancelled — the two are mutually exclusive, never both offered at once.
 - **`JobsPostedScreen`'s requirement card is the only place a requirement is ever edited — every
-  field is always shown, pre-filled, and directly editable right there, with its own "Save
-  Changes" button.** The old "Show Full Details" collapse/expand toggle and the separate, full-
-  screen `EditRequirementScreen` (reached via a now-deleted "Edit the Job" menu action) are both
-  gone — deleted entirely, not just hidden. `_RequirementCardState` carries the same field
-  set/validation/Rate-Card-salary-suggestion logic `EditRequirementScreen` used to (ported
-  verbatim: `SectionBox`-grouped "Patient Details"/"Care Preferences", the amber Salary block with
-  its derived-tier line, the same mandatory-field highlight-and-scroll), initialized from the
-  requirement in `initState` and submitted via the same `IndividualRepository.editRequirement`
-  call on Save. **Locked while a candidate has an active application** (mirrors the backend's own
-  `JOB_014`) — but locked still means *visible*, just non-interactive: the whole field block is
-  wrapped in a single `IgnorePointer` + reduced-opacity `Opacity`, with an explanatory amber note
-  above it and no Save button, rather than swapping in a separate read-only rendering path. The
-  per-card "More options" menu dropped its "Edit the Job" action entirely, now offering only
-  Cancel/Make Active Again (see above). **Unlike every other field in this card, Salary is
+  field is always shown, pre-filled, and directly editable right there.** The old "Show Full
+  Details" collapse/expand toggle and the separate, full-screen `EditRequirementScreen` (reached
+  via a now-deleted "Edit the Job" menu action) are both gone — deleted entirely, not just hidden.
+  `_RequirementCardState` carries the same field set/validation/Rate-Card-salary-suggestion logic
+  `EditRequirementScreen` used to (ported verbatim: `SectionBox`-grouped "Patient Details"/"Care
+  Preferences", the amber Salary block with its derived-tier line, the same mandatory-field
+  highlight-and-scroll), initialized from the requirement in `initState`/`_populateFromRequirement`
+  and submitted via the same `IndividualRepository.editRequirement` call. **Editing is never
+  locked, even once a candidate has applied/been accepted** — `IndividualService.editRequirement`'s
+  old `JOB_014` check (block editing while there's an active application) was removed on explicit
+  request; Organisation's own `editRequirement` (`OrganisationRequirementsService`) still enforces
+  its own separate `JOB_014` lock, this relaxation is Individual-specific. Instead: **tapping Save
+  while an active (applied/accepted) application exists shows a confirmation dialog first**
+  ("Modify this requirement? ... We recommend discussing any changes with the candidates directly
+  before saving.", `_confirmModifyWithActiveApplicants` — only shown once the edit is otherwise
+  valid, and only for an active application, not a rejected/completed one) — saving only proceeds
+  if confirmed. **Save/discard controls are a tick/cross `IconButton` pair ("in place", not a
+  labeled button) that only appear once a field has actually changed** — `_isDirty` compares every
+  live field against `widget.requirement`/its `care_receiver` (set-based for the multi-value
+  fields: medical conditions, toilet assistance, languages) and is recomputed on every build, so
+  there's no separate dirty-flag to keep in sync by hand. The tick (`Key('saveEditButton')`)
+  re-runs the same mandatory-field validation `EditRequirementScreen` had, then the active-
+  application confirmation if applicable, then saves; the cross (`Key('discardEditButton')`) calls
+  `_populateFromRequirement()` again to revert every field to what's actually saved, no
+  confirmation needed since nothing server-side has changed yet. The per-card "More options" menu
+  dropped its "Edit the Job" action entirely, now offering only Cancel/Make Active Again (see
+  above). **Unlike every other field in this card, Salary is
   deliberately read-only — not a text field, same as the registration form's own salary display**
   (see "Registration IS posting" above): bold standout `Text`, never user-typed, auto-filled
   purely from the Rate Card suggestion for the derived care tier/frequency and re-derived live as

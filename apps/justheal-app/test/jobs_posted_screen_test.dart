@@ -1041,19 +1041,7 @@ void main() {
     expect(find.text('Cancel the Job'), findsOneWidget);
   });
 
-  testWidgets('fields are editable (not disabled) when there is no active application', (tester) async {
-    await _pump(
-      tester,
-      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
-    );
-
-    expect(find.textContaining('Editing is locked'), findsNothing);
-    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
-  });
-
-  testWidgets('fields are locked (disabled, with an explanatory note, no Save button) while there is an active application',
-      (tester) async {
+  testWidgets('fields are always editable, even with an active application — no lock any more', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(
@@ -1064,31 +1052,44 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('Editing is locked while a candidate has an active application'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsNothing);
-    // Still fully visible, per "show all details by default" — just
-    // non-interactive (IgnorePointer), which this widget test can't
-    // directly assert, so we confirm the field's value is still shown.
-    expect(find.widgetWithText(TextField, '74'), findsOneWidget);
+    expect(find.textContaining('Editing is locked'), findsNothing);
+    expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
   });
 
-  testWidgets('rejected/completed applications do not lock editing — Save Changes stays available', (tester) async {
+  testWidgets('the tick/cross Save/Discard controls are hidden until a field actually changes', (tester) async {
     await _pump(
       tester,
-      _FakeIndividualRepository(
-        requirements: [_requirement(status: 'closed', careReceiver: _careReceiverJson)],
-        applicationsByJobId: {
-          'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
-        },
-      ),
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
-    expect(find.textContaining('Editing is locked'), findsNothing);
-    expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+    expect(find.byKey(const Key('saveEditButton')), findsNothing);
+    expect(find.byKey(const Key('discardEditButton')), findsNothing);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.pump();
+
+    expect(find.byKey(const Key('saveEditButton')), findsOneWidget);
+    expect(find.byKey(const Key('discardEditButton')), findsOneWidget);
   });
 
-  testWidgets('editing the Area field and tapping Save Changes calls editRequirement with the updated value',
-      (tester) async {
+  testWidgets('tapping the cross button discards the edit and hides the controls again', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
+    );
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('discardEditButton')));
+    await _settle(tester);
+
+    expect(find.byKey(const Key('saveEditButton')), findsNothing);
+    final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
+    expect(areaField.controller!.text, 'Indiranagar');
+  });
+
+  testWidgets('editing the Area field and tapping the tick calls editRequirement with the updated value '
+      '— no confirmation needed when there is no active application', (tester) async {
     final repo = _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]);
     await _pump(tester, repo);
 
@@ -1098,10 +1099,80 @@ void main() {
     expect(areaField.controller!.text, 'Indiranagar');
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
-    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Save Changes'));
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
+    await tester.tap(find.byKey(const Key('saveEditButton')));
     await _settle(tester);
 
+    expect(find.text('Modify this requirement?'), findsNothing);
+    expect(repo.editedJobId, 'job-1');
+  });
+
+  testWidgets(
+      'editing a field with an active application shows a confirmation dialog before saving, and does nothing if declined',
+      (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(careReceiver: _careReceiverJson)],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'applied')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
+    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await _settle(tester);
+
+    expect(find.text('Modify this requirement?'), findsOneWidget);
+    expect(find.textContaining('discussing any changes with the candidates directly'), findsOneWidget);
+    expect(repo.editedJobId, isNull);
+
+    await tester.tap(find.widgetWithText(TextButton, 'No, keep it as is'));
+    await _settle(tester);
+
+    expect(repo.editedJobId, isNull);
+    expect(find.byKey(const Key('saveEditButton')), findsOneWidget); // edit is still pending, not discarded
+  });
+
+  testWidgets('confirming the active-application warning proceeds with the save', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(careReceiver: _careReceiverJson)],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'applied')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
+    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await _settle(tester);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Yes, modify'));
+    await _settle(tester);
+
+    expect(repo.editedJobId, 'job-1');
+  });
+
+  testWidgets('rejected/completed applications do not trigger the active-application confirmation', (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(status: 'closed', careReceiver: _careReceiverJson)],
+      applicationsByJobId: {
+        'job-1': [_application(status: 'rejected', declineReason: 'Not a fit')],
+      },
+    );
+    await _pump(tester, repo);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
+    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await _settle(tester);
+
+    expect(find.text('Modify this requirement?'), findsNothing);
     expect(repo.editedJobId, 'job-1');
   });
 

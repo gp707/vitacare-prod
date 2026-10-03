@@ -121,9 +121,16 @@ export class IndividualService {
    *  does NOT reuse JobsService.updateJob, since that method's repost-on-
    *  edit behavior is exactly what must NOT happen here. Allowed
    *  regardless of the requirement's current status (pending_review,
-   *  active, or closed) — the only gate is whether a caregiver has
-   *  already responded. frequency_of_care/salary_amount are always
-   *  editable now — both are required on the DTO and re-derived
+   *  active, or closed) — AND regardless of whether a caregiver has
+   *  already applied/been accepted. This used to 409 with JOB_014 once any
+   *  application existed; that lock was removed on explicit request — the
+   *  frontend now warns the patient/family (and nudges them to discuss the
+   *  change with existing candidates directly) instead of the backend
+   *  refusing outright. Unlike individual, Organisation's own
+   *  editRequirement (OrganisationRequirementsService) still enforces its
+   *  own JOB_014 lock — this relaxation is Individual-specific, not a
+   *  change to the shared concept. frequency_of_care/salary_amount are
+   *  always editable now — both are required on the DTO and re-derived
    *  client-side on every save, same as at creation. */
   async editRequirement(
     userId: string,
@@ -133,9 +140,6 @@ export class IndividualService {
   ) {
     const existing = await this.jobsRepo.findById(jobId);
     if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
-
-    const hasActiveApplication = await this.jobApplicationsRepo.hasActiveApplicationForJob(jobId);
-    if (hasActiveApplication) throw new AppException('JOB_014');
 
     const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
 

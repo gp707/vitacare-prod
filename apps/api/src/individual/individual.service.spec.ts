@@ -178,12 +178,16 @@ describe('IndividualService', () => {
       });
     });
 
-    it('throws JOB_014 when there is an active (applied/accepted) application', async () => {
+    it('succeeds even when there is an active (applied/accepted) application — no JOB_014 lock for Individual', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active' });
-      jobApplicationsRepo.hasActiveApplicationForJob.mockResolvedValue(true);
-      await expect(service.editRequirement('user-1', 'job-1', editDto, null)).rejects.toMatchObject({
-        code: 'JOB_014',
-      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: editDto.duty_type, city: editDto.city, status: 'active' });
+
+      const result = await service.editRequirement('user-1', 'job-1', editDto, null);
+
+      expect(jobApplicationsRepo.hasActiveApplicationForJob).not.toHaveBeenCalled();
+      expect(result.id).toBe('job-1');
     });
 
     it('edits a still-pending_review requirement, setting frequency_of_care/salary_amount from the dto and leaving status untouched', async () => {

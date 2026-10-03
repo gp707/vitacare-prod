@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -390,8 +391,24 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   @override
   void initState() {
     super.initState();
+    _populateFromRequirement();
+    _loadRateCards();
+  }
+
+  /// Fills every field from [widget.requirement] — called once from
+  /// initState, and again from [_discardChanges] when the patient taps the
+  /// cross button to revert an in-progress edit back to what's actually
+  /// saved.
+  void _populateFromRequirement() {
     final job = widget.requirement;
     final cr = job.careReceiver;
+    _medicalConditions
+      ..clear()
+      ..add(_noneMedicalCondition);
+    _toiletAssistance.clear();
+    _languages
+      ..clear()
+      ..add(_noPreferenceLanguage);
     if (cr != null) {
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
@@ -405,6 +422,13 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
       _toiletAssistance.addAll(cr.toiletAssistance);
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
+    } else {
+      _ageController.clear();
+      _gender = null;
+      _weightController.clear();
+      _feedingType = null;
+      _medicalConditionOtherController.clear();
+      _toiletAssistanceOtherController.clear();
     }
     _city = job.city;
     _areaController.text = job.area ?? '';
@@ -419,7 +443,53 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     _preferredGender = job.preferredGender;
     _preferredReligion = job.preferredReligion;
     _salaryController.text = job.salaryAmount ?? '';
-    _loadRateCards();
+  }
+
+  /// Discards every in-progress, unsaved edit and goes back to whatever is
+  /// actually saved — the cross button's action. Non-destructive (nothing
+  /// server-side changes), so no confirmation needed, unlike Save with
+  /// active applicants (see [_confirmModifyWithActiveApplicants]).
+  void _discardChanges() {
+    setState(() {
+      _populateFromRequirement();
+      _showValidationErrors = false;
+      _error = null;
+    });
+  }
+
+  /// True once any field differs from what's actually saved on
+  /// [widget.requirement] — drives whether the tick/cross Save/Discard
+  /// controls appear at all. Set-based comparisons for the multi-value
+  /// fields (medical conditions, toilet assistance, languages) since
+  /// selection order isn't meaningful.
+  bool get _isDirty {
+    final job = widget.requirement;
+    final cr = job.careReceiver;
+    if (cr != null) {
+      if (_ageController.text != cr.age.toString()) return true;
+      if (_gender != cr.gender) return true;
+      if (_weightController.text != cr.weightKg.toString()) return true;
+      if (_feedingType != cr.feedingType) return true;
+      final originalConditions = cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty
+          ? cr.medicalConditions.toSet()
+          : {_noneMedicalCondition};
+      if (!setEquals(_medicalConditions.toSet(), originalConditions)) return true;
+      if (_medicalConditionOtherController.text != (cr.medicalConditionOther ?? '')) return true;
+      if (!setEquals(_toiletAssistance.toSet(), cr.toiletAssistance.toSet())) return true;
+      if (_toiletAssistanceOtherController.text != (cr.toiletAssistanceOther ?? '')) return true;
+    }
+    if (_city != job.city) return true;
+    if (_areaController.text != (job.area ?? '')) return true;
+    if (_dutyType != job.dutyType) return true;
+    final originalStartDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
+    if (_startDate != originalStartDate) return true;
+    if (_careDuration != job.careDuration) return true;
+    final originalLanguages = job.languages.isNotEmpty ? job.languages.toSet() : {_noPreferenceLanguage};
+    if (!setEquals(_languages.toSet(), originalLanguages)) return true;
+    if (_preferredGender != job.preferredGender) return true;
+    if (_preferredReligion != job.preferredReligion) return true;
+    if (_salaryController.text != (job.salaryAmount ?? '')) return true;
+    return false;
   }
 
   @override
@@ -610,7 +680,41 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       }
       return;
     }
+    if (_hasActiveApplication) {
+      final confirmed = await _confirmModifyWithActiveApplicants();
+      if (!confirmed) return;
+    }
     await _save();
+  }
+
+  /// Shown only once the edit is otherwise valid and ready to save, and
+  /// only when a candidate has already applied/been accepted — editing is
+  /// always allowed (no backend lock any more), but changing the
+  /// requirement out from under an existing candidate deserves a deliberate
+  /// confirmation, with a nudge to actually talk to them about it first.
+  Future<bool> _confirmModifyWithActiveApplicants() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Modify this requirement?'),
+        content: const Text(
+          'There are candidates who applied based on the current details. Are you sure you '
+          'want to modify this requirement? We recommend discussing any changes with the '
+          'candidates directly before saving.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('No, keep it as is'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Yes, modify'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   Future<void> _save() async {
@@ -720,7 +824,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   Widget build(BuildContext context) {
     final requirement = widget.requirement;
     final careReceiver = requirement.careReceiver;
-    final locked = _hasActiveApplication;
     // A fixed menu, always offered — each item individually disabled (not
     // hidden) when its own precondition doesn't hold. No Edit action here
     // any more — every field is already editable directly on the card
@@ -859,34 +962,15 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
-          if (locked)
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
-                border: Border.all(color: AppColors.warning),
-                borderRadius: BorderRadius.circular(AppSpacing.sm),
-              ),
-              child: const Text(
-                'Editing is locked while a candidate has an active application.',
-                style: TextStyle(color: AppColors.warning),
-              ),
-            ),
-          // Every field is always shown — editable when not locked, greyed
-          // out and non-interactive (but still fully visible, per "show
-          // all details by default") when locked, via a single
-          // IgnorePointer + reduced opacity around the whole form instead
-          // of plumbing an enabled/disabled flag through every individual
-          // field widget.
-          IgnorePointer(
-            ignoring: locked,
-            child: Opacity(
-              opacity: locked ? 0.55 : 1.0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (careReceiver != null) ...[
+          // Every field is always directly editable — no lock any more
+          // (see "Registration IS posting" in CLAUDE.md for the Individual
+          // JOB_014 relaxation). Tapping Save while a candidate has an
+          // active application shows a confirmation first instead (see
+          // _confirmModifyWithActiveApplicants).
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (careReceiver != null) ...[
                     SectionBox(
                       icon: Icons.person,
                       title: 'Patient Details',
@@ -1283,24 +1367,45 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   ),
                 ],
               ),
-            ),
-          ),
-          if (!locked) ...[
-            if (_error != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: const TextStyle(color: AppColors.error)),
-            ],
+          if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            ElevatedButton.icon(
-              onPressed: _saving ? null : _handleSavePressed,
-              icon: _saving
-                  ? const SizedBox(
+            Text(_error!, style: const TextStyle(color: AppColors.error)),
+          ],
+          // Tick/cross "in place" Save/Discard controls — only shown once
+          // something has actually changed (see _isDirty); a clean,
+          // unmodified card shows neither, since there's nothing to save
+          // or discard.
+          if (_isDirty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                if (_saving)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                    child: SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.check, size: 18),
-              label: const Text('Save Changes'),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else ...[
+                  IconButton.filled(
+                    key: const Key('saveEditButton'),
+                    onPressed: _handleSavePressed,
+                    tooltip: 'Save changes',
+                    icon: const Icon(Icons.check),
+                    style: IconButton.styleFrom(backgroundColor: AppColors.success),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  IconButton.filled(
+                    key: const Key('discardEditButton'),
+                    onPressed: _discardChanges,
+                    tooltip: 'Discard changes',
+                    icon: const Icon(Icons.close),
+                    style: IconButton.styleFrom(backgroundColor: AppColors.error),
+                  ),
+                ],
+              ],
             ),
           ],
           if (requirement.status != JobStatus.pendingReview) ...[
