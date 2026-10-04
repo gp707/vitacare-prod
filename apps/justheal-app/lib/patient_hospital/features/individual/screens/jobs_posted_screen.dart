@@ -396,9 +396,10 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   }
 
   /// Fills every field from [widget.requirement] — called once from
-  /// initState, and again from [_discardChanges] when the patient taps the
-  /// cross button to revert an in-progress edit back to what's actually
-  /// saved.
+  /// initState. Per-field reverts (the cross button next to whichever
+  /// field was touched — see _revertAge/_revertGender/etc.) only reset
+  /// that one field, not the whole form; there's no "discard everything"
+  /// action any more.
   void _populateFromRequirement() {
     final job = widget.requirement;
     final cr = job.careReceiver;
@@ -445,51 +446,145 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     _salaryController.text = job.salaryAmount ?? '';
   }
 
-  /// Discards every in-progress, unsaved edit and goes back to whatever is
-  /// actually saved — the cross button's action. Non-destructive (nothing
-  /// server-side changes), so no confirmation needed, unlike Save with
-  /// active applicants (see [_confirmModifyWithActiveApplicants]).
-  void _discardChanges() {
-    setState(() {
-      _populateFromRequirement();
-      _showValidationErrors = false;
-      _error = null;
-    });
+  // --- Per-field dirty checks + reverts, each field compared only against
+  // its own original value on widget.requirement — these back the inline
+  // tick/cross controls shown right next to whichever field was actually
+  // touched (see _fieldControls), rather than one consolidated Save/Discard
+  // pair far below a long form. The tick on every field triggers the same
+  // _handleSavePressed (there's no partial-field save endpoint — Save
+  // always submits the form's full current state); the cross only reverts
+  // that one field. ---
+  bool get _isAgeDirty {
+    final cr = widget.requirement.careReceiver;
+    return cr != null && _ageController.text != cr.age.toString();
   }
 
-  /// True once any field differs from what's actually saved on
-  /// [widget.requirement] — drives whether the tick/cross Save/Discard
-  /// controls appear at all. Set-based comparisons for the multi-value
-  /// fields (medical conditions, toilet assistance, languages) since
-  /// selection order isn't meaningful.
-  bool get _isDirty {
-    final job = widget.requirement;
-    final cr = job.careReceiver;
-    if (cr != null) {
-      if (_ageController.text != cr.age.toString()) return true;
-      if (_gender != cr.gender) return true;
-      if (_weightController.text != cr.weightKg.toString()) return true;
-      if (_feedingType != cr.feedingType) return true;
-      final originalConditions = cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty
-          ? cr.medicalConditions.toSet()
-          : {_noneMedicalCondition};
-      if (!setEquals(_medicalConditions.toSet(), originalConditions)) return true;
-      if (_medicalConditionOtherController.text != (cr.medicalConditionOther ?? '')) return true;
-      if (!setEquals(_toiletAssistance.toSet(), cr.toiletAssistance.toSet())) return true;
-      if (_toiletAssistanceOtherController.text != (cr.toiletAssistanceOther ?? '')) return true;
-    }
-    if (_city != job.city) return true;
-    if (_areaController.text != (job.area ?? '')) return true;
-    if (_dutyType != job.dutyType) return true;
-    final originalStartDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
-    if (_startDate != originalStartDate) return true;
-    if (_careDuration != job.careDuration) return true;
-    final originalLanguages = job.languages.isNotEmpty ? job.languages.toSet() : {_noPreferenceLanguage};
-    if (!setEquals(_languages.toSet(), originalLanguages)) return true;
-    if (_preferredGender != job.preferredGender) return true;
-    if (_preferredReligion != job.preferredReligion) return true;
-    if (_salaryController.text != (job.salaryAmount ?? '')) return true;
-    return false;
+  void _revertAge() => setState(() {
+        final cr = widget.requirement.careReceiver;
+        if (cr != null) _ageController.text = cr.age.toString();
+      });
+
+  bool get _isGenderDirty {
+    final cr = widget.requirement.careReceiver;
+    return cr != null && _gender != cr.gender;
+  }
+
+  void _revertGender() => setState(() => _gender = widget.requirement.careReceiver?.gender);
+
+  bool get _isWeightDirty {
+    final cr = widget.requirement.careReceiver;
+    return cr != null && _weightController.text != cr.weightKg.toString();
+  }
+
+  void _revertWeight() => setState(() {
+        final cr = widget.requirement.careReceiver;
+        if (cr != null) _weightController.text = cr.weightKg.toString();
+      });
+
+  bool get _isCityDirty => _city != widget.requirement.city;
+
+  void _revertCity() => setState(() => _city = widget.requirement.city);
+
+  bool get _isAreaDirty => _areaController.text != (widget.requirement.area ?? '');
+
+  void _revertArea() => setState(() => _areaController.text = widget.requirement.area ?? '');
+
+  bool get _isMedicalConditionDirty {
+    final cr = widget.requirement.careReceiver;
+    if (cr == null) return false;
+    final original = cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty
+        ? cr.medicalConditions.toSet()
+        : {_noneMedicalCondition};
+    return !setEquals(_medicalConditions.toSet(), original) ||
+        _medicalConditionOtherController.text != (cr.medicalConditionOther ?? '');
+  }
+
+  void _revertMedicalCondition() => setState(() {
+        final cr = widget.requirement.careReceiver;
+        _medicalConditions.clear();
+        if (cr != null && cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
+          _medicalConditions.addAll(cr.medicalConditions);
+        } else {
+          _medicalConditions.add(_noneMedicalCondition);
+        }
+        _medicalConditionOtherController.text = cr?.medicalConditionOther ?? '';
+        _refreshSuggestedSalary();
+      });
+
+  bool get _isDutyTypeDirty => _dutyType != widget.requirement.dutyType;
+
+  void _revertDutyType() => setState(() => _dutyType = widget.requirement.dutyType);
+
+  bool get _isStartDateDirty {
+    final original = widget.requirement.startDate == null ? null : DateTime.tryParse(widget.requirement.startDate!);
+    return _startDate != original;
+  }
+
+  void _revertStartDate() => setState(() {
+        _startDate = widget.requirement.startDate == null ? null : DateTime.tryParse(widget.requirement.startDate!);
+      });
+
+  bool get _isCareDurationDirty => _careDuration != widget.requirement.careDuration;
+
+  void _revertCareDuration() => setState(() {
+        _careDuration = widget.requirement.careDuration;
+        _refreshSuggestedSalary();
+      });
+
+  bool get _isToiletAssistanceDirty {
+    final cr = widget.requirement.careReceiver;
+    if (cr == null) return false;
+    return !setEquals(_toiletAssistance.toSet(), cr.toiletAssistance.toSet()) ||
+        _toiletAssistanceOtherController.text != (cr.toiletAssistanceOther ?? '');
+  }
+
+  void _revertToiletAssistance() => setState(() {
+        final cr = widget.requirement.careReceiver;
+        _toiletAssistance.clear();
+        if (cr != null) _toiletAssistance.addAll(cr.toiletAssistance);
+        _toiletAssistanceOtherController.text = cr?.toiletAssistanceOther ?? '';
+        _refreshSuggestedSalary();
+      });
+
+  bool get _isFeedingTypeDirty {
+    final cr = widget.requirement.careReceiver;
+    return cr != null && _feedingType != cr.feedingType;
+  }
+
+  void _revertFeedingType() => setState(() {
+        _feedingType = widget.requirement.careReceiver?.feedingType;
+        _refreshSuggestedSalary();
+      });
+
+  bool get _isPreferredGenderDirty => _preferredGender != widget.requirement.preferredGender;
+
+  void _revertPreferredGender() => setState(() => _preferredGender = widget.requirement.preferredGender);
+
+  /// Compact tick/cross pair shown right next to a field once it differs
+  /// from what's actually saved — null (nothing rendered) otherwise. Tick
+  /// always runs the same full-form [_handleSavePressed]; cross reverts
+  /// only this one field via [onRevert].
+  Widget? _fieldControls(String fieldName, bool dirty, VoidCallback onRevert) {
+    if (!dirty) return null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          key: Key('$fieldName-save'),
+          icon: const Icon(Icons.check_circle, color: AppColors.success),
+          tooltip: 'Save changes',
+          visualDensity: VisualDensity.compact,
+          onPressed: _saving ? null : _handleSavePressed,
+        ),
+        IconButton(
+          key: Key('$fieldName-discard'),
+          icon: const Icon(Icons.cancel, color: AppColors.error),
+          tooltip: 'Discard this change',
+          visualDensity: VisualDensity.compact,
+          onPressed: _saving ? null : onRevert,
+        ),
+      ],
+    );
   }
 
   @override
@@ -985,6 +1080,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                             labelText: "Patient's Age (Mandatory)",
                             border: const OutlineInputBorder(),
                             errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+                            suffixIcon: _fieldControls('age', _isAgeDirty, _revertAge),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -998,6 +1094,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                             labelText: "Patient's Gender (Mandatory)",
                             border: const OutlineInputBorder(),
                             errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+                            suffixIcon: _fieldControls('gender', _isGenderDirty, _revertGender),
                           ),
                           items: Gender.all.map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g)))).toList(),
                           onChanged: (value) => setState(() => _gender = value),
@@ -1013,6 +1110,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                             labelText: "Patient's Weight (kg) (Mandatory)",
                             border: const OutlineInputBorder(),
                             errorText: _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+                            suffixIcon: _fieldControls('weight', _isWeightDirty, _revertWeight),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -1026,6 +1124,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                             labelText: 'City (Mandatory)',
                             border: const OutlineInputBorder(),
                             errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+                            suffixIcon: _fieldControls('city', _isCityDirty, _revertCity),
                           ),
                           items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
                           onChanged: (value) => setState(() => _city = value),
@@ -1040,18 +1139,22 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                             labelText: 'Area (Mandatory)',
                             border: const OutlineInputBorder(),
                             errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                            suffixIcon: _fieldControls('area', _isAreaDirty, _revertArea),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
                         AreaCharLimitNote(currentLength: _areaController.text.length),
                         const SizedBox(height: AppSpacing.md),
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.medical_information, size: 18, color: AppColors.primaryDark),
-                            SizedBox(width: AppSpacing.xs),
-                            Flexible(
+                            const Icon(Icons.medical_information, size: 18, color: AppColors.primaryDark),
+                            const SizedBox(width: AppSpacing.xs),
+                            const Flexible(
                               child: Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle),
                             ),
+                            const Spacer(),
+                            if (_isMedicalConditionDirty)
+                              _fieldControls('medicalCondition', true, _revertMedicalCondition)!,
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -1095,6 +1198,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                                 labelText: 'Hours Care Needed (Mandatory)',
                                 border: const OutlineInputBorder(),
                                 errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+                                suffixIcon: _fieldControls('dutyType', _isDutyTypeDirty, _revertDutyType),
                               ),
                               items: DutyType.all
                                   .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
@@ -1129,6 +1233,8 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                                     ),
                                   ),
                                 ),
+                                const Spacer(),
+                                if (_isStartDateDirty) _fieldControls('startDate', true, _revertStartDate)!,
                               ],
                             ),
                             const SizedBox(height: AppSpacing.xs),
@@ -1161,6 +1267,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                           border: const OutlineInputBorder(),
                           errorText:
                               _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
+                          suffixIcon: _fieldControls('careDuration', _isCareDurationDirty, _revertCareDuration),
                         ),
                         items: CareDuration.all
                             .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
@@ -1218,6 +1325,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                           border: const OutlineInputBorder(),
                           errorText:
                               _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
+                          suffixIcon: _fieldControls('toiletAssistance', _isToiletAssistanceDirty, _revertToiletAssistance),
                         ),
                         items: ToiletAssistance.all
                             .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
@@ -1250,6 +1358,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                           border: const OutlineInputBorder(),
                           errorText:
                               _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
+                          suffixIcon: _fieldControls('feedingType', _isFeedingTypeDirty, _revertFeedingType),
                         ),
                         items: FeedingType.all
                             .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
@@ -1263,8 +1372,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         initialValue: _preferredGender,
-                        decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.people_outline), labelText: 'Preferred Caregiver Gender', border: OutlineInputBorder()),
+                        decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.people_outline),
+                            labelText: 'Preferred Caregiver Gender',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: _fieldControls('preferredGender', _isPreferredGenderDirty, _revertPreferredGender)),
                         items: const [
                           DropdownMenuItem(value: null, child: Text('No preference')),
                           DropdownMenuItem(value: Gender.male, child: Text('Male')),
@@ -1371,40 +1483,19 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             const SizedBox(height: AppSpacing.sm),
             Text(_error!, style: const TextStyle(color: AppColors.error)),
           ],
-          // Tick/cross "in place" Save/Discard controls — only shown once
-          // something has actually changed (see _isDirty); a clean,
-          // unmodified card shows neither, since there's nothing to save
-          // or discard.
-          if (_isDirty) ...[
+          // No consolidated Save/Discard bar any more — the tick/cross
+          // controls are inline, right next to whichever field was
+          // actually touched (see _fieldControls), so they're visible
+          // without scrolling to the bottom of a long card. This is just
+          // the saving spinner, shown wherever a save triggered from any
+          // field is in flight.
+          if (_saving) ...[
             const SizedBox(height: AppSpacing.sm),
-            Row(
+            const Row(
               children: [
-                if (_saving)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                    child: SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                else ...[
-                  IconButton.filled(
-                    key: const Key('saveEditButton'),
-                    onPressed: _handleSavePressed,
-                    tooltip: 'Save changes',
-                    icon: const Icon(Icons.check),
-                    style: IconButton.styleFrom(backgroundColor: AppColors.success),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  IconButton.filled(
-                    key: const Key('discardEditButton'),
-                    onPressed: _discardChanges,
-                    tooltip: 'Discard changes',
-                    icon: const Icon(Icons.close),
-                    style: IconButton.styleFrom(backgroundColor: AppColors.error),
-                  ),
-                ],
+                SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                SizedBox(width: AppSpacing.sm),
+                Text('Saving…', style: TextStyle(color: AppColors.textSecondary)),
               ],
             ),
           ],

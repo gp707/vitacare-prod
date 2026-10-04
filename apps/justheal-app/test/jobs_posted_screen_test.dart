@@ -1062,14 +1062,14 @@ void main() {
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
-    expect(find.byKey(const Key('saveEditButton')), findsNothing);
-    expect(find.byKey(const Key('discardEditButton')), findsNothing);
+    expect(find.byKey(const Key('area-save')), findsNothing);
+    expect(find.byKey(const Key('area-discard')), findsNothing);
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
 
-    expect(find.byKey(const Key('saveEditButton')), findsOneWidget);
-    expect(find.byKey(const Key('discardEditButton')), findsOneWidget);
+    expect(find.byKey(const Key('area-save')), findsOneWidget);
+    expect(find.byKey(const Key('area-discard')), findsOneWidget);
   });
 
   testWidgets('tapping the cross button discards the edit and hides the controls again', (tester) async {
@@ -1080,12 +1080,44 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    await tester.tap(find.byKey(const Key('discardEditButton')));
+    await tester.tap(find.byKey(const Key('area-discard')));
     await _settle(tester);
 
-    expect(find.byKey(const Key('saveEditButton')), findsNothing);
+    expect(find.byKey(const Key('area-save')), findsNothing);
     final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
     expect(areaField.controller!.text, 'Indiranagar');
+  });
+
+  testWidgets(
+      'controls appear independently per field, not just one pair for the whole card — and discarding one field '
+      'leaves another field\'s pending edit untouched', (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
+    );
+
+    expect(find.byKey(const Key('area-save')), findsNothing);
+    expect(find.byKey(const Key('age-save')), findsNothing);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '80');
+    await tester.pump();
+
+    // Both fields' own controls appear, independently.
+    expect(find.byKey(const Key('area-save')), findsOneWidget);
+    expect(find.byKey(const Key('age-save')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('area-discard')));
+    await _settle(tester);
+
+    // Area reverted and its controls are gone...
+    expect(find.byKey(const Key('area-save')), findsNothing);
+    final areaField = tester.widget<TextField>(find.widgetWithText(TextField, 'Area (Mandatory)'));
+    expect(areaField.controller!.text, 'Indiranagar');
+    // ...but the still-pending Age edit is untouched.
+    expect(find.byKey(const Key('age-save')), findsOneWidget);
+    final ageField = tester.widget<TextField>(find.widgetWithText(TextField, "Patient's Age (Mandatory)"));
+    expect(ageField.controller!.text, '80');
   });
 
   testWidgets('editing the Area field and tapping the tick calls editRequirement with the updated value '
@@ -1100,8 +1132,8 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
-    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await tester.ensureVisible(find.byKey(const Key('area-save')));
+    await tester.tap(find.byKey(const Key('area-save')));
     await _settle(tester);
 
     expect(find.text('Modify this requirement?'), findsNothing);
@@ -1121,8 +1153,8 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
-    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await tester.ensureVisible(find.byKey(const Key('area-save')));
+    await tester.tap(find.byKey(const Key('area-save')));
     await _settle(tester);
 
     expect(find.text('Modify this requirement?'), findsOneWidget);
@@ -1133,7 +1165,7 @@ void main() {
     await _settle(tester);
 
     expect(repo.editedJobId, isNull);
-    expect(find.byKey(const Key('saveEditButton')), findsOneWidget); // edit is still pending, not discarded
+    expect(find.byKey(const Key('area-save')), findsOneWidget); // edit is still pending, not discarded
   });
 
   testWidgets('confirming the active-application warning proceeds with the save', (tester) async {
@@ -1147,8 +1179,8 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
-    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await tester.ensureVisible(find.byKey(const Key('area-save')));
+    await tester.tap(find.byKey(const Key('area-save')));
     await _settle(tester);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Yes, modify'));
@@ -1168,8 +1200,8 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('saveEditButton')));
-    await tester.tap(find.byKey(const Key('saveEditButton')));
+    await tester.ensureVisible(find.byKey(const Key('area-save')));
+    await tester.tap(find.byKey(const Key('area-save')));
     await _settle(tester);
 
     expect(find.text('Modify this requirement?'), findsNothing);

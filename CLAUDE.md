@@ -319,15 +319,21 @@ location) that didn't fit the Individual/admin jobs-table model.
   ("Modify this requirement? ... We recommend discussing any changes with the candidates directly
   before saving.", `_confirmModifyWithActiveApplicants` — only shown once the edit is otherwise
   valid, and only for an active application, not a rejected/completed one) — saving only proceeds
-  if confirmed. **Save/discard controls are a tick/cross `IconButton` pair ("in place", not a
-  labeled button) that only appear once a field has actually changed** — `_isDirty` compares every
-  live field against `widget.requirement`/its `care_receiver` (set-based for the multi-value
-  fields: medical conditions, toilet assistance, languages) and is recomputed on every build, so
-  there's no separate dirty-flag to keep in sync by hand. The tick (`Key('saveEditButton')`)
-  re-runs the same mandatory-field validation `EditRequirementScreen` had, then the active-
-  application confirmation if applicable, then saves; the cross (`Key('discardEditButton')`) calls
-  `_populateFromRequirement()` again to revert every field to what's actually saved, no
-  confirmation needed since nothing server-side has changed yet. The per-card "More options" menu
+  if confirmed. **Save/discard controls are a tick/cross `IconButton` pair shown inline, right next
+  to whichever field was actually touched** (as each field's own `suffixIcon`, or alongside its
+  label for the two fields with no `InputDecoration` — Medical Condition's chips, Preferred Start
+  Date's button) — not one consolidated pair at the bottom of the card, which on a form this long
+  landed below the fold and wasn't visible without scrolling. Each field has its own dirty getter
+  (`_isAgeDirty`/`_isGenderDirty`/etc., each comparing just that field against
+  `widget.requirement`/its `care_receiver`, set-based for the multi-value ones) and its own revert
+  method (`_revertAge`/etc., resetting only that field) — `_fieldControls(fieldName, dirty,
+  onRevert)` renders the pair (`Key('$fieldName-save')`/`Key('$fieldName-discard')`) only when that
+  one field differs from what's saved. **Every field's tick runs the exact same action** — there's
+  no partial-field save endpoint, so whichever tick is tapped re-runs the full mandatory-field
+  validation, then the active-application confirmation if applicable, then saves the form's entire
+  current state (every pending edit across every field at once) via one `editRequirement` call;
+  each field's own cross only reverts that one field, leaving any other still-pending edits
+  untouched. No form-wide "discard everything" action exists any more. The per-card "More options" menu
   dropped its "Edit the Job" action entirely, now offering only Cancel/Make Active Again (see
   above). **Unlike every other field in this card, Salary is
   deliberately read-only — not a text field, same as the registration form's own salary display**
