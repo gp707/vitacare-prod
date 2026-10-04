@@ -91,6 +91,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         displayName: item.fullName,
       );
 
+  void _openDetail(AdminCaregiverListItem item) => Navigator.of(context)
+      .pushNamed('/caregiver-detail', arguments: item.profileId);
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
@@ -257,6 +260,10 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         itemBuilder: (context, index) {
           final item = _items[index];
           return VitaListCard(
+            // No card-level onTap — see IndividualsListScreen's identical
+            // comment for why (Checkbox + whole-card InkWell both fire on
+            // the same tap). Only the caregiver's name opens the detail
+            // screen.
             title: Row(
               children: [
                 Checkbox(
@@ -265,12 +272,16 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
                 ),
-                Expanded(child: Text(item.fullName, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openDetail(item),
+                    child: Text(item.fullName, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
               ],
             ),
             trailing: VitaStatusBadge(status: item.verificationStatus),
-            onTap: () => Navigator.of(context)
-                .pushNamed('/caregiver-detail', arguments: item.profileId),
             fields: [
               VitaListCard.kv(
                   'ID', caregiverDisplayId(item.caregiverNumber) ?? '-'),
@@ -320,9 +331,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           rows: _items
               .map(
                 (item) => DataRow(
-                  onSelectChanged: (_) => Navigator.of(context).pushNamed(
-                      '/caregiver-detail',
-                      arguments: item.profileId),
+                  // No row-level onSelectChanged — see
+                  // IndividualsListScreen's identical comment. Navigation
+                  // instead uses DataCell's own per-cell onTap, below.
                   cells: [
                     DataCell(
                       Checkbox(
@@ -332,18 +343,21 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                             .toggle(_toRecipient(item)),
                       ),
                     ),
+                    DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-'),
+                        onTap: () => _openDetail(item)),
+                    DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                    DataCell(Text(item.phone), onTap: () => _openDetail(item)),
+                    DataCell(Text(item.gender), onTap: () => _openDetail(item)),
+                    DataCell(Text('${item.age}'), onTap: () => _openDetail(item)),
                     DataCell(
-                        Text(caregiverDisplayId(item.caregiverNumber) ?? '-')),
-                    DataCell(Text(item.fullName)),
-                    DataCell(Text(item.phone)),
-                    DataCell(Text(item.gender)),
-                    DataCell(Text('${item.age}')),
-                    DataCell(Text(
-                        Qualification.displayNames[item.highestQualification] ??
+                        Text(Qualification.displayNames[item.highestQualification] ??
                             item.highestQualification ??
-                            '-')),
-                    DataCell(VitaStatusBadge(status: item.verificationStatus)),
-                    DataCell(Text(item.createdAt.split('T').first)),
+                            '-'),
+                        onTap: () => _openDetail(item)),
+                    DataCell(VitaStatusBadge(status: item.verificationStatus),
+                        onTap: () => _openDetail(item)),
+                    DataCell(Text(item.createdAt.split('T').first),
+                        onTap: () => _openDetail(item)),
                   ],
                 ),
               )

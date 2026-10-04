@@ -141,6 +141,50 @@ void main() {
     expect(find.text('Notify Selected'), findsNothing);
   });
 
+  testWidgets('tapping the checkbox only selects the row — it does not also navigate to the detail screen',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2150, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeAdminIndividualsRepository([_item()]);
+
+    String? pushedRoute;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          adminIndividualsRepositoryProvider.overrideWithValue(repo),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage)
+              ..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
+          ),
+        ],
+        child: MaterialApp(
+          home: const IndividualsListScreen(),
+          onGenerateRoute: (settings) {
+            pushedRoute = settings.name;
+            return MaterialPageRoute(
+                builder: (_) => const Scaffold(body: Text('Individual Detail Screen')));
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Checkbox).last);
+    await tester.pumpAndSettle();
+
+    expect(pushedRoute, isNull);
+    expect(find.text('1 patient selected'), findsOneWidget);
+
+    // The name itself still navigates.
+    await tester.tap(find.text('Asha Patel'));
+    await tester.pumpAndSettle();
+    expect(pushedRoute, '/individual-detail');
+  });
+
   testWidgets('shows an empty state when there are no individuals',
       (tester) async {
     await _pump(tester, _FakeAdminIndividualsRepository([]));

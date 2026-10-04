@@ -252,6 +252,9 @@ class _OrganisationsListScreenState
         displayName: item.organisationName,
       );
 
+  void _openDetail(AdminOrganisationListItem item) => Navigator.of(context)
+      .pushNamed('/organisation-detail', arguments: item.userId);
+
   void _viewJobs(AdminOrganisationListItem item) {
     Navigator.of(context).pushNamedAndRemoveUntil(
       '/jobs',
@@ -311,6 +314,10 @@ class _OrganisationsListScreenState
         itemBuilder: (context, index) {
           final item = _items[index];
           return VitaListCard(
+            // No card-level onTap — see IndividualsListScreen's identical
+            // comment for why (Checkbox + whole-card InkWell both fire on
+            // the same tap). Only the organisation name opens the detail
+            // screen.
             title: Row(
               children: [
                 Checkbox(
@@ -319,12 +326,16 @@ class _OrganisationsListScreenState
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
                 ),
-                Expanded(child: Text(item.organisationName, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openDetail(item),
+                    child: Text(item.organisationName, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
               ],
             ),
             trailing: _StatusCell(item: item),
-            onTap: () => Navigator.of(context)
-                .pushNamed('/organisation-detail', arguments: item.userId),
             fields: [
               VitaListCard.kv(
                   'ID', organisationDisplayId(item.orgNumber) ?? '-'),
@@ -378,9 +389,10 @@ class _OrganisationsListScreenState
           ],
           rows: _items
               .map((item) => DataRow(
-                      onSelectChanged: (_) => Navigator.of(context).pushNamed(
-                          '/organisation-detail',
-                          arguments: item.userId),
+                      // No row-level onSelectChanged — see
+                      // IndividualsListScreen's identical comment.
+                      // Navigation instead uses DataCell's own per-cell
+                      // onTap, below.
                       cells: [
                         DataCell(
                           Checkbox(
@@ -390,15 +402,17 @@ class _OrganisationsListScreenState
                                 .toggle(_toRecipient(item)),
                           ),
                         ),
+                        DataCell(Text(organisationDisplayId(item.orgNumber) ?? '-'),
+                            onTap: () => _openDetail(item)),
+                        DataCell(Text(item.organisationName), onTap: () => _openDetail(item)),
+                        DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                        DataCell(Text(item.phone), onTap: () => _openDetail(item)),
                         DataCell(
-                            Text(organisationDisplayId(item.orgNumber) ?? '-')),
-                        DataCell(Text(item.organisationName)),
-                        DataCell(Text(item.fullName)),
-                        DataCell(Text(item.phone)),
-                        DataCell(Text(
-                            '${City.displayNames[item.city] ?? item.city}, ${item.area}')),
-                        DataCell(_StatusCell(item: item)),
-                        DataCell(Text(item.createdAt.split('T').first)),
+                            Text('${City.displayNames[item.city] ?? item.city}, ${item.area}'),
+                            onTap: () => _openDetail(item)),
+                        DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
+                        DataCell(Text(item.createdAt.split('T').first),
+                            onTap: () => _openDetail(item)),
                         DataCell(_ActionsCell(
                           item: item,
                           onViewJobs: () => _viewJobs(item),

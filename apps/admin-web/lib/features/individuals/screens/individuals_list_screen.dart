@@ -198,6 +198,9 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
         displayName: item.fullName,
       );
 
+  void _openDetail(AdminIndividualListItem item) => Navigator.of(context)
+      .pushNamed('/individual-detail', arguments: item.userId);
+
   void _viewJobs(AdminIndividualListItem item) {
     Navigator.of(context).pushNamedAndRemoveUntil(
       '/jobs',
@@ -256,6 +259,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
         itemBuilder: (context, index) {
           final item = _items[index];
           return VitaListCard(
+            // No card-level onTap here — with the Checkbox embedded in the
+            // title, a tap-anywhere InkWell behind it fires on top of the
+            // Checkbox's own tap too (both land in the same gesture arena),
+            // toggling the checkbox AND navigating away in one tap. Only
+            // the name text itself opens the detail screen; the checkbox
+            // area is deliberately excluded from any navigation gesture.
             title: Row(
               children: [
                 Checkbox(
@@ -264,12 +273,16 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
                 ),
-                Expanded(child: Text(item.fullName, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openDetail(item),
+                    child: Text(item.fullName, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
               ],
             ),
             trailing: _StatusCell(item: item),
-            onTap: () => Navigator.of(context)
-                .pushNamed('/individual-detail', arguments: item.userId),
             fields: [
               VitaListCard.kv(
                   'ID', patientDisplayId(item.patientNumber) ?? '-'),
@@ -318,9 +331,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
           ],
           rows: _items
               .map((item) => DataRow(
-                      onSelectChanged: (_) => Navigator.of(context).pushNamed(
-                          '/individual-detail',
-                          arguments: item.userId),
+                      // No row-level onSelectChanged — DataTable wraps
+                      // every cell in a tap-to-select GestureDetector when
+                      // it's set, which fires alongside (not instead of)
+                      // the Checkbox cell's own tap. Navigation instead
+                      // uses DataCell's own per-cell onTap, below, which
+                      // only the non-checkbox cells get.
                       cells: [
                         DataCell(
                           Checkbox(
@@ -331,11 +347,13 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                           ),
                         ),
                         DataCell(
-                            Text(patientDisplayId(item.patientNumber) ?? '-')),
-                        DataCell(Text(item.fullName)),
-                        DataCell(Text(item.phone)),
-                        DataCell(_StatusCell(item: item)),
-                        DataCell(Text(item.createdAt.split('T').first)),
+                            Text(patientDisplayId(item.patientNumber) ?? '-'),
+                            onTap: () => _openDetail(item)),
+                        DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                        DataCell(Text(item.phone), onTap: () => _openDetail(item)),
+                        DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
+                        DataCell(Text(item.createdAt.split('T').first),
+                            onTap: () => _openDetail(item)),
                         DataCell(_ActionsCell(
                           item: item,
                           onViewJobs: () => _viewJobs(item),
