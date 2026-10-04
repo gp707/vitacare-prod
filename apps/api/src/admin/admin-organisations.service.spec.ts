@@ -4,6 +4,7 @@ describe('AdminOrganisationsService', () => {
   let service: AdminOrganisationsService;
   let organisationsRepo: any;
   let usersRepo: any;
+  let notesRepo: any;
   let auditService: any;
 
   beforeEach(() => {
@@ -21,8 +22,9 @@ describe('AdminOrganisationsService', () => {
       updatePhone: jest.fn(),
       findByPhoneAndRoles: jest.fn().mockResolvedValue(null),
     };
+    notesRepo = { findByUserId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
     auditService = { log: jest.fn() };
-    service = new AdminOrganisationsService(organisationsRepo, usersRepo, auditService);
+    service = new AdminOrganisationsService(organisationsRepo, usersRepo, notesRepo, auditService);
   });
 
   describe('listOrganisations', () => {
@@ -60,10 +62,43 @@ describe('AdminOrganisationsService', () => {
       await expect(service.getOrganisationDetail('u1')).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
-    it('returns the organisation detail', async () => {
+    it('returns the organisation detail with notes merged in', async () => {
       organisationsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue({ notes: 'Called about compliance docs' });
       const result = await service.getOrganisationDetail('u1');
-      expect(result).toEqual({ user_id: 'u1' });
+      expect(result).toEqual({ user_id: 'u1', notes: 'Called about compliance docs' });
+    });
+
+    it('defaults notes to null when none have been saved', async () => {
+      organisationsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue(null);
+      const result = await service.getOrganisationDetail('u1');
+      expect(result).toEqual({ user_id: 'u1', notes: null });
+    });
+  });
+
+  describe('upsertNotes', () => {
+    it('throws GEN_002 when the organisation does not exist', async () => {
+      organisationsRepo.findDetailByUserId.mockResolvedValue(null);
+      await expect(service.upsertNotes('u1', 'admin1', 'note', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('saves the note and audit-logs it', async () => {
+      organisationsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue({ notes: 'old note' });
+      const result = await service.upsertNotes('u1', 'admin1', 'new note', null);
+      expect(notesRepo.upsert).toHaveBeenCalledWith('u1', 'admin1', 'new note');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin1',
+          targetUserId: 'u1',
+          action: 'admin_note_added',
+          entityType: 'organisation_admin_notes',
+          beforeValue: { notes: 'old note' },
+          afterValue: { notes: 'new note' },
+        }),
+      );
+      expect(result).toEqual({ message: 'Notes saved' });
     });
   });
 

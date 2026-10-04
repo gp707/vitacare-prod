@@ -12,6 +12,7 @@ import { UnblockIndividualDto } from './dto/unblock-individual.dto';
 import { ListOrganisationsQueryDto } from './dto/list-organisations-query.dto';
 import { AdminEditOrganisationDto } from './dto/admin-edit-organisation.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
+import { UpsertNotesDto } from './dto/upsert-notes.dto';
 
 @Controller('admin/organisations')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -49,6 +50,17 @@ export class AdminOrganisationsController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminOrganisationsService.resetCode(id, user.sub, dto, ip);
+  }
+
+  @Post(':id/notes')
+  @HttpCode(HttpStatus.OK)
+  upsertNotes(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpsertNotesDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminOrganisationsService.upsertNotes(id, user.sub, dto.notes ?? null, ip);
   }
 
   @Patch(':id/block')

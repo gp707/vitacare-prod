@@ -511,6 +511,8 @@ class AuditAction {
   // Admin-initiated PIN/code reset — distinct from a caregiver/individual/
   // organisation's own self-service codeChanged.
   static const adminCodeReset = 'admin_code_reset';
+  static const pushNotificationCreated = 'push_notification_created';
+  static const pushNotificationCancelled = 'push_notification_cancelled';
 
   static const all = [
     registration,
@@ -557,7 +559,18 @@ class AuditAction {
     jobsBulkDeleted,
     adminDocumentVersionDeleted,
     adminCodeReset,
+    pushNotificationCreated,
+    pushNotificationCancelled,
   ];
+}
+
+class PushNotificationStatus {
+  static const pending = 'pending';
+  static const sent = 'sent';
+  static const failed = 'failed';
+  static const cancelled = 'cancelled';
+
+  static const all = [pending, sent, failed, cancelled];
 }
 
 class UserRole {

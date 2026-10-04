@@ -4,6 +4,7 @@ import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { OrganisationAdminNotesRepository } from '../database/repositories/organisation-admin-notes.repository';
 import { AuditService } from '../audit/audit.service';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { BlockIndividualDto } from './dto/block-individual.dto';
@@ -18,6 +19,7 @@ export class AdminOrganisationsService {
   constructor(
     private readonly organisationsRepo: AdminOrganisationsRepository,
     private readonly usersRepo: UsersRepository,
+    private readonly notesRepo: OrganisationAdminNotesRepository,
     private readonly auditService: AuditService,
   ) {}
 
@@ -43,7 +45,31 @@ export class AdminOrganisationsService {
   async getOrganisationDetail(userId: string) {
     const organisation = await this.organisationsRepo.findDetailByUserId(userId);
     if (!organisation) throw new AppException('GEN_002');
-    return organisation;
+    const notes = await this.notesRepo.findByUserId(userId);
+    return { ...organisation, notes: notes?.notes ?? null };
+  }
+
+  /** Admin-only personal/internal note about this organisation account —
+   *  never exposed to the organisation's own self-view. */
+  async upsertNotes(targetUserId: string, adminId: string, notes: string | null, ipAddress: string | null) {
+    const organisation = await this.organisationsRepo.findDetailByUserId(targetUserId);
+    if (!organisation) throw new AppException('GEN_002');
+
+    const previous = await this.notesRepo.findByUserId(targetUserId);
+    await this.notesRepo.upsert(targetUserId, adminId, notes);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId,
+      action: AuditAction.ADMIN_NOTE_ADDED,
+      entityType: 'organisation_admin_notes',
+      entityId: targetUserId,
+      beforeValue: { notes: previous?.notes ?? null },
+      afterValue: { notes },
+      ipAddress,
+    });
+
+    return { message: 'Notes saved' };
   }
 
   /** Admin override — full_name (the contact person's name) is kept in

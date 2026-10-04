@@ -212,6 +212,8 @@ export const AuditAction = {
   // Admin-initiated PIN/code reset — distinct from a caregiver/individual/
   // organisation's own self-service CODE_CHANGED.
   ADMIN_CODE_RESET: 'admin_code_reset',
+  PUSH_NOTIFICATION_CREATED: 'push_notification_created',
+  PUSH_NOTIFICATION_CANCELLED: 'push_notification_cancelled',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -366,6 +368,18 @@ export const ORGANISATION_CITY_OTHERS = 'others';
 // (pending_review/active/closed) — same admin-approval lifecycle, just a
 // separate table. organisation_requirement_applications.status likewise
 // reuses JobApplicationStatus (applied/rejected/accepted/completed).
+
+// Admin-composed bulk push notification (apps/api/src/admin-push-notifications/)
+// — pending until scheduled_at, then sent (or failed) by the minute-poll
+// cron in AdminPushNotificationsService. cancelled is only reachable from
+// pending (a future-scheduled one not yet sent).
+export const PushNotificationStatus = {
+  PENDING: 'pending',
+  SENT: 'sent',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+} as const;
+export type PushNotificationStatus = (typeof PushNotificationStatus)[keyof typeof PushNotificationStatus];
 
 export const DocumentType = {
   QUALIFICATION: 'qualification',

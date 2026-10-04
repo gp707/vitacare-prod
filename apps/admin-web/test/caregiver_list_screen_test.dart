@@ -94,6 +94,20 @@ void main() {
   });
 
   testWidgets(
+      'checking a row adds it to the recipient selection cart and shows the Notify bar',
+      (tester) async {
+    await _pump(tester, _FakeAdminCaregiversRepository([_item()]));
+
+    expect(find.text('Notify Selected'), findsNothing);
+
+    await tester.tap(find.byType(Checkbox).last);
+    await tester.pump();
+
+    expect(find.text('1 caregiver selected'), findsOneWidget);
+    expect(find.text('Notify Selected'), findsOneWidget);
+  });
+
+  testWidgets(
       'below the mobile breakpoint, shows a stacked card per caregiver instead of a DataTable',
       (tester) async {
     await _pump(tester, _FakeAdminCaregiversRepository([_item()]),

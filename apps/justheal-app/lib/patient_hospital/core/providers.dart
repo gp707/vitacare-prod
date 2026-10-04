@@ -9,6 +9,7 @@ import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
 import 'duty_requirements/duty_requirements_repository.dart';
 import 'individual_messages/individual_messages_repository.dart';
+import 'fcm/fcm_service.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/individual/data/individual_repository.dart';
@@ -45,6 +46,10 @@ final individualRepositoryProvider = Provider<IndividualRepository>((ref) {
 
 final organisationRepositoryProvider = Provider<OrganisationRepository>((ref) {
   return OrganisationRepository(ref.watch(apiClientProvider).dio);
+});
+
+final fcmServiceProvider = Provider<FcmService>((ref) {
+  return FcmService(ref.watch(individualRepositoryProvider), ref.watch(organisationRepositoryProvider));
 });
 
 final authConfigRepositoryProvider = Provider<AuthConfigRepository>((ref) {

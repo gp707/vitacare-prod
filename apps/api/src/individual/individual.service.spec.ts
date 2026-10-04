@@ -62,6 +62,7 @@ describe('IndividualService', () => {
       updatePhone: jest.fn(),
       updateCodeHash: jest.fn(),
       updateFullName: jest.fn(),
+      updateFcmToken: jest.fn(),
     };
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
@@ -373,6 +374,14 @@ describe('IndividualService', () => {
         }),
       );
       expect(result).toEqual({ message: 'Name updated' });
+    });
+  });
+
+  describe('updateFcmToken', () => {
+    it('stores the token via usersRepo', async () => {
+      const result = await service.updateFcmToken('user-1', { token: 'fcm-abc' } as any);
+      expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
+      expect(result).toEqual({ message: 'FCM token updated' });
     });
   });
 

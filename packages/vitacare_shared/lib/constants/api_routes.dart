@@ -20,6 +20,7 @@ class ApiRoutes {
   static const individualProfilePhone = '/individual/profile/phone';
   static const individualProfileCode = '/individual/profile/code';
   static const individualProfileName = '/individual/profile/name';
+  static const individualProfileFcmToken = '/individual/profile/fcm-token';
   static String individualRequirementApplications(String jobId) =>
       '/individual/requirements/$jobId/applications';
   static String individualRequirementApplicationDecide(String jobId, String applicationId) =>
@@ -40,6 +41,7 @@ class ApiRoutes {
   static const organisationProfile = '/organisation/profile';
   static const organisationProfilePhone = '/organisation/profile/phone';
   static const organisationProfileCode = '/organisation/profile/code';
+  static const organisationProfileFcmToken = '/organisation/profile/fcm-token';
   static String organisationRequirementApplications(String requirementId) =>
       '/organisation/requirements/$requirementId/applications';
   static String organisationRequirementApplicationDecide(String requirementId, String applicationId) =>

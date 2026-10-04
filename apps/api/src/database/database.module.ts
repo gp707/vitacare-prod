@@ -16,6 +16,8 @@ import { AdminCaregiversRepository } from './repositories/admin-caregivers.repos
 import { AdminNotesRepository } from './repositories/admin-notes.repository';
 import { JobAdminNotesRepository } from './repositories/job-admin-notes.repository';
 import { IndividualAdminNotesRepository } from './repositories/individual-admin-notes.repository';
+import { OrganisationAdminNotesRepository } from './repositories/organisation-admin-notes.repository';
+import { AdminPushNotificationsRepository } from './repositories/admin-push-notifications.repository';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
@@ -50,6 +52,8 @@ const repositories = [
   AdminNotesRepository,
   JobAdminNotesRepository,
   IndividualAdminNotesRepository,
+  OrganisationAdminNotesRepository,
+  AdminPushNotificationsRepository,
   AuditLogsRepository,
   JobsRepository,
   JobApplicationsRepository,

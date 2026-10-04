@@ -21,6 +21,7 @@ import { JobSettingsModule } from './job-settings/job-settings.module';
 import { IndividualMessagesModule } from './individual-messages/individual-messages.module';
 import { CaregiverMessagesModule } from './caregiver-messages/caregiver-messages.module';
 import { AuditLogRetentionModule } from './audit-log-retention/audit-log-retention.module';
+import { AdminPushNotificationsModule } from './admin-push-notifications/admin-push-notifications.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -50,6 +51,7 @@ import { validateEnv } from './config/env.validation';
     IndividualMessagesModule,
     CaregiverMessagesModule,
     AuditLogRetentionModule,
+    AdminPushNotificationsModule,
   ],
 })
 export class AppModule {}

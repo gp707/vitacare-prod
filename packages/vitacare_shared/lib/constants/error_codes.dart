@@ -71,6 +71,7 @@ class ErrorCodes {
     'JOB_017': 'Only a cancelled requirement can be reactivated',
     'JOB_018': 'Too many items selected for bulk delete — narrow your search first',
     'JOB_020': 'Invalid close reason value',
+    'PUSH_001': 'This notification has already been sent, failed, or cancelled',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
     'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',

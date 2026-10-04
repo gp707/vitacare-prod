@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/jwt_decode.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../core/fcm/fcm_service.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../individual/data/individual_repository.dart';
 import '../../organisation/data/organisation_repository.dart';
@@ -22,9 +24,14 @@ class SessionNotifier extends StateNotifier<SessionState> {
   final LocalStorage _localStorage;
   final IndividualRepository _individualRepository;
   final OrganisationRepository _organisationRepository;
+  final FcmService _fcmService;
 
-  SessionNotifier(this._localStorage, this._individualRepository, this._organisationRepository)
-      : super(const SessionLoading());
+  SessionNotifier(
+    this._localStorage,
+    this._individualRepository,
+    this._organisationRepository,
+    this._fcmService,
+  ) : super(const SessionLoading());
 
   bool _isOrganisationToken(String token) {
     try {
@@ -55,7 +62,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
     }
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
-        if (_isOrganisationToken(token)) {
+        final isOrganisation = _isOrganisationToken(token);
+        if (isOrganisation) {
           final me = await _organisationRepository.getMe();
           state = SessionAuthenticated(
             role: 'organisation',
@@ -78,6 +86,9 @@ class SessionNotifier extends StateNotifier<SessionState> {
             patientNumber: me.patientNumber,
           );
         }
+        // Register on every app launch/login, not just once — mirrors
+        // caregiver-app's own SessionNotifier.loadSession.
+        unawaited(_fcmService.register(isOrganisation: isOrganisation));
         return;
       } on ApiException catch (e) {
         if (tokenInvalidErrorCodes.contains(e.code)) {
@@ -116,5 +127,6 @@ final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((re
     ref.watch(localStorageProvider),
     ref.watch(individualRepositoryProvider),
     ref.watch(organisationRepositoryProvider),
+    ref.watch(fcmServiceProvider),
   );
 });

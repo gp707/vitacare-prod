@@ -84,7 +84,9 @@ facing part" of the one JustHeal app, not as references to separate directories 
   currently opens an organisation requirement's detail from outside its own list screen.
 - **Database:** Supabase PostgreSQL (used as a standard Postgres, no RLS for app tables).
 - **Storage:** Supabase Storage with signed URLs (1hr expiry). Files at `{profile_id}/filename.ext`.
-- **Realtime:** Supabase Realtime for admin dashboard only. Caregivers use FCM push.
+- **Realtime:** Supabase Realtime for admin dashboard only. Caregivers use FCM push — as of the
+  Admin Push Notifications feature (see its own section below), individual/organisation accounts
+  now register an FCM token too, so they can receive an admin-composed push same as caregivers.
 - **Email:** Nodemailer + Gmail SMTP (vitacasahealthindia@gmail.com). Plain text only in V1.
 - **No OTP:** Phone login has no OTP. Phone verified via office call.
 - **Caregiver login:** Phone + 4-digit code, always. The code is set at registration and is required for every login from the first session onward. There is no phone-only login endpoint.
@@ -632,28 +634,33 @@ location) that didn't fit the Individual/admin jobs-table model.
   `showResetPinDialog()` is the one shared dialog all three detail screens
   (`CaregiverDetailScreen`/`IndividualDetailScreen`/`OrganisationDetailScreen`) call via their own
   "Reset PIN" button, each then calling their own repository's `resetCode(id, code)`.
-- **Admin-only personal/internal notes on jobs and individual (patient/family) accounts** —
-  distinct from the caregiver-only `admin_notes` table (which stays hard-FK'd to
-  `caregiver_profiles`, see "Admin Notes" elsewhere in this doc) and from `organisation_profiles`,
-  which was NOT given notes (not asked for, keeps scope to what was requested). Two new tables,
-  migration 075: `job_admin_notes` (`job_id` FK → `jobs`, `UNIQUE(job_id)`) and
-  `individual_admin_notes` (`user_id` FK → `users`, `UNIQUE(user_id)`) — same one-row-per-entity
-  upsert shape as `admin_notes`, just a single free-text `notes` column each (no
-  `availability_remarks`/rate fields, which are caregiver-specific concepts). `JobsService
-  .upsertNotes`/`AdminIndividualsService.upsertNotes` both reuse the shared `UpsertNotesDto`
-  (`{ notes }`) and audit-log via the existing `AuditAction.ADMIN_NOTE_ADDED` (entity type
-  `'job_admin_notes'`/`'individual_admin_notes'`) — no new audit action needed since this is the
-  same *kind* of event as the caregiver notes case, just a different entity. `notes` is merged
-  into `GET /admin/jobs/:id`'s and `GET /admin/individuals/:id`'s existing response shape
-  (`jobs.service.ts`'s `getJobDetailForAdmin`, `admin-individuals.service.ts`'s
-  `getIndividualDetail`) rather than a separate fetch — never present on any caregiver/individual/
-  organisation-facing endpoint (`JobModel.notes` in `vitacare_shared` is admin-response-only, same
-  convention as `postedByRole`/`postedByName`/`postedByPhone` on the same model). admin-web:
-  `IndividualDetailScreen` gets its own boxed "Notes" section (editable, independent Save/Cancel,
-  same edit-toggle pattern as its "Profile" section above it) between Profile and Audit History;
-  `JobReadOnlyDetailDialog` gets a small `_JobNotesSection` (its own tiny `ConsumerStatefulWidget`,
-  since the rest of that dialog is a plain `StatelessWidget`) appended after Nurse Fee Guidance/
-  Scope of Work. Both follow the same "No notes yet." empty state plus Edit/Save/Cancel controls.
+- **Admin-only personal/internal notes on jobs, individual (patient/family), and organisation
+  accounts** — distinct from the caregiver-only `admin_notes` table (which stays hard-FK'd to
+  `caregiver_profiles`, see "Admin Notes" elsewhere in this doc). Three new tables: migration 075
+  added `job_admin_notes` (`job_id` FK → `jobs`, `UNIQUE(job_id)`) and `individual_admin_notes`
+  (`user_id` FK → `users`, `UNIQUE(user_id)`); migration 076 added `organisation_admin_notes`
+  (`user_id` FK → `users`, `UNIQUE(user_id)`) once the organisation case was explicitly asked for
+  too (initially scoped out as "not asked for" — see git history — then added on request, same
+  shape as the other two). All three are the same one-row-per-entity upsert shape as `admin_notes`,
+  just a single free-text `notes` column each (no `availability_remarks`/rate fields, which are
+  caregiver-specific concepts). `JobsService.upsertNotes`/`AdminIndividualsService.upsertNotes`/
+  `AdminOrganisationsService.upsertNotes` all reuse the shared `UpsertNotesDto` (`{ notes }`) and
+  audit-log via the existing `AuditAction.ADMIN_NOTE_ADDED` (entity type
+  `'job_admin_notes'`/`'individual_admin_notes'`/`'organisation_admin_notes'`) — no new audit
+  action needed since this is the same *kind* of event as the caregiver notes case, just a
+  different entity. `notes` is merged into `GET /admin/jobs/:id`'s, `GET /admin/individuals/:id`'s,
+  and `GET /admin/organisations/:id`'s existing response shape (`jobs.service.ts`'s
+  `getJobDetailForAdmin`, `admin-individuals.service.ts`'s `getIndividualDetail`,
+  `admin-organisations.service.ts`'s `getOrganisationDetail`) rather than a separate fetch — never
+  present on any caregiver/individual/organisation-facing endpoint (`JobModel.notes` in
+  `vitacare_shared` is admin-response-only, same convention as
+  `postedByRole`/`postedByName`/`postedByPhone` on the same model). admin-web:
+  `IndividualDetailScreen`/`OrganisationDetailScreen` each get their own boxed "Notes" section
+  (editable, independent Save/Cancel, same edit-toggle pattern as the "Profile" section above it)
+  between Profile and Audit History; `JobReadOnlyDetailDialog` gets a small `_JobNotesSection` (its
+  own tiny `ConsumerStatefulWidget`, since the rest of that dialog is a plain `StatelessWidget`)
+  appended after Nurse Fee Guidance/Scope of Work. All three follow the same "No notes yet." empty
+  state plus Edit/Save/Cancel controls.
 - **Admin-initiated phone-number change — caregiver, individual, and organisation accounts
   alike.** Folded into each role's existing single admin-edit endpoint/dialog rather than a new
   one: `phone` is now an optional field on `AdminEditCaregiverDto`/`AdminEditIndividualDto`/
@@ -1047,6 +1054,88 @@ just returns that one shift's own list, no stacking.
   sidebar nav item (any admin, unconditional — same placement convention as Rate Card/Scope of
   Work) and registered in `root_screen.dart`'s `_restorableRoutes` safe-list (the page-refresh-
   stays-on-page fix — every new static admin-web route needs this).
+
+## Admin Push Notifications
+
+Admin can select any mix of caregiver/individual/organisation accounts and send them a custom
+FCM push notification, immediately or scheduled for a future date/time — "admin to many,"
+reusing each account type's existing admin-web list screen (with its own existing search/filter)
+as the selection UI rather than building a new one.
+
+- **A prerequisite this surfaced: individual/organisation accounts never registered an FCM
+  token at all before this feature.** Only caregivers had `PUT /caregiver/fcm-token` +
+  caregiver-app's own `FcmService` (`lib/caregiver/core/fcm/fcm_service.dart`, called from
+  `SessionNotifier.loadSession()` and the registration screen). Added the same capability for
+  the other two roles: `PUT /individual/profile/fcm-token` / `PUT /organisation/profile/fcm-token`
+  (both reuse the existing `UpdateFcmTokenDto`, both just call `UsersRepository.updateFcmToken`
+  with no audit log, same as caregiver's own `updateFcmToken`), and a patient_hospital-side
+  `FcmService` (`lib/patient_hospital/core/fcm/fcm_service.dart`) that mirrors caregiver's
+  exactly except `register({required bool isOrganisation})` takes the role explicitly (patient_
+  hospital's `SessionNotifier` already decodes it from the JWT via `_isOrganisationToken` to pick
+  which `getMe()` to call — the same boolean is now also passed to `_fcmService.register()` right
+  before `loadSession()` returns, mirroring caregiver's `unawaited(_fcmService.register())`).
+  `RegistrationScreen._submit()` needed no separate wiring since both its Individual and
+  Organisation branches already call `sessionProvider.notifier.loadSession()` immediately after
+  registering, which now does this transitively.
+- **Backend** (`apps/api/src/admin-push-notifications/`): two new tables, migration 077 —
+  `admin_push_notifications` (`created_by`, `title`, `body`, `scheduled_at`, `sent_at`, `status`
+  — `pending`/`sent`/`failed`/`cancelled`, `PushNotificationStatus` enum — `recipient_count`) and
+  `admin_push_notification_recipients` (`notification_id` FK, plain `user_id` — role-agnostic, no
+  FK to any one profile table, since one notification can target a mix of all three account
+  types at once). `POST /admin/push-notifications` (`CreatePushNotificationDto` — `title`, `body`,
+  optional `scheduled_at` ISO 8601, `recipient_user_ids` array capped at
+  `Validation.PUSH_NOTIFICATION_MAX_RECIPIENTS` [5000], same bulk-safety-cap convention as
+  `BULK_DELETE_MAX_ITEMS`) creates the row and, if `scheduled_at` is omitted or already in the
+  past, sends it in the same request — the response's own `status` reflects whether it actually
+  went out (`sent`) or not (`failed`), never an optimistic claim regardless of outcome (`
+  AdminPushNotificationsService.create` uses `send()`'s own boolean return to decide which).
+  Otherwise it's left `pending` for `AdminPushNotificationsService.processDueNotifications` — a
+  `@Cron('* * * * *')` minute-poll (same `@nestjs/schedule` infra `FcmService`'s own daily
+  reminder already uses) that finds every `pending` row whose `scheduled_at` has arrived and sends
+  it; low enough volume (admin-composed, not a per-user trigger) that a simple poll is plenty, no
+  overlap guard needed. Sending resolves the notification's recipient user ids, looks up their
+  `fcm_token`s via the new role-agnostic `UsersRepository.listFcmTokensByUserIds`, and calls the
+  new generic `FcmService.sendToTokens(tokens, title, body)` (unlike every other `FcmService`
+  method, which is always caregiver-only and swallows+logs its own errors, this one throws so the
+  caller can mark the notification `failed` rather than silently losing that signal). `GET
+  /admin/push-notifications` lists history (paginated, newest first, joined with the creating
+  admin's name). `PATCH /admin/push-notifications/:id/cancel` only succeeds on a still-`pending`
+  row (`PUSH_001` otherwise) — `AdminPushNotificationsRepository.cancel` does the `status='pending'`
+  guard as part of the `UPDATE ... WHERE` clause itself, atomically. Both create and cancel
+  audit-log (`AuditAction.PUSH_NOTIFICATION_CREATED`/`PUSH_NOTIFICATION_CANCELLED`, entity type
+  `'admin_push_notifications'`) — nothing is audit-logged for the cron's own send/fail transition,
+  since that's a system action with no admin attributable to it beyond the original create.
+- **admin-web — recipient selection cart**: a plain Riverpod `StateNotifierProvider`
+  (`shared/state/recipient_selection_cart.dart`, `recipientSelectionCartProvider`) holding
+  `Map<String, SelectedRecipient>` (`userId`, `role`, `displayName`) — deliberately just a provider,
+  not tied to any one screen's widget tree, so it persists as admin navigates between the
+  Caregivers/Patients-Family/Rehab-Hospitals list screens. Each of those three screens' existing
+  `DataTable`/mobile `VitaListCard` rows gained a `Checkbox` (plus a header "select all on this
+  page" checkbox for the `DataTable` case, additive via `addAll`/`removeAll` — never replaces
+  a selection made on a different page or a different screen) toggling membership — no new
+  search/filter UI, reusing each screen's own existing one entirely as asked. `AppShell` gained an
+  optional `bottomBar` slot (threaded through to `Scaffold.bottomNavigationBar` on both the
+  permanent-sidebar and compact/Drawer layouts) so `RecipientCartBar`
+  (`shared/widgets/recipient_cart_bar.dart`) can float pinned below any screen's content without
+  each screen having to restructure its own layout — collapses to nothing when the cart is empty.
+  When non-empty, it shows a role breakdown ("3 caregivers, 2 patients, 1 organisation selected")
+  plus Clear and "Notify Selected" (opens `ComposeNotificationDialog`).
+- **admin-web — compose/schedule** (`features/push_notifications/widgets/compose_notification_dialog.dart`):
+  title/body fields (capped at `Validation.pushNotificationTitleMaxLength`/`BodyMaxLength`), a
+  `SegmentedButton<bool>` for Send Now vs Schedule for later (not `RadioListTile` — deprecated in
+  the Flutter version this app is on), and for the latter a date+time picker pair combined into
+  one `DateTime`; Send/Schedule stays disabled until title+body are non-empty and (if scheduling)
+  a future date/time is picked. On success, clears the cart (starting a new compose should start
+  from an empty selection, not silently resend to the same group) and shows a snackbar reflecting
+  the actual returned `status` — "sent to N recipient(s)," "could not be delivered — see Push
+  Notifications history," or "scheduled for \<date\>," never a blanket "sent."
+- **admin-web — history** (`features/push_notifications/screens/push_notifications_screen.dart`,
+  `/push-notifications`, new "Push Notifications" sidebar nav item + `root_screen.dart`
+  `_restorableRoutes` entry, same conventions as every other static admin-web route): lists every
+  past/pending notification (title, message, recipient count, scheduled date/time, status chip,
+  who composed it) with pagination; a pending row gets a Cancel action, nothing else is ever
+  editable after composing. This screen is read/cancel-only — composing a new notification only
+  ever happens via `RecipientCartBar` from one of the three list screens, never from here.
 
 ## Naming Conventions (STRICT)
 

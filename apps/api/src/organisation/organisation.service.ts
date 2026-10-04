@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
+import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 
 /** Organisation account identity + self-service (phone/PIN change) — the
  *  requirement-posting/applicant-review surface lives in
@@ -138,5 +139,10 @@ export class OrganisationService {
       ipAddress,
     });
     return { message: 'Login code updated' };
+  }
+
+  async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
+    await this.usersRepo.updateFcmToken(userId, dto.token);
+    return { message: 'FCM token updated' };
   }
 }

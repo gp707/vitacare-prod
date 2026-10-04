@@ -19,6 +19,7 @@ import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
+import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 
 @Injectable()
 export class IndividualService {
@@ -365,6 +366,11 @@ export class IndividualService {
       ipAddress,
     });
     return { message: 'Name updated' };
+  }
+
+  async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
+    await this.usersRepo.updateFcmToken(userId, dto.token);
+    return { message: 'FCM token updated' };
   }
 
   /** Once cancelled (see cancelRequirement above), the individual can no

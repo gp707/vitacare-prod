@@ -13,6 +13,7 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifi
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/screens/requirements_posted_screen.dart';
 
 /// Equivalent to pumpAndSettle(), but safe once a live (JobStatus.active)
@@ -201,7 +202,7 @@ Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo, {bool 
         localStorageProvider.overrideWithValue(localStorage),
         organisationRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, IndividualRepository(Dio()), repo)
+          (ref) => SessionNotifier(localStorage, IndividualRepository(Dio()), repo, FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
             ..state = SessionAuthenticated(
               role: 'organisation',
               fullName: 'Ravi Sharma',

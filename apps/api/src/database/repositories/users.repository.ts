@@ -137,6 +137,17 @@ export class UsersRepository {
     return result.rows.map((row) => row.fcm_token);
   }
 
+  /** Used by AdminPushNotificationsService to resolve a mixed bag of
+   *  caregiver/individual/organisation recipient ids — role-agnostic,
+   *  unlike listCaregiverFcmTokens(ByStatus). */
+  async listFcmTokensByUserIds(userIds: string[]): Promise<string[]> {
+    const result = await this.db.query<{ fcm_token: string }>(
+      `SELECT fcm_token FROM users WHERE id = ANY($1::uuid[]) AND fcm_token IS NOT NULL`,
+      [userIds],
+    );
+    return result.rows.map((row) => row.fcm_token);
+  }
+
   async listAdmins(): Promise<UserRecord[]> {
     const result = await this.db.query<UserRecord>(
       `SELECT * FROM users WHERE role IN ('admin', 'super_admin') ORDER BY created_at DESC`,

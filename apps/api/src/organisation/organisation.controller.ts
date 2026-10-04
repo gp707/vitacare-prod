@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -14,6 +14,7 @@ import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
+import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 
 @Controller('organisation')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -113,5 +114,11 @@ export class OrganisationController {
   @HttpCode(HttpStatus.OK)
   updateCode(@CurrentUser() user: JwtPayload, @Body() dto: UpdateCodeDto, @ClientIp() ip: string | null) {
     return this.organisationService.updateCode(user.sub, dto, ip);
+  }
+
+  @Put('profile/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  updateFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
+    return this.organisationService.updateFcmToken(user.sub, dto);
   }
 }

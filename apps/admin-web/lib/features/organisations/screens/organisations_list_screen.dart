@@ -6,6 +6,8 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/vita_list_card.dart';
+import '../../../shared/widgets/recipient_cart_bar.dart';
+import '../../../shared/state/recipient_selection_cart.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_organisations_repository.dart';
 
@@ -244,6 +246,12 @@ class _OrganisationsListScreenState
   /// Redirects into the merged Jobs tab, pre-filtered to just this
   /// organisation's own postings — every other Jobs filter (search/city/
   /// status/etc.) stays available to narrow further from there.
+  SelectedRecipient _toRecipient(AdminOrganisationListItem item) => SelectedRecipient(
+        userId: item.userId,
+        role: 'organisation',
+        displayName: item.organisationName,
+      );
+
   void _viewJobs(AdminOrganisationListItem item) {
     Navigator.of(context).pushNamedAndRemoveUntil(
       '/jobs',
@@ -260,6 +268,7 @@ class _OrganisationsListScreenState
   Widget build(BuildContext context) {
     return AppShell(
       current: AppShellSection.rehabHospitals,
+      bottomBar: const RecipientCartBar(),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -294,6 +303,7 @@ class _OrganisationsListScreenState
             : 'No organisation accounts yet.'),
       );
     }
+    final cart = ref.watch(recipientSelectionCartProvider);
     if (context.isMobile) {
       return ListView.separated(
         itemCount: _items.length,
@@ -301,7 +311,17 @@ class _OrganisationsListScreenState
         itemBuilder: (context, index) {
           final item = _items[index];
           return VitaListCard(
-            title: Text(item.organisationName),
+            title: Row(
+              children: [
+                Checkbox(
+                  value: cart.containsKey(item.userId),
+                  onChanged: (_) => ref
+                      .read(recipientSelectionCartProvider.notifier)
+                      .toggle(_toRecipient(item)),
+                ),
+                Expanded(child: Text(item.organisationName, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
             trailing: _StatusCell(item: item),
             onTap: () => Navigator.of(context)
                 .pushNamed('/organisation-detail', arguments: item.userId),
@@ -328,19 +348,33 @@ class _OrganisationsListScreenState
         },
       );
     }
+    final allSelected = _items.every((item) => cart.containsKey(item.userId));
     return SingleChildScrollView(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          columns: const [
-            DataColumn(label: Text('ID')),
-            DataColumn(label: Text('Organisation')),
-            DataColumn(label: Text('Contact')),
-            DataColumn(label: Text('Phone')),
-            DataColumn(label: Text('Location')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Registered')),
-            DataColumn(label: Text('Actions')),
+          columns: [
+            DataColumn(
+              label: Checkbox(
+                value: allSelected,
+                onChanged: (value) {
+                  final notifier = ref.read(recipientSelectionCartProvider.notifier);
+                  if (value == true) {
+                    notifier.addAll(_items.map(_toRecipient));
+                  } else {
+                    notifier.removeAll(_items.map((item) => item.userId));
+                  }
+                },
+              ),
+            ),
+            const DataColumn(label: Text('ID')),
+            const DataColumn(label: Text('Organisation')),
+            const DataColumn(label: Text('Contact')),
+            const DataColumn(label: Text('Phone')),
+            const DataColumn(label: Text('Location')),
+            const DataColumn(label: Text('Status')),
+            const DataColumn(label: Text('Registered')),
+            const DataColumn(label: Text('Actions')),
           ],
           rows: _items
               .map((item) => DataRow(
@@ -348,6 +382,14 @@ class _OrganisationsListScreenState
                           '/organisation-detail',
                           arguments: item.userId),
                       cells: [
+                        DataCell(
+                          Checkbox(
+                            value: cart.containsKey(item.userId),
+                            onChanged: (_) => ref
+                                .read(recipientSelectionCartProvider.notifier)
+                                .toggle(_toRecipient(item)),
+                          ),
+                        ),
                         DataCell(
                             Text(organisationDisplayId(item.orgNumber) ?? '-')),
                         DataCell(Text(item.organisationName)),

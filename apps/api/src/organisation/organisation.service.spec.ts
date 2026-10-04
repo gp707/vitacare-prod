@@ -14,6 +14,7 @@ describe('OrganisationService', () => {
       updatePhone: jest.fn(),
       updateCodeHash: jest.fn(),
       updateFullName: jest.fn(),
+      updateFcmToken: jest.fn(),
     };
     auditService = { log: jest.fn() };
     service = new OrganisationService(organisationProfilesRepo, usersRepo, auditService);
@@ -223,6 +224,14 @@ describe('OrganisationService', () => {
         expect.objectContaining({ userId: 'user-1', action: 'code_changed', entityType: 'organisation_profiles' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
+    });
+  });
+
+  describe('updateFcmToken', () => {
+    it('stores the token via usersRepo', async () => {
+      const result = await service.updateFcmToken('user-1', { token: 'fcm-abc' } as any);
+      expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
+      expect(result).toEqual({ message: 'FCM token updated' });
     });
   });
 });

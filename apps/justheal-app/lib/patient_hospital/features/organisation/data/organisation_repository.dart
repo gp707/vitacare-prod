@@ -196,4 +196,12 @@ class OrganisationRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  Future<void> updateFcmToken(String token) async {
+    try {
+      await _dio.put(ApiRoutes.organisationProfileFcmToken, data: {'token': token});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

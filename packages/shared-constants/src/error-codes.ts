@@ -89,6 +89,9 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_018: { status: 400, message: 'Too many items selected for bulk delete — narrow your search first' },
   JOB_020: { status: 400, message: 'Invalid close reason value' },
 
+  // Admin push notification errors
+  PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },
+
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
   SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },

@@ -6,6 +6,8 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/vita_list_card.dart';
+import '../../../shared/widgets/recipient_cart_bar.dart';
+import '../../../shared/state/recipient_selection_cart.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
 
@@ -83,10 +85,17 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     _load();
   }
 
+  SelectedRecipient _toRecipient(AdminCaregiverListItem item) => SelectedRecipient(
+        userId: item.userId,
+        role: 'caregiver',
+        displayName: item.fullName,
+      );
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
       current: AppShellSection.caregivers,
+      bottomBar: const RecipientCartBar(),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -240,6 +249,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     if (_items.isEmpty) {
       return const Center(child: Text('No caregivers match these filters.'));
     }
+    final cart = ref.watch(recipientSelectionCartProvider);
     if (context.isMobile) {
       return ListView.separated(
         itemCount: _items.length,
@@ -247,7 +257,17 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         itemBuilder: (context, index) {
           final item = _items[index];
           return VitaListCard(
-            title: Text(item.fullName),
+            title: Row(
+              children: [
+                Checkbox(
+                  value: cart.containsKey(item.userId),
+                  onChanged: (_) => ref
+                      .read(recipientSelectionCartProvider.notifier)
+                      .toggle(_toRecipient(item)),
+                ),
+                Expanded(child: Text(item.fullName, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
             trailing: VitaStatusBadge(status: item.verificationStatus),
             onTap: () => Navigator.of(context)
                 .pushNamed('/caregiver-detail', arguments: item.profileId),
@@ -269,19 +289,33 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         },
       );
     }
+    final allSelected = _items.every((item) => cart.containsKey(item.userId));
     return SingleChildScrollView(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          columns: const [
-            DataColumn(label: Text('ID')),
-            DataColumn(label: Text('Name')),
-            DataColumn(label: Text('Phone')),
-            DataColumn(label: Text('Gender')),
-            DataColumn(label: Text('Age')),
-            DataColumn(label: Text('Qualification')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Registered')),
+          columns: [
+            DataColumn(
+              label: Checkbox(
+                value: allSelected,
+                onChanged: (value) {
+                  final notifier = ref.read(recipientSelectionCartProvider.notifier);
+                  if (value == true) {
+                    notifier.addAll(_items.map(_toRecipient));
+                  } else {
+                    notifier.removeAll(_items.map((item) => item.userId));
+                  }
+                },
+              ),
+            ),
+            const DataColumn(label: Text('ID')),
+            const DataColumn(label: Text('Name')),
+            const DataColumn(label: Text('Phone')),
+            const DataColumn(label: Text('Gender')),
+            const DataColumn(label: Text('Age')),
+            const DataColumn(label: Text('Qualification')),
+            const DataColumn(label: Text('Status')),
+            const DataColumn(label: Text('Registered')),
           ],
           rows: _items
               .map(
@@ -290,6 +324,14 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                       '/caregiver-detail',
                       arguments: item.profileId),
                   cells: [
+                    DataCell(
+                      Checkbox(
+                        value: cart.containsKey(item.userId),
+                        onChanged: (_) => ref
+                            .read(recipientSelectionCartProvider.notifier)
+                            .toggle(_toRecipient(item)),
+                      ),
+                    ),
                     DataCell(
                         Text(caregiverDisplayId(item.caregiverNumber) ?? '-')),
                     DataCell(Text(item.fullName)),

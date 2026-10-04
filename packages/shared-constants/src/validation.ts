@@ -38,4 +38,9 @@ export const Validation = {
   // intended in one irreversible action. An admin who genuinely needs to
   // delete more narrows their filter and repeats.
   BULK_DELETE_MAX_ITEMS: 500,
+  // Same reasoning as BULK_DELETE_MAX_ITEMS — a safety guardrail on one
+  // admin-composed push notification's recipient list.
+  PUSH_NOTIFICATION_MAX_RECIPIENTS: 5000,
+  PUSH_NOTIFICATION_TITLE_MAX_LENGTH: 100,
+  PUSH_NOTIFICATION_BODY_MAX_LENGTH: 500,
 } as const;

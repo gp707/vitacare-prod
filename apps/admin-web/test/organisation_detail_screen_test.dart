@@ -49,6 +49,8 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   String? unblockedLevel;
   String? resetCodeUserId;
   String? resetCodeValue;
+  String? notesUserId;
+  String? notesValue;
 
   _FakeAdminOrganisationsRepository(this.detail) : super(Dio());
 
@@ -56,6 +58,16 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   Future<void> resetCode(String userId, String code) async {
     resetCodeUserId = userId;
     resetCodeValue = code;
+  }
+
+  @override
+  Future<void> upsertNotes(String userId, String? notes) async {
+    notesUserId = userId;
+    notesValue = notes;
+    detail = _item(
+        userId: detail.userId,
+        fullName: detail.fullName,
+        organisationName: detail.organisationName);
   }
 
   @override
@@ -215,7 +227,9 @@ void main() {
     final repo = _FakeAdminOrganisationsRepository(_item());
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Edit'));
+    // Two Edit buttons exist now (Profile section + Notes section below it)
+    // — the Profile one comes first in the widget tree.
+    await tester.tap(find.text('Edit').first);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Organisation Name'),
@@ -234,7 +248,7 @@ void main() {
     final repo = _FakeAdminOrganisationsRepository(_item());
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Edit'));
+    await tester.tap(find.text('Edit').first);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Phone'), '+919999999999');
@@ -385,5 +399,28 @@ void main() {
     expect(repo.resetCodeUserId, 'u1');
     expect(repo.resetCodeValue, '1357');
     expect(find.text('PIN reset'), findsOneWidget);
+  });
+
+  testWidgets('Notes section defaults to "No notes yet."; editing and saving calls upsertNotes',
+      (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item());
+    await _pump(tester, repo);
+
+    expect(find.text('No notes yet.'), findsOneWidget);
+
+    // The Notes section's own Edit button comes after the Profile
+    // section's — see the ambiguity note on the editProfile tests above.
+    await tester.tap(find.text('Edit').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Internal notes about this organisation account (never shown to them)'),
+        'Pending compliance document review.');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Notes'));
+    await tester.pumpAndSettle();
+
+    expect(repo.notesUserId, 'u1');
+    expect(repo.notesValue, 'Pending compliance document review.');
+    expect(find.text('Notes saved'), findsOneWidget);
   });
 }

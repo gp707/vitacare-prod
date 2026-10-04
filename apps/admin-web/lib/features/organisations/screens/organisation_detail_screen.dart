@@ -46,6 +46,10 @@ class _OrganisationDetailScreenState
   String? _editOrganisationType;
   String? _editCity;
 
+  bool _editingNotes = false;
+  bool _savingNotes = false;
+  final _notesController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +62,7 @@ class _OrganisationDetailScreenState
     _phoneController.dispose();
     _organisationNameController.dispose();
     _areaController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -192,6 +197,29 @@ class _OrganisationDetailScreenState
       if (mounted) _showSnackBar('PIN reset');
     } on ApiException catch (e) {
       if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
+  void _enterEditNotes(AdminOrganisationListItem detail) {
+    _notesController.text = detail.notes ?? '';
+    setState(() => _editingNotes = true);
+  }
+
+  Future<void> _saveNotes(AdminOrganisationListItem detail) async {
+    setState(() => _savingNotes = true);
+    try {
+      await ref
+          .read(adminOrganisationsRepositoryProvider)
+          .upsertNotes(widget.userId, _notesController.text.trim());
+      if (mounted) {
+        setState(() => _editingNotes = false);
+        _showSnackBar('Notes saved');
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _savingNotes = false);
     }
   }
 
@@ -331,6 +359,8 @@ class _OrganisationDetailScreenState
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _buildNotesSection(detail),
           const SizedBox(height: AppSpacing.lg),
           _buildAuditPreview(),
         ],
@@ -476,6 +506,87 @@ class _OrganisationDetailScreenState
               child: Text(label,
                   style: const TextStyle(color: AppColors.textSecondary))),
           Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  /// Admin-only personal/internal note about this organisation account —
+  /// never shown to the organisation's own self-view. Mirrors
+  /// IndividualDetailScreen's own Notes section exactly.
+  Widget _buildNotesSection(AdminOrganisationListItem detail) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.sticky_note_2_outlined, size: 18, color: AppColors.primaryDark),
+                  SizedBox(width: AppSpacing.xs),
+                  Text('Notes', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              if (!_editingNotes)
+                TextButton.icon(
+                  onPressed: () => _enterEditNotes(detail),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit'),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (_editingNotes)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _notesController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Internal notes about this organisation account (never shown to them)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _savingNotes ? null : () => _saveNotes(detail),
+                      icon: _savingNotes
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.check, size: 16),
+                      label: const Text('Save Notes'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    TextButton.icon(
+                      onPressed: _savingNotes ? null : () => setState(() => _editingNotes = false),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Text(
+              detail.notes?.isNotEmpty == true ? detail.notes! : 'No notes yet.',
+              style: TextStyle(
+                color: detail.notes?.isNotEmpty == true ? null : AppColors.textSecondary,
+              ),
+            ),
         ],
       ),
     );

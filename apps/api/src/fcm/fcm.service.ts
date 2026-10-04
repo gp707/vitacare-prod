@@ -50,6 +50,21 @@ export class FcmService implements OnModuleInit {
     }
   }
 
+  /** Generic multicast to an explicit, already-resolved token list — used
+   *  by AdminPushNotificationsService, which can target any mix of
+   *  caregiver/individual/organisation accounts (unlike
+   *  sendToAllCaregivers/sendDailyAvailabilityReminder, which are always
+   *  caregiver-only). Throws on failure (unlike every other method here,
+   *  which swallows and logs) so the caller can mark the notification
+   *  failed rather than silently losing that signal. */
+  async sendToTokens(tokens: string[], title: string, body: string): Promise<void> {
+    if (tokens.length === 0) return;
+    await getMessaging(this.app).sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+    });
+  }
+
   /** New-job-posted broadcast (SPEC.md 6.6) — every caregiver who has ever
    *  opened the app gets notified, regardless of verification status
    *  (browsing jobs pre-approval is the point — CLAUDE.md's "motivates

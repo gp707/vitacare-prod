@@ -14,6 +14,7 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifi
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 
 /// Equivalent to pumpAndSettle(), but safe once the bell's swing animation
 /// is running — it repeats forever via AnimationController while there's
@@ -95,7 +96,7 @@ Future<LocalStorage> _pump(
           _FakeIndividualMessagesRepository(templates: templates ?? _seedTemplates()),
         ),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
             ..state = const SessionAuthenticated(
               role: 'individual',
               fullName: 'Asha Patel',
@@ -137,7 +138,7 @@ void main() {
             _FakeIndividualMessagesRepository(templates: _seedTemplates()),
           ),
           sessionProvider.overrideWith(
-            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
               ..state = const SessionAuthenticated(
                 role: 'individual',
                 fullName: 'Asha Patel',
@@ -276,7 +277,7 @@ void main() {
             _FakeIndividualMessagesRepository(templates: _seedTemplates()),
           ),
           sessionProvider.overrideWith(
-            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
               ..state = const SessionAuthenticated(
                 role: 'individual',
                 fullName: 'Asha Patel',

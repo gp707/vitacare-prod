@@ -12,6 +12,7 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifi
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 
 Future<void> _pump(WidgetTester tester, LocalStorage localStorage, SessionNotifier notifier) async {
   await tester.pumpWidget(
@@ -42,7 +43,7 @@ void main() {
   testWidgets(
       'redirects to /login the moment the session becomes unauthenticated — e.g. ApiClient reacting to an '
       'invalidated token from some unrelated screen mid-session, not just at splash', (tester) async {
-    final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()))
+    final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
       ..state = const SessionAuthenticated(
         role: 'individual',
         fullName: 'Asha Patel',
@@ -66,7 +67,7 @@ void main() {
 
   testWidgets('does not navigate anywhere when the session stays authenticated (e.g. a profile refresh)',
       (tester) async {
-    final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()))
+    final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
       ..state = const SessionAuthenticated(
         role: 'individual',
         fullName: 'Asha Patel',

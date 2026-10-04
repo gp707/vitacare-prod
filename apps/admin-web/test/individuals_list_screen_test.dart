@@ -88,7 +88,7 @@ Future<void> _pump(
     WidgetTester tester, _FakeAdminIndividualsRepository repo) async {
   // The Actions column sits at the right edge of a horizontally-scrolling
   // DataTable — the default 800x600 test surface clips it off-screen.
-  await tester.binding.setSurfaceSize(const Size(2000, 800));
+  await tester.binding.setSurfaceSize(const Size(2150, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -120,6 +120,25 @@ void main() {
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
     expect(find.text('PAT-500'), findsOneWidget);
+  });
+
+  testWidgets(
+      'checking a row adds it to the recipient selection cart and shows the Notify bar',
+      (tester) async {
+    await _pump(tester, _FakeAdminIndividualsRepository([_item()]));
+
+    expect(find.text('Notify Selected'), findsNothing);
+
+    await tester.tap(find.byType(Checkbox).last);
+    await tester.pump();
+
+    expect(find.text('1 patient selected'), findsOneWidget);
+    expect(find.text('Notify Selected'), findsOneWidget);
+
+    await tester.tap(find.byType(Checkbox).last);
+    await tester.pump();
+
+    expect(find.text('Notify Selected'), findsNothing);
   });
 
   testWidgets('shows an empty state when there are no individuals',
@@ -235,7 +254,7 @@ void main() {
   testWidgets(
       'tapping a row navigates to /individual-detail with the account\'s user id',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2000, 800));
+    await tester.binding.setSurfaceSize(const Size(2150, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();
@@ -279,7 +298,7 @@ void main() {
   testWidgets(
       'tapping View Jobs redirects to /jobs pre-filtered to this individual',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2000, 800));
+    await tester.binding.setSurfaceSize(const Size(2150, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();

@@ -15,6 +15,9 @@ class AdminOrganisationListItem {
   final bool isJobPostingBlocked;
   final String? blockReason;
   final String createdAt;
+  // Only ever populated by getDetail() — the list endpoint doesn't return
+  // it (same convention as individual/caregiver notes being detail-only).
+  final String? notes;
 
   const AdminOrganisationListItem({
     required this.userId,
@@ -29,6 +32,7 @@ class AdminOrganisationListItem {
     required this.isJobPostingBlocked,
     this.blockReason,
     required this.createdAt,
+    this.notes,
   });
 
   factory AdminOrganisationListItem.fromJson(Map<String, dynamic> json) =>
@@ -45,6 +49,7 @@ class AdminOrganisationListItem {
         isJobPostingBlocked: json['is_job_posting_blocked'] as bool,
         blockReason: json['block_reason'] as String?,
         createdAt: json['created_at'] as String,
+        notes: json['notes'] as String?,
       );
 }
 
@@ -133,6 +138,16 @@ class AdminOrganisationsRepository {
     try {
       await _dio.post('/admin/organisations/$userId/reset-code',
           data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Admin-only personal/internal note about this organisation account.
+  Future<void> upsertNotes(String userId, String? notes) async {
+    try {
+      await _dio
+          .post('/admin/organisations/$userId/notes', data: {'notes': notes});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

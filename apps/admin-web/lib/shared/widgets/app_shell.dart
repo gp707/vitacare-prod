@@ -13,6 +13,7 @@ enum AppShellSection {
   nursenowMessages,
   nursejobsMessages,
   reports,
+  pushNotifications,
   auditLogs,
   adminManagement,
   settings,
@@ -28,8 +29,13 @@ enum AppShellSection {
 class AppShell extends ConsumerWidget {
   final AppShellSection current;
   final Widget child;
+  /// Optional sticky bar pinned below [child] (e.g. RecipientCartBar) —
+  /// rendered via Scaffold's own bottomNavigationBar slot so it floats
+  /// above the content rather than scrolling with it, on both the
+  /// permanent-sidebar and compact/Drawer layouts alike.
+  final Widget? bottomBar;
 
-  const AppShell({super.key, required this.current, required this.child});
+  const AppShell({super.key, required this.current, required this.child, this.bottomBar});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,6 +65,7 @@ class AppShell extends ConsumerWidget {
                   current: current, isSuperAdmin: isSuperAdmin, ref: ref)),
         ),
         body: child,
+        bottomNavigationBar: bottomBar,
       );
     }
 
@@ -75,6 +82,7 @@ class AppShell extends ConsumerWidget {
           Expanded(child: child),
         ],
       ),
+      bottomNavigationBar: bottomBar,
     );
   }
 }
@@ -170,6 +178,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.reports,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/reports', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.campaign_outlined,
+                  label: 'Push Notifications',
+                  selected: current == AppShellSection.pushNotifications,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/push-notifications', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.history,

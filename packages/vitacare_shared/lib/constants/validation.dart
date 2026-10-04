@@ -38,4 +38,9 @@ class Validation {
   // intended in one irreversible action. An admin who genuinely needs to
   // delete more narrows their filter and repeats.
   static const bulkDeleteMaxItems = 500;
+  // Same reasoning as bulkDeleteMaxItems — a safety guardrail on one
+  // admin-composed push notification's recipient list.
+  static const pushNotificationMaxRecipients = 5000;
+  static const pushNotificationTitleMaxLength = 100;
+  static const pushNotificationBodyMaxLength = 500;
 }

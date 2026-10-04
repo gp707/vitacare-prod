@@ -17,6 +17,7 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/screens/jobs_posted_screen.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 
 /// Equivalent to pumpAndSettle(), but safe once a live (JobStatus.active)
 /// requirement's status badge is on screen — its blink animation repeats
@@ -256,7 +257,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
         dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
         individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
             ..state = SessionAuthenticated(
               role: 'individual',
               fullName: 'Asha Patel',

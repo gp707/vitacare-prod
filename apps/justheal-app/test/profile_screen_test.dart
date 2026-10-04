@@ -18,6 +18,7 @@ import 'package:nursenow_app/patient_hospital/features/individual/data/individua
 import 'package:nursenow_app/patient_hospital/features/individual/screens/profile_screen.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_model.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
+import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 
 class _FakeIndividualRepository extends IndividualRepository {
   String? updatedName;
@@ -158,7 +159,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
         individualRepositoryProvider.overrideWithValue(repo),
         individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+          (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
             ..state = SessionAuthenticated(
               role: 'individual',
               fullName: 'Asha Patel',
@@ -207,7 +208,7 @@ Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository 
         localStorageProvider.overrideWithValue(localStorage),
         organisationRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
-          (ref) => SessionNotifier(localStorage, individualRepo, repo)
+          (ref) => SessionNotifier(localStorage, individualRepo, repo, FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
             ..state = const SessionAuthenticated(
               role: 'organisation',
               fullName: 'Ravi Sharma',
@@ -386,7 +387,7 @@ void main() {
           individualRepositoryProvider.overrideWithValue(repo),
           individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
           sessionProvider.overrideWith(
-            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()))
+            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
               ..state = const SessionAuthenticated(
                 role: 'individual',
                 fullName: 'Asha Patel',
