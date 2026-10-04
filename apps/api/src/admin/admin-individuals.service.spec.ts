@@ -4,6 +4,7 @@ describe('AdminIndividualsService', () => {
   let service: AdminIndividualsService;
   let individualsRepo: any;
   let usersRepo: any;
+  let notesRepo: any;
   let auditService: any;
 
   beforeEach(() => {
@@ -13,9 +14,10 @@ describe('AdminIndividualsService', () => {
       setJobPostingBlocked: jest.fn(),
       setBlockReason: jest.fn(),
     };
-    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn() };
+    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn(), updateCodeHash: jest.fn() };
+    notesRepo = { findByUserId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
     auditService = { log: jest.fn() };
-    service = new AdminIndividualsService(individualsRepo, usersRepo, auditService);
+    service = new AdminIndividualsService(individualsRepo, usersRepo, notesRepo, auditService);
   });
 
   describe('listIndividuals', () => {
@@ -46,10 +48,66 @@ describe('AdminIndividualsService', () => {
       await expect(service.getIndividualDetail('u1')).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
-    it('returns the individual detail', async () => {
+    it('returns the individual detail with notes merged in', async () => {
       individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue({ notes: 'Called twice, no answer' });
       const result = await service.getIndividualDetail('u1');
-      expect(result).toEqual({ user_id: 'u1' });
+      expect(result).toEqual({ user_id: 'u1', notes: 'Called twice, no answer' });
+    });
+
+    it('defaults notes to null when none have been saved', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue(null);
+      const result = await service.getIndividualDetail('u1');
+      expect(result).toEqual({ user_id: 'u1', notes: null });
+    });
+  });
+
+  describe('upsertNotes', () => {
+    it('throws GEN_002 when the individual does not exist', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue(null);
+      await expect(service.upsertNotes('u1', 'admin1', 'note', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('saves the note and audit-logs it', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      notesRepo.findByUserId.mockResolvedValue({ notes: 'old note' });
+      const result = await service.upsertNotes('u1', 'admin1', 'new note', null);
+      expect(notesRepo.upsert).toHaveBeenCalledWith('u1', 'admin1', 'new note');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin1',
+          targetUserId: 'u1',
+          action: 'admin_note_added',
+          entityType: 'individual_admin_notes',
+          beforeValue: { notes: 'old note' },
+          afterValue: { notes: 'new note' },
+        }),
+      );
+      expect(result).toEqual({ message: 'Notes saved' });
+    });
+  });
+
+  describe('resetCode', () => {
+    it('throws GEN_002 when the individual does not exist', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue(null);
+      await expect(
+        service.resetCode('u1', 'admin1', { code: '1234' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('resets the code hash and audit-logs ADMIN_CODE_RESET', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      await service.resetCode('u1', 'admin1', { code: '1234' } as any, null);
+      expect(usersRepo.updateCodeHash).toHaveBeenCalledWith('u1', expect.any(String));
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin1',
+          targetUserId: 'u1',
+          action: 'admin_code_reset',
+          entityType: 'individual_profiles',
+        }),
+      );
     });
   });
 

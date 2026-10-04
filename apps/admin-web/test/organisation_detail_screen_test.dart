@@ -47,8 +47,16 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   String? blockedReason;
   String? unblockedUserId;
   String? unblockedLevel;
+  String? resetCodeUserId;
+  String? resetCodeValue;
 
   _FakeAdminOrganisationsRepository(this.detail) : super(Dio());
+
+  @override
+  Future<void> resetCode(String userId, String code) async {
+    resetCodeUserId = userId;
+    resetCodeValue = code;
+  }
 
   @override
   Future<AdminOrganisationListItem> getDetail(String userId) async => detail;
@@ -343,5 +351,22 @@ void main() {
 
     expect(repo.unblockedUserId, 'u1');
     expect(repo.unblockedLevel, 'full');
+  });
+
+  testWidgets('tapping Reset PIN, entering a 4-digit code, and confirming calls resetCode',
+      (tester) async {
+    final repo = _FakeAdminOrganisationsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '1357');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    expect(repo.resetCodeUserId, 'u1');
+    expect(repo.resetCodeValue, '1357');
+    expect(find.text('PIN reset'), findsOneWidget);
   });
 }

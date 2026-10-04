@@ -14,7 +14,7 @@ describe('AdminOrganisationsService', () => {
       setBlockReason: jest.fn(),
       adminUpdate: jest.fn(),
     };
-    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn() };
+    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn(), updateCodeHash: jest.fn() };
     auditService = { log: jest.fn() };
     service = new AdminOrganisationsService(organisationsRepo, usersRepo, auditService);
   });
@@ -121,6 +121,29 @@ describe('AdminOrganisationsService', () => {
 
       expect(usersRepo.updateFullName).toHaveBeenCalledWith('u1', 'Same Contact');
       expect(auditService.log).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetCode', () => {
+    it('throws GEN_002 when the organisation does not exist', async () => {
+      organisationsRepo.findDetailByUserId.mockResolvedValue(null);
+      await expect(
+        service.resetCode('u1', 'admin1', { code: '1234' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+
+    it('resets the code hash and audit-logs ADMIN_CODE_RESET', async () => {
+      organisationsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+      await service.resetCode('u1', 'admin1', { code: '1234' } as any, null);
+      expect(usersRepo.updateCodeHash).toHaveBeenCalledWith('u1', expect.any(String));
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin1',
+          targetUserId: 'u1',
+          action: 'admin_code_reset',
+          entityType: 'organisation_profiles',
+        }),
+      );
     });
   });
 

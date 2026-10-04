@@ -14,6 +14,8 @@ import { AdminOrganisationsRepository } from './repositories/admin-organisations
 import { RefreshTokensRepository } from './repositories/refresh-tokens.repository';
 import { AdminCaregiversRepository } from './repositories/admin-caregivers.repository';
 import { AdminNotesRepository } from './repositories/admin-notes.repository';
+import { JobAdminNotesRepository } from './repositories/job-admin-notes.repository';
+import { IndividualAdminNotesRepository } from './repositories/individual-admin-notes.repository';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
@@ -46,6 +48,8 @@ const repositories = [
   RefreshTokensRepository,
   AdminCaregiversRepository,
   AdminNotesRepository,
+  JobAdminNotesRepository,
+  IndividualAdminNotesRepository,
   AuditLogsRepository,
   JobsRepository,
   JobApplicationsRepository,

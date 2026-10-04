@@ -10,6 +10,7 @@ describe('JobsService', () => {
   let profilesRepo: any;
   let adminCaregiversRepo: any;
   let usersRepo: any;
+  let jobAdminNotesRepo: any;
   let auditService: any;
   let fcmService: any;
 
@@ -80,6 +81,7 @@ describe('JobsService', () => {
     profilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
     usersRepo = { findById: jest.fn() };
+    jobAdminNotesRepo = { findByJobId: jest.fn(), upsert: jest.fn() };
     auditService = { log: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
     service = new JobsService(
@@ -90,6 +92,7 @@ describe('JobsService', () => {
       profilesRepo,
       adminCaregiversRepo,
       usersRepo,
+      jobAdminNotesRepo,
       auditService,
       fcmService,
     );
@@ -407,10 +410,11 @@ describe('JobsService', () => {
       await expect(service.getJobDetailForAdmin('missing')).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
-    it('returns the job with its care receiver, applications, and poster info', async () => {
+    it('returns the job with its care receiver, applications, poster info, and notes', async () => {
       jobsRepo.findById.mockResolvedValue(job);
       jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1', status: 'applied' }]);
       usersRepo.findById.mockResolvedValue({ role: 'admin', full_name: 'Admin One', phone: '+919876543210' });
+      jobAdminNotesRepo.findByJobId.mockResolvedValue({ notes: 'Checked in with family' });
       const result = await service.getJobDetailForAdmin('job-1');
       expect(result).toEqual({
         ...job,
@@ -419,7 +423,44 @@ describe('JobsService', () => {
         posted_by_role: 'admin',
         posted_by_name: 'Admin One',
         posted_by_phone: '+919876543210',
+        notes: 'Checked in with family',
       });
+    });
+
+    it('defaults notes to null when none have been saved', async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobId.mockResolvedValue([]);
+      usersRepo.findById.mockResolvedValue({ role: 'admin', full_name: 'Admin One', phone: '+919876543210' });
+      jobAdminNotesRepo.findByJobId.mockResolvedValue(null);
+      const result = await service.getJobDetailForAdmin('job-1');
+      expect(result.notes).toBeNull();
+    });
+  });
+
+  describe('upsertNotes', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.upsertNotes('missing', 'admin-1', 'note', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('saves the note and audit-logs it against the job', async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      jobAdminNotesRepo.findByJobId.mockResolvedValue({ notes: 'old note' });
+      const result = await service.upsertNotes('job-1', 'admin-1', 'new note', null);
+      expect(jobAdminNotesRepo.upsert).toHaveBeenCalledWith('job-1', 'admin-1', 'new note');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          action: 'admin_note_added',
+          entityType: 'job_admin_notes',
+          entityId: 'job-1',
+          beforeValue: { notes: 'old note' },
+          afterValue: { notes: 'new note' },
+        }),
+      );
+      expect(result).toEqual({ message: 'Notes saved' });
     });
   });
 

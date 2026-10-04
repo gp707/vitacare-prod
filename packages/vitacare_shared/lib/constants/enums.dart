@@ -508,6 +508,9 @@ class AuditAction {
   static const appMaintenanceUpdated = 'app_maintenance_updated';
   static const jobsBulkDeleted = 'jobs_bulk_deleted';
   static const adminDocumentVersionDeleted = 'admin_document_version_deleted';
+  // Admin-initiated PIN/code reset — distinct from a caregiver/individual/
+  // organisation's own self-service codeChanged.
+  static const adminCodeReset = 'admin_code_reset';
 
   static const all = [
     registration,
@@ -553,6 +556,7 @@ class AuditAction {
     appMaintenanceUpdated,
     jobsBulkDeleted,
     adminDocumentVersionDeleted,
+    adminCodeReset,
   ];
 }
 

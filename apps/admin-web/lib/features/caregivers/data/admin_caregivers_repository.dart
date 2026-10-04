@@ -123,6 +123,18 @@ class AdminCaregiversRepository {
     }
   }
 
+  /// Admin-initiated PIN reset — no old-code verification, same as the
+  /// caregiver's own self-service change.
+  Future<void> resetCode(String profileId, String code) async {
+    try {
+      await _dio.post('/admin/caregivers/$profileId/reset-code', data: {
+        'code': code,
+      });
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Any subset of fields — only non-null entries in [fields] are sent.
   Future<void> editProfile(
       String profileId, Map<String, dynamic> fields) async {

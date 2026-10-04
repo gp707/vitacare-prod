@@ -11,6 +11,9 @@ class AdminIndividualListItem {
   final bool isJobPostingBlocked;
   final String? blockReason;
   final String createdAt;
+  // Only ever populated by getDetail() — the list endpoint doesn't return
+  // it (same convention as caregiver notes being detail-only).
+  final String? notes;
 
   const AdminIndividualListItem({
     required this.userId,
@@ -21,6 +24,7 @@ class AdminIndividualListItem {
     required this.isJobPostingBlocked,
     this.blockReason,
     required this.createdAt,
+    this.notes,
   });
 
   factory AdminIndividualListItem.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +37,7 @@ class AdminIndividualListItem {
         isJobPostingBlocked: json['is_job_posting_blocked'] as bool,
         blockReason: json['block_reason'] as String?,
         createdAt: json['created_at'] as String,
+        notes: json['notes'] as String?,
       );
 }
 
@@ -106,6 +111,27 @@ class AdminIndividualsRepository {
   Future<void> editProfile(String userId, Map<String, dynamic> fields) async {
     try {
       await _dio.put('/admin/individuals/$userId', data: fields);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Admin-initiated PIN reset — no old-code verification, same as the
+  /// individual's own self-service change.
+  Future<void> resetCode(String userId, String code) async {
+    try {
+      await _dio
+          .post('/admin/individuals/$userId/reset-code', data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Admin-only personal/internal note about this patient/family account.
+  Future<void> upsertNotes(String userId, String? notes) async {
+    try {
+      await _dio
+          .post('/admin/individuals/$userId/notes', data: {'notes': notes});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

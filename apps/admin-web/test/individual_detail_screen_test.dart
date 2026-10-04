@@ -41,8 +41,25 @@ class _FakeAdminIndividualsRepository extends AdminIndividualsRepository {
   String? blockedReason;
   String? unblockedUserId;
   String? unblockedLevel;
+  String? resetCodeUserId;
+  String? resetCodeValue;
+  String? notesUserId;
+  String? notesValue;
 
   _FakeAdminIndividualsRepository(this.detail) : super(Dio());
+
+  @override
+  Future<void> resetCode(String userId, String code) async {
+    resetCodeUserId = userId;
+    resetCodeValue = code;
+  }
+
+  @override
+  Future<void> upsertNotes(String userId, String? notes) async {
+    notesUserId = userId;
+    notesValue = notes;
+    detail = _item(userId: detail.userId, fullName: detail.fullName);
+  }
 
   @override
   Future<AdminIndividualListItem> getDetail(String userId) async => detail;
@@ -191,7 +208,9 @@ void main() {
     final repo = _FakeAdminIndividualsRepository(_item());
     await _pump(tester, repo);
 
-    await tester.tap(find.text('Edit'));
+    // Two Edit buttons exist now (Profile section + Notes section below it)
+    // — the Profile one comes first in the widget tree.
+    await tester.tap(find.text('Edit').first);
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -374,5 +393,45 @@ void main() {
 
     expect(repo.unblockedUserId, 'u1');
     expect(repo.unblockedLevel, 'full');
+  });
+
+  testWidgets('tapping Reset PIN, entering a 4-digit code, and confirming calls resetCode',
+      (tester) async {
+    final repo = _FakeAdminIndividualsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '4321');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    expect(repo.resetCodeUserId, 'u1');
+    expect(repo.resetCodeValue, '4321');
+    expect(find.text('PIN reset'), findsOneWidget);
+  });
+
+  testWidgets('Notes section defaults to "No notes yet."; editing and saving calls upsertNotes',
+      (tester) async {
+    final repo = _FakeAdminIndividualsRepository(_item());
+    await _pump(tester, repo);
+
+    expect(find.text('No notes yet.'), findsOneWidget);
+
+    // The Notes section's own Edit button comes after the Profile
+    // section's — see the ambiguity note on the editProfile test above.
+    await tester.tap(find.text('Edit').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Internal notes about this patient/family account (never shown to them)'),
+        'Called twice, no answer.');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Save Notes'));
+    await tester.pumpAndSettle();
+
+    expect(repo.notesUserId, 'u1');
+    expect(repo.notesValue, 'Called twice, no answer.');
+    expect(find.text('Notes saved'), findsOneWidget);
   });
 }

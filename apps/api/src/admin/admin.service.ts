@@ -29,6 +29,7 @@ import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Injectable()
 export class AdminService {
@@ -239,6 +240,28 @@ export class AdminService {
     });
 
     return { message: 'Notes saved' };
+  }
+
+  /** Admin-initiated PIN reset — bypasses the self-service old-value check
+   *  entirely (there isn't one — see caregiver's own updateCode), same
+   *  hashing/storage as a self-service change. */
+  async resetCode(profileId: string, adminId: string, dto: UpdateCodeDto, ipAddress: string | null = null) {
+    const profile = await this.caregiversRepo.getDetailById(profileId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updateCodeHash(profile.user_id, codeHash);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId: profile.user_id,
+      action: AuditAction.ADMIN_CODE_RESET,
+      entityType: 'caregiver_profiles',
+      entityId: profileId,
+      ipAddress,
+    });
+
+    return { message: 'Login code reset' };
   }
 
   async listAuditLogs(query: ListAuditLogsQueryDto) {

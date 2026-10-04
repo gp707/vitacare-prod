@@ -81,7 +81,12 @@ describe('AdminService', () => {
       findById: jest.fn(),
       deleteById: jest.fn(),
     };
-    usersRepo = { updateFullName: jest.fn(), findById: jest.fn(), updatePasswordHash: jest.fn() };
+    usersRepo = {
+      updateFullName: jest.fn(),
+      findById: jest.fn(),
+      updatePasswordHash: jest.fn(),
+      updateCodeHash: jest.fn(),
+    };
     individualsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
     organisationsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
     jobsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
@@ -309,6 +314,31 @@ describe('AdminService', () => {
           afterValue: { internal_notes: 'Good' },
         }),
       );
+    });
+  });
+
+  describe('resetCode', () => {
+    it('throws PROFILE_019 when the profile does not exist', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(null);
+      await expect(service.resetCode('missing', 'admin-1', { code: '1234' } as any, null)).rejects.toMatchObject({
+        code: 'PROFILE_019',
+      });
+    });
+
+    it('resets the code hash and audit-logs ADMIN_CODE_RESET against the user, not the profile', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      const result = await service.resetCode('profile-1', 'admin-1', { code: '1234' } as any, null);
+      expect(usersRepo.updateCodeHash).toHaveBeenCalledWith('user-1', expect.any(String));
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'user-1',
+          action: 'admin_code_reset',
+          entityType: 'caregiver_profiles',
+          entityId: 'profile-1',
+        }),
+      );
+      expect(result).toEqual({ message: 'Login code reset' });
     });
   });
 

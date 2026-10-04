@@ -21,6 +21,7 @@ import {
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { JobAdminNotesRepository } from '../database/repositories/job-admin-notes.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CareReceiverDto, CreateJobDto } from './dto/create-job.dto';
@@ -95,6 +96,7 @@ export class JobsService {
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly adminCaregiversRepo: AdminCaregiversRepository,
     private readonly usersRepo: UsersRepository,
+    private readonly jobAdminNotesRepo: JobAdminNotesRepository,
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
   ) {}
@@ -177,10 +179,11 @@ export class JobsService {
   async getJobDetailForAdmin(jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
-    const [careReceiver, applications, poster] = await Promise.all([
+    const [careReceiver, applications, poster, adminNotes] = await Promise.all([
       this.careReceiversRepo.findById(job.care_receiver_id),
       this.jobApplicationsRepo.findByJobId(jobId),
       this.usersRepo.findById(job.posted_by),
+      this.jobAdminNotesRepo.findByJobId(jobId),
     ]);
     return {
       ...job,
@@ -189,7 +192,30 @@ export class JobsService {
       posted_by_role: poster?.role ?? null,
       posted_by_name: poster?.full_name ?? null,
       posted_by_phone: poster?.phone ?? null,
+      notes: adminNotes?.notes ?? null,
     };
+  }
+
+  /** Admin-only personal/internal note about this job — never exposed to
+   *  the job poster or any caregiver-facing endpoint. */
+  async upsertNotes(jobId: string, adminId: string, notes: string | null, ipAddress: string | null) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job) throw new AppException('GEN_002');
+
+    const previous = await this.jobAdminNotesRepo.findByJobId(jobId);
+    await this.jobAdminNotesRepo.upsert(jobId, adminId, notes);
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.ADMIN_NOTE_ADDED,
+      entityType: 'job_admin_notes',
+      entityId: jobId,
+      beforeValue: { notes: previous?.notes ?? null },
+      afterValue: { notes },
+      ipAddress,
+    });
+
+    return { message: 'Notes saved' };
   }
 
   /** Admin edits any field of an existing job (and its care receiver) in

@@ -10,6 +10,7 @@ import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../../audit_logs/widgets/audit_entry_cells.dart';
 import '../../audit_logs/widgets/scoped_audit_history_section.dart';
+import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_organisations_repository.dart';
 
 /// organisation_profiles.city accepts the existing 7 cities plus this one
@@ -176,6 +177,17 @@ class _OrganisationDetailScreenState
     }
   }
 
+  Future<void> _resetPin(AdminOrganisationListItem detail) async {
+    final newCode = await showResetPinDialog(context, accountLabel: detail.organisationName);
+    if (newCode == null) return;
+    try {
+      await ref.read(adminOrganisationsRepositoryProvider).resetCode(detail.userId, newCode);
+      if (mounted) _showSnackBar('PIN reset');
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -240,6 +252,11 @@ class _OrganisationDetailScreenState
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
+              OutlinedButton.icon(
+                onPressed: () => _resetPin(detail),
+                icon: const Icon(Icons.password, size: 16),
+                label: const Text('Reset PIN'),
+              ),
               if (detail.isJobPostingBlocked)
                 OutlinedButton.icon(
                   onPressed: () => _unblock(detail, 'job_posting'),

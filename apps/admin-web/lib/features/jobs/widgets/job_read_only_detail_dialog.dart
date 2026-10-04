@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import 'scope_of_work_button.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/providers.dart';
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -172,6 +175,8 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                   ),
                 ),
               ],
+              const Divider(height: AppSpacing.lg),
+              _JobNotesSection(job: job),
             ],
           ),
         ),
@@ -225,6 +230,119 @@ class _StatusChip extends StatelessWidget {
       child: Text(label,
           style: TextStyle(
               color: color, fontSize: AppTypography.small, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+/// Admin-only personal/internal note about this job — never shown to the
+/// job poster or any caregiver-facing endpoint. Kept as its own small
+/// stateful widget (rather than making the whole dialog stateful) since
+/// this is the only part of the dialog with editable state.
+class _JobNotesSection extends ConsumerStatefulWidget {
+  final JobModel job;
+
+  const _JobNotesSection({required this.job});
+
+  @override
+  ConsumerState<_JobNotesSection> createState() => _JobNotesSectionState();
+}
+
+class _JobNotesSectionState extends ConsumerState<_JobNotesSection> {
+  bool _editing = false;
+  bool _saving = false;
+  late final _controller = TextEditingController(text: widget.job.notes ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(adminJobsRepositoryProvider)
+          .upsertNotes(widget.job.id, _controller.text.trim());
+      if (mounted) setState(() => _editing = false);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+            if (!_editing)
+              TextButton.icon(
+                onPressed: () => setState(() => _editing = true),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Edit'),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        if (_editing)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _controller,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Internal notes about this job (never shown to the poster or caregivers)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check, size: 16),
+                    label: const Text('Save'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  TextButton.icon(
+                    onPressed: _saving
+                        ? null
+                        : () => setState(() {
+                              _editing = false;
+                              _controller.text = widget.job.notes ?? '';
+                            }),
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ],
+          )
+        else
+          Text(
+            widget.job.notes?.isNotEmpty == true ? widget.job.notes! : 'No notes yet.',
+            style: TextStyle(
+              color: widget.job.notes?.isNotEmpty == true ? null : AppColors.textSecondary,
+            ),
+          ),
+      ],
     );
   }
 }

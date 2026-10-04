@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -11,6 +11,8 @@ import { BlockIndividualDto } from './dto/block-individual.dto';
 import { UnblockIndividualDto } from './dto/unblock-individual.dto';
 import { ListIndividualsQueryDto } from './dto/list-individuals-query.dto';
 import { AdminEditIndividualDto } from './dto/admin-edit-individual.dto';
+import { UpsertNotesDto } from './dto/upsert-notes.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Controller('admin/individuals')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,6 +39,28 @@ export class AdminIndividualsController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminIndividualsService.editProfile(id, user.sub, dto, ip);
+  }
+
+  @Post(':id/notes')
+  @HttpCode(HttpStatus.OK)
+  upsertNotes(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpsertNotesDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminIndividualsService.upsertNotes(id, user.sub, dto.notes ?? null, ip);
+  }
+
+  @Post(':id/reset-code')
+  @HttpCode(HttpStatus.OK)
+  resetCode(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateCodeDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminIndividualsService.resetCode(id, user.sub, dto, ip);
   }
 
   @Patch(':id/block')

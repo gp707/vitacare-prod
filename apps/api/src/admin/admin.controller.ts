@@ -31,6 +31,7 @@ import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { AdminEditCaregiverDto } from './dto/admin-edit-caregiver.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -74,6 +75,17 @@ export class AdminController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminService.upsertNotes(id, user.sub, dto, ip);
+  }
+
+  @Post('caregivers/:id/reset-code')
+  @HttpCode(HttpStatus.OK)
+  resetCode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateCodeDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminService.resetCode(id, user.sub, dto, ip);
   }
 
   @Get('audit-logs')

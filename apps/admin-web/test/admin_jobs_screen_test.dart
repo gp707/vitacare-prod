@@ -206,9 +206,11 @@ JobModel _jobWithCareReceiver({
   String status = 'active',
   List<String> languages = const ['hindi'],
   String? careDuration = 'few_weeks',
+  String? notes,
 }) {
   return JobModel.fromJson({
     'id': 'job-1',
+    'notes': notes,
     'admin_job_number': 542,
     'city': 'bangalore',
     'area': 'Indiranagar',
@@ -302,6 +304,9 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? rejectedReason;
   List<String> detailLanguages;
   String? detailCareDuration;
+  String? detailNotes;
+  String? notesJobId;
+  String? notesValue;
 
   _FakeAdminJobsRepository(this.jobs,
       {this.applications = const [],
@@ -309,6 +314,13 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
       this.detailLanguages = const ['hindi'],
       this.detailCareDuration = 'few_weeks'})
       : super(Dio());
+
+  @override
+  Future<void> upsertNotes(String jobId, String? notes) async {
+    notesJobId = jobId;
+    notesValue = notes;
+    detailNotes = notes;
+  }
 
   @override
   Future<List<JobModel>> list(
@@ -328,6 +340,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
         status: jobs.first.status,
         languages: detailLanguages,
         careDuration: detailCareDuration,
+        notes: detailNotes,
       ),
       applications
     );
@@ -1914,6 +1927,37 @@ void main() {
     // Not set on this fixture (detailCareDuration: null) — a legacy job
     // that predates the field.
     expect(find.text('Duration Care is Needed'), findsNothing);
+  });
+
+  testWidgets(
+      'the read-only detail view shows a Notes section; editing and saving calls upsertNotes',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()], detailCareDuration: null);
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('ADMIN-JOB-542'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(find.descendant(of: dialog, matching: find.text('No notes yet.')),
+        findsOneWidget);
+
+    final editNotesButton = find.descendant(of: dialog, matching: find.widgetWithText(TextButton, 'Edit'));
+    await tester.ensureVisible(editNotesButton);
+    await tester.tap(editNotesButton);
+    await tester.pumpAndSettle();
+
+    final notesField = find.widgetWithText(
+        TextField, 'Internal notes about this job (never shown to the poster or caregivers)');
+    await tester.ensureVisible(notesField);
+    await tester.enterText(notesField, 'Family mentioned they may cancel.');
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.notesJobId, 'job-1');
+    expect(repo.notesValue, 'Family mentioned they may cancel.');
   });
 
   testWidgets(

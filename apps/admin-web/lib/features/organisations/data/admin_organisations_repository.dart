@@ -127,6 +127,17 @@ class AdminOrganisationsRepository {
     }
   }
 
+  /// Admin-initiated PIN reset — no old-code verification, same as the
+  /// organisation's own self-service change.
+  Future<void> resetCode(String userId, String code) async {
+    try {
+      await _dio.post('/admin/organisations/$userId/reset-code',
+          data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// [level] is 'job_posting' (blocks only new postings) or 'full' (login
   /// lockout, reuses users.is_active).
   Future<void> block(String userId, String level, String reason) async {

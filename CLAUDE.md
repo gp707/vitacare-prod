@@ -599,8 +599,9 @@ location) that didn't fit the Individual/admin jobs-table model.
   row in either list screen (previously flat, no per-row navigation) opens a new single-page
   detail screen (`IndividualDetailScreen` / `OrganisationDetailScreen` — deliberately no tabs,
   unlike `CaregiverDetailScreen`, since neither `individual_profiles` nor `organisation_profiles`
-  has document/notes depth) showing identity + status, an **Edit** toggle, and a scoped audit-
-  history preview (`GET /admin/audit-logs?target_user_id=...`, same pattern as
+  has document depth — `IndividualDetailScreen` does have its own Notes section now, see below,
+  just as a plain boxed section rather than a tab) showing identity + status, an **Edit** toggle,
+  and a scoped audit-history preview (`GET /admin/audit-logs?target_user_id=...`, same pattern as
   `CaregiverDetailScreen`'s Audit History tab) with a "View full audit log" link into the full
   `AuditLogsScreen` (`/audit-logs`, `initialTargetUserId` route argument — already generic, no
   router change needed for that part). `PUT /admin/individuals/:id`
@@ -615,6 +616,44 @@ location) that didn't fit the Individual/admin jobs-table model.
   reads) — the two columns are otherwise independent copies of the same logical value, set together
   only once at registration; letting them drift apart on an admin edit would be a real bug, not
   just a display inconsistency.**
+- **Admin-initiated PIN/login-code reset — caregiver, individual, and organisation accounts
+  alike.** Previously the only way to change a login PIN was self-service (`PATCH .../profile/code`
+  on each of `CaregiverService`/`IndividualService`/`OrganisationService`, all hashing via
+  `bcrypt`/`UsersRepository.updateCodeHash` with no old-code check). Admin now has the identical
+  capability over any account: `POST /admin/caregivers/:id/reset-code`,
+  `POST /admin/individuals/:id/reset-code`, `POST /admin/organisations/:id/reset-code` (same
+  `:id` convention as each role's other admin endpoints — `caregiver_profiles.id` for caregivers,
+  `users.id` directly for individuals/organisations), all reusing caregiver's own `UpdateCodeDto`
+  (`{ code }`, `Validation.CODE_REGEX` — exactly 4 digits) and audit-logged via the new
+  `AuditAction.ADMIN_CODE_RESET` (entity type `'caregiver_profiles'`/`'individual_profiles'`/
+  `'organisation_profiles'`) — kept distinct from `CODE_CHANGED` precisely so audit logs show
+  *who* reset it. Admin types the new PIN directly (no old-PIN check, no system-generated
+  random code) — `apps/admin-web/lib/shared/widgets/reset_pin_dialog.dart`'s
+  `showResetPinDialog()` is the one shared dialog all three detail screens
+  (`CaregiverDetailScreen`/`IndividualDetailScreen`/`OrganisationDetailScreen`) call via their own
+  "Reset PIN" button, each then calling their own repository's `resetCode(id, code)`.
+- **Admin-only personal/internal notes on jobs and individual (patient/family) accounts** —
+  distinct from the caregiver-only `admin_notes` table (which stays hard-FK'd to
+  `caregiver_profiles`, see "Admin Notes" elsewhere in this doc) and from `organisation_profiles`,
+  which was NOT given notes (not asked for, keeps scope to what was requested). Two new tables,
+  migration 075: `job_admin_notes` (`job_id` FK → `jobs`, `UNIQUE(job_id)`) and
+  `individual_admin_notes` (`user_id` FK → `users`, `UNIQUE(user_id)`) — same one-row-per-entity
+  upsert shape as `admin_notes`, just a single free-text `notes` column each (no
+  `availability_remarks`/rate fields, which are caregiver-specific concepts). `JobsService
+  .upsertNotes`/`AdminIndividualsService.upsertNotes` both reuse the shared `UpsertNotesDto`
+  (`{ notes }`) and audit-log via the existing `AuditAction.ADMIN_NOTE_ADDED` (entity type
+  `'job_admin_notes'`/`'individual_admin_notes'`) — no new audit action needed since this is the
+  same *kind* of event as the caregiver notes case, just a different entity. `notes` is merged
+  into `GET /admin/jobs/:id`'s and `GET /admin/individuals/:id`'s existing response shape
+  (`jobs.service.ts`'s `getJobDetailForAdmin`, `admin-individuals.service.ts`'s
+  `getIndividualDetail`) rather than a separate fetch — never present on any caregiver/individual/
+  organisation-facing endpoint (`JobModel.notes` in `vitacare_shared` is admin-response-only, same
+  convention as `postedByRole`/`postedByName`/`postedByPhone` on the same model). admin-web:
+  `IndividualDetailScreen` gets its own boxed "Notes" section (editable, independent Save/Cancel,
+  same edit-toggle pattern as its "Profile" section above it) between Profile and Audit History;
+  `JobReadOnlyDetailDialog` gets a small `_JobNotesSection` (its own tiny `ConsumerStatefulWidget`,
+  since the rest of that dialog is a plain `StatelessWidget`) appended after Nurse Fee Guidance/
+  Scope of Work. Both follow the same "No notes yet." empty state plus Edit/Save/Cancel controls.
 
 ### Organisation (Hospital/Rehab/Clinic)
 

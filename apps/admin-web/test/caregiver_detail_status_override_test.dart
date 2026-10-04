@@ -37,6 +37,8 @@ class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
   AdminCaregiverDetail detail;
   String? capturedStatus;
   String? capturedRejectionMessage;
+  String? resetCodeProfileId;
+  String? resetCodeValue;
 
   _FakeAdminCaregiversRepository(this.detail) : super(Dio());
 
@@ -50,6 +52,12 @@ class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
     capturedRejectionMessage = rejectionMessage;
     detail = _detail(status: status);
     return status;
+  }
+
+  @override
+  Future<void> resetCode(String profileId, String code) async {
+    resetCodeProfileId = profileId;
+    resetCodeValue = code;
   }
 }
 
@@ -163,5 +171,22 @@ void main() {
     final button = tester.widget<ElevatedButton>(
         find.widgetWithText(ElevatedButton, 'Set Status'));
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('tapping Reset PIN, entering a 4-digit code, and confirming calls resetCode',
+      (tester) async {
+    final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'New 4-digit PIN'), '9876');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Reset PIN'));
+    await tester.pumpAndSettle();
+
+    expect(repo.resetCodeProfileId, 'profile-1');
+    expect(repo.resetCodeValue, '9876');
+    expect(find.text('PIN reset'), findsOneWidget);
   });
 }

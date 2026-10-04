@@ -11,6 +11,7 @@ import { CreateJobDto } from './dto/create-job.dto';
 import { ListJobsQueryDto } from './dto/list-jobs-query.dto';
 import { DecideApplicationDto } from './dto/decide-application.dto';
 import { RejectJobDto } from './dto/reject-job.dto';
+import { UpsertNotesDto } from '../admin/dto/upsert-notes.dto';
 
 @Controller('admin/jobs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -65,6 +66,17 @@ export class AdminJobsController {
     @ClientIp() ip: string | null,
   ) {
     return this.jobsService.rejectJob(user.sub, id, dto.reason, ip);
+  }
+
+  @Post(':id/notes')
+  @HttpCode(HttpStatus.OK)
+  upsertNotes(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpsertNotesDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.upsertNotes(id, user.sub, dto.notes ?? null, ip);
   }
 
   @Post(':id/remind')

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -11,6 +11,7 @@ import { BlockIndividualDto } from './dto/block-individual.dto';
 import { UnblockIndividualDto } from './dto/unblock-individual.dto';
 import { ListOrganisationsQueryDto } from './dto/list-organisations-query.dto';
 import { AdminEditOrganisationDto } from './dto/admin-edit-organisation.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Controller('admin/organisations')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,6 +38,17 @@ export class AdminOrganisationsController {
     @ClientIp() ip: string | null,
   ) {
     return this.adminOrganisationsService.editProfile(id, user.sub, dto, ip);
+  }
+
+  @Post(':id/reset-code')
+  @HttpCode(HttpStatus.OK)
+  resetCode(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateCodeDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminOrganisationsService.resetCode(id, user.sub, dto, ip);
   }
 
   @Patch(':id/block')

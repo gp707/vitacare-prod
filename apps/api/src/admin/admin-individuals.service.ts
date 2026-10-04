@@ -1,19 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction } from '@vitacare/shared-constants';
+import * as bcrypt from 'bcrypt';
+import { AuditAction, Config } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AdminIndividualsRepository } from '../database/repositories/admin-individuals.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { IndividualAdminNotesRepository } from '../database/repositories/individual-admin-notes.repository';
 import { AuditService } from '../audit/audit.service';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { BlockIndividualDto } from './dto/block-individual.dto';
 import { ListIndividualsQueryDto } from './dto/list-individuals-query.dto';
 import { AdminEditIndividualDto } from './dto/admin-edit-individual.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 @Injectable()
 export class AdminIndividualsService {
   constructor(
     private readonly individualsRepo: AdminIndividualsRepository,
     private readonly usersRepo: UsersRepository,
+    private readonly notesRepo: IndividualAdminNotesRepository,
     private readonly auditService: AuditService,
   ) {}
 
@@ -34,7 +38,53 @@ export class AdminIndividualsService {
   async getIndividualDetail(userId: string) {
     const individual = await this.individualsRepo.findDetailByUserId(userId);
     if (!individual) throw new AppException('GEN_002');
-    return individual;
+    const notes = await this.notesRepo.findByUserId(userId);
+    return { ...individual, notes: notes?.notes ?? null };
+  }
+
+  /** Admin-only personal/internal note about this patient/family account —
+   *  never exposed to the individual's own self-view. */
+  async upsertNotes(targetUserId: string, adminId: string, notes: string | null, ipAddress: string | null) {
+    const individual = await this.individualsRepo.findDetailByUserId(targetUserId);
+    if (!individual) throw new AppException('GEN_002');
+
+    const previous = await this.notesRepo.findByUserId(targetUserId);
+    await this.notesRepo.upsert(targetUserId, adminId, notes);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId,
+      action: AuditAction.ADMIN_NOTE_ADDED,
+      entityType: 'individual_admin_notes',
+      entityId: targetUserId,
+      beforeValue: { notes: previous?.notes ?? null },
+      afterValue: { notes },
+      ipAddress,
+    });
+
+    return { message: 'Notes saved' };
+  }
+
+  /** Admin-initiated PIN reset — bypasses the self-service old-value check
+   *  entirely (there isn't one — see caregiver/organisation's own
+   *  updateCode), same hashing/storage as a self-service change. */
+  async resetCode(targetUserId: string, adminId: string, dto: UpdateCodeDto, ipAddress: string | null) {
+    const individual = await this.individualsRepo.findDetailByUserId(targetUserId);
+    if (!individual) throw new AppException('GEN_002');
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updateCodeHash(targetUserId, codeHash);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId,
+      action: AuditAction.ADMIN_CODE_RESET,
+      entityType: 'individual_profiles',
+      entityId: targetUserId,
+      ipAddress,
+    });
+
+    return { message: 'Login code reset' };
   }
 
   /** Admin override — an individual_profiles row has no profile depth

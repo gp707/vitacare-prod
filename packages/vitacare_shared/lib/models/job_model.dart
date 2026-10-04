@@ -139,6 +139,10 @@ class JobModel {
   /// of who posted the job. Only present on GET /caregiver/jobs's response;
   /// null everywhere else (e.g. the assigned/MyJobs list, admin-web).
   final int? applicantCount;
+  /// Admin-only personal/internal note about this job — only present on
+  /// admin-facing responses (GET /admin/jobs/:id), never on any
+  /// caregiver/individual/organisation-facing endpoint.
+  final String? notes;
 
   const JobModel({
     required this.id,
@@ -170,6 +174,7 @@ class JobModel {
     this.postedByName,
     this.postedByPhone,
     this.applicantCount,
+    this.notes,
   });
 
   factory JobModel.fromJson(Map<String, dynamic> json) => JobModel(
@@ -208,6 +213,7 @@ class JobModel {
         postedByName: json['posted_by_name'] as String?,
         postedByPhone: json['posted_by_phone'] as String?,
         applicantCount: json['applicant_count'] as int?,
+        notes: json['notes'] as String?,
       );
 
   /// The apply-by urgency window, always computed from [postedAt] (not

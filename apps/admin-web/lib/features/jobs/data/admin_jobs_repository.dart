@@ -317,6 +317,15 @@ class AdminJobsRepository {
     }
   }
 
+  /// Admin-only personal/internal note about this job.
+  Future<void> upsertNotes(String jobId, String? notes) async {
+    try {
+      await _dio.post('/admin/jobs/$jobId/notes', data: {'notes': notes});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> close(String jobId) async {
     try {
       await _dio.patch('/admin/jobs/$jobId/close');

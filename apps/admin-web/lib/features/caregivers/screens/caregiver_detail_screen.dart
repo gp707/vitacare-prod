@@ -8,6 +8,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../../audit_logs/data/audit_log_models.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../../audit_logs/widgets/audit_entry_cells.dart';
@@ -400,8 +401,23 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         ));
       }
     }
-    if (buttons.isEmpty) return const SizedBox.shrink();
+    buttons.add(OutlinedButton.icon(
+      onPressed: () => _resetPin(detail),
+      icon: const Icon(Icons.password, size: 16),
+      label: const Text('Reset PIN'),
+    ));
     return Wrap(spacing: AppSpacing.sm, children: buttons);
+  }
+
+  Future<void> _resetPin(AdminCaregiverDetail detail) async {
+    final newCode = await showResetPinDialog(context, accountLabel: detail.fullName);
+    if (newCode == null) return;
+    try {
+      await ref.read(adminCaregiversRepositoryProvider).resetCode(widget.profileId, newCode);
+      if (mounted) _showSnackBar('PIN reset');
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
   }
 
   /// Free-form override, separate from the curated quick-action buttons

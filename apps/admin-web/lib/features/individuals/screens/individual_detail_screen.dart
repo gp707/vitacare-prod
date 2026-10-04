@@ -11,6 +11,7 @@ import '../../audit_logs/screens/audit_logs_screen.dart' show formatAuditValue;
 import '../../audit_logs/widgets/audit_entry_cells.dart';
 import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../jobs/screens/admin_jobs_screen.dart' show JobsScreenInitialFilter;
+import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_individuals_repository.dart';
 
 /// individual_profiles has no profile depth beyond the two block levers —
@@ -38,6 +39,10 @@ class _IndividualDetailScreenState
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
 
+  bool _editingNotes = false;
+  bool _savingNotes = false;
+  final _notesController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +52,7 @@ class _IndividualDetailScreenState
   @override
   void dispose() {
     _fullNameController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -147,6 +153,40 @@ class _IndividualDetailScreenState
     }
   }
 
+  Future<void> _resetPin(AdminIndividualListItem detail) async {
+    final newCode = await showResetPinDialog(context, accountLabel: detail.fullName);
+    if (newCode == null) return;
+    try {
+      await ref.read(adminIndividualsRepositoryProvider).resetCode(detail.userId, newCode);
+      if (mounted) _showSnackBar('PIN reset');
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    }
+  }
+
+  void _enterEditNotes(AdminIndividualListItem detail) {
+    _notesController.text = detail.notes ?? '';
+    setState(() => _editingNotes = true);
+  }
+
+  Future<void> _saveNotes(AdminIndividualListItem detail) async {
+    setState(() => _savingNotes = true);
+    try {
+      await ref
+          .read(adminIndividualsRepositoryProvider)
+          .upsertNotes(widget.userId, _notesController.text.trim());
+      if (mounted) {
+        setState(() => _editingNotes = false);
+        _showSnackBar('Notes saved');
+      }
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) _showSnackBar(e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _savingNotes = false);
+    }
+  }
+
   /// Same redirect as IndividualsListScreen's own "View Jobs" row action —
   /// the merged Jobs tab, pre-filtered to just this individual's own
   /// postings (every other Jobs filter stays available to narrow further).
@@ -230,6 +270,11 @@ class _IndividualDetailScreenState
                 icon: const Icon(Icons.work_outline, size: 16),
                 label: const Text('View Jobs Posted'),
               ),
+              OutlinedButton.icon(
+                onPressed: () => _resetPin(detail),
+                icon: const Icon(Icons.password, size: 16),
+                label: const Text('Reset PIN'),
+              ),
               if (detail.isJobPostingBlocked)
                 OutlinedButton.icon(
                   onPressed: () => _unblock(detail, 'job_posting'),
@@ -297,6 +342,8 @@ class _IndividualDetailScreenState
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _buildNotesSection(detail),
           const SizedBox(height: AppSpacing.lg),
           _buildAuditPreview(),
         ],
@@ -382,6 +429,87 @@ class _IndividualDetailScreenState
               child: Text(label,
                   style: const TextStyle(color: AppColors.textSecondary))),
           Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  /// Admin-only personal/internal note about this patient/family account —
+  /// never shown to the individual's own self-view. Mirrors the "Profile"
+  /// section's own edit-toggle pattern above.
+  Widget _buildNotesSection(AdminIndividualListItem detail) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.sticky_note_2_outlined, size: 18, color: AppColors.primaryDark),
+                  SizedBox(width: AppSpacing.xs),
+                  Text('Notes', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              if (!_editingNotes)
+                TextButton.icon(
+                  onPressed: () => _enterEditNotes(detail),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit'),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (_editingNotes)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _notesController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Internal notes about this patient/family account (never shown to them)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _savingNotes ? null : () => _saveNotes(detail),
+                      icon: _savingNotes
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.check, size: 16),
+                      label: const Text('Save Notes'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    TextButton.icon(
+                      onPressed: _savingNotes ? null : () => setState(() => _editingNotes = false),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Text(
+              detail.notes?.isNotEmpty == true ? detail.notes! : 'No notes yet.',
+              style: TextStyle(
+                color: detail.notes?.isNotEmpty == true ? null : AppColors.textSecondary,
+              ),
+            ),
         ],
       ),
     );

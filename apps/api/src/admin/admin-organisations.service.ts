@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { AuditAction } from '@vitacare/shared-constants';
+import * as bcrypt from 'bcrypt';
+import { AuditAction, Config } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -8,6 +9,7 @@ import { PaginationMeta } from '../common/dto/pagination.dto';
 import { BlockIndividualDto } from './dto/block-individual.dto';
 import { ListOrganisationsQueryDto } from './dto/list-organisations-query.dto';
 import { AdminEditOrganisationDto } from './dto/admin-edit-organisation.dto';
+import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 
 /** Mirrors AdminIndividualsService exactly — reuses BlockIndividualDto/
  *  UnblockIndividualDto (level: 'job_posting' | 'full', role-agnostic). */
@@ -97,6 +99,28 @@ export class AdminOrganisationsService {
     }
 
     return { message: 'Profile updated' };
+  }
+
+  /** Admin-initiated PIN reset — bypasses the self-service old-value check
+   *  entirely (there isn't one — see organisation's own updateCode), same
+   *  hashing/storage as a self-service change. */
+  async resetCode(targetUserId: string, adminId: string, dto: UpdateCodeDto, ipAddress: string | null) {
+    const organisation = await this.organisationsRepo.findDetailByUserId(targetUserId);
+    if (!organisation) throw new AppException('GEN_002');
+
+    const codeHash = await bcrypt.hash(dto.code, Config.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updateCodeHash(targetUserId, codeHash);
+
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId,
+      action: AuditAction.ADMIN_CODE_RESET,
+      entityType: 'organisation_profiles',
+      entityId: targetUserId,
+      ipAddress,
+    });
+
+    return { message: 'Login code reset' };
   }
 
   async block(targetUserId: string, dto: BlockIndividualDto, adminId: string, ipAddress: string | null) {

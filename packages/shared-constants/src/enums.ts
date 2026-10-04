@@ -209,6 +209,9 @@ export const AuditAction = {
   APP_MAINTENANCE_UPDATED: 'app_maintenance_updated',
   JOBS_BULK_DELETED: 'jobs_bulk_deleted',
   ADMIN_DOCUMENT_VERSION_DELETED: 'admin_document_version_deleted',
+  // Admin-initiated PIN/code reset — distinct from a caregiver/individual/
+  // organisation's own self-service CODE_CHANGED.
+  ADMIN_CODE_RESET: 'admin_code_reset',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
