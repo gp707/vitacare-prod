@@ -23,10 +23,32 @@ class SectionBox extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const SectionBox({super.key, required this.icon, required this.title, required this.children});
+  /// When true, the heading row becomes a tap target that toggles
+  /// [expanded] via [onToggle] (owned by the caller, not this widget,
+  /// since JobsPostedScreen's mandatory-field validation needs to force a
+  /// collapsed section open before it can focus/scroll to a field inside
+  /// it — see _RequirementCardState._handleSavePressed). Defaults to
+  /// false so every other SectionBox usage (e.g. the Post/Edit
+  /// Requirement forms on RegistrationScreen, which are being filled in
+  /// for the first time) is unaffected — always expanded, no chevron, no
+  /// tap target.
+  final bool collapsible;
+  final bool expanded;
+  final VoidCallback? onToggle;
+
+  const SectionBox({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.collapsible = false,
+    this.expanded = true,
+    this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final showChildren = !collapsible || expanded;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -38,19 +60,28 @@ class SectionBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: AppColors.primaryDark),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(title,
-                    style: const TextStyle(
-                        fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success)),
-              ),
-            ],
+          InkWell(
+            onTap: collapsible ? onToggle : null,
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: AppColors.primaryDark),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success)),
+                ),
+                if (collapsible) ...[
+                  const Spacer(),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more, color: AppColors.primaryDark),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          ...children,
+          if (showChildren) ...[
+            const SizedBox(height: AppSpacing.md),
+            ...children,
+          ],
         ],
       ),
     );

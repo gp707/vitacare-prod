@@ -31,6 +31,14 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 500));
 }
 
+/// Patient Details and Care Preferences are collapsed by default — tap
+/// the section heading to reveal the fields inside before interacting
+/// with them.
+Future<void> _expandSection(WidgetTester tester, String title) async {
+  await tester.tap(find.text(title));
+  await _settle(tester);
+}
+
 final _scopeOfWork = ScopeOfWorkModel(
   companionCare: ['Emotional companionship', 'Meal assistance'],
   bedsideCare: ['Diaper changing & hygiene care'],
@@ -393,19 +401,27 @@ void main() {
     expect(border.top.color, AppColors.textSecondary);
   });
 
-  testWidgets('shows Patient Details and Care Preferences directly, pre-filled — no Show Full Details toggle',
-      (tester) async {
+  testWidgets(
+      'Patient Details and Care Preferences are collapsed by default — tapping each heading reveals its '
+      'pre-filled fields', (tester) async {
     await _pump(
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
 
-    // Always shown, no tap needed — both section headings and the
-    // pre-filled field values are visible immediately.
+    // Old flat "Show Full Details" toggle is gone — replaced by two
+    // independently collapsible sections, each starting collapsed.
     expect(find.text('Show Full Details'), findsNothing);
     expect(find.text('Patient Details'), findsOneWidget);
     expect(find.text('Care Preferences'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '74'), findsNothing);
+
+    await _expandSection(tester, 'Patient Details');
     expect(find.widgetWithText(TextField, '74'), findsOneWidget);
+
+    // Salary is shown via the always-visible summary line outside both
+    // collapsible sections, so it's visible even before Care Preferences
+    // is expanded.
     expect(find.text('1800'), findsOneWidget);
   });
 
@@ -1052,6 +1068,7 @@ void main() {
         },
       ),
     );
+    await _expandSection(tester, 'Patient Details');
 
     expect(find.textContaining('Editing is locked'), findsNothing);
     expect(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), findsOneWidget);
@@ -1062,6 +1079,7 @@ void main() {
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
+    await _expandSection(tester, 'Patient Details');
 
     expect(find.byKey(const Key('area-save')), findsNothing);
     expect(find.byKey(const Key('area-discard')), findsNothing);
@@ -1078,6 +1096,7 @@ void main() {
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
+    await _expandSection(tester, 'Patient Details');
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
@@ -1096,6 +1115,7 @@ void main() {
       tester,
       _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]),
     );
+    await _expandSection(tester, 'Patient Details');
 
     expect(find.byKey(const Key('area-save')), findsNothing);
     expect(find.byKey(const Key('age-save')), findsNothing);
@@ -1125,6 +1145,7 @@ void main() {
       '— no confirmation needed when there is no active application', (tester) async {
     final repo = _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]);
     await _pump(tester, repo);
+    await _expandSection(tester, 'Patient Details');
 
     final ageField = tester.widget<TextField>(find.widgetWithText(TextField, "Patient's Age (Mandatory)"));
     expect(ageField.controller!.text, '74');
@@ -1151,6 +1172,7 @@ void main() {
       },
     );
     await _pump(tester, repo);
+    await _expandSection(tester, 'Patient Details');
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
@@ -1177,6 +1199,7 @@ void main() {
       },
     );
     await _pump(tester, repo);
+    await _expandSection(tester, 'Patient Details');
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
@@ -1198,6 +1221,7 @@ void main() {
       },
     );
     await _pump(tester, repo);
+    await _expandSection(tester, 'Patient Details');
 
     await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();

@@ -388,6 +388,19 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 
   bool _showValidationErrors = false;
 
+  // Collapsed by default — the card already shows status/applicants/salary
+  // up front; these two sections are opened on demand rather than always
+  // taking up the full height of every field at once. A mandatory-field
+  // validation failure force-expands whichever section the invalid field
+  // lives in before focusing/scrolling to it (see _handleSavePressed) —
+  // otherwise that field wouldn't be mounted for Scrollable.ensureVisible
+  // to find.
+  bool _patientDetailsExpanded = false;
+  bool _carePreferencesExpanded = false;
+
+  bool _isPatientDetailsField(GlobalKey key) =>
+      key == _ageKey || key == _genderKey || key == _weightKey || key == _cityKey || key == _areaKey;
+
   @override
   void initState() {
     super.initState();
@@ -757,6 +770,15 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       }
       if (firstInvalid != null) {
         final target = firstInvalid;
+        // Force open whichever section the invalid field lives in — a
+        // collapsed section's fields aren't mounted, so the focus/scroll
+        // below would otherwise find nothing. setState here lands in the
+        // same frame the addPostFrameCallback below fires after.
+        if (_isPatientDetailsField(target.key)) {
+          if (!_patientDetailsExpanded) setState(() => _patientDetailsExpanded = true);
+        } else if (!_carePreferencesExpanded) {
+          setState(() => _carePreferencesExpanded = true);
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           target.focusNode?.requestFocus();
           if (target.focusNode != null) {
@@ -1069,6 +1091,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     SectionBox(
                       icon: Icons.person,
                       title: 'Patient Details',
+                      collapsible: true,
+                      expanded: _patientDetailsExpanded,
+                      onToggle: () => setState(() => _patientDetailsExpanded = !_patientDetailsExpanded),
                       children: [
                         TextField(
                           key: _ageKey,
@@ -1184,6 +1209,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                   SectionBox(
                     icon: Icons.tune,
                     title: 'Care Preferences',
+                    collapsible: true,
+                    expanded: _carePreferencesExpanded,
+                    onToggle: () => setState(() => _carePreferencesExpanded = !_carePreferencesExpanded),
                     children: [
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
