@@ -513,6 +513,8 @@ class AuditAction {
   static const adminCodeReset = 'admin_code_reset';
   static const pushNotificationCreated = 'push_notification_created';
   static const pushNotificationCancelled = 'push_notification_cancelled';
+  static const supportTicketCreated = 'support_ticket_created';
+  static const supportTicketResolved = 'support_ticket_resolved';
 
   static const all = [
     registration,
@@ -561,7 +563,22 @@ class AuditAction {
     adminCodeReset,
     pushNotificationCreated,
     pushNotificationCancelled,
+    supportTicketCreated,
+    supportTicketResolved,
   ];
+}
+
+class TicketType {
+  static const forgotPin = 'forgot_pin';
+
+  static const all = [forgotPin];
+}
+
+class TicketStatus {
+  static const open = 'open';
+  static const resolved = 'resolved';
+
+  static const all = [open, resolved];
 }
 
 class PushNotificationStatus {

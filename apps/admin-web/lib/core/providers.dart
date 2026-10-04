@@ -24,6 +24,7 @@ import '../features/settings/data/admin_profile_repository.dart';
 import '../features/individual_messages/data/individual_messages_repository.dart';
 import '../features/caregiver_messages/data/caregiver_messages_repository.dart';
 import '../features/push_notifications/data/admin_push_notifications_repository.dart';
+import '../features/tickets/data/admin_tickets_repository.dart';
 
 /// Overridden in main.dart once the async LocalStorage.create() completes.
 final localStorageProvider = Provider<LocalStorage>((ref) {
@@ -108,6 +109,10 @@ final adminOrganisationsRepositoryProvider =
 final adminPushNotificationsRepositoryProvider =
     Provider<AdminPushNotificationsRepository>((ref) {
   return AdminPushNotificationsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final adminTicketsRepositoryProvider = Provider<AdminTicketsRepository>((ref) {
+  return AdminTicketsRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminOrganisationRequirementsRepositoryProvider =

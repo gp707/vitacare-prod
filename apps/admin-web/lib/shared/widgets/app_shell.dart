@@ -14,6 +14,7 @@ enum AppShellSection {
   nursejobsMessages,
   reports,
   pushNotifications,
+  tickets,
   auditLogs,
   adminManagement,
   settings,
@@ -185,6 +186,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.pushNotifications,
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/push-notifications', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.confirmation_number_outlined,
+                  label: 'Tickets',
+                  selected: current == AppShellSection.tickets,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/tickets', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.history,

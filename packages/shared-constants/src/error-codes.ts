@@ -92,6 +92,9 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },
 
+  // Support ticket errors
+  TICKET_001: { status: 400, message: 'This ticket has already been resolved' },
+
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
   SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },

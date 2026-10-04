@@ -22,6 +22,7 @@ import { IndividualMessagesModule } from './individual-messages/individual-messa
 import { CaregiverMessagesModule } from './caregiver-messages/caregiver-messages.module';
 import { AuditLogRetentionModule } from './audit-log-retention/audit-log-retention.module';
 import { AdminPushNotificationsModule } from './admin-push-notifications/admin-push-notifications.module';
+import { TicketsModule } from './tickets/tickets.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -52,6 +53,7 @@ import { validateEnv } from './config/env.validation';
     CaregiverMessagesModule,
     AuditLogRetentionModule,
     AdminPushNotificationsModule,
+    TicketsModule,
   ],
 })
 export class AppModule {}

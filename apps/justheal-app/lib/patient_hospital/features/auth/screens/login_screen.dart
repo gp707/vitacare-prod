@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/forgot_pin_dialog.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/auth_result.dart';
@@ -338,7 +339,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpacing.sm),
+              // Registration moved above Log in (previously below it) —
+              // this is the primary conversion path for a new visitor,
+              // so it's shown first; returning users scroll past it to
+              // the Log in section below.
+              const Text(
+                'New here? Register as:',
+                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Goes where "New here? Register" used to go — this screen's
+              // RegistrationScreen defaults to the Individual/patient
+              // account type.
+              _RegisterOptionRow(
+                icon: Icons.person,
+                iconBackground: _LoginPalette.patientIconBg,
+                iconColor: _LoginPalette.patientIconFg,
+                title: 'Patient',
+                description: 'I need care for me or my family',
+                onTap: () => Navigator.of(context).pushNamed('/register'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Goes where the old top-bar "Caregivers Registration" button
+              // used to go — straight into the ported caregiver (NurseJobs)
+              // flow's own registration screen (see CLAUDE.md's "Merged
+              // into one binary with NurseJobs").
+              _RegisterOptionRow(
+                icon: Icons.favorite,
+                iconBackground: _LoginPalette.nurseIconBg,
+                iconColor: _LoginPalette.nurseIconFg,
+                title: 'Nurses/Caregivers',
+                description: 'I provide care and want to join',
+                onTap: () => Navigator.of(context).pushNamed('/caregiver/register'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              // Same RegistrationScreen as the Patient row, pre-selecting
+              // its "Register as Organisation" checkbox — there is no
+              // separate organisation registration flow (see
+              // RegistrationScreen.startAsOrganisation).
+              _RegisterOptionRow(
+                icon: Icons.apartment,
+                iconBackground: _LoginPalette.orgIconBg,
+                iconColor: _LoginPalette.orgIconFg,
+                title: 'Organisation',
+                description: 'We arrange care for our patients',
+                onTap: () => Navigator.of(context).pushNamed('/register', arguments: true),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Divider(color: _LoginPalette.divider, height: 1),
+              const SizedBox(height: AppSpacing.lg),
               const Text(
                 'Log in',
                 style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
@@ -385,51 +435,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: const Text('Change phone number'),
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              const Divider(color: _LoginPalette.divider, height: 1),
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                'New here? Register as:',
-                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Goes where "New here? Register" used to go — this screen's
-              // RegistrationScreen defaults to the Individual/patient
-              // account type.
-              _RegisterOptionRow(
-                icon: Icons.person,
-                iconBackground: _LoginPalette.patientIconBg,
-                iconColor: _LoginPalette.patientIconFg,
-                title: 'Patient',
-                description: 'I need care for me or my family',
-                onTap: () => Navigator.of(context).pushNamed('/register'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Goes where the old top-bar "Caregivers Registration" button
-              // used to go — straight into the ported caregiver (NurseJobs)
-              // flow's own registration screen (see CLAUDE.md's "Merged
-              // into one binary with NurseJobs").
-              _RegisterOptionRow(
-                icon: Icons.favorite,
-                iconBackground: _LoginPalette.nurseIconBg,
-                iconColor: _LoginPalette.nurseIconFg,
-                title: 'Nurses/Caregivers',
-                description: 'I provide care and want to join',
-                onTap: () => Navigator.of(context).pushNamed('/caregiver/register'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Same RegistrationScreen as the Patient row, pre-selecting
-              // its "Register as Organisation" checkbox — there is no
-              // separate organisation registration flow (see
-              // RegistrationScreen.startAsOrganisation).
-              _RegisterOptionRow(
-                icon: Icons.apartment,
-                iconBackground: _LoginPalette.orgIconBg,
-                iconColor: _LoginPalette.orgIconFg,
-                title: 'Organisation',
-                description: 'We arrange care for our patients',
-                onTap: () => Navigator.of(context).pushNamed('/register', arguments: true),
-              ),
             ],
           ),
         ),
@@ -461,6 +466,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
         onSubmitted: (_) => _submitPin(),
+      ),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: () => showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim()),
+          child: const Text('Forgot PIN?'),
+        ),
       ),
     ];
   }

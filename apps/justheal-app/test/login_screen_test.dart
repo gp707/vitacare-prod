@@ -30,8 +30,18 @@ class _FakeAuthRepository extends AuthRepository {
   bool throwOnSendOtp = false;
   bool throwOnVerifyOtp = false;
   bool loginOtpCalled = false;
+  String? forgotPinCapturedPhone;
+  ApiException? forgotPinError;
+  String forgotPinReturnMessage = 'A support ticket has been created. Our team will contact you.';
 
   _FakeAuthRepository({this.loginCodeError}) : super(Dio());
+
+  @override
+  Future<String> forgotPin(String phone) async {
+    forgotPinCapturedPhone = phone;
+    if (forgotPinError != null) throw forgotPinError!;
+    return forgotPinReturnMessage;
+  }
 
   @override
   Future<AuthResult> loginCode(String phone, String code) async {
@@ -110,7 +120,24 @@ Future<void> _pumpLogin(
   bool otpMode = false,
   _FakeCaregiverAuthRepository? caregiverAuthRepo,
   List<RouteSettings>? pushedRoutes,
+  // Registration moved above Log in, so the whole screen is now taller
+  // than the default 800x600 test window — tall enough that buttons
+  // below the fold would otherwise fail tester.tap()'s hit test. Both
+  // setSurfaceSize (pixel-level hit-testing) and view.physicalSize/
+  // devicePixelRatio (what MediaQuery, and therefore this screen's own
+  // SingleChildScrollView layout, reports) must be set together, per
+  // this project's flutter-widget-test-gotchas memory note.
+  Size surfaceSize = const Size(390, 1100),
 }) async {
+  final view = tester.view;
+  addTearDown(() {
+    tester.binding.setSurfaceSize(null);
+    view.reset();
+  });
+  await tester.binding.setSurfaceSize(surfaceSize);
+  view.physicalSize = surfaceSize;
+  view.devicePixelRatio = 1.0;
+
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -150,16 +177,7 @@ void main() {
     // devicePixelRatio instead — both must be set together, per this
     // project's own flutter-widget-test-gotchas memory note.
     Future<double> maxScrollExtentAt(WidgetTester tester, Size size) async {
-      final view = tester.view;
-      addTearDown(() {
-        tester.binding.setSurfaceSize(null);
-        view.reset();
-      });
-      await tester.binding.setSurfaceSize(size);
-      view.physicalSize = size;
-      view.devicePixelRatio = 1.0;
-
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), surfaceSize: size);
       await tester.pumpAndSettle();
 
       final scrollableState = tester.state<ScrollableState>(
@@ -239,6 +257,65 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Invalid code'), findsOneWidget);
+  });
+
+  testWidgets('"New here? Register as:" is shown above the "Log in" section', (tester) async {
+    await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+
+    // "Log in" matches both the section heading and the submit button's
+    // label — the heading comes first in the widget tree either way.
+    final registerY = tester.getTopLeft(find.text('New here? Register as:')).dy;
+    final loginY = tester.getTopLeft(find.text('Log in').first).dy;
+    expect(registerY, lessThan(loginY));
+  });
+
+  group('Forgot PIN', () {
+    testWidgets('tapping "Forgot PIN?" opens a dialog pre-filled with the entered phone', (tester) async {
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.tap(find.text('Forgot PIN?'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Forgot PIN?'), findsWidgets);
+      expect(find.widgetWithText(TextField, 'Phone number'), findsWidgets);
+      final dialogPhoneField = tester.widget<TextField>(
+        find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)),
+      );
+      expect(dialogPhoneField.controller!.text, '9876543210');
+    });
+
+    testWidgets('submitting creates a ticket and shows the backend\'s own confirmation message', (tester) async {
+      final authRepo = _FakeAuthRepository();
+      await _pumpLogin(tester, authRepo: authRepo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.tap(find.text('Forgot PIN?'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create Ticket'));
+      await tester.pumpAndSettle();
+
+      expect(authRepo.forgotPinCapturedPhone, '+919876543210');
+      expect(find.text('A support ticket has been created. Our team will contact you.'), findsOneWidget);
+    });
+
+    testWidgets('shows the server error message (e.g. no account found) without closing the dialog',
+        (tester) async {
+      final authRepo = _FakeAuthRepository()
+        ..forgotPinError = const ApiException(code: 'AUTH_002', message: 'No account found with this phone number');
+      await _pumpLogin(tester, authRepo: authRepo);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.tap(find.text('Forgot PIN?'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create Ticket'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No account found with this phone number'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
   });
 
   group('caregiver login fallback', () {

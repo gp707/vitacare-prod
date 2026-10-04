@@ -8,6 +8,7 @@ import '../data/auth_result.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 import '../../../app/route_for_status.dart';
+import '../../../app/forgot_pin_dialog.dart';
 
 /// Every caregiver sets their 4-digit code at registration (SPEC.md 3.1
 /// Stage 1), so login always requires phone + code — there's no more
@@ -242,6 +243,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           border: OutlineInputBorder(),
         ),
         onSubmitted: (_) => _submitPin(),
+      ),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: () => showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim()),
+          child: const Text('Forgot PIN?'),
+        ),
       ),
     ];
   }

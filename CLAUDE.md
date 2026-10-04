@@ -1137,6 +1137,68 @@ as the selection UI rather than building a new one.
   editable after composing. This screen is read/cancel-only — composing a new notification only
   ever happens via `RecipientCartBar` from one of the three list screens, never from here.
 
+## Support Tickets ("Forgot PIN")
+
+There's no OTP/email PIN reset (see "No OTP" above — phone login has no OTP, and this doesn't
+add one). Instead, a "Forgot PIN?" link on any login screen (caregiver, individual/organisation's
+shared login screen) creates a support ticket; admin reviews it in a new admin-web "Tickets"
+screen, verifies the requester's identity out of band (a phone call, same as every other identity
+check in this product), then resets their PIN using the existing admin Reset PIN action on that
+account's own detail screen (see "Admin-initiated phone-number change"/PIN-reset bullets
+elsewhere in this doc).
+
+- **Backend** (`apps/api/src/tickets/`): one new table, migration 078 — `support_tickets`
+  (`user_id` FK → `users`, deliberately role-agnostic since a ticket can come from a caregiver,
+  individual, or organisation account; `type` — a `TicketType` enum, currently only
+  `forgot_pin`, kept as its own enum rather than a hardcoded string so a future ticket type never
+  needs a migration to the CHECK constraint's shape; `status` — `TicketStatus.open`/`resolved`;
+  `phone`; `notes`; `created_at`/`resolved_at`/`resolved_by`). `POST /auth/forgot-pin`
+  (`TicketsController`, no `JwtAuthGuard` — reachable before the user can authenticate at all;
+  `ForgotPinDto { phone }`) resolves the account via the existing `UsersRepository
+  .findByPhoneAnyRole` (phone is globally unique across every registration-facing role — see
+  "Phone number is now globally unique" above — so this never needs an `app`/bucket parameter the
+  way login does), 404s with the existing `AUTH_002` ("no account found with this phone number")
+  if nothing matches — same error login already surfaces for this exact case, so this never
+  confirms or denies an account's existence any more precisely than login already does. If the
+  resolved account already has an open `forgot_pin` ticket, that one is reused (returns a
+  slightly different message) rather than accumulating duplicates from repeated taps.
+  `GET /admin/tickets` (`AdminTicketsController`, paginated, optional `status` filter) and
+  `PATCH /admin/tickets/:id/resolve` (`ResolveTicketDto { notes? }`, only succeeds on a still-open
+  ticket — `TICKET_001` otherwise, same "guard baked into the `UPDATE ... WHERE`" convention as
+  `AdminPushNotificationsRepository.cancel`) are admin-only. Both ticket creation and resolution
+  are audit-logged (`AuditAction.SUPPORT_TICKET_CREATED`/`SUPPORT_TICKET_RESOLVED`, entity type
+  `'support_tickets'`) — creation logs `userId` as the *resolved account's* own user id (same
+  "self-service event, logged against the account it happened to" convention as `registration`/
+  `login`), resolution logs `userId` as the admin and `targetUserId` as the ticket's requester.
+  `TicketsRepository.list`'s query resolves the requester's display id the same way
+  `AuditLogsRepository`'s target resolution does (see "Audit Logs target/entity display ids"
+  above) — `LEFT JOIN` all three of `caregiver_profiles`/`individual_profiles`/
+  `organisation_profiles` on `user_id`, since a ticket's user has exactly one role and therefore
+  at most one of `caregiver_number`/`patient_number`/`org_number` is ever non-null.
+- **admin-web** (`features/tickets/`): new "Tickets" sidebar nav item + `/tickets` route (+
+  `root_screen.dart` `_restorableRoutes` entry, same convention as every other static route) —
+  lists tickets (requester name/role/display id/phone, type, status, opened date, who resolved
+  it), defaulting to the Open filter, with a Resolve action (optional notes, via a dialog) on each
+  open row. Tapping a row's requester opens that account's own detail screen
+  (`CaregiverDetailScreen`/`IndividualDetailScreen`/`OrganisationDetailScreen` depending on role —
+  same per-role routing as `openAuditTargetDetail` in `audit_entry_cells.dart`), so admin can jump
+  straight from the ticket to resetting that account's PIN.
+- **Mobile**: `ApiRoutes.forgotPin`, and a `forgotPin(phone)` method on each app's own
+  `AuthRepository` (caregiver's and patient_hospital's — both just POST and return the backend's
+  own message string, shown as-is). A small `showForgotPinDialog()` helper is duplicated per app
+  (`lib/caregiver/app/forgot_pin_dialog.dart` / `lib/patient_hospital/app/forgot_pin_dialog.dart`
+  — same duplication precedent as `RateCardButton`/`WhatsAppHelpButton`) — pre-fills the phone
+  field from whatever's already typed into the login screen's own phone field, and on submit
+  shows the returned message via a `SnackBar`. A "Forgot PIN?" `TextButton` sits right below the
+  PIN field on both login screens (PIN-mode only — OTP mode has no PIN to forget).
+- **Login screen reorder (patient_hospital only, explicit request)**: this screen's "New here?
+  Register as:" section (+ its 3 account-type rows) now renders *above* the "Log in" section
+  (phone/PIN or OTP fields, Forgot PIN link, submit button) — previously the reverse. Registration
+  is this app's primary conversion path for a new visitor, so it's shown first; a returning user
+  scrolls past it to Log in below. Caregiver's own dedicated login screen (`/caregiver/login`) was
+  not reordered — it only ever had a single "New here? Register" link already positioned below its
+  login form, so no reorder was needed there.
+
 ## Naming Conventions (STRICT)
 
 | Context | Convention | Example |

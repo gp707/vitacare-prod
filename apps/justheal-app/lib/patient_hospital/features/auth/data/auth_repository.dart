@@ -134,4 +134,19 @@ class AuthRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// There's no OTP/email PIN reset — this creates a support ticket
+  /// instead, for admin to verify identity out of band and reset the PIN
+  /// from the account's own admin-web detail screen. Works for any
+  /// account type (phone is looked up across every role server-side), so
+  /// this same call also covers a caregiver who reached this shared login
+  /// screen. Returns the backend's own message to show as-is.
+  Future<String> forgotPin(String phone) async {
+    try {
+      final res = await _dio.post(ApiRoutes.forgotPin, data: {'phone': phone});
+      return (res.data['data'] as Map<String, dynamic>)['message'] as String;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

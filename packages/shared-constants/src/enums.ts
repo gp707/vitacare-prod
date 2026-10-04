@@ -214,6 +214,8 @@ export const AuditAction = {
   ADMIN_CODE_RESET: 'admin_code_reset',
   PUSH_NOTIFICATION_CREATED: 'push_notification_created',
   PUSH_NOTIFICATION_CANCELLED: 'push_notification_cancelled',
+  SUPPORT_TICKET_CREATED: 'support_ticket_created',
+  SUPPORT_TICKET_RESOLVED: 'support_ticket_resolved',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -380,6 +382,22 @@ export const PushNotificationStatus = {
   CANCELLED: 'cancelled',
 } as const;
 export type PushNotificationStatus = (typeof PushNotificationStatus)[keyof typeof PushNotificationStatus];
+
+// Support tickets (apps/api/src/tickets/) — currently only ever created by
+// the "Forgot PIN" flow on any login screen (caregiver, individual,
+// organisation), but kept as its own enum (not hardcoded 'forgot_pin'
+// inline) so a future ticket type doesn't need a migration to the CHECK
+// constraint's shape, just a new value.
+export const TicketType = {
+  FORGOT_PIN: 'forgot_pin',
+} as const;
+export type TicketType = (typeof TicketType)[keyof typeof TicketType];
+
+export const TicketStatus = {
+  OPEN: 'open',
+  RESOLVED: 'resolved',
+} as const;
+export type TicketStatus = (typeof TicketStatus)[keyof typeof TicketStatus];
 
 export const DocumentType = {
   QUALIFICATION: 'qualification',

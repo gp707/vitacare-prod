@@ -6,6 +6,11 @@ class ApiRoutes {
   static const registerIndividual = '/auth/register/individual';
   static const registerOrganisation = '/auth/register/organisation';
   static const loginCode = '/auth/login/code';
+  // Public — no auth, since this is reachable from any login screen
+  // before the user can authenticate at all. Creates a support ticket
+  // rather than actually resetting the PIN (there's no OTP/email reset
+  // flow) — see CLAUDE.md's Support Tickets section.
+  static const forgotPin = '/auth/forgot-pin';
   static const loginEmail = '/auth/login/email';
   static const refresh = '/auth/refresh';
   static const logout = '/auth/logout';
