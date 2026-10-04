@@ -38,6 +38,7 @@ class _IndividualDetailScreenState
   bool _editMode = false;
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   bool _editingNotes = false;
   bool _savingNotes = false;
@@ -52,6 +53,7 @@ class _IndividualDetailScreenState
   @override
   void dispose() {
     _fullNameController.dispose();
+    _phoneController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -76,6 +78,7 @@ class _IndividualDetailScreenState
 
   void _enterEditMode(AdminIndividualListItem detail) {
     _fullNameController.text = detail.fullName;
+    _phoneController.text = detail.phone;
     setState(() => _editMode = true);
   }
 
@@ -86,6 +89,10 @@ class _IndividualDetailScreenState
       final fullName = _fullNameController.text.trim();
       if (fullName.isNotEmpty && fullName != detail.fullName) {
         fields['full_name'] = fullName;
+      }
+      final phone = _phoneController.text.trim();
+      if (phone.isNotEmpty && phone != detail.phone) {
+        fields['phone'] = phone;
       }
 
       if (fields.isNotEmpty) {
@@ -382,6 +389,16 @@ class _IndividualDetailScreenState
           decoration: const InputDecoration(
               prefixIcon: Icon(Icons.badge),
               labelText: 'Full Name', border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _phoneController,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.phone),
+            labelText: 'Phone',
+            helperText: 'Same account, same profile/requirements — this only changes the login number.',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         Row(

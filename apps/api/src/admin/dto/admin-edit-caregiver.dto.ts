@@ -11,6 +11,10 @@ export class AdminEditCaregiverDto {
   full_name?: string;
 
   @IsOptional()
+  @Matches(Validation.PHONE_REGEX, { message: 'PROFILE_007' })
+  phone?: string;
+
+  @IsOptional()
   @IsIn(Object.values(Gender), { message: 'PROFILE_003' })
   gender?: Gender;
 

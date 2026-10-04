@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, DocumentType, Validation } from '@vitacare/shared-constants';
+import { AuditAction, Config, DocumentType, UserRole, Validation } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { AdminCaregiversRepository, DashboardStats } from '../database/repositories/admin-caregivers.repository';
@@ -359,9 +359,26 @@ export class AdminService {
       }
     }
 
+    // Phone is identity-sensitive for a caregiver's own self-edit (it
+    // re-triggers review there), but an admin-initiated change is trusted,
+    // same as every other field here — it does not touch
+    // verification_status. Still dedup-checked within the caregiver bucket,
+    // same as self-service, and it's a plain in-place update of the same
+    // users row, so the profile/jobs posted/jobs applied to are all
+    // untouched (they're keyed on user_id, never on phone).
+    if (dto.phone !== undefined && dto.phone !== profile.phone) {
+      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.CAREGIVER]);
+      if (existing) throw new AppException('AUTH_001');
+      before.phone = profile.phone;
+      after.phone = dto.phone;
+    }
+
     await this.db.withTransaction(async (client) => {
       if (dto.full_name !== undefined) {
         await this.usersRepo.updateFullName(profile.user_id, dto.full_name, client);
+      }
+      if (dto.phone !== undefined && dto.phone !== profile.phone) {
+        await this.usersRepo.updatePhone(profile.user_id, dto.phone, client);
       }
       await this.profilesRepo.adminUpdate(
         profileId,

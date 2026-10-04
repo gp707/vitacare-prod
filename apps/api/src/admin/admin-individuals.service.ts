@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config } from '@vitacare/shared-constants';
+import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AdminIndividualsRepository } from '../database/repositories/admin-individuals.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -88,8 +88,13 @@ export class AdminIndividualsService {
   }
 
   /** Admin override — an individual_profiles row has no profile depth
-   *  beyond the block levers, so this only ever touches users.full_name.
-   *  Audit-logs only if the name actually changed. */
+   *  beyond the block levers, so this only ever touches users.full_name/
+   *  phone. Audit-logs only the fields that actually changed. Unlike the
+   *  individual's own self-service `updatePhone`, this never triggers any
+   *  re-review (individual accounts have no verification pipeline anyway)
+   *  — it's a plain in-place update of the same users row, so the
+   *  profile/requirements posted/applications are all untouched (they're
+   *  keyed on user_id, never on phone). */
   async editProfile(
     targetUserId: string,
     adminId: string,
@@ -99,16 +104,35 @@ export class AdminIndividualsService {
     const individual = await this.individualsRepo.findDetailByUserId(targetUserId);
     if (!individual) throw new AppException('GEN_002');
 
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+
     if (dto.full_name !== undefined && dto.full_name !== individual.full_name) {
       await this.usersRepo.updateFullName(targetUserId, dto.full_name);
+      before.full_name = individual.full_name;
+      after.full_name = dto.full_name;
+    }
+
+    if (dto.phone !== undefined && dto.phone !== individual.phone) {
+      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+        UserRole.INDIVIDUAL,
+        UserRole.ORGANISATION,
+      ]);
+      if (existing) throw new AppException('AUTH_001');
+      await this.usersRepo.updatePhone(targetUserId, dto.phone);
+      before.phone = individual.phone;
+      after.phone = dto.phone;
+    }
+
+    if (Object.keys(after).length > 0) {
       await this.auditService.log({
         userId: adminId,
         targetUserId,
         action: AuditAction.ADMIN_EDIT_PROFILE,
         entityType: 'individual_profiles',
         entityId: targetUserId,
-        beforeValue: { full_name: individual.full_name },
-        afterValue: { full_name: dto.full_name },
+        beforeValue: before,
+        afterValue: after,
         ipAddress,
       });
     }

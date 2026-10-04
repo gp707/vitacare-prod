@@ -86,6 +86,8 @@ describe('AdminService', () => {
       findById: jest.fn(),
       updatePasswordHash: jest.fn(),
       updateCodeHash: jest.fn(),
+      updatePhone: jest.fn(),
+      findByPhoneAndRoles: jest.fn().mockResolvedValue(null),
     };
     individualsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
     organisationsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
@@ -600,6 +602,51 @@ describe('AdminService', () => {
         ['mumbai', 'bangalore'],
         expect.anything(),
       );
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('updates the phone number via users.phone (not caregiver_profiles) and audit-logs it against the user', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+
+      const result = await service.editProfile('profile-1', 'admin-1', {
+        phone: '+919999999999',
+      } as any);
+
+      expect(usersRepo.findByPhoneAndRoles).toHaveBeenCalledWith('+919999999999', ['caregiver']);
+      expect(usersRepo.updatePhone).toHaveBeenCalledWith('user-1', '+919999999999', expect.anything());
+      expect(result).toEqual({ message: 'Profile updated' });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'user-1',
+          action: 'admin_edit_profile',
+          entityType: 'caregiver_profiles',
+          entityId: 'profile-1',
+          beforeValue: { phone: detail.phone },
+          afterValue: { phone: '+919999999999' },
+        }),
+      );
+    });
+
+    it('throws AUTH_001 and writes nothing when the new phone is already registered as another caregiver', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ id: 'other-user' });
+
+      await expect(
+        service.editProfile('profile-1', 'admin-1', { phone: '+919999999999' } as any),
+      ).rejects.toMatchObject({ code: 'AUTH_001' });
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('skips the phone update entirely when the submitted phone matches the current one', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+
+      await service.editProfile('profile-1', 'admin-1', { phone: detail.phone } as any);
+
+      expect(usersRepo.findByPhoneAndRoles).not.toHaveBeenCalled();
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
       expect(auditService.log).not.toHaveBeenCalled();
     });
   });

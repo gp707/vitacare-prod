@@ -39,8 +39,16 @@ class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
   String? capturedRejectionMessage;
   String? resetCodeProfileId;
   String? resetCodeValue;
+  String? editedProfileId;
+  Map<String, dynamic>? editedFields;
 
   _FakeAdminCaregiversRepository(this.detail) : super(Dio());
+
+  @override
+  Future<void> editProfile(String profileId, Map<String, dynamic> fields) async {
+    editedProfileId = profileId;
+    editedFields = fields;
+  }
 
   @override
   Future<AdminCaregiverDetail> getDetail(String profileId) async => detail;
@@ -188,5 +196,26 @@ void main() {
     expect(repo.resetCodeProfileId, 'profile-1');
     expect(repo.resetCodeValue, '9876');
     expect(find.text('PIN reset'), findsOneWidget);
+  });
+
+  testWidgets(
+      'editing the Phone field in the Profile tab and saving calls editProfile with only the changed phone field',
+      (tester) async {
+    final repo = _FakeAdminCaregiversRepository(_detail(status: 'available'));
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit'));
+    await tester.pumpAndSettle();
+
+    final phoneField = find.widgetWithText(TextField, 'Phone');
+    await tester.ensureVisible(phoneField);
+    await tester.enterText(phoneField, '+919999999999');
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Changes');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.editedProfileId, 'profile-1');
+    expect(repo.editedFields, {'phone': '+919999999999'});
   });
 }

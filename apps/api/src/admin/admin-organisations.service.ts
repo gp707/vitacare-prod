@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config } from '@vitacare/shared-constants';
+import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
@@ -63,7 +63,7 @@ export class AdminOrganisationsService {
 
     const before: Record<string, unknown> = {};
     const after: Record<string, unknown> = {};
-    const trackedFields = ['full_name', 'organisation_name', 'organisation_type', 'city', 'area'] as const;
+    const trackedFields = ['full_name', 'phone', 'organisation_name', 'organisation_type', 'city', 'area'] as const;
     const organisationRecord = organisation as unknown as Record<string, unknown>;
     for (const field of trackedFields) {
       const nextValue = dto[field];
@@ -72,6 +72,19 @@ export class AdminOrganisationsService {
         before[field] = organisationRecord[field];
         after[field] = nextValue;
       }
+    }
+
+    // Plain in-place update of the same users row — the profile/
+    // requirements posted/applications are all untouched (keyed on
+    // user_id, never on phone). No re-review to trigger either, same as
+    // the organisation's own self-service updatePhone.
+    if (dto.phone !== undefined && dto.phone !== organisation.phone) {
+      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
+        UserRole.INDIVIDUAL,
+        UserRole.ORGANISATION,
+      ]);
+      if (existing) throw new AppException('AUTH_001');
+      await this.usersRepo.updatePhone(targetUserId, dto.phone);
     }
 
     if (dto.full_name !== undefined) {

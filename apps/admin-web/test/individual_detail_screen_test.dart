@@ -224,6 +224,23 @@ void main() {
   });
 
   testWidgets(
+      'editing the Phone field and saving calls editProfile with only the changed phone field',
+      (tester) async {
+    final repo = _FakeAdminIndividualsRepository(_item());
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Edit').first);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Phone'), '+919999999999');
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(repo.editedUserId, 'u1');
+    expect(repo.editedFields, {'phone': '+919999999999'});
+  });
+
+  testWidgets(
       'View full audit log navigates to /audit-logs with this account\'s user id',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));

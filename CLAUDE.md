@@ -654,6 +654,29 @@ location) that didn't fit the Individual/admin jobs-table model.
   `JobReadOnlyDetailDialog` gets a small `_JobNotesSection` (its own tiny `ConsumerStatefulWidget`,
   since the rest of that dialog is a plain `StatelessWidget`) appended after Nurse Fee Guidance/
   Scope of Work. Both follow the same "No notes yet." empty state plus Edit/Save/Cancel controls.
+- **Admin-initiated phone-number change — caregiver, individual, and organisation accounts
+  alike.** Folded into each role's existing single admin-edit endpoint/dialog rather than a new
+  one: `phone` is now an optional field on `AdminEditCaregiverDto`/`AdminEditIndividualDto`/
+  `AdminEditOrganisationDto` (`Validation.PHONE_REGEX`), diffed and written the same way every
+  other tracked field already is, so it shows up in the same `AuditAction.ADMIN_EDIT_PROFILE`
+  entry alongside whatever else changed in the same edit. It's a plain in-place
+  `UsersRepository.updatePhone(userId, phone, client)` on the existing `users` row — **the
+  profile, every job/requirement posted, and every application are completely untouched**, since
+  all of them key on `user_id`, never on `phone`; this was the explicit point of the request, and
+  it's just a natural consequence of not creating a new account. Still dedup-checked exactly like
+  each role's own self-service `updatePhone` — caregiver checks `findByPhoneAndRoles(phone,
+  [CAREGIVER])`, individual/organisation check `findByPhoneAndRoles(phone, [INDIVIDUAL,
+  ORGANISATION])` (not the global `findByPhoneAnyRole` — same same-bucket-only scope self-service
+  already uses, not expanded here) — `AUTH_001` if another account in that bucket already holds
+  it. **Deliberately does NOT trigger a caregiver's re-review/`pending_call` reset** the way the
+  caregiver's own self-service phone change does (see "Phone is identity-sensitive" elsewhere in
+  this doc) — admin edits are already treated as trusted everywhere else in `AdminService
+  .editProfile` (verification_status is left alone for every other field too), so phone follows
+  that same precedent rather than the self-service one. admin-web: each of
+  `CaregiverDetailScreen`/`IndividualDetailScreen`/`OrganisationDetailScreen`'s existing Profile
+  edit form gained a Phone `TextField` right next to Full Name, with a helper line making the
+  "same account" guarantee explicit in the UI — no new endpoint, button, or dialog, since this
+  reuses the Edit toggle + Save Changes flow each screen already had.
 
 ### Organisation (Hospital/Rehab/Clinic)
 

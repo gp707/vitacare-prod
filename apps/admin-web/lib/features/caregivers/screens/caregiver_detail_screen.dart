@@ -50,6 +50,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   bool _editMode = false;
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _ageController = TextEditingController();
   String? _editGender;
   String? _editQualification;
@@ -73,6 +74,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     _internalNotesController.dispose();
     _remarksController.dispose();
     _fullNameController.dispose();
+    _phoneController.dispose();
     _ageController.dispose();
     _overrideRejectionController.dispose();
     super.dispose();
@@ -136,6 +138,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   void _enterEditMode(AdminCaregiverDetail detail) {
     _fullNameController.text = detail.fullName;
+    _phoneController.text = detail.phone;
     _ageController.text = detail.age.toString();
     setState(() {
       _editGender = detail.gender;
@@ -155,6 +158,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       final fullName = _fullNameController.text.trim();
       if (fullName.isNotEmpty && fullName != detail.fullName) {
         fields['full_name'] = fullName;
+      }
+      final phone = _phoneController.text.trim();
+      if (phone.isNotEmpty && phone != detail.phone) {
+        fields['phone'] = phone;
       }
       if (_editGender != null && _editGender != detail.gender) {
         fields['gender'] = _editGender;
@@ -575,6 +582,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _phoneController,
+          decoration: const InputDecoration(
+            labelText: 'Phone',
+            helperText: 'Same account, same profile/jobs — this only changes the login number.',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         SizedBox(

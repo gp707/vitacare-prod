@@ -40,6 +40,7 @@ class _OrganisationDetailScreenState
   bool _editMode = false;
   bool _savingEdits = false;
   final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _organisationNameController = TextEditingController();
   final _areaController = TextEditingController();
   String? _editOrganisationType;
@@ -54,6 +55,7 @@ class _OrganisationDetailScreenState
   @override
   void dispose() {
     _fullNameController.dispose();
+    _phoneController.dispose();
     _organisationNameController.dispose();
     _areaController.dispose();
     super.dispose();
@@ -79,6 +81,7 @@ class _OrganisationDetailScreenState
 
   void _enterEditMode(AdminOrganisationListItem detail) {
     _fullNameController.text = detail.fullName;
+    _phoneController.text = detail.phone;
     _organisationNameController.text = detail.organisationName;
     _areaController.text = detail.area;
     setState(() {
@@ -96,6 +99,10 @@ class _OrganisationDetailScreenState
       final fullName = _fullNameController.text.trim();
       if (fullName.isNotEmpty && fullName != detail.fullName) {
         fields['full_name'] = fullName;
+      }
+      final phone = _phoneController.text.trim();
+      if (phone.isNotEmpty && phone != detail.phone) {
+        fields['phone'] = phone;
       }
       final organisationName = _organisationNameController.text.trim();
       if (organisationName.isNotEmpty &&
@@ -377,6 +384,16 @@ class _OrganisationDetailScreenState
           decoration: const InputDecoration(
               prefixIcon: Icon(Icons.badge),
               labelText: 'Contact Person', border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _phoneController,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.phone),
+            labelText: 'Phone',
+            helperText: 'Same account, same profile/requirements — this only changes the login number.',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(

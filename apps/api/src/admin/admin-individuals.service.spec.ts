@@ -14,7 +14,13 @@ describe('AdminIndividualsService', () => {
       setJobPostingBlocked: jest.fn(),
       setBlockReason: jest.fn(),
     };
-    usersRepo = { setActive: jest.fn(), updateFullName: jest.fn(), updateCodeHash: jest.fn() };
+    usersRepo = {
+      setActive: jest.fn(),
+      updateFullName: jest.fn(),
+      updateCodeHash: jest.fn(),
+      updatePhone: jest.fn(),
+      findByPhoneAndRoles: jest.fn().mockResolvedValue(null),
+    };
     notesRepo = { findByUserId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
     auditService = { log: jest.fn() };
     service = new AdminIndividualsService(individualsRepo, usersRepo, notesRepo, auditService);
@@ -149,6 +155,47 @@ describe('AdminIndividualsService', () => {
       await service.editProfile('u1', 'admin-1', {}, null);
 
       expect(usersRepo.updateFullName).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('updates the phone number and audit-logs before/after when it actually changed', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Asha', phone: '+919876543210' });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+
+      await service.editProfile('u1', 'admin-1', { phone: '+919999999999' }, null);
+
+      expect(usersRepo.findByPhoneAndRoles).toHaveBeenCalledWith('+919999999999', ['individual', 'organisation']);
+      expect(usersRepo.updatePhone).toHaveBeenCalledWith('u1', '+919999999999');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'u1',
+          action: 'admin_edit_profile',
+          entityType: 'individual_profiles',
+          beforeValue: { phone: '+919876543210' },
+          afterValue: { phone: '+919999999999' },
+        }),
+      );
+    });
+
+    it('throws AUTH_001 and writes nothing when the new phone is already registered under another account', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Asha', phone: '+919876543210' });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue({ id: 'other-user' });
+
+      await expect(
+        service.editProfile('u1', 'admin-1', { phone: '+919999999999' }, null),
+      ).rejects.toMatchObject({ code: 'AUTH_001' });
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
+      expect(auditService.log).not.toHaveBeenCalled();
+    });
+
+    it('skips the phone update entirely when the submitted phone matches the current one', async () => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1', full_name: 'Asha', phone: '+919876543210' });
+
+      await service.editProfile('u1', 'admin-1', { phone: '+919876543210' }, null);
+
+      expect(usersRepo.findByPhoneAndRoles).not.toHaveBeenCalled();
+      expect(usersRepo.updatePhone).not.toHaveBeenCalled();
       expect(auditService.log).not.toHaveBeenCalled();
     });
   });
