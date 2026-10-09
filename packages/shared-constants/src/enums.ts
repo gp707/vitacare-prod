@@ -216,6 +216,11 @@ export const AuditAction = {
   PUSH_NOTIFICATION_CANCELLED: 'push_notification_cancelled',
   SUPPORT_TICKET_CREATED: 'support_ticket_created',
   SUPPORT_TICKET_RESOLVED: 'support_ticket_resolved',
+  // Self-service account deletion (caregiver/individual/organisation) —
+  // logged against the anonymized account itself, same "self-service
+  // event logged against the account it happened to" convention as
+  // registration/login.
+  ACCOUNT_DELETED: 'account_deleted',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

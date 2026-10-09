@@ -68,6 +68,18 @@ export class OrganisationProfilesRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Self-service account deletion — the contact person is an individual,
+   *  so their name is anonymized same as users.full_name. organisation_name/
+   *  organisation_type/city/area describe the business entity itself, not
+   *  a person, and are left intact as a business record. */
+  async anonymizeContactPerson(profileId: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE organisation_profiles SET contact_person_name = 'Deleted User', updated_at = NOW() WHERE id = $1`,
+      [profileId],
+    );
+  }
+
   /** Same as findByUserId, plus the org's own phone (users.phone — not a
    *  column on this table) — used only where the caller needs to surface a
    *  callable contact number for the org (e.g. admin's requirement detail

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -25,6 +26,7 @@ import { UpdatePhoneDto } from './dto/update-phone.dto';
 import { UpdateCodeDto } from './dto/update-code.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 
 @Controller('caregiver')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -65,6 +67,19 @@ export class CaregiverController {
     @ClientIp() ip: string | null,
   ) {
     return this.caregiverService.updateCode(user.sub, dto, ip);
+  }
+
+  /** Irreversible — anonymizes and deactivates the account rather than
+   *  deleting the row (see UsersRepository.anonymizeAndDeactivate). The
+   *  PIN re-check happens in the service, same as a real re-auth step. */
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  deleteAccount(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: DeleteAccountDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.caregiverService.deleteAccount(user.sub, dto, ip);
   }
 
   @Post('profile/selfie')

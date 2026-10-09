@@ -20,6 +20,7 @@ import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
+import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
 
 @Injectable()
 export class IndividualService {
@@ -342,6 +343,32 @@ export class IndividualService {
       ipAddress,
     });
     return { message: 'Login code updated' };
+  }
+
+  /** Self-service account deletion. Simpler than the caregiver equivalent
+   *  — no documents, no verification pipeline — so this is just the PIN
+   *  re-check plus UsersRepository.anonymizeAndDeactivate (see its own doc
+   *  comment for why this anonymizes in place rather than deleting the
+   *  row). */
+  async deleteAccount(userId: string, dto: DeleteAccountDto, ipAddress: string | null = null) {
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    const user = await this.usersRepo.findById(userId);
+    if (!user?.code_hash || !(await bcrypt.compare(dto.code, user.code_hash))) {
+      throw new AppException('AUTH_008');
+    }
+
+    await this.usersRepo.anonymizeAndDeactivate(userId);
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.ACCOUNT_DELETED,
+      entityType: 'individual_profiles',
+      entityId: profile.id,
+      ipAddress,
+    });
+
+    return { message: 'Account deleted' };
   }
 
   /** Unlike a caregiver's full_name (locked from self-edit past

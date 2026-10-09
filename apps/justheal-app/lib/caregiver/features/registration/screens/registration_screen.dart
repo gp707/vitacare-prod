@@ -15,7 +15,7 @@ import '../../../core/utils/image_compression.dart';
 import '../../../core/utils/upload_size_limit.dart';
 import '../../profile/data/profile_repository.dart';
 
-const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?tab=t.0';
+const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?usp=sharing';
 
 class _MandatoryField {
   final GlobalKey key;

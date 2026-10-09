@@ -13,6 +13,7 @@ export interface UserRecord {
   role: UserRole;
   is_active: boolean;
   fcm_token: string | null;
+  deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -167,6 +168,29 @@ export class UsersRepository {
       [userId, input.full_name ?? null, input.phone ?? null],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** Self-service account deletion (caregiver/individual/organisation).
+   *  Anonymizes every directly-identifying column on the users row and
+   *  deactivates it — never removes the row, since other people's own
+   *  records (job_applications, audit_logs, support_tickets, admin notes)
+   *  reference it by id, and a hard delete would either orphan those or
+   *  cascade-destroy data that isn't this account's to delete. The
+   *  tombstone phone is derived from the user's own id, so it's always
+   *  unique without a DB round-trip to check. Role-specific PII (a
+   *  caregiver's documents, an organisation's contact person name) is the
+   *  caller's own responsibility — this only ever touches `users`. */
+  async anonymizeAndDeactivate(userId: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    const tombstonePhone = `del_${userId.replace(/-/g, '').slice(0, 16)}`;
+    await runner.query(
+      `UPDATE users
+       SET phone = $2, full_name = 'Deleted User', email = NULL,
+           code_hash = NULL, fcm_token = NULL, is_active = false,
+           deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1`,
+      [userId, tombstonePhone],
+    );
   }
 
   async setActive(userId: string, isActive: boolean): Promise<void> {

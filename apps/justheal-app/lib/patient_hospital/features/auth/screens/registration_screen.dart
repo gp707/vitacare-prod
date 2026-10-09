@@ -25,9 +25,9 @@ const _organisationCityOthers = 'others';
 // legal terms differ from an individual/family's) — the checkbox links out
 // to whichever one matches the currently-selected account type.
 const _individualTermsUrl =
-    'https://docs.google.com/document/d/1TvqDSP5EZRh8ZtxLhRH_b46J7Q-6cIV5VCUsTkH1Q5s/edit?tab=t.0';
+    'https://docs.google.com/document/d/1TvqDSP5EZRh8ZtxLhRH_b46J7Q-6cIV5VCUsTkH1Q5s/edit?usp=sharing';
 const _organisationTermsUrl =
-    'https://docs.google.com/document/d/1y_o29xiumKqmzshox58vGcYYFnWVUKWL6cd6m_Eycpw/edit?tab=t.0';
+    'https://docs.google.com/document/d/1y_o29xiumKqmzshox58vGcYYFnWVUKWL6cd6m_Eycpw/edit?usp=sharing';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
 // with every real language: picking a real language drops this, picking

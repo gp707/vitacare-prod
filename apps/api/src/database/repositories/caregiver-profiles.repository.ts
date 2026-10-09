@@ -232,6 +232,22 @@ export class CaregiverProfilesRepository {
     );
   }
 
+  /** Self-service account deletion — clears every document column this
+   *  profile has. Callers are expected to have already read
+   *  CaregiverDocumentsRepository.listByProfileId() (every version ever
+   *  uploaded, not just the current one per slot) so they can remove the
+   *  underlying storage objects too; this only clears the DB pointers. */
+  async anonymizeDocuments(profileId: string, client?: PoolClient): Promise<void> {
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE caregiver_profiles
+       SET selfie_photo_url = NULL, qualification_document_url = NULL,
+           aadhaar_document_url = NULL, other_document_urls = '[]', updated_at = NOW()
+       WHERE id = $1`,
+      [profileId],
+    );
+  }
+
   async getOtherDocumentUrls(profileId: string): Promise<string[]> {
     const result = await this.db.query<{ other_document_urls: string[] }>(
       'SELECT other_document_urls FROM caregiver_profiles WHERE id = $1',

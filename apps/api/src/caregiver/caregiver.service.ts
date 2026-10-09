@@ -19,6 +19,7 @@ import { UpdatePhoneDto } from './dto/update-phone.dto';
 import { UpdateCodeDto } from './dto/update-code.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 
 // Identity-sensitive changes (phone, Aadhaar re-upload) send a caregiver
 // back to pending_call for re-review from these statuses. assigned is
@@ -375,6 +376,47 @@ export class CaregiverService {
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
     await this.usersRepo.updateFcmToken(userId, dto.token);
     return { message: 'FCM token updated' };
+  }
+
+  /** Self-service account deletion. Requires re-entering the PIN (AUTH_008
+   *  on mismatch) since this is irreversible. Document storage paths are
+   *  captured from the full upload history — not just the current
+   *  selfie/Aadhaar/qualification/other URLs — before the DB rows that
+   *  reference them are anonymized, then removed from storage best-effort:
+   *  a storage failure must never block the deletion itself, since the DB
+   *  side (which already anonymized and deactivated the account) is what
+   *  actually satisfies the request. */
+  async deleteAccount(userId: string, dto: DeleteAccountDto, ipAddress: string | null = null) {
+    const profile = await this.requireFullProfile(userId);
+    const user = await this.usersRepo.findById(userId);
+    if (!user?.code_hash || !(await bcrypt.compare(dto.code, user.code_hash))) {
+      throw new AppException('AUTH_008');
+    }
+
+    const documentVersions = await this.documentsRepo.listByProfileId(profile.id);
+
+    await this.db.withTransaction(async (client) => {
+      await this.usersRepo.anonymizeAndDeactivate(userId, client);
+      await this.profilesRepo.anonymizeDocuments(profile.id, client);
+    });
+
+    await Promise.all(
+      documentVersions.map((version) =>
+        this.uploadService.deleteFile(Config.STORAGE_BUCKET, version.path).catch(() => {
+          // Best-effort cleanup — see method doc above.
+        }),
+      ),
+    );
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.ACCOUNT_DELETED,
+      entityType: 'caregiver_profiles',
+      entityId: profile.id,
+      ipAddress,
+    });
+
+    return { message: 'Account deleted' };
   }
 
   private async requireFullProfile(userId: string): Promise<CaregiverProfileFullRecord> {
