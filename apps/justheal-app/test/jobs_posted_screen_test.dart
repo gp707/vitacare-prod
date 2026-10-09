@@ -1165,31 +1165,23 @@ void main() {
   });
 
   testWidgets(
-      'Salary is directly editable — a patient is never stuck when no Rate Card suggestion is available '
-      '(the field used to be plain read-only text, with no way to proceed if nothing auto-filled it)',
-      (tester) async {
-    final repo = _FakeIndividualRepository(
-      requirements: [_requirement(careReceiver: _careReceiverJson, salaryAmount: null)],
-    );
+      'Salary is deliberately read-only — never a TextField, no tick/cross controls of its own, '
+      'only ever auto-derived from the Rate Card suggestion', (tester) async {
+    final repo = _FakeIndividualRepository(requirements: [_requirement(careReceiver: _careReceiverJson)]);
     await _pump(tester, repo);
 
-    // No suggestion applied — the field starts genuinely empty, not just
-    // showing a placeholder dash over an uneditable Text.
-    final salaryFieldFinder = find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)');
-    expect(salaryFieldFinder, findsOneWidget);
-    expect(tester.widget<TextField>(salaryFieldFinder).controller!.text, '');
+    expect(find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)'), findsNothing);
+    expect(find.text('1800'), findsOneWidget);
     expect(find.byKey(const Key('salary-save')), findsNothing);
+    expect(find.byKey(const Key('salary-discard')), findsNothing);
 
-    await tester.enterText(salaryFieldFinder, '30000');
+    // Editing an unrelated field never produces salary-specific controls
+    // either — only that field's own tick/cross pair appears.
+    await _expandSection(tester, 'Patient Details');
+    await tester.enterText(find.widgetWithText(TextField, 'Area (Mandatory)'), 'Koramangala');
     await tester.pump();
-    expect(find.byKey(const Key('salary-save')), findsOneWidget);
-
-    await tester.ensureVisible(find.byKey(const Key('salary-save')));
-    await tester.tap(find.byKey(const Key('salary-save')));
-    await _settle(tester);
-
-    expect(repo.editedJobId, 'job-1');
-    expect(repo.lastEditedSalaryAmount, '30000');
+    expect(find.byKey(const Key('area-save')), findsOneWidget);
+    expect(find.byKey(const Key('salary-save')), findsNothing);
   });
 
   testWidgets(

@@ -170,7 +170,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
-  final _salaryFocusNode = FocusNode();
 
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
@@ -235,7 +234,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
-    _salaryFocusNode.dispose();
     super.dispose();
   }
 
@@ -284,7 +282,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   String get _termsUrl => _isOrganisation ? _organisationTermsUrl : _individualTermsUrl;
 
-  Future<void> _openTerms() => launchUrl(Uri.parse(_termsUrl), mode: LaunchMode.externalApplication);
+  // inAppBrowserView, not externalApplication — a docs.google.com link
+  // under externalApplication gets claimed by the Google Docs/Drive app
+  // via Android App Links on any device that has it installed (every
+  // Play Store system image does), which demands a signed-in Google
+  // account before showing anything at all, regardless of /edit vs
+  // /preview. inAppBrowserView opens it in an embedded Chrome Custom Tab
+  // instead, bypassing that claim entirely.
+  Future<void> _openTerms() => launchUrl(Uri.parse(_termsUrl), mode: LaunchMode.inAppBrowserView);
 
   // --- Organisation-only validity ---
   bool get _isFullNameValid => !_isOrganisation || Validators.isValidName(_fullNameController.text.trim());
@@ -412,7 +417,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_careDurationKey, _isCareDurationValid),
           _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
           _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
-          _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+          _MandatoryField(_salaryKey, _isSalaryValid),
         ],
         _MandatoryField(_termsKey, _isTermsValid),
       ];
@@ -1212,23 +1217,41 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.caption, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: AppSpacing.xs),
+                // Read-only — bold standout text, never user-typed.
+                // Auto-filled purely from the Rate Card suggestion for the
+                // derived care tier/frequency, re-derived live as Duration
+                // Care is Needed/Toilet Assistance/Feeding Type/Medical
+                // Condition change above. The ConnectivityBanner (see
+                // CLAUDE.md) is what protects against a dead end here now
+                // — it warns the patient up front if the backend is
+                // unreachable, rather than this field silently staying
+                // empty with no way to proceed.
                 SizedBox(
                   key: _salaryKey,
                   width: double.infinity,
-                  child: TextField(
-                    controller: _salaryController,
-                    focusNode: _salaryFocusNode,
-                    onChanged: (_) => setState(() {}),
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      labelText:
-                          'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Negotiable)',
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                      border: const OutlineInputBorder(),
-                      errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
+                        style: const TextStyle(
+                            fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _salaryController.text.isEmpty ? '—' : _salaryController.text,
+                        style: const TextStyle(
+                            fontSize: AppTypography.heading, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      ),
+                      if (_showValidationErrors && !_isSalaryValid) ...[
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Salary is required',
+                          style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),

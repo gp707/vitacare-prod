@@ -295,7 +295,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     if (launcher != null) {
       await launcher(uri);
     } else {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      // inAppBrowserView, not externalApplication — a docs.google.com
+      // link under externalApplication gets claimed by the Google Docs/
+      // Drive app via Android App Links on any device that has it
+      // installed (every Play Store system image does), which demands a
+      // signed-in Google account before showing anything at all,
+      // regardless of /edit vs /preview. inAppBrowserView opens it in an
+      // embedded Chrome Custom Tab instead, bypassing that claim entirely.
+      await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
     }
   }
 

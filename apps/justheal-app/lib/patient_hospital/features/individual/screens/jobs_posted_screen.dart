@@ -373,7 +373,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
-  final _salaryFocusNode = FocusNode();
 
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
@@ -574,10 +573,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 
   void _revertPreferredGender() => setState(() => _preferredGender = widget.requirement.preferredGender);
 
-  bool get _isSalaryDirty => _salaryController.text != (widget.requirement.salaryAmount ?? '');
-
-  void _revertSalary() => setState(() => _salaryController.text = widget.requirement.salaryAmount ?? '');
-
   /// Compact tick/cross pair shown right next to a field once it differs
   /// from what's actually saved — null (nothing rendered) otherwise. Tick
   /// always runs the same full-form [_handleSavePressed]; cross reverts
@@ -616,7 +611,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
-    _salaryFocusNode.dispose();
     super.dispose();
   }
 
@@ -730,7 +724,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         _MandatoryField(_careDurationKey, _isCareDurationValid),
         _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
-        _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
+        _MandatoryField(_salaryKey, _isSalaryValid),
       ];
 
   Future<void> _pickStartDate() async {
@@ -1466,33 +1460,46 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                               fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: AppSpacing.xs),
-                        // Always auto-filled/refreshed from the Rate Card
-                        // suggestion first (see _refreshSuggestedSalary,
+                        // Read-only — bold standout text, never user-typed,
+                        // same as the registration form's own salary
+                        // display (deliberate — see CLAUDE.md's "Account
+                        // Deletion"-adjacent Connectivity Banner section
+                        // and the salary-bar note under "NurseNow" for
+                        // why). Still auto-filled/refreshed from the Rate
+                        // Card suggestion (see _refreshSuggestedSalary,
                         // triggered on every Toilet Assistance/Feeding
-                        // Type/Medical Condition/Duration change) — but
-                        // also a real, directly editable TextField, so the
-                        // patient is never stuck with a blank, unsavable
-                        // field on the rare occasion the suggestion can't
-                        // be computed (no matching Rate Card row, or the
-                        // Rate Card fetch itself failed).
+                        // Type/Medical Condition/Duration change) and still
+                        // what gets submitted as salary_amount on Save.
                         SizedBox(
                           key: _salaryKey,
                           width: double.infinity,
-                          child: TextField(
-                            controller: _salaryController,
-                            focusNode: _salaryFocusNode,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            decoration: InputDecoration(
-                              labelText:
-                                  'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Negotiable)',
-                              filled: true,
-                              fillColor: Colors.white,
-                              isDense: true,
-                              border: const OutlineInputBorder(),
-                              errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
-                              suffixIcon: _fieldControls('salary', _isSalaryDirty, _revertSalary),
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
+                                style: const TextStyle(
+                                    fontSize: AppTypography.small,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _salaryController.text.isEmpty ? '—' : _salaryController.text,
+                                style: const TextStyle(
+                                    fontSize: AppTypography.heading,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary),
+                              ),
+                              if (_showValidationErrors && !_isSalaryValid) ...[
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Salary is required',
+                                  style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         if (careReceiver != null) ...[
