@@ -40,6 +40,6 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/profile': (context) => const ProfileScreen(),
     '/org-home': (context) => const RequirementsPostedScreen(),
     '/org-post-requirement': (context) => const PostOrganisationRequirementScreen(),
-    ...buildCaregiverRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
+    ...buildCaregiverRoutes(),
   };
 }
