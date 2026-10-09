@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { OrganisationService } from './organisation.service';
 
 describe('OrganisationService', () => {
@@ -7,7 +8,7 @@ describe('OrganisationService', () => {
   let auditService: any;
 
   beforeEach(() => {
-    organisationProfilesRepo = { findByUserId: jest.fn(), update: jest.fn() };
+    organisationProfilesRepo = { findByUserId: jest.fn(), update: jest.fn(), anonymizeContactPerson: jest.fn() };
     usersRepo = {
       findById: jest.fn(),
       findByPhoneAndRoles: jest.fn(),
@@ -15,6 +16,7 @@ describe('OrganisationService', () => {
       updateCodeHash: jest.fn(),
       updateFullName: jest.fn(),
       updateFcmToken: jest.fn(),
+      anonymizeAndDeactivate: jest.fn(),
     };
     auditService = { log: jest.fn() };
     service = new OrganisationService(organisationProfilesRepo, usersRepo, auditService);
@@ -224,6 +226,39 @@ describe('OrganisationService', () => {
         expect.objectContaining({ userId: 'user-1', action: 'code_changed', entityType: 'organisation_profiles' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('throws GEN_002 when no organisation profile exists', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.deleteAccount('user-1', { code: '1234' } as any)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws AUTH_008 when the PIN is wrong', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ id: 'op-1' });
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+
+      await expect(service.deleteAccount('user-1', { code: '0000' } as any)).rejects.toMatchObject({
+        code: 'AUTH_008',
+      });
+      expect(usersRepo.anonymizeAndDeactivate).not.toHaveBeenCalled();
+    });
+
+    it('anonymizes the account and the contact person, and audit-logs the deletion', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ id: 'op-1' });
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+
+      const result = await service.deleteAccount('user-1', { code: '1234' } as any, '127.0.0.1');
+
+      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1');
+      expect(organisationProfilesRepo.anonymizeContactPerson).toHaveBeenCalledWith('op-1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'account_deleted', entityType: 'organisation_profiles', entityId: 'op-1' }),
+      );
+      expect(result).toEqual({ message: 'Account deleted' });
     });
   });
 

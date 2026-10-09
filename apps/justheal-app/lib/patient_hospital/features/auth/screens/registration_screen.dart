@@ -24,10 +24,14 @@ const _organisationCityOthers = 'others';
 // Each account type has its own Terms & Conditions document (an org's
 // legal terms differ from an individual/family's) — the checkbox links out
 // to whichever one matches the currently-selected account type.
+// /preview, not /edit — a plain public read-only viewer that never prompts
+// for a Google account, unlike /edit which routes through the Docs editor
+// UI (expects an account context, and shows "could not find any Google
+// account" on a device signed into none).
 const _individualTermsUrl =
-    'https://docs.google.com/document/d/1TvqDSP5EZRh8ZtxLhRH_b46J7Q-6cIV5VCUsTkH1Q5s/edit?usp=sharing';
+    'https://docs.google.com/document/d/1TvqDSP5EZRh8ZtxLhRH_b46J7Q-6cIV5VCUsTkH1Q5s/preview';
 const _organisationTermsUrl =
-    'https://docs.google.com/document/d/1y_o29xiumKqmzshox58vGcYYFnWVUKWL6cd6m_Eycpw/edit?usp=sharing';
+    'https://docs.google.com/document/d/1y_o29xiumKqmzshox58vGcYYFnWVUKWL6cd6m_Eycpw/preview';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
 // with every real language: picking a real language drops this, picking
@@ -166,6 +170,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
+  final _salaryFocusNode = FocusNode();
 
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
@@ -230,6 +235,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
+    _salaryFocusNode.dispose();
     super.dispose();
   }
 
@@ -406,7 +412,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_careDurationKey, _isCareDurationValid),
           _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
           _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
-          _MandatoryField(_salaryKey, _isSalaryValid),
+          _MandatoryField(_salaryKey, _isSalaryValid, focusNode: _salaryFocusNode),
         ],
         _MandatoryField(_termsKey, _isTermsValid),
       ];
@@ -1209,27 +1215,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 SizedBox(
                   key: _salaryKey,
                   width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
-                        style: const TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _salaryController.text.isEmpty ? '—' : _salaryController.text,
-                        style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                      ),
-                      if (_showValidationErrors && !_isSalaryValid) ...[
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Salary is required',
-                          style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
-                        ),
-                      ],
-                    ],
+                  child: TextField(
+                    controller: _salaryController,
+                    focusNode: _salaryFocusNode,
+                    onChanged: (_) => setState(() {}),
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText:
+                          'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) (Negotiable)',
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      errorText: _showValidationErrors && !_isSalaryValid ? 'Salary is required' : null,
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),

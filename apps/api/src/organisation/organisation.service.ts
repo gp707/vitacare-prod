@@ -9,6 +9,7 @@ import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
+import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
 
 /** Organisation account identity + self-service (phone/PIN change) — the
  *  requirement-posting/applicant-review surface lives in
@@ -139,6 +140,32 @@ export class OrganisationService {
       ipAddress,
     });
     return { message: 'Login code updated' };
+  }
+
+  /** Self-service account deletion. The contact person's own name is
+   *  anonymized alongside the users row; organisation_name/type/city/area
+   *  describe the business entity itself and are left intact (see
+   *  OrganisationProfilesRepository.anonymizeContactPerson). */
+  async deleteAccount(userId: string, dto: DeleteAccountDto, ipAddress: string | null = null) {
+    const profile = await this.organisationProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('GEN_002');
+    const user = await this.usersRepo.findById(userId);
+    if (!user?.code_hash || !(await bcrypt.compare(dto.code, user.code_hash))) {
+      throw new AppException('AUTH_008');
+    }
+
+    await this.usersRepo.anonymizeAndDeactivate(userId);
+    await this.organisationProfilesRepo.anonymizeContactPerson(profile.id);
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.ACCOUNT_DELETED,
+      entityType: 'organisation_profiles',
+      entityId: profile.id,
+      ipAddress,
+    });
+
+    return { message: 'Account deleted' };
   }
 
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {

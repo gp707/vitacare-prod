@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { IndividualService } from './individual.service';
 
 describe('IndividualService', () => {
@@ -63,6 +64,7 @@ describe('IndividualService', () => {
       updateCodeHash: jest.fn(),
       updateFullName: jest.fn(),
       updateFcmToken: jest.fn(),
+      anonymizeAndDeactivate: jest.fn(),
     };
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
@@ -338,6 +340,38 @@ describe('IndividualService', () => {
         expect.objectContaining({ userId: 'user-1', action: 'code_changed', entityType: 'individual_profiles' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('throws GEN_002 when no individual profile exists', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue(null);
+      await expect(service.deleteAccount('user-1', { code: '1234' } as any)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws AUTH_008 when the PIN is wrong', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+
+      await expect(service.deleteAccount('user-1', { code: '0000' } as any)).rejects.toMatchObject({
+        code: 'AUTH_008',
+      });
+      expect(usersRepo.anonymizeAndDeactivate).not.toHaveBeenCalled();
+    });
+
+    it('anonymizes the account and audit-logs the deletion', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+
+      const result = await service.deleteAccount('user-1', { code: '1234' } as any, '127.0.0.1');
+
+      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1', action: 'account_deleted', entityType: 'individual_profiles', entityId: 'ip-1' }),
+      );
+      expect(result).toEqual({ message: 'Account deleted' });
     });
   });
 

@@ -15,7 +15,11 @@ import '../../../core/utils/image_compression.dart';
 import '../../../core/utils/upload_size_limit.dart';
 import '../../profile/data/profile_repository.dart';
 
-const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/edit?usp=sharing';
+// /preview, not /edit — a plain public read-only viewer that never prompts
+// for a Google account, unlike /edit which routes through the Docs editor
+// UI (expects an account context, and shows "could not find any Google
+// account" on a device signed into none).
+const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/preview';
 
 class _MandatoryField {
   final GlobalKey key;

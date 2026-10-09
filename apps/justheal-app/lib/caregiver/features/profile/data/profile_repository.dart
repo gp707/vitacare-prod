@@ -55,6 +55,17 @@ class ProfileRepository {
     }
   }
 
+  /// Irreversible — re-enters the PIN as a re-auth step before the backend
+  /// anonymizes and deactivates the account (see CLAUDE.md's "Account
+  /// Deletion" section). Throws AUTH_008 via [ApiException] on a wrong PIN.
+  Future<void> deleteAccount(String code) async {
+    try {
+      await _dio.delete(ApiRoutes.caregiverAccount, data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Single self-edit endpoint for every caregiver-editable field — only
   /// non-null fields are sent/written. full_name, gender, and religion are
   /// intentionally not parameters — locked from self-edit once set at

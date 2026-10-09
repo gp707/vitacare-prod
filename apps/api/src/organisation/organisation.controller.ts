@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -15,6 +15,7 @@ import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
+import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
 
 @Controller('organisation')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -114,6 +115,12 @@ export class OrganisationController {
   @HttpCode(HttpStatus.OK)
   updateCode(@CurrentUser() user: JwtPayload, @Body() dto: UpdateCodeDto, @ClientIp() ip: string | null) {
     return this.organisationService.updateCode(user.sub, dto, ip);
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  deleteAccount(@CurrentUser() user: JwtPayload, @Body() dto: DeleteAccountDto, @ClientIp() ip: string | null) {
+    return this.organisationService.deleteAccount(user.sub, dto, ip);
   }
 
   @Put('profile/fcm-token')

@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { CaregiverService } from './caregiver.service';
 import { VerificationStatus } from '@vitacare/shared-constants';
 
@@ -45,6 +46,8 @@ describe('CaregiverService', () => {
       updateFcmToken: jest.fn(),
       updatePhone: jest.fn(),
       findByPhoneAndRoles: jest.fn().mockResolvedValue(null),
+      findById: jest.fn(),
+      anonymizeAndDeactivate: jest.fn(),
     };
     profilesRepo = {
       findFullByUserId: jest.fn(),
@@ -57,8 +60,9 @@ describe('CaregiverService', () => {
       setAadhaarDocumentUrl: jest.fn(),
       getOtherDocumentUrls: jest.fn().mockResolvedValue([]),
       appendOtherDocumentUrl: jest.fn(),
+      anonymizeDocuments: jest.fn(),
     };
-    documentsRepo = { recordVersion: jest.fn() };
+    documentsRepo = { recordVersion: jest.fn(), listByProfileId: jest.fn().mockResolvedValue([]) };
     languagesRepo = { findByProfileId: jest.fn().mockResolvedValue([]), replaceForProfile: jest.fn() };
     preferredCitiesRepo = {
       findByProfileId: jest.fn().mockResolvedValue([]),
@@ -69,6 +73,7 @@ describe('CaregiverService', () => {
       getSignedUrl: jest.fn().mockResolvedValue('https://signed/url'),
       getSignedUrlOrNull: jest.fn().mockResolvedValue(null),
       extractExtension: jest.fn().mockReturnValue('jpg'),
+      deleteFile: jest.fn().mockResolvedValue(undefined),
     };
     emailService = { sendToAdmin: jest.fn(), send: jest.fn() };
     auditService = { log: jest.fn() };
@@ -466,6 +471,50 @@ describe('CaregiverService', () => {
         expect.objectContaining({ action: 'code_changed' }),
       );
       expect(result).toEqual({ message: 'Login code updated' });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('throws AUTH_008 when the PIN is wrong', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+
+      await expect(service.deleteAccount('user-1', { code: '9999' })).rejects.toMatchObject({
+        code: 'AUTH_008',
+      });
+      expect(usersRepo.anonymizeAndDeactivate).not.toHaveBeenCalled();
+    });
+
+    it('anonymizes the account, cleans up every document version, and audit-logs the deletion', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+      documentsRepo.listByProfileId.mockResolvedValue([
+        { path: 'profile-1/selfie_1.jpg' },
+        { path: 'profile-1/selfie_2.jpg' },
+        { path: 'profile-1/aadhaar_1.jpg' },
+      ]);
+
+      const result = await service.deleteAccount('user-1', { code: '1234' }, '127.0.0.1');
+
+      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1', expect.anything());
+      expect(profilesRepo.anonymizeDocuments).toHaveBeenCalledWith('profile-1', expect.anything());
+      expect(uploadService.deleteFile).toHaveBeenCalledTimes(3);
+      expect(uploadService.deleteFile).toHaveBeenCalledWith(expect.any(String), 'profile-1/selfie_1.jpg');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'account_deleted', entityType: 'caregiver_profiles', entityId: 'profile-1' }),
+      );
+      expect(result).toEqual({ message: 'Account deleted' });
+    });
+
+    it('does not fail the request when a storage delete fails — the DB side already committed', async () => {
+      profilesRepo.findFullByUserId.mockResolvedValue(fullProfile);
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+      documentsRepo.listByProfileId.mockResolvedValue([{ path: 'profile-1/selfie_1.jpg' }]);
+      uploadService.deleteFile.mockRejectedValue(new Error('storage unavailable'));
+
+      const result = await service.deleteAccount('user-1', { code: '1234' });
+      expect(result).toEqual({ message: 'Account deleted' });
+      expect(auditService.log).toHaveBeenCalled();
     });
   });
 

@@ -197,6 +197,17 @@ class OrganisationRepository {
     }
   }
 
+  /// Irreversible — re-enters the PIN as a re-auth step before the backend
+  /// anonymizes and deactivates the account (see CLAUDE.md's "Account
+  /// Deletion" section). Throws AUTH_008 via [ApiException] on a wrong PIN.
+  Future<void> deleteAccount(String code) async {
+    try {
+      await _dio.delete(ApiRoutes.organisationAccount, data: {'code': code});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> updateFcmToken(String token) async {
     try {
       await _dio.put(ApiRoutes.organisationProfileFcmToken, data: {'token': token});

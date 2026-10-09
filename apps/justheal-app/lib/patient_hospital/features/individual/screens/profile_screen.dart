@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/messages_bell.dart';
 import '../../../app/nursenow_bottom_nav.dart';
+import '../../../app/delete_account_dialog.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
@@ -96,6 +97,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final navigator = Navigator.of(context);
+    await ref.read(sessionProvider.notifier).logout();
+    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
+  Future<void> _deleteAccount(bool isOrganisation) async {
+    final deleted = await showDeleteAccountDialog(context, ref, isOrganisation: isOrganisation);
+    if (!deleted || !mounted) return;
     final navigator = Navigator.of(context);
     await ref.read(sessionProvider.notifier).logout();
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
@@ -247,6 +256,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
                     label: const Text('Logout', style: TextStyle(color: AppColors.error)),
                     style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton.icon(
+                    onPressed: () => _deleteAccount(authenticated.isOrganisation),
+                    icon: const Icon(Icons.delete_forever, size: 16, color: AppColors.textSecondary),
+                    label: const Text('Delete My Account', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                 ],
               ),

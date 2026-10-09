@@ -1199,6 +1199,71 @@ elsewhere in this doc).
   not reordered — it only ever had a single "New here? Register" link already positioned below its
   login form, so no reorder was needed there.
 
+## Account Deletion
+
+A self-service "Delete My Account" option on the Profile screen of all three account types
+(caregiver, individual, organisation) — built for Play Store's account-deletion requirement
+(an app that allows account creation must also let users delete their account and data, either
+in-app or via a documented web process). Deletion requires re-entering the login PIN first (the
+only re-auth step anywhere in this product's self-service flows), since it's irreversible.
+
+- **Anonymize-in-place, never a hard delete.** `UsersRepository.anonymizeAndDeactivate(userId,
+  client?)` overwrites `phone` (tombstoned to `del_<first 16 hex chars of the user's own id>` —
+  always unique with no DB round-trip, and short enough for the `VARCHAR(20)` column),
+  `full_name` ('Deleted User'), `email`, `code_hash`, and `fcm_token` (all `NULL`), and sets
+  `is_active = false` plus a new `deleted_at` timestamp (migration 079) — it never removes the
+  `users` row. A hard delete was ruled out: `job_applications`, `audit_logs`, `support_tickets`,
+  and the admin-notes tables all carry FK references to `users.id` that belong to *other*
+  people's own records (e.g. a patient's accepted-applicant history), so deleting the row would
+  either orphan those or cascade-destroy data that isn't the deleting account's to remove.
+  `is_active = false` immediately locks the account out of every further authenticated request
+  via the existing `JwtAuthGuard` (same mechanism as an admin-initiated full block/deactivation —
+  non-expiring caregiver/individual/organisation JWTs are re-checked against the DB on every
+  request, within a 30s cache window), so there's no separate token-revocation step needed.
+- **Role-specific PII is each service's own responsibility** — `UsersRepository` only ever
+  touches `users`. `CaregiverService.deleteAccount` additionally calls
+  `CaregiverProfilesRepository.anonymizeDocuments` (nulls `selfie_photo_url`/
+  `qualification_document_url`/`aadhaar_document_url`, resets `other_document_urls` to `'[]'`)
+  inside the same `withTransaction` as the users-row update, then — **after** the transaction
+  commits, since the DB side already satisfies the deletion and a storage failure must never
+  block it — reads every version ever uploaded for that profile via
+  `CaregiverDocumentsRepository.listByProfileId` (the full history, not just the current
+  selfie/Aadhaar/qualification/other URLs) and removes each one from Supabase Storage via
+  `UploadService.deleteFile`, best-effort (`.catch(() => {})` per file — a storage cleanup
+  failure is swallowed, never surfaced to the caller).
+  `OrganisationService.deleteAccount` additionally calls
+  `OrganisationProfilesRepository.anonymizeContactPerson` (the contact person is an individual,
+  so their name is anonymized same as `users.full_name`) — `organisation_name`/
+  `organisation_type`/`city`/`area` describe the business entity itself, not a person, and are
+  left intact as a business record. `IndividualService.deleteAccount` has nothing extra to
+  anonymize — `individual_profiles` carries no PII beyond what's already on `users`.
+- **Backend**: `DELETE /caregiver/account` / `/individual/account` / `/organisation/account`,
+  each role's own controller, all taking the same `DeleteAccountDto { code }` (in
+  `caregiver/dto/`, reused by individual/organisation same as `UpdatePhoneDto`/`UpdateCodeDto`).
+  The PIN is checked in the service layer (`bcrypt.compare` against the stored `code_hash`),
+  throwing the existing `AUTH_008` ("Invalid code") on a mismatch — the same code login uses, not
+  a new one, since it's the same kind of failure. Audit-logged via the new
+  `AuditAction.ACCOUNT_DELETED` (entity type `caregiver_profiles`/`individual_profiles`/
+  `organisation_profiles`, matching whichever account was deleted) — this is the one case where
+  the audit log entry survives the very account it's about, since audit rows are an internal
+  VitaCasaHealth record of what happened, not data collected from the user that deletion is
+  expected to remove (see the Privacy Policy's retention wording).
+- **Mobile**: each repository (`ProfileRepository`/`IndividualRepository`/
+  `OrganisationRepository`) gained a `deleteAccount(code)` method (`ApiRoutes.caregiverAccount`/
+  `.individualAccount`/`.organisationAccount`). `showDeleteAccountDialog()` is duplicated per app
+  (`lib/caregiver/app/delete_account_dialog.dart` / `lib/patient_hospital/app/
+  delete_account_dialog.dart`, the latter taking `isOrganisation` to pick the right repository —
+  same duplication precedent as `RateCardButton`/`WhatsAppHelpButton`/`ForgotPinDialog`) — a
+  dialog collecting the PIN with a bold warning, calling the delete itself and showing a wrong-
+  PIN error inline (same retry-without-closing pattern as `ForgotPinDialog`), returning `true`
+  only once the account is actually gone. The caller (`ProfileViewScreen`/`ProfileScreen`) is
+  what then calls `sessionProvider.notifier.logout()` (purely local — clears stored tokens, no
+  backend call, so it's safe to run after the account is already deleted server-side) and
+  navigates to `/login` — the dialog itself never does either. A "Delete My Account" `TextButton`
+  sits below the existing "Logout" button on both apps' Profile screens, styled muted/secondary
+  rather than alarming red (unlike Logout) — the warning lives inside the dialog, not the
+  button's own color.
+
 ## Naming Conventions (STRICT)
 
 | Context | Convention | Example |

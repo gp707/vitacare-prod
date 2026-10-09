@@ -12,6 +12,7 @@ import '../../auth/state/session_notifier.dart';
 import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/messages_bell.dart';
+import '../../../app/delete_account_dialog.dart';
 
 const _reReviewStatuses = [
   VerificationStatus.available,
@@ -241,6 +242,14 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
+  Future<void> _deleteAccount() async {
+    final deleted = await showDeleteAccountDialog(context, ref);
+    if (!deleted || !mounted) return;
+    final navigator = Navigator.of(context);
+    await ref.read(sessionProvider.notifier).logout();
+    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -400,6 +409,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
           label: const Text('Logout', style: TextStyle(color: AppColors.error)),
           style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        TextButton.icon(
+          onPressed: _deleteAccount,
+          icon: const Icon(Icons.delete_forever, size: 16, color: AppColors.textSecondary),
+          label: const Text('Delete My Account', style: TextStyle(color: AppColors.textSecondary)),
         ),
       ],
     );

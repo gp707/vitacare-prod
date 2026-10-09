@@ -26,6 +26,8 @@ class ApiRoutes {
   static const individualProfileCode = '/individual/profile/code';
   static const individualProfileName = '/individual/profile/name';
   static const individualProfileFcmToken = '/individual/profile/fcm-token';
+  // Irreversible — see CLAUDE.md's "Account Deletion" section.
+  static const individualAccount = '/individual/account';
   static String individualRequirementApplications(String jobId) =>
       '/individual/requirements/$jobId/applications';
   static String individualRequirementApplicationDecide(String jobId, String applicationId) =>
@@ -47,6 +49,7 @@ class ApiRoutes {
   static const organisationProfilePhone = '/organisation/profile/phone';
   static const organisationProfileCode = '/organisation/profile/code';
   static const organisationProfileFcmToken = '/organisation/profile/fcm-token';
+  static const organisationAccount = '/organisation/account';
   static String organisationRequirementApplications(String requirementId) =>
       '/organisation/requirements/$requirementId/applications';
   static String organisationRequirementApplicationDecide(String requirementId, String applicationId) =>
@@ -67,6 +70,7 @@ class ApiRoutes {
   static const caregiverProfileCode = '/caregiver/profile/code';
   static const caregiverProfileSelfie = '/caregiver/profile/selfie';
   static const caregiverProfileDocuments = '/caregiver/profile/documents';
+  static const caregiverAccount = '/caregiver/account';
   static const caregiverVerificationStatus = '/caregiver/verification-status';
   static const caregiverFcmToken = '/caregiver/fcm-token';
   static const caregiverJobs = '/caregiver/jobs';
