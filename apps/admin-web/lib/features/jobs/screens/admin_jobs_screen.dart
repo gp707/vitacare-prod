@@ -370,6 +370,44 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   }
 
   /// Only offered for a pending_review (NurseNow individual) requirement —
+  /// goes live as-is, no edit required. The same legitimacy-review
+  /// activation saving an unchanged edit from pending_review already
+  /// performs, just a direct one-click action.
+  Future<void> _approve(JobModel job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Approve requirement'),
+        content: const Text(
+          'This requirement will go live immediately and every caregiver will be notified. Continue?',
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(adminJobsRepositoryProvider).approve(job.id);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  /// Only offered for a pending_review (NurseNow individual) requirement —
   /// declines it with a reason, which the individual sees on their own
   /// requirement view. It never goes live.
   Future<void> _reject(JobModel job) async {
@@ -931,6 +969,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onRemind: job.status == JobStatus.active
                                 ? () => _remind(job)
                                 : null,
+                            onApprove: job.status == JobStatus.pendingReview
+                                ? () => _approve(job)
+                                : null,
                             onReject: job.status == JobStatus.pendingReview
                                 ? () => _reject(job)
                                 : null,
@@ -988,6 +1029,7 @@ class _JobRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
+  final VoidCallback? onApprove;
   final VoidCallback? onReject;
   final VoidCallback onViewApplications;
   final VoidCallback onEdit;
@@ -997,6 +1039,7 @@ class _JobRow extends StatelessWidget {
     required this.onTap,
     required this.onClose,
     required this.onRemind,
+    required this.onApprove,
     required this.onReject,
     required this.onViewApplications,
     required this.onEdit,
@@ -1111,6 +1154,13 @@ class _JobRow extends StatelessWidget {
             onPressed: onClose,
             icon: const Icon(Icons.lock_outline, size: 16),
             label: const Text('Close'),
+          ),
+        if (onApprove != null)
+          TextButton.icon(
+            onPressed: onApprove,
+            style: TextButton.styleFrom(foregroundColor: AppColors.success),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Approve'),
           ),
         if (onReject != null)
           TextButton.icon(

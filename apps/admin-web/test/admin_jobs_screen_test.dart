@@ -302,6 +302,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   int listCallCount = 0;
   String? rejectedJobId;
   String? rejectedReason;
+  String? approvedJobId;
   List<String> detailLanguages;
   String? detailCareDuration;
   String? detailNotes;
@@ -403,6 +404,12 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   @override
   Future<void> remind(String jobId) async {
     remindedJobId = jobId;
+  }
+
+  @override
+  Future<void> approve(String jobId) async {
+    approvedJobId = jobId;
+    jobs = jobs.map((j) => _job(status: 'active')).toList();
   }
 
   @override
@@ -821,7 +828,7 @@ void main() {
   });
 
   testWidgets(
-      'shows a Pending Review badge and Reject button for a pending_review job, but not an active one',
+      'shows a Pending Review badge and Approve/Reject buttons for a pending_review job, but not an active one',
       (tester) async {
     final repo = _FakeAdminJobsRepository([
       _job(status: 'pending_review', salaryAmount: null, frequencyOfCare: null),
@@ -830,7 +837,43 @@ void main() {
     await _pump(tester, repo);
 
     expect(find.text('Pending Review'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Approve'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping Approve shows a confirmation dialog and calls the repository',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(status: 'pending_review', salaryAmount: null, frequencyOfCare: null)
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Approve'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Approve requirement'), findsOneWidget);
+    expect(repo.approvedJobId, isNull);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Approve'));
+    await tester.pumpAndSettle();
+
+    expect(repo.approvedJobId, 'job-1');
+  });
+
+  testWidgets('cancelling the Approve confirmation dialog does not call the repository',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(status: 'pending_review', salaryAmount: null, frequencyOfCare: null)
+    ]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Approve'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.approvedJobId, isNull);
   });
 
   testWidgets(

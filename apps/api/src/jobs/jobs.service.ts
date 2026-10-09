@@ -284,6 +284,41 @@ export class JobsService {
     return job;
   }
 
+  /** Admin approves a pending_review individual-posted job as-is, without
+   *  opening the full edit form first — the same legitimacy-review
+   *  activation updateJob() already performs when an admin saves from
+   *  pending_review, just reachable as its own one-click action rather
+   *  than requiring the admin to resubmit every field unchanged. Reuses
+   *  JobsRepository.activate() (the same reactivate-a-cancelled-job
+   *  method — clearing cancelled_at is a no-op here since a pending_review
+   *  job was never cancelled) and broadcasts the same "New Job" push
+   *  every other activation does. Only valid from pending_review (JOB_019
+   *  otherwise, same shape as rejectJob's own JOB_011 guard). */
+  async approveJob(adminId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing) throw new AppException('GEN_002');
+    if (existing.status !== JobStatus.PENDING_REVIEW) throw new AppException('JOB_019');
+
+    const job = await this.jobsRepo.activate(jobId);
+
+    await this.fcmService.sendToAllCaregivers(
+      `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
+      `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
+    );
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: job.id,
+      beforeValue: { status: existing.status },
+      afterValue: { status: job.status },
+      ipAddress,
+    });
+
+    return { message: 'Requirement approved', status: job.status };
+  }
+
   /** Admin declines a pending_review individual-posted job — it never goes
    *  live. Only valid from pending_review; the admin-web UI shouldn't
    *  offer this once a job is already active/closed, but it's guarded

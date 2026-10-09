@@ -62,6 +62,7 @@ describe('JobsService', () => {
       close: jest.fn(),
       reopen: jest.fn(),
       reject: jest.fn(),
+      activate: jest.fn(),
     };
     jobApplicationsRepo = {
       upsert: jest.fn(),
@@ -321,6 +322,45 @@ describe('JobsService', () => {
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
       );
+    });
+  });
+
+  describe('approveJob', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.approveJob('admin-1', 'missing', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_019 when the job is not pending_review', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'active' });
+      await expect(service.approveJob('admin-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_019',
+      });
+    });
+
+    it('activates the job, broadcasts a New Job push, and audit-logs the transition', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'pending_review' });
+      jobsRepo.activate.mockResolvedValue({ ...job, status: 'active' });
+
+      const result = await service.approveJob('admin-1', 'job-1', '127.0.0.1');
+
+      expect(jobsRepo.activate).toHaveBeenCalledWith('job-1');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
+        expect.stringContaining('New Job'),
+        expect.any(String),
+      );
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          action: 'job_updated',
+          entityId: 'job-1',
+          beforeValue: { status: 'pending_review' },
+          afterValue: { status: 'active' },
+        }),
+      );
+      expect(result).toEqual({ message: 'Requirement approved', status: 'active' });
     });
   });
 

@@ -606,8 +606,18 @@ location) that didn't fit the Individual/admin jobs-table model.
 - Admin's own Jobs screen (`AdminJobsScreen`) surfaces NurseNow postings inline: a "Pending
   Review" badge on `pending_review` jobs, a "Posted by patient/family — <name>" label (via
   `GET /admin/jobs`'s joined `posted_by_role`/`posted_by_name`), an optional `posted_by_role`
-  filter, and the Reject button described above — admin never needs a separate queue/screen to
-  triage individual postings.
+  filter, and an **Approve** button right next to Reject (both only shown on a `pending_review`
+  row) — admin never needs a separate queue/screen to triage individual postings. Approve is a
+  direct one-click action (a confirm dialog warning the push goes out immediately, then
+  `PATCH /admin/jobs/:id/approve`, `JobsService.approveJob`) rather than requiring the admin to
+  open the full edit form and re-save every field unchanged just to trigger the same activation
+  `updateJob()` already performs when saving from `pending_review` — it reuses
+  `JobsRepository.activate()` (the same reactivate-a-cancelled-job method; clearing
+  `cancelled_at` is a no-op here) and broadcasts the identical "New Job" push every other
+  activation does. `JOB_019` guards it server-side (only valid from `pending_review`, same shape
+  as Reject's own `JOB_011`). Organisation requirements don't have an equivalent dedicated
+  button — their own admin edit endpoint already accepts a bare/empty body as "a pure approve"
+  (see "Organisation" above), and the existing Edit action already covers that case.
 - **Admin edit + per-account audit history, both Patients/Family and Rehab/Hospitals**: tapping a
   row in either list screen (previously flat, no per-row navigation) opens a new single-page
   detail screen (`IndividualDetailScreen` / `OrganisationDetailScreen` — deliberately no tabs,

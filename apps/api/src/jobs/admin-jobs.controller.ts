@@ -57,6 +57,12 @@ export class AdminJobsController {
     return this.jobsService.closeJob(user.sub, id, ip);
   }
 
+  @Patch(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  approve(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.jobsService.approveJob(user.sub, id, ip);
+  }
+
   @Patch(':id/reject')
   @HttpCode(HttpStatus.OK)
   reject(

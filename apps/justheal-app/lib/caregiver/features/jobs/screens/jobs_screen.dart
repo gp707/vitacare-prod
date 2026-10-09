@@ -174,6 +174,52 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     await _applyToJob(job, JobApplicationStatus.rejected);
   }
 
+  /// Opens a job's or requirement's full, unmodified card (same widget
+  /// shown for every other status) in a scrollable dialog — used by
+  /// [_AppliedStub] so a collapsed "already applied" card still gives full
+  /// access to everything the full card offers, including the Reject Job
+  /// (withdraw) button for a plain job, without duplicating any of that
+  /// widget's own logic.
+  Future<void> _showFullJobCard(BuildContext context, Widget card) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xl),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 480,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.85,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Always-visible close button — tapping an action inside the
+              // card (e.g. Reject Job) updates the browse list behind this
+              // dialog but, since this dialog's own content is a static
+              // snapshot taken when it opened, never closes itself or
+              // refreshes its own now-stale copy. This is the explicit way
+              // out, rather than relying on tapping outside the dialog.
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+                  child: card,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   List<_Listing> _mergedListings() {
     final listings = <_Listing>[
       ..._jobs.map(_JobListing.new),
@@ -335,20 +381,49 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                             ),
                           for (final listing in visible) ...[
                             if (listing is _JobListing)
-                              _JobCard(
-                                job: listing.job,
-                                isApplying: _applyingId.contains(listing.job.id),
-                                onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
-                                onReject: () => _rejectJob(listing.job),
-                                onWithdraw: () => _withdrawJob(listing.job),
-                              )
+                              if (listing.job.myApplication?.status == JobApplicationStatus.applied)
+                                _AppliedStub(
+                                  displayId: jobDisplayId(listing.job),
+                                  onTap: () => _showFullJobCard(
+                                    context,
+                                    _JobCard(
+                                      job: listing.job,
+                                      isApplying: _applyingId.contains(listing.job.id),
+                                      onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
+                                      onReject: () => _rejectJob(listing.job),
+                                      onWithdraw: () => _withdrawJob(listing.job),
+                                    ),
+                                  ),
+                                )
+                              else
+                                _JobCard(
+                                  job: listing.job,
+                                  isApplying: _applyingId.contains(listing.job.id),
+                                  onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
+                                  onReject: () => _rejectJob(listing.job),
+                                  onWithdraw: () => _withdrawJob(listing.job),
+                                )
                             else if (listing is _RequirementListing)
-                              _RequirementCard(
-                                requirement: listing.requirement,
-                                isApplying: _applyingId.contains(listing.requirement.id),
-                                onApply: () =>
-                                    _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
-                              ),
+                              if (listing.requirement.myApplication?.status == JobApplicationStatus.applied)
+                                _AppliedStub(
+                                  displayId: organisationJobDisplayId(listing.requirement),
+                                  onTap: () => _showFullJobCard(
+                                    context,
+                                    _RequirementCard(
+                                      requirement: listing.requirement,
+                                      isApplying: _applyingId.contains(listing.requirement.id),
+                                      onApply: () =>
+                                          _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
+                                    ),
+                                  ),
+                                )
+                              else
+                                _RequirementCard(
+                                  requirement: listing.requirement,
+                                  isApplying: _applyingId.contains(listing.requirement.id),
+                                  onApply: () =>
+                                      _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
+                                ),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         ],
@@ -469,6 +544,82 @@ class _JobCard extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Collapsed stand-in for [_JobCard]/[_RequirementCard] once the caregiver
+/// has applied and is still waiting on a decision — a browse list full of
+/// already-applied postings at full size pushed everything the caregiver
+/// could still act on further down the screen, so this shrinks each one
+/// down to a single greyed-out row with a diagonal "Applied" stamp.
+/// Applies identically to a plain job and an organisation requirement —
+/// [displayId] is the only thing that differs between the two call sites.
+/// Tapping it opens the exact same, unmodified full card (including the
+/// Reject Job/withdraw button, for a plain job) in a dialog via
+/// [_showFullJobCard] — nothing about that card's own behavior changes,
+/// only how it's reached while collapsed.
+class _AppliedStub extends StatelessWidget {
+  final String displayId;
+  final VoidCallback onTap;
+
+  const _AppliedStub({required this.displayId, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        child: Container(
+          height: 52,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.textSecondary.withValues(alpha: 0.10),
+            border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.4), width: 1.5),
+            borderRadius: BorderRadius.circular(AppSpacing.sm),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        displayId,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: AppTypography.small,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 18),
+                  ],
+                ),
+              ),
+              IgnorePointer(
+                child: Transform.rotate(
+                  angle: -0.35,
+                  child: Text(
+                    'APPLIED',
+                    style: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.55),
+                      fontWeight: FontWeight.w900,
+                      fontSize: AppTypography.heading,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -342,6 +342,18 @@ class AdminJobsRepository {
     }
   }
 
+  /// Only valid from pending_review — approves a NurseNow individual's
+  /// requirement as-is, no edit required. Same legitimacy-review
+  /// activation as saving an unchanged edit from pending_review, just a
+  /// direct one-click action.
+  Future<void> approve(String jobId) async {
+    try {
+      await _dio.patch('/admin/jobs/$jobId/approve');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Only valid from pending_review — declines a NurseNow individual's
   /// requirement, which never goes live. [reason] is shown to the
   /// individual on their own requirement view.

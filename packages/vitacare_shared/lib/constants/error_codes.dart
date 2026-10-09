@@ -70,6 +70,7 @@ class ErrorCodes {
     'JOB_016': 'Another applicant is already accepted for this job',
     'JOB_017': 'Only a cancelled requirement can be reactivated',
     'JOB_018': 'Too many items selected for bulk delete — narrow your search first',
+    'JOB_019': 'Only a pending-review requirement can be approved',
     'JOB_020': 'Invalid close reason value',
     'PUSH_001': 'This notification has already been sent, failed, or cancelled',
     'TICKET_001': 'This ticket has already been resolved',
