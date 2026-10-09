@@ -337,16 +337,23 @@ location) that didn't fit the Individual/admin jobs-table model.
   each field's own cross only reverts that one field, leaving any other still-pending edits
   untouched. No form-wide "discard everything" action exists any more. The per-card "More options" menu
   dropped its "Edit the Job" action entirely, now offering only Cancel/Make Active Again (see
-  above). **Unlike every other field in this card, Salary is
-  deliberately read-only — not a text field, same as the registration form's own salary display**
-  (see "Registration IS posting" above): bold standout `Text`, never user-typed, auto-filled
-  purely from the Rate Card suggestion for the derived care tier/frequency and re-derived live as
-  Toilet Assistance/Feeding Type/Medical Condition/Duration Care is Needed change on this same
-  card. A fixed guidance line sits above it — "This is just a guidance, you must discuss it
-  directly with caregivers. Fees are paid directly to the Nurse/Caregivers." — and the derived-tier
-  line (tap the tier name for the Scope of Work popup) sits below it. Still what gets submitted as
-  `salary_amount` on Save, and still mandatory (`_isSalaryValid`) for the highlight-and-scroll
-  validation, just with no `FocusNode` of its own (there's no field to focus on a `Text` widget).
+  above). **Salary is auto-filled purely from the Rate Card suggestion for the derived care
+  tier/frequency, re-derived live as Toilet Assistance/Feeding Type/Medical Condition/Duration
+  Care is Needed change on this same card — but is also a real, directly editable `TextField`**
+  (fixed from an earlier bug where it rendered as plain read-only `Text`: if the Rate Card fetch
+  failed, or no suggestion matched the derived tier/frequency, the field stayed permanently empty
+  with no way for the patient to type a value in at all, silently blocking every save — a wrong
+  PIN or missing field highlighted red at least scrolls somewhere; this just sat there showing
+  "—" forever). Has its own `_salaryFocusNode`/`_isSalaryDirty`/`_revertSalary`/tick-cross controls
+  (`Key('salary-save')`/`Key('salary-discard')`), identical to every other field on this card — no
+  longer the one exception. A fixed guidance line sits above it — "This is just a guidance, you
+  must discuss it directly with caregivers. Fees are paid directly to the Nurse/Caregivers." — and
+  the derived-tier line (tap the tier name for the Scope of Work popup) sits below it. Still what
+  gets submitted as `salary_amount` on Save, and still mandatory (`_isSalaryValid`) for the
+  highlight-and-scroll validation. **The Individual registration form's own salary bar
+  (`_buildSalaryBar()` in `registration_screen.dart`, "Registration IS posting" above) had the
+  exact same bug and was fixed the same way** — both are now consistent: auto-fill first, patient
+  can always override.
 - **Messages** (`/messages` — `MessagesScreen`, Individual-only) is a purely **client-computed**
   tab — no new backend endpoint, no persistence, no read/unread state. It re-fetches the account's
   own requirements via the same `GET /individual/requirements` call `JobsPostedScreen` makes, then
@@ -1263,6 +1270,52 @@ only re-auth step anywhere in this product's self-service flows), since it's irr
   sits below the existing "Logout" button on both apps' Profile screens, styled muted/secondary
   rather than alarming red (unlike Logout) — the warning lives inside the dialog, not the
   button's own color.
+
+## Connectivity Banner
+
+A "You're offline" banner (`VitaOfflineBanner` from `vitacare_ui`) pinned above every screen of
+the single JustHeal binary — Splash, Login, Registration, Jobs Posted, Profile, all of it — via
+`ConnectivityBanner` wrapping `MaterialApp.builder` in `lib/patient_hospital/app/app.dart` (the
+host app; the identical copy at `lib/caregiver/core/connectivity/connectivity_banner.dart` is
+unreachable dead code post-merge, same reason the caregiver splash screen is — kept in sync
+anyway, same duplication precedent as `RateCardButton`/`WhatsAppHelpButton`). Purely
+informational — per the "Do NOT queue offline writes" rule, mutations already require internet;
+this just tells the account *why* an action might be failing, surfaced proactively rather than
+only after they hit a confusing dead end.
+
+- **Interface-level connectivity alone is not enough.** `connectivity_plus`'s
+  `Connectivity().checkConnectivity()`/`onConnectivityChanged` only reports whether a network
+  *interface* is up (Wi-Fi/cellular/none) — a device can report "Wi-Fi connected" while DNS/the
+  internet is actually completely broken. This is a real failure mode that was silently breaking
+  the product: an Android emulator whose Wi-Fi adapter was fine but could resolve no hostname at
+  all (not just the API's — `google.com` failed too) produced exactly two confusing symptoms with
+  no visible cause — the Individual registration form's Salary suggestion never populated
+  (`RateCardRepository.get()` fails open, by design, so a failed fetch shows nothing rather than
+  an error) and tapping "Post Requirement"/"Register" failed with a raw connection error, with no
+  up-front warning that the device had no real internet access at all.
+- **Fix: a real reachability probe runs alongside the interface listener, not instead of it.**
+  `ConnectivityBanner`'s interface listener still fires instantly for the obvious "no network at
+  all" case (and can only ever turn the banner ON early — never clears it by itself). On top of
+  that, `_defaultReachabilityProbe()` makes a cheap request to the API's own public
+  `GET /rate-card` endpoint (the same one every registration/Jobs screen already fetches) —
+  `validateStatus: (_) => true` means ANY HTTP response, even an error status, counts as
+  "reachable" (we only care whether the network path to our backend works, not what it says
+  back); only a genuine connection/DNS/timeout failure (a thrown `DioException`) counts as
+  offline. This runs once on mount, on a 15-second timer for the life of the screen, and
+  immediately whenever the interface reconnects (rather than waiting for the next tick) — but
+  clearing the banner always goes through this probe, never just "the Wi-Fi interface came back,"
+  since reconnecting the adapter doesn't mean DNS/the backend is actually reachable yet. A
+  dedicated plain `Dio()` instance is constructed inline for this (not the app's authenticated
+  `ApiClient`), duplicating `_productionBaseUrl`/`_developmentBaseUrl` from
+  `core/network/api_client.dart` rather than importing it — this widget sits above the whole app,
+  including before login, and must never depend on a session existing.
+- **Fully testable without touching the real plugin**: `ConnectivityBanner` takes optional
+  `initialConnectivity`/`connectivityStream`/`checkReachable`/`probeInterval` constructor
+  parameters, all defaulting to the real `connectivity_plus` plugin / real network probe in
+  production — same "injectable for widget tests" precedent as `_termsUrl`'s launcher in the
+  registration screens. `test/connectivity_banner_test.dart` covers the interface-down case, the
+  interface-up-but-unreachable case (the actual bug), and that reconnecting the interface alone
+  does *not* clear the banner unless the probe also succeeds.
 
 ## Naming Conventions (STRICT)
 

@@ -168,6 +168,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? profileFetchedJobId;
   String? profileFetchedApplicationId;
   String? editedJobId;
+  String? lastEditedSalaryAmount;
   String? cancelledJobId;
   String? reactivatedJobId;
   ApiException? reactivateError;
@@ -195,6 +196,7 @@ class _FakeIndividualRepository extends IndividualRepository {
     String? salaryAmount,
   }) async {
     editedJobId = jobId;
+    lastEditedSalaryAmount = salaryAmount;
     return requirements.firstWhere((r) => r.id == jobId);
   }
 
@@ -1160,6 +1162,34 @@ void main() {
 
     expect(find.text('Modify this requirement?'), findsNothing);
     expect(repo.editedJobId, 'job-1');
+  });
+
+  testWidgets(
+      'Salary is directly editable — a patient is never stuck when no Rate Card suggestion is available '
+      '(the field used to be plain read-only text, with no way to proceed if nothing auto-filled it)',
+      (tester) async {
+    final repo = _FakeIndividualRepository(
+      requirements: [_requirement(careReceiver: _careReceiverJson, salaryAmount: null)],
+    );
+    await _pump(tester, repo);
+
+    // No suggestion applied — the field starts genuinely empty, not just
+    // showing a placeholder dash over an uneditable Text.
+    final salaryFieldFinder = find.widgetWithText(TextField, 'Salary (₹/day) (Negotiable)');
+    expect(salaryFieldFinder, findsOneWidget);
+    expect(tester.widget<TextField>(salaryFieldFinder).controller!.text, '');
+    expect(find.byKey(const Key('salary-save')), findsNothing);
+
+    await tester.enterText(salaryFieldFinder, '30000');
+    await tester.pump();
+    expect(find.byKey(const Key('salary-save')), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('salary-save')));
+    await tester.tap(find.byKey(const Key('salary-save')));
+    await _settle(tester);
+
+    expect(repo.editedJobId, 'job-1');
+    expect(repo.lastEditedSalaryAmount, '30000');
   });
 
   testWidgets(

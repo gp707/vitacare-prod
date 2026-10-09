@@ -142,6 +142,7 @@ export class IndividualService {
   ) {
     const existing = await this.jobsRepo.findById(jobId);
     if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+    const existingCareReceiver = await this.careReceiversRepo.findById(existing.care_receiver_id);
 
     const { start, end } = DUTY_TYPE_TIMES[dto.duty_type];
 
@@ -172,16 +173,104 @@ export class IndividualService {
         client,
       );
     });
+    const updatedCareReceiver = await this.careReceiversRepo.findById(existing.care_receiver_id);
 
-    await this.auditService.log({
-      userId,
-      action: AuditAction.JOB_UPDATED,
-      entityType: 'jobs',
-      entityId: job.id,
-      beforeValue: { duty_type: existing.duty_type, city: existing.city, status: existing.status },
-      afterValue: { duty_type: job.duty_type, city: job.city, status: job.status },
-      ipAddress,
-    });
+    // Every field the patient can actually touch from the Patient
+    // Details/Care Preferences card, diffed field-by-field against what
+    // was stored before this save — the endpoint always receives the
+    // form's entire current state (see JobsPostedScreen's own doc
+    // comment on "whichever tick is tapped"), so this is the only way to
+    // tell which field(s) the patient actually changed. Admin's audit log
+    // needs every one of these spelled out individually (including
+    // salary_amount) rather than a generic "job updated" entry.
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+
+    const jobFields = [
+      'city',
+      'area',
+      'description',
+      'duty_type',
+      'frequency_of_care',
+      'start_date',
+      'salary_amount',
+      'preferred_gender',
+      'preferred_religion',
+      'care_duration',
+    ] as const;
+    for (const field of jobFields) {
+      if (existing[field] !== job[field]) {
+        before[field] = existing[field];
+        after[field] = job[field];
+      }
+    }
+
+    const prevLanguages = [...existing.languages].sort();
+    const nextLanguages = [...job.languages].sort();
+    if (prevLanguages.join(',') !== nextLanguages.join(',')) {
+      before.languages = prevLanguages;
+      after.languages = nextLanguages;
+    }
+
+    if (existingCareReceiver && updatedCareReceiver) {
+      const careReceiverFields = [
+        'age',
+        'gender',
+        'weight_kg',
+        'feeding_type',
+        'has_medical_condition',
+        'medical_condition_other',
+        'toilet_assistance_other',
+        // Not collected by nursenow-app's own form (see CLAUDE.md), but
+        // CareReceiverDto still accepts them and this endpoint always
+        // writes a default (false/[]) when omitted — tracked anyway so a
+        // care receiver that had these set by an older flow doesn't get
+        // silently cleared with no audit trail on the patient's first edit.
+        'requires_vital_monitoring',
+      ] as const;
+      for (const field of careReceiverFields) {
+        if (existingCareReceiver[field] !== updatedCareReceiver[field]) {
+          before[field] = existingCareReceiver[field];
+          after[field] = updatedCareReceiver[field];
+        }
+      }
+
+      const prevConditions = [...existingCareReceiver.medical_conditions].sort();
+      const nextConditions = [...updatedCareReceiver.medical_conditions].sort();
+      if (prevConditions.join(',') !== nextConditions.join(',')) {
+        before.medical_conditions = prevConditions;
+        after.medical_conditions = nextConditions;
+      }
+
+      const prevToiletAssistance = [...existingCareReceiver.toilet_assistance].sort();
+      const nextToiletAssistance = [...updatedCareReceiver.toilet_assistance].sort();
+      if (prevToiletAssistance.join(',') !== nextToiletAssistance.join(',')) {
+        before.toilet_assistance = prevToiletAssistance;
+        after.toilet_assistance = nextToiletAssistance;
+      }
+
+      const prevVitalMonitoring = [...existingCareReceiver.vital_monitoring_types].sort();
+      const nextVitalMonitoring = [...updatedCareReceiver.vital_monitoring_types].sort();
+      if (prevVitalMonitoring.join(',') !== nextVitalMonitoring.join(',')) {
+        before.vital_monitoring_types = prevVitalMonitoring;
+        after.vital_monitoring_types = nextVitalMonitoring;
+      }
+    }
+
+    // Skip the audit entry entirely on a no-op save (every field
+    // resubmitted unchanged) — same "don't log when nothing actually
+    // changed" convention as CaregiverService.editProfile.
+    if (Object.keys(before).length > 0) {
+      await this.auditService.log({
+        userId,
+        action: AuditAction.JOB_UPDATED,
+        entityType: 'jobs',
+        entityId: job.id,
+        beforeValue: before,
+        afterValue: after,
+        ipAddress,
+      });
+    }
 
     return job;
   }

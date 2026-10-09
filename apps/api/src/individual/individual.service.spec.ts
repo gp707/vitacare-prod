@@ -182,10 +182,21 @@ describe('IndividualService', () => {
     });
 
     it('succeeds even when there is an active (applied/accepted) application — no JOB_014 lock for Individual', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active' });
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        languages: ['hindi'],
+      });
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
-      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: editDto.duty_type, city: editDto.city, status: 'active' });
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        duty_type: editDto.duty_type,
+        city: editDto.city,
+        status: 'active',
+        languages: editDto.languages,
+      });
 
       const result = await service.editRequirement('user-1', 'job-1', editDto, null);
 
@@ -203,10 +214,19 @@ describe('IndividualService', () => {
         care_receiver_id: 'cr-1',
         frequency_of_care: 'monthly',
         salary_amount: '2000',
+        languages: ['hindi'],
       });
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
-      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'pending_review' });
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        status: 'pending_review',
+        frequency_of_care: 'daily',
+        salary_amount: '1500',
+        languages: ['hindi', 'english'],
+      });
 
       await service.editRequirement('user-1', 'job-1', editDto, '127.0.0.1');
 
@@ -227,8 +247,245 @@ describe('IndividualService', () => {
       );
       expect(updateInput).not.toHaveProperty('status');
       expect(auditService.log).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'user-1', action: 'job_updated', entityId: 'job-1' }),
+        expect.objectContaining({
+          userId: 'user-1',
+          action: 'job_updated',
+          entityId: 'job-1',
+          beforeValue: expect.objectContaining({ duty_type: 'live_in', salary_amount: '2000' }),
+          afterValue: expect.objectContaining({ duty_type: 'day_duty', salary_amount: '1500' }),
+        }),
       );
+    });
+
+    it('logs every changed field individually in beforeValue/afterValue, including salary_amount — not a generic duty_type/city/status summary',
+      async () => {
+        jobsRepo.findById.mockResolvedValue({
+          id: 'job-1',
+          posted_by: 'user-1',
+          status: 'active',
+          duty_type: 'live_in',
+          city: 'bangalore',
+          area: 'Indiranagar',
+          care_receiver_id: 'cr-1',
+          frequency_of_care: 'monthly',
+          salary_amount: '2000',
+          languages: ['hindi'],
+          preferred_gender: null,
+          preferred_religion: null,
+          care_duration: 'few_months',
+          start_date: '2026-08-01',
+          description: null,
+        });
+        careReceiversRepo.findById.mockResolvedValueOnce({
+          id: 'cr-1',
+          age: 65,
+          gender: 'female',
+          weight_kg: 60,
+          feeding_type: 'oral_feeding',
+          has_medical_condition: false,
+          medical_conditions: [],
+          medical_condition_other: null,
+          toilet_assistance: ['independent'],
+          toilet_assistance_other: null,
+          requires_vital_monitoring: false,
+          vital_monitoring_types: [],
+        });
+        careReceiversRepo.findById.mockResolvedValueOnce({
+          id: 'cr-1',
+          age: 70,
+          gender: 'female',
+          weight_kg: 55,
+          feeding_type: 'oral_feeding',
+          has_medical_condition: false,
+          medical_conditions: [],
+          medical_condition_other: null,
+          toilet_assistance: ['independent'],
+          toilet_assistance_other: null,
+          requires_vital_monitoring: false,
+          vital_monitoring_types: [],
+        });
+        const client = {};
+        db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+        jobsRepo.update.mockResolvedValue({
+          id: 'job-1',
+          status: 'active',
+          duty_type: 'day_duty',
+          city: 'bangalore',
+          area: 'Koramangala',
+          frequency_of_care: 'daily',
+          salary_amount: '1500',
+          languages: ['hindi', 'english'],
+          preferred_gender: null,
+          preferred_religion: null,
+          care_duration: 'few_weeks',
+          start_date: '2026-09-15',
+          description: null,
+        });
+
+        await service.editRequirement('user-1', 'job-1', editDto, '127.0.0.1');
+
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'job_updated',
+            beforeValue: {
+              area: 'Indiranagar',
+              duty_type: 'live_in',
+              frequency_of_care: 'monthly',
+              salary_amount: '2000',
+              care_duration: 'few_months',
+              start_date: '2026-08-01',
+              languages: ['hindi'],
+              age: 65,
+              weight_kg: 60,
+            },
+            afterValue: {
+              area: 'Koramangala',
+              duty_type: 'day_duty',
+              frequency_of_care: 'daily',
+              salary_amount: '1500',
+              care_duration: 'few_weeks',
+              start_date: '2026-09-15',
+              languages: ['english', 'hindi'],
+              age: 70,
+              weight_kg: 55,
+            },
+          }),
+        );
+      });
+
+    it(
+      'captures feeding_type, toilet_assistance, medical_conditions, and vital monitoring changes — ' +
+        'every care-receiver field, not just age/gender/weight',
+      async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        duty_type: editDto.duty_type,
+        city: editDto.city,
+        area: editDto.area,
+        care_receiver_id: 'cr-1',
+        frequency_of_care: editDto.frequency_of_care,
+        salary_amount: editDto.salary_amount,
+        languages: editDto.languages,
+        preferred_gender: null,
+        preferred_religion: null,
+        care_duration: editDto.care_duration,
+        start_date: editDto.start_date,
+        description: null,
+      });
+      careReceiversRepo.findById.mockResolvedValueOnce({
+        id: 'cr-1',
+        age: 70,
+        gender: 'female',
+        weight_kg: 55,
+        feeding_type: 'oral_feeding',
+        has_medical_condition: false,
+        medical_conditions: [],
+        medical_condition_other: null,
+        toilet_assistance: ['independent'],
+        toilet_assistance_other: null,
+        requires_vital_monitoring: false,
+        vital_monitoring_types: [],
+      });
+      careReceiversRepo.findById.mockResolvedValueOnce({
+        id: 'cr-1',
+        age: 70,
+        gender: 'female',
+        weight_kg: 55,
+        feeding_type: 'tube_feeding',
+        has_medical_condition: true,
+        medical_conditions: ['diabetes', 'bp'],
+        medical_condition_other: null,
+        toilet_assistance: ['diapers_bedside_support'],
+        toilet_assistance_other: null,
+        requires_vital_monitoring: true,
+        vital_monitoring_types: ['blood_pressure', 'pulse'],
+      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        status: 'active',
+        duty_type: editDto.duty_type,
+        city: editDto.city,
+        area: editDto.area,
+        frequency_of_care: editDto.frequency_of_care,
+        salary_amount: editDto.salary_amount,
+        languages: editDto.languages,
+        preferred_gender: null,
+        preferred_religion: null,
+        care_duration: editDto.care_duration,
+        start_date: editDto.start_date,
+        description: null,
+      });
+
+      await service.editRequirement('user-1', 'job-1', editDto, '127.0.0.1');
+
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'job_updated',
+          beforeValue: {
+            feeding_type: 'oral_feeding',
+            has_medical_condition: false,
+            toilet_assistance: ['independent'],
+            medical_conditions: [],
+            requires_vital_monitoring: false,
+            vital_monitoring_types: [],
+          },
+          afterValue: {
+            feeding_type: 'tube_feeding',
+            has_medical_condition: true,
+            toilet_assistance: ['diapers_bedside_support'],
+            medical_conditions: ['bp', 'diabetes'],
+            requires_vital_monitoring: true,
+            vital_monitoring_types: ['blood_pressure', 'pulse'],
+          },
+        }),
+      );
+    });
+
+    it('does not write an audit log entry when every field is resubmitted unchanged', async () => {
+      const unchanged = {
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        duty_type: editDto.duty_type,
+        city: editDto.city,
+        area: editDto.area,
+        care_receiver_id: 'cr-1',
+        frequency_of_care: editDto.frequency_of_care,
+        salary_amount: editDto.salary_amount,
+        languages: editDto.languages,
+        preferred_gender: null,
+        preferred_religion: null,
+        care_duration: editDto.care_duration,
+        start_date: editDto.start_date,
+        description: undefined,
+      };
+      const unchangedCareReceiver = {
+        id: 'cr-1',
+        age: 70,
+        gender: 'female',
+        weight_kg: 55,
+        feeding_type: undefined,
+        has_medical_condition: undefined,
+        medical_conditions: [],
+        medical_condition_other: undefined,
+        toilet_assistance: [],
+        toilet_assistance_other: undefined,
+        requires_vital_monitoring: undefined,
+        vital_monitoring_types: [],
+      };
+      jobsRepo.findById.mockResolvedValue(unchanged);
+      careReceiversRepo.findById.mockResolvedValue(unchangedCareReceiver);
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue(unchanged);
+
+      await service.editRequirement('user-1', 'job-1', editDto, '127.0.0.1');
+
+      expect(auditService.log).not.toHaveBeenCalled();
     });
 
     it('edits an already-active/closed requirement the same way, without changing status', async () => {
@@ -241,10 +498,19 @@ describe('IndividualService', () => {
         care_receiver_id: 'cr-1',
         frequency_of_care: 'monthly',
         salary_amount: '2500',
+        languages: ['hindi'],
       });
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
-      jobsRepo.update.mockResolvedValue({ id: 'job-1', duty_type: 'day_duty', city: 'bangalore', status: 'closed' });
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        status: 'closed',
+        frequency_of_care: 'daily',
+        salary_amount: '1500',
+        languages: ['hindi', 'english'],
+      });
 
       await service.editRequirement('user-1', 'job-1', editDto, null);
 
