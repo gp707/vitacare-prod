@@ -86,29 +86,39 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
-  Future<void> _applyToJob(JobModel job, String status) async {
+  /// Returns whether the call actually succeeded — callers that need to
+  /// react to that (e.g. closing a dialog only once the underlying action
+  /// really went through, not on every tap regardless of outcome) can
+  /// await this instead of assuming success.
+  Future<bool> _applyToJob(JobModel job, String status) async {
     setState(() => _applyingId.add(job.id));
     try {
       await ref.read(jobsRepositoryProvider).applyToJob(job.id, status);
       await _load();
+      return true;
     } on ApiException catch (e) {
       if (mounted) {
         showVitaErrorBanner(context, e.message);
       }
+      return false;
     } finally {
       if (mounted) setState(() => _applyingId.remove(job.id));
     }
   }
 
-  Future<void> _applyToRequirement(OrganisationRequirementModel requirement, String status) async {
+  /// Returns whether the call actually succeeded — same contract as
+  /// [_applyToJob].
+  Future<bool> _applyToRequirement(OrganisationRequirementModel requirement, String status) async {
     setState(() => _applyingId.add(requirement.id));
     try {
       await ref.read(organisationOpeningsRepositoryProvider).apply(requirement.id, status);
       await _load();
+      return true;
     } on ApiException catch (e) {
       if (mounted) {
         showVitaErrorBanner(context, e.message);
       }
+      return false;
     } finally {
       if (mounted) setState(() => _applyingId.remove(requirement.id));
     }
@@ -118,10 +128,12 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   /// job at all, they're just saying no from the browse list. Every reject
   /// action needs a confirmation first (see [_withdrawJob], the other path
   /// that lands on the same 'rejected' status), so this always shows the
-  /// dialog before calling through to [_applyToJob].
-  Future<void> _rejectJob(JobModel job) async {
-    if (!await _confirmReject(jobDisplayId(job))) return;
-    await _applyToJob(job, JobApplicationStatus.rejected);
+  /// dialog before calling through to [_applyToJob]. Returns whether it
+  /// actually went through (false if cancelled at the confirmation step or
+  /// if the server call itself failed).
+  Future<bool> _rejectJob(JobModel job) async {
+    if (!await _confirmReject(jobDisplayId(job))) return false;
+    return _applyToJob(job, JobApplicationStatus.rejected);
   }
 
   Future<bool> _confirmReject(String displayId) async {
@@ -151,8 +163,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   /// this lands, the patient can no longer accept this caregiver for the
   /// job (JOB_007 backstops it server-side even if the UI somehow let
   /// them try), and the caregiver's phone number drops out of the
-  /// patient's view of this application.
-  Future<void> _withdrawJob(JobModel job) async {
+  /// patient's view of this application. Returns whether it actually went
+  /// through (false if cancelled or the server call failed) — see
+  /// [_rejectJob]'s own doc comment.
+  Future<bool> _withdrawJob(JobModel job) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -170,8 +184,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
-    await _applyToJob(job, JobApplicationStatus.rejected);
+    if (confirmed != true) return false;
+    return _applyToJob(job, JobApplicationStatus.rejected);
   }
 
   /// Opens a job's or requirement's full, unmodified card (same widget
@@ -179,8 +193,15 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   /// [_AppliedStub] so a collapsed "already applied" card still gives full
   /// access to everything the full card offers, including the Reject Job
   /// (withdraw) button for a plain job, without duplicating any of that
-  /// widget's own logic.
-  Future<void> _showFullJobCard(BuildContext context, Widget card) {
+  /// widget's own logic. [cardBuilder] gets the dialog's own
+  /// [BuildContext] so its action callbacks (e.g. onWithdraw) can pop this
+  /// dialog themselves once the action actually succeeds — this dialog's
+  /// content is otherwise a static snapshot that never refreshes itself,
+  /// so without this an action taken inside it would silently update the
+  /// list behind it while leaving a stale copy on screen. The explicit
+  /// close button below is the fallback for every other case (cancelling,
+  /// or just being done looking).
+  Future<void> _showFullJobCard(BuildContext context, WidgetBuilder cardBuilder) {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
@@ -210,7 +231,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
-                  child: card,
+                  child: cardBuilder(dialogContext),
                 ),
               ),
             ],
@@ -250,6 +271,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final filtered = merged.where(_matchesFilters).toList();
     final hasHiddenJobs = filtered.any((l) => l.isHiddenByDefault);
     final visible = _showAllJobs ? filtered : filtered.where((l) => !l.isHiddenByDefault).toList();
+    final mostRecentlyAppliedId = _mostRecentlyAppliedListingId(visible);
     return Scaffold(
       appBar: AppBar(
         title: const VitaAppBarTitle('Jobs'),
@@ -381,17 +403,28 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                             ),
                           for (final listing in visible) ...[
                             if (listing is _JobListing)
-                              if (listing.job.myApplication?.status == JobApplicationStatus.applied)
+                              if (listing.job.myApplication?.status == JobApplicationStatus.applied &&
+                                  listing.id != mostRecentlyAppliedId)
                                 _AppliedStub(
                                   displayId: jobDisplayId(listing.job),
                                   onTap: () => _showFullJobCard(
                                     context,
-                                    _JobCard(
+                                    (dialogContext) => _JobCard(
                                       job: listing.job,
                                       isApplying: _applyingId.contains(listing.job.id),
-                                      onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
-                                      onReject: () => _rejectJob(listing.job),
-                                      onWithdraw: () => _withdrawJob(listing.job),
+                                      onApply: () async {
+                                        final success =
+                                            await _applyToJob(listing.job, JobApplicationStatus.applied);
+                                        if (success && dialogContext.mounted) Navigator.of(dialogContext).pop();
+                                      },
+                                      onReject: () async {
+                                        final success = await _rejectJob(listing.job);
+                                        if (success && dialogContext.mounted) Navigator.of(dialogContext).pop();
+                                      },
+                                      onWithdraw: () async {
+                                        final success = await _withdrawJob(listing.job);
+                                        if (success && dialogContext.mounted) Navigator.of(dialogContext).pop();
+                                      },
                                     ),
                                   ),
                                 )
@@ -404,16 +437,20 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                                   onWithdraw: () => _withdrawJob(listing.job),
                                 )
                             else if (listing is _RequirementListing)
-                              if (listing.requirement.myApplication?.status == JobApplicationStatus.applied)
+                              if (listing.requirement.myApplication?.status == JobApplicationStatus.applied &&
+                                  listing.id != mostRecentlyAppliedId)
                                 _AppliedStub(
                                   displayId: organisationJobDisplayId(listing.requirement),
                                   onTap: () => _showFullJobCard(
                                     context,
-                                    _RequirementCard(
+                                    (dialogContext) => _RequirementCard(
                                       requirement: listing.requirement,
                                       isApplying: _applyingId.contains(listing.requirement.id),
-                                      onApply: () =>
-                                          _applyToRequirement(listing.requirement, JobApplicationStatus.applied),
+                                      onApply: () async {
+                                        final success = await _applyToRequirement(
+                                            listing.requirement, JobApplicationStatus.applied);
+                                        if (success && dialogContext.mounted) Navigator.of(dialogContext).pop();
+                                      },
                                     ),
                                   ),
                                 )
@@ -443,6 +480,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 abstract class _Listing {
   DateTime get postedAt;
 
+  /// Stable id, used to compare a listing against itself across rebuilds
+  /// (e.g. "is this the most recently applied one") without caring
+  /// whether it's a job or a requirement underneath.
+  String get id;
+
   /// True once this listing is done from the caregiver's own point of
   /// view and there's nothing further they can do about it. Hides once
   /// rejected (by either side, or by closing/withdrawing themselves before
@@ -451,11 +493,22 @@ abstract class _Listing {
   /// else, but this caregiver's own engagement with it is over. Applies
   /// equally to jobs and organisation requirements.
   bool get isHiddenByDefault;
+
+  /// When the caregiver's own still-`applied` application was last acted
+  /// on — re-applying counts as more recent than the original apply, same
+  /// as everywhere else "applied" is timestamped in this app. Null unless
+  /// the application is currently `applied` (not applied at all, or
+  /// already decided/withdrawn) — only listings with a real value here are
+  /// candidates for "most recently applied" treatment (see
+  /// _mostRecentlyAppliedListingId below).
+  DateTime? get appliedAt;
 }
 
 class _JobListing extends _Listing {
   final JobModel job;
   _JobListing(this.job);
+  @override
+  String get id => job.id;
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
   // Hidden by default once the caregiver rejected it (by either side) or
@@ -468,17 +521,50 @@ class _JobListing extends _Listing {
   bool get isHiddenByDefault =>
       job.myApplication?.status == JobApplicationStatus.rejected ||
       job.myApplication?.status == JobApplicationStatus.completed;
+  @override
+  DateTime? get appliedAt => _appliedAtOf(job.myApplication);
 }
 
 class _RequirementListing extends _Listing {
   final OrganisationRequirementModel requirement;
   _RequirementListing(this.requirement);
   @override
+  String get id => requirement.id;
+  @override
   DateTime get postedAt => DateTime.parse(requirement.postedAt);
   @override
   bool get isHiddenByDefault =>
       requirement.myApplication?.status == JobApplicationStatus.rejected ||
       requirement.myApplication?.status == JobApplicationStatus.completed;
+  @override
+  DateTime? get appliedAt => _appliedAtOf(requirement.myApplication);
+}
+
+DateTime? _appliedAtOf(MyApplicationModel? application) {
+  if (application == null || application.status != JobApplicationStatus.applied) return null;
+  final raw = application.reappliedAt ?? application.appliedAt;
+  return raw == null ? null : DateTime.parse(raw);
+}
+
+/// Among every listing the caregiver is currently waiting on a decision
+/// for, finds the single most recently applied (or re-applied) one — null
+/// if none are currently applied. Used so that one still stands out as a
+/// full [_JobCard]/[_RequirementCard] rather than collapsing into
+/// [_AppliedStub] with the rest: a caregiver who just applied to something
+/// should still see it in full immediately, while older pending
+/// applications they're already waiting on get tucked away.
+String? _mostRecentlyAppliedListingId(List<_Listing> listings) {
+  String? bestId;
+  DateTime? bestTime;
+  for (final listing in listings) {
+    final appliedAt = listing.appliedAt;
+    if (appliedAt == null) continue;
+    if (bestTime == null || appliedAt.isAfter(bestTime)) {
+      bestTime = appliedAt;
+      bestId = listing.id;
+    }
+  }
+  return bestId;
 }
 
 class _JobCard extends StatelessWidget {
@@ -498,20 +584,30 @@ class _JobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The single most-recently-applied job stays at full size (see
+    // _mostRecentlyAppliedListingId) rather than collapsing into
+    // _AppliedStub like older applied ones — but it used to keep the exact
+    // same red "live job" border as a brand-new, not-yet-applied job, so
+    // scanning the list gave no visual cue it had already been acted on; a
+    // caregiver had to scroll to the bottom of the card to find out. Green
+    // (same color _ApplyButton itself uses) plus an explicit badge gives
+    // the same "already handled" signal _AppliedStub's grey stamp gives
+    // the older applied ones, without it getting demoted to a tiny stub.
+    final applied = job.myApplication?.status == JobApplicationStatus.applied;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold red border clearly separates each job/requirement card
-        // from the next — this browse list only ever shows active/live
-        // postings, so the border is always red (the "genuinely live"
-        // color, matching nursenow's own job cards).
         color: Colors.white,
-        border: Border.all(color: AppColors.error, width: 2.5),
+        border: Border.all(color: applied ? AppColors.success : AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (applied) ...[
+            const _AppliedBadge(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           JobDetailCard(job: job),
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
@@ -625,6 +721,36 @@ class _AppliedStub extends StatelessWidget {
   }
 }
 
+/// Small solid-green pill shown at the top of the single still-full-size
+/// _JobCard/_RequirementCard once the caregiver has applied — see the
+/// comment on _JobCard.build for why this exists alongside _AppliedStub
+/// rather than relying on the border color change alone.
+class _AppliedBadge extends StatelessWidget {
+  const _AppliedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.success,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle, color: Colors.white, size: 16),
+          SizedBox(width: AppSpacing.xs),
+          Text(
+            'You Applied — Waiting for Decision',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: AppTypography.small),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The caregiver-facing "yes" action — filled solid green with a check, so
 /// it reads as affirmative by shape and color alone, not just the word.
 /// Shared by _JobCard and _RequirementCard; [icon] defaults to a plain
@@ -695,20 +821,24 @@ class _RequirementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // See the matching comment in _JobCard.build — same "give the
+    // still-full-size, most-recently-applied card a distinct color/badge"
+    // fix, applied identically here.
+    final applied = requirement.myApplication?.status == JobApplicationStatus.applied;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        // A bold red border clearly separates each job/requirement card
-        // from the next — this browse list only ever shows active/live
-        // postings, so the border is always red (the "genuinely live"
-        // color, matching nursenow's own job cards).
         color: Colors.white,
-        border: Border.all(color: AppColors.error, width: 2.5),
+        border: Border.all(color: applied ? AppColors.success : AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (applied) ...[
+            const _AppliedBadge(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           Text(
             'Job Posted by Organisation'
             '${requirement.city != null ? ' in ${City.displayNames[requirement.city] ?? requirement.city!}' : ''}'

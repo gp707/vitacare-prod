@@ -40,18 +40,12 @@ android {
         versionName = flutter.versionName
 
         // x86/x86_64 are emulator/Chromebook-only — no real phone ships
-        // one, and this app's own dev emulator (Medium_Phone_API_36.1) is
-        // itself arm64, so those native libs were pure dead weight in
-        // every APK this project builds (~20MB of a universal APK's
-        // ~60MB). armeabi-v7a (32-bit ARM) is kept — still relevant for
-        // older/budget Android phones in this app's target market.
-        // Play Store distribution already avoids this entirely via the
-        // App Bundle (.aab), which serves only the one ABI a real device
-        // needs — this matters for the universal/sideloadable release
-        // APK this project also builds for direct testing/distribution.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
+        // one. ABI restriction is done at the Flutter-tool level instead
+        // of here (--target-platform on `flutter build apk`, or
+        // --split-per-abi), since an ndk.abiFilters entry here conflicts
+        // with --split-per-abi at Gradle configuration time. Play Store
+        // distribution avoids this entirely via the App Bundle (.aab),
+        // which serves only the one ABI a real device needs.
     }
 
     signingConfigs {
