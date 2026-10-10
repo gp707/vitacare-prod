@@ -94,3 +94,4 @@ GoogleService-Info.plist
 .cache/
 tmp/
 temp/
+*.hprof
