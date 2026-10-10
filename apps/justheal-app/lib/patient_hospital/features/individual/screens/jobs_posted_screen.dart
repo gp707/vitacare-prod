@@ -347,6 +347,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   // and always editable right here on the card (disabled, not hidden,
   // while locked — see _hasActiveApplication). Field set/order/validation
   // mirrors the old PostRequirementScreen/EditRequirementScreen exactly. ---
+  final _patientNameController = TextEditingController();
   final _ageController = TextEditingController();
   String? _gender;
   final _weightController = TextEditingController();
@@ -370,10 +371,12 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool _saving = false;
   String? _error;
 
+  final _patientNameFocusNode = FocusNode();
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
 
+  final _patientNameKey = GlobalKey();
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
   final _weightKey = GlobalKey();
@@ -399,7 +402,12 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool _carePreferencesExpanded = false;
 
   bool _isPatientDetailsField(GlobalKey key) =>
-      key == _ageKey || key == _genderKey || key == _weightKey || key == _cityKey || key == _areaKey;
+      key == _patientNameKey ||
+      key == _ageKey ||
+      key == _genderKey ||
+      key == _weightKey ||
+      key == _cityKey ||
+      key == _areaKey;
 
   @override
   void initState() {
@@ -424,6 +432,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       ..clear()
       ..add(_noPreferenceLanguage);
     if (cr != null) {
+      _patientNameController.text = cr.patientName ?? '';
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
@@ -437,6 +446,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       _toiletAssistance.addAll(cr.toiletAssistance);
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
     } else {
+      _patientNameController.clear();
       _ageController.clear();
       _gender = null;
       _weightController.clear();
@@ -467,6 +477,16 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   // _handleSavePressed (there's no partial-field save endpoint — Save
   // always submits the form's full current state); the cross only reverts
   // that one field. ---
+  bool get _isPatientNameDirty {
+    final cr = widget.requirement.careReceiver;
+    return cr != null && _patientNameController.text != (cr.patientName ?? '');
+  }
+
+  void _revertPatientName() => setState(() {
+        final cr = widget.requirement.careReceiver;
+        if (cr != null) _patientNameController.text = cr.patientName ?? '';
+      });
+
   bool get _isAgeDirty {
     final cr = widget.requirement.careReceiver;
     return cr != null && _ageController.text != cr.age.toString();
@@ -602,12 +622,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 
   @override
   void dispose() {
+    _patientNameController.dispose();
     _ageController.dispose();
     _weightController.dispose();
     _medicalConditionOtherController.dispose();
     _toiletAssistanceOtherController.dispose();
     _areaController.dispose();
     _salaryController.dispose();
+    _patientNameFocusNode.dispose();
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
@@ -683,6 +705,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
 
+  bool get _isPatientNameValid => Validators.isValidName(_patientNameController.text.trim());
   bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
   bool get _isGenderValid => _gender != null;
   bool get _isWeightValid => _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
@@ -701,6 +724,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
 
   bool get _canSave =>
       !_saving &&
+      _isPatientNameValid &&
       _isAgeValid &&
       _isGenderValid &&
       _isWeightValid &&
@@ -714,6 +738,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       _isSalaryValid;
 
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
+        _MandatoryField(_patientNameKey, _isPatientNameValid, focusNode: _patientNameFocusNode),
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
         _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
@@ -843,6 +868,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       await ref.read(individualRepositoryProvider).editRequirement(
             widget.requirement.id,
             careReceiver: CareReceiverInput(
+              patientName: _patientNameController.text.trim(),
               age: _age!,
               gender: _gender!,
               weightKg: _weightKg!,
@@ -1095,6 +1121,23 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                       expanded: _patientDetailsExpanded,
                       onToggle: () => setState(() => _patientDetailsExpanded = !_patientDetailsExpanded),
                       children: [
+                        TextField(
+                          key: _patientNameKey,
+                          controller: _patientNameController,
+                          focusNode: _patientNameFocusNode,
+                          maxLength: Validation.nameMaxLength,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.badge),
+                            labelText: "Patient's Name (Mandatory)",
+                            border: const OutlineInputBorder(),
+                            errorText: _showValidationErrors && !_isPatientNameValid
+                                ? 'Enter the patient\'s name (letters only, max ${Validation.nameMaxLength} characters)'
+                                : null,
+                            suffixIcon: _fieldControls('patientName', _isPatientNameDirty, _revertPatientName),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
                         TextField(
                           key: _ageKey,
                           controller: _ageController,

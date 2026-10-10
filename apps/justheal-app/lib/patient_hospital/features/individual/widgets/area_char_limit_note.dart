@@ -8,7 +8,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 /// exactly how far over they've gone, rather than being silently stopped.
 /// Submission itself is not blocked by this — Area only needs to be
 /// non-empty to submit, same as before this note was added.
-const areaCharLimit = 32;
+const areaCharLimit = 36;
 
 /// Shown directly below the Area field, reacting to its live character
 /// count: "N characters remaining" while at or under the limit, or a red

@@ -82,9 +82,14 @@ final caregiverMessagesRepositoryProvider = Provider<CaregiverMessagesRepository
 /// falls back to on any error.
 final otpModeProvider = StateProvider<bool>((ref) => false);
 
-/// The admin-configurable apply-by urgency window (in days) — set once at
-/// splash time from JobSettingsRepository.getApplyByWindowDays(), read by
+/// The admin-configurable apply-by urgency window (in days) — refreshed
+/// from JobSettingsRepository.getApplyByWindowDays() both at login/
+/// registration (login_screen.dart/registration_screen.dart) and on every
+/// CaregiverBottomNav mount (the latter is what actually covers an
+/// already-authenticated caregiver, who never visits either of those two
+/// screens — see caregiver_bottom_nav.dart's own comment on why this
+/// can't rely on a single splash-time fetch post-merge). Read by
 /// JobDetailCard wherever it shows the "X days left to apply" badge.
 /// Defaults to Validation.applyByWindowDays, the known-safe fallback this
-/// falls back to on any error.
+/// falls back to on any error or before the first fetch resolves.
 final applyByWindowDaysProvider = StateProvider<int>((ref) => Validation.applyByWindowDays);

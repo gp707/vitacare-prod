@@ -7,6 +7,7 @@ import 'individual_model.dart';
 /// only age/gender/weight_kg are required, every other field defaults
 /// server-side (CARE_RECEIVER_DEFAULTS in jobs.service.ts) when omitted.
 class CareReceiverInput {
+  final String patientName;
   final int age;
   final String gender;
   final int weightKg;
@@ -18,6 +19,7 @@ class CareReceiverInput {
   final String? toiletAssistanceOther;
 
   const CareReceiverInput({
+    required this.patientName,
     required this.age,
     required this.gender,
     required this.weightKg,
@@ -30,6 +32,7 @@ class CareReceiverInput {
   });
 
   Map<String, dynamic> toJson() => {
+        'patient_name': patientName,
         'age': age,
         'gender': gender,
         'weight_kg': weightKg,

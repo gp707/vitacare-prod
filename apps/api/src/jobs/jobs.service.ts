@@ -67,11 +67,13 @@ const CITY_LABELS: Record<City, string> = {
 
 // Exported for reuse by individual.service.ts — a NurseNow individual's
 // requirement gets the exact same care-receiver defaulting as an
-// admin-posted job. age/gender/weight/feeding_type/toilet_assistance are
-// hard-required on a care receiver; every other field here uses its own
-// inline fallback (?? false/[]/null) rather than a shared defaults object.
+// admin-posted job. patient_name/age/gender/weight/feeding_type/
+// toilet_assistance are hard-required on a care receiver; every other
+// field here uses its own inline fallback (?? false/[]/null) rather than
+// a shared defaults object.
 export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
   return {
+    patient_name: dto.patient_name,
     age: dto.age,
     gender: dto.gender,
     weight_kg: dto.weight_kg,

@@ -262,6 +262,7 @@ Future<void> _pumpRegistration(
 /// Fills every mandatory field on the Individual (patient/family) branch
 /// except phone/PIN/terms — the merged-in requirement-posting fields.
 Future<void> _fillIndividualMandatoryFields(WidgetTester tester) async {
+  await tester.enterText(find.widgetWithText(TextField, "Patient's Name (Mandatory)"), 'Asha Rao');
   await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '74');
   await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender (Mandatory)"));
   await tester.pumpAndSettle();
@@ -422,6 +423,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone number (Mandatory)'), '9876543210');
     await tester.enterText(find.widgetWithText(TextField, 'Create a 4-digit PIN (Mandatory)'), '1234');
 
+    await tester.enterText(find.widgetWithText(TextField, "Patient's Name (Mandatory)"), 'Asha Rao');
     await tester.enterText(find.widgetWithText(TextField, "Patient's Age (Mandatory)"), '74');
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, "Patient's Gender (Mandatory)"));
     await tester.pumpAndSettle();

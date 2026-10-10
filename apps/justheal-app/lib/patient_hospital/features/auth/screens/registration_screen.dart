@@ -139,6 +139,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   // --- Individual-only fields: the full care-requirement form, merged in
   // from the old standalone PostRequirementScreen. ---
+  final _patientNameController = TextEditingController();
   final _ageController = TextEditingController();
   String? _gender;
   final _weightController = TextEditingController();
@@ -167,10 +168,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String? _lastAutoSuggestedSalary;
   List<RateCardModel> _rateCards = const [];
 
+  final _patientNameFocusNode = FocusNode();
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
 
+  final _patientNameKey = GlobalKey();
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
   final _weightKey = GlobalKey();
@@ -225,12 +228,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _organisationAreaController.dispose();
     _fullNameFocusNode.dispose();
     _organisationNameFocusNode.dispose();
+    _patientNameController.dispose();
     _ageController.dispose();
     _weightController.dispose();
     _medicalConditionOtherController.dispose();
     _toiletAssistanceOtherController.dispose();
     _areaController.dispose();
     _salaryController.dispose();
+    _patientNameFocusNode.dispose();
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
     _areaFocusNode.dispose();
@@ -301,6 +306,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
 
+  bool get _isPatientNameValid => _isOrganisation || Validators.isValidName(_patientNameController.text.trim());
   bool get _isAgeValid => _isOrganisation || (_age != null && _age! >= 1 && _age! <= 120);
   bool get _isGenderValid => _isOrganisation || _gender != null;
   bool get _isWeightValid => _isOrganisation || (_weightKg != null && _weightKg! >= 1 && _weightKg! <= 300);
@@ -329,6 +335,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// at all, so they're just fixed at their server-side default.
   CareReceiverModel get _careReceiverForTierDerivation => CareReceiverModel(
         id: '',
+        patientName: _patientNameController.text.trim(),
         age: _age ?? 0,
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
@@ -383,6 +390,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _isOrganisationNameValid &&
       _isOrganisationTypeValid &&
       _isOrganisationCityValid &&
+      _isPatientNameValid &&
       _isAgeValid &&
       _isGenderValid &&
       _isWeightValid &&
@@ -407,6 +415,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_organisationTypeKey, _isOrganisationTypeValid),
           _MandatoryField(_organisationCityKey, _isOrganisationCityValid),
         ] else ...[
+          _MandatoryField(_patientNameKey, _isPatientNameValid, focusNode: _patientNameFocusNode),
           _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
           _MandatoryField(_genderKey, _isGenderValid),
           _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
@@ -543,6 +552,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         }
         await ref.read(individualRepositoryProvider).createRequirement(
               careReceiver: CareReceiverInput(
+                patientName: _patientNameController.text.trim(),
                 age: _age!,
                 gender: _gender!,
                 weightKg: _weightKg!,
@@ -758,6 +768,22 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           icon: Icons.person,
           title: 'Patient Details',
           children: [
+            TextField(
+              key: _patientNameKey,
+              controller: _patientNameController,
+              focusNode: _patientNameFocusNode,
+              maxLength: Validation.nameMaxLength,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.badge),
+                labelText: "Patient's Name (Mandatory)",
+                border: const OutlineInputBorder(),
+                errorText: _showValidationErrors && !_isPatientNameValid
+                    ? 'Enter the patient\'s name (letters only, max ${Validation.nameMaxLength} characters)'
+                    : null,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               key: _ageKey,
               controller: _ageController,

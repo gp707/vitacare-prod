@@ -271,7 +271,16 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final filtered = merged.where(_matchesFilters).toList();
     final hasHiddenJobs = filtered.any((l) => l.isHiddenByDefault);
     final visible = _showAllJobs ? filtered : filtered.where((l) => !l.isHiddenByDefault).toList();
-    final mostRecentlyAppliedId = _mostRecentlyAppliedListingId(visible);
+    // Deliberately computed from the full, unfiltered `merged` list, not
+    // `visible` — this is about which of the caregiver's OWN applications
+    // is most recent, a fact about their history, not about whatever
+    // category/city filter happens to be active right now. Scoping it to
+    // `visible` meant a job could wrongly stay uncollapsed (or a genuinely
+    // more-recent one wrongly collapse) purely because the real most
+    // recent application had been filtered out of view — an intermittent,
+    // filter-dependent bug, not the intended "stays stable regardless of
+    // what you're currently looking at" behavior.
+    final mostRecentlyAppliedId = _mostRecentlyAppliedListingId(merged);
     return Scaffold(
       appBar: AppBar(
         title: const VitaAppBarTitle('Jobs'),

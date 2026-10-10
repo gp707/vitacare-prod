@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -37,6 +39,24 @@ class _CaregiverBottomNavState extends ConsumerState<CaregiverBottomNav> {
   }
 
   Future<void> _load() async {
+    // applyByWindowDaysProvider is also set by login_screen.dart/
+    // registration_screen.dart's own initState, but those only run for a
+    // caregiver who actually passes through sign-in — an already-
+    // authenticated caregiver (the common case: caregiver tokens never
+    // expire) launches straight into a tab via the host app's own splash
+    // screen, which has no knowledge of this caregiver-specific setting at
+    // all (see CLAUDE.md's Login Settings/OTP-mode note for the same
+    // per-app-fetch gap). CaregiverBottomNav is embedded in all 3 tabs and
+    // re-mounts on every tab switch, so fetching here too closes that gap
+    // for every real session regardless of how it started — this was
+    // previously the (now-removed) unreachable caregiver splash screen's
+    // job. Read eagerly alongside the existing assignment-count fetch,
+    // same fail-open convention.
+    unawaited(
+      ref.read(jobSettingsRepositoryProvider).getApplyByWindowDays().then((days) {
+        if (mounted) ref.read(applyByWindowDaysProvider.notifier).state = days;
+      }),
+    );
     try {
       final results = await Future.wait([
         ref.read(jobsRepositoryProvider).getAssignedJobs(),

@@ -228,6 +228,7 @@ JobModel _jobWithCareReceiver({
     'created_at': '2026-08-01T10:00:00Z',
     'care_receiver': {
       'id': 'cr-1',
+      'patient_name': 'Asha Rao',
       'age': 72,
       'gender': 'female',
       'weight_kg': 58,
@@ -542,6 +543,11 @@ Future<void> _fillPatientDetailsCore(WidgetTester tester) async {
   final area = find.widgetWithText(TextField, 'Area in Bangalore (Mandatory)');
   await tester.ensureVisible(area);
   await tester.enterText(area, 'Indiranagar');
+  await tester.pumpAndSettle();
+
+  final patientName = find.widgetWithText(TextField, "Patient's Name (Mandatory)");
+  await tester.ensureVisible(patientName);
+  await tester.enterText(patientName, 'Asha Rao');
   await tester.pumpAndSettle();
 
   final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
@@ -1164,6 +1170,11 @@ void main() {
 
     await _selectDropdown(tester, 'City (Mandatory)', 'Bangalore');
     // Area deliberately left blank.
+
+    final patientName = find.widgetWithText(TextField, "Patient's Name (Mandatory)");
+    await tester.ensureVisible(patientName);
+    await tester.enterText(patientName, 'Asha Rao');
+    await tester.pumpAndSettle();
 
     final age = find.widgetWithText(TextField, "Patient's Age (Mandatory)");
     await tester.ensureVisible(age);

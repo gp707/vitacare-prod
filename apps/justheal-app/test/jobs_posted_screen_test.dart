@@ -111,6 +111,7 @@ JobModel _requirement({
 
 final _careReceiverJson = {
   'id': 'cr-1',
+  'patient_name': 'Asha Rao',
   'age': 74,
   'gender': 'female',
   'weight_kg': 58,

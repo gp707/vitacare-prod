@@ -7,6 +7,7 @@ import '../../../core/network/api_exception.dart';
 /// explicit value (see CARE_RECEIVER_DEFAULTS in the backend's
 /// jobs.service.ts) so the persisted value is never silently null/empty.
 class CareReceiverInput {
+  final String patientName;
   final int age;
   final String gender;
   final int weightKg;
@@ -20,6 +21,7 @@ class CareReceiverInput {
   final List<String>? vitalMonitoringTypes;
 
   const CareReceiverInput({
+    required this.patientName,
     required this.age,
     required this.gender,
     required this.weightKg,
@@ -34,6 +36,7 @@ class CareReceiverInput {
   });
 
   Map<String, dynamic> toJson() => {
+        'patient_name': patientName,
         'age': age,
         'gender': gender,
         'weight_kg': weightKg,

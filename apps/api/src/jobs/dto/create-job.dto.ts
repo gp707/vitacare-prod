@@ -10,6 +10,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -27,10 +28,18 @@ import {
   MedicalCondition,
   Religion,
   ToiletAssistance,
+  Validation,
   VitalMonitoringType,
 } from '@vitacare/shared-constants';
 
 export class CareReceiverDto {
+  // Brand-new field (care_receivers previously had no name at all) — same
+  // name-validation convention as every other name field in this product
+  // (RegisterDto.full_name etc.): letters/spaces only, 24 chars max.
+  @Matches(Validation.NAME_REGEX, { message: 'PROFILE_020' })
+  @MaxLength(Validation.NAME_MAX_LENGTH, { message: 'PROFILE_022' })
+  patient_name!: string;
+
   @IsInt({ message: 'GEN_001' })
   @Min(1, { message: 'GEN_001' })
   @Max(120, { message: 'GEN_001' })

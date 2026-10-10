@@ -16,6 +16,7 @@ describe('JobsService', () => {
 
   const careReceiver = {
     id: 'cr-1',
+    patient_name: 'Asha Rao',
     age: 72,
     gender: 'female',
     weight_kg: 58,
@@ -102,6 +103,7 @@ describe('JobsService', () => {
   describe('createJob', () => {
     const dto = {
       care_receiver: {
+        patient_name: 'Asha Rao',
         age: 72 as any,
         gender: 'female' as any,
         weight_kg: 58 as any,
@@ -174,6 +176,7 @@ describe('JobsService', () => {
       const minimalDto = {
         ...dto,
         care_receiver: {
+          patient_name: 'Asha Rao',
           age: 72,
           gender: 'female',
           weight_kg: 58,
@@ -184,6 +187,7 @@ describe('JobsService', () => {
       await service.createJob('admin-1', minimalDto, null);
       expect(careReceiversRepo.create).toHaveBeenCalledWith(
         {
+          patient_name: 'Asha Rao',
           age: 72,
           gender: 'female',
           weight_kg: 58,
@@ -229,6 +233,7 @@ describe('JobsService', () => {
   describe('updateJob', () => {
     const dto = {
       care_receiver: {
+        patient_name: 'Asha Rao',
         age: 73 as any,
         gender: 'female' as any,
         weight_kg: 60 as any,

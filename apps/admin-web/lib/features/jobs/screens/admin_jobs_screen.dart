@@ -1366,6 +1366,7 @@ class _JobFormDialog extends ConsumerStatefulWidget {
 }
 
 class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
+  final _patientNameController = TextEditingController();
   final _areaController = TextEditingController();
   final _medicalConditionOtherController = TextEditingController();
   final _toiletAssistanceOtherController = TextEditingController();
@@ -1375,6 +1376,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   // Only mandatory text fields need a FocusNode — that's what lets Post
   // literally put the cursor in the first one that's missing.
+  final _patientNameFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
   final _ageFocusNode = FocusNode();
   final _weightFocusNode = FocusNode();
@@ -1382,6 +1384,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   // One key per mandatory field, in the order they appear on the form, so
   // Post can scroll to whichever one is first still-invalid.
+  final _patientNameKey = GlobalKey();
   final _cityKey = GlobalKey();
   final _areaKey = GlobalKey();
   final _ageKey = GlobalKey();
@@ -1516,6 +1519,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _preferredGender = job.preferredGender;
       _preferredReligion = job.preferredReligion;
 
+      _patientNameController.text = cr.patientName ?? '';
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
@@ -1534,12 +1538,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   @override
   void dispose() {
+    _patientNameController.dispose();
     _areaController.dispose();
     _medicalConditionOtherController.dispose();
     _toiletAssistanceOtherController.dispose();
     _ageController.dispose();
     _weightController.dispose();
     _salaryController.dispose();
+    _patientNameFocusNode.dispose();
     _areaFocusNode.dispose();
     _ageFocusNode.dispose();
     _weightFocusNode.dispose();
@@ -1552,6 +1558,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
 
   bool get _isCityValid => _city != null;
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
+  bool get _isPatientNameValid => Validators.isValidName(_patientNameController.text.trim());
   bool get _isAgeValid => _age != null && _age! >= 1 && _age! <= 120;
   bool get _isGenderValid => _gender != null;
   bool get _isWeightValid =>
@@ -1574,6 +1581,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       !_submitting &&
       _isCityValid &&
       _isAreaValid &&
+      _isPatientNameValid &&
       _isAgeValid &&
       _isGenderValid &&
       _isWeightValid &&
@@ -1589,6 +1597,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   /// Condition isn't here — it always defaults to "None" and can never be
   /// empty, so it's never invalid (mirrors nursenow-app's own forms).
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
+        _MandatoryField(_patientNameKey, _isPatientNameValid, focusNode: _patientNameFocusNode),
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
         _MandatoryField(_genderKey, _isGenderValid),
         _MandatoryField(_weightKey, _isWeightValid,
@@ -1678,6 +1687,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     try {
       final hasMedicalCondition = !_medicalConditions.contains(_noneMedicalCondition);
       final careReceiver = CareReceiverInput(
+        patientName: _patientNameController.text.trim(),
         age: _age!,
         gender: _gender!,
         weightKg: _weightKg!,
@@ -1782,6 +1792,24 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
             ),
           ),
         ];
+
+  List<Widget> _patientNameField() => [
+        KeyedSubtree(
+          key: _patientNameKey,
+          child: TextField(
+            controller: _patientNameController,
+            focusNode: _patientNameFocusNode,
+            maxLength: Validation.nameMaxLength,
+            decoration: InputDecoration(
+              labelText: "Patient's Name (Mandatory)",
+              errorText: _showValidationErrors && !_isPatientNameValid
+                  ? 'Enter the patient\'s name (letters only, max ${Validation.nameMaxLength} characters)'
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+      ];
 
   List<Widget> _ageField() => [
         KeyedSubtree(
@@ -2066,6 +2094,8 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   /// sets anything the patient/family isn't also asked for.
   List<Widget> _fields() => [
         const Text('Patient Details', style: _sectionHeading),
+        _spacerSm,
+        ..._patientNameField(),
         _spacerSm,
         ..._ageField(),
         _spacerSm,

@@ -3,6 +3,12 @@
 /// not an independently reusable/searchable entity in this version.
 class CareReceiverModel {
   final String id;
+  /// The patient's own name — a brand-new field (previously care_receivers
+  /// had no name at all). Nullable only because rows created before this
+  /// field existed have it null; every form that creates/edits a care
+  /// receiver now requires it (Validation.nameRegex/nameMaxLength, same
+  /// convention as every other name field).
+  final String? patientName;
   final int age;
   final String gender;
   final int weightKg;
@@ -17,6 +23,7 @@ class CareReceiverModel {
 
   const CareReceiverModel({
     required this.id,
+    this.patientName,
     required this.age,
     required this.gender,
     required this.weightKg,
@@ -32,6 +39,7 @@ class CareReceiverModel {
 
   factory CareReceiverModel.fromJson(Map<String, dynamic> json) => CareReceiverModel(
         id: json['id'] as String,
+        patientName: json['patient_name'] as String?,
         age: json['age'] as int,
         gender: json['gender'] as String,
         weightKg: json['weight_kg'] as int,

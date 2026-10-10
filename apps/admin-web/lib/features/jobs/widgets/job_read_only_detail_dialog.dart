@@ -85,6 +85,8 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.xs),
               if (careReceiver != null) ...[
+                if (careReceiver.patientName != null && careReceiver.patientName!.isNotEmpty)
+                  _DetailRow('Patient Name', careReceiver.patientName!),
                 _DetailRow('Age', '${careReceiver.age} yrs'),
                 _DetailRow(
                     'Gender',

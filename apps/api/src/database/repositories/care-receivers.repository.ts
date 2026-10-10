@@ -11,6 +11,7 @@ import { DatabaseService, QueryRunner } from '../database.service';
 
 export interface CareReceiverRecord {
   id: string;
+  patient_name: string | null;
   age: number;
   gender: Gender;
   weight_kg: number;
@@ -27,6 +28,12 @@ export interface CareReceiverRecord {
 }
 
 export interface CreateCareReceiverInput {
+  // Required here even though the DB column stays nullable (existing rows
+  // predate it) — every caller constructs this via applyCareReceiverDefaults
+  // from a CareReceiverDto, which makes patient_name mandatory at the DTO
+  // layer for every new create/update, so by the time it reaches this
+  // interface it's always a real value, never omitted.
+  patient_name: string;
   age: number;
   gender: Gender;
   weight_kg: number;
@@ -48,13 +55,14 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `INSERT INTO care_receivers
-         (age, gender, weight_kg, feeding_type,
+         (patient_name, age, gender, weight_kg, feeding_type,
           has_medical_condition, medical_conditions,
           medical_condition_other, toilet_assistance, toilet_assistance_other,
           requires_vital_monitoring, vital_monitoring_types)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
+        input.patient_name,
         input.age,
         input.gender,
         input.weight_kg,
@@ -87,15 +95,16 @@ export class CareReceiversRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<CareReceiverRecord>(
       `UPDATE care_receivers SET
-         age = $1, gender = $2, weight_kg = $3,
-         feeding_type = $4,
-         has_medical_condition = $5, medical_conditions = $6,
-         medical_condition_other = $7, toilet_assistance = $8, toilet_assistance_other = $9,
-         requires_vital_monitoring = $10, vital_monitoring_types = $11,
+         patient_name = $1, age = $2, gender = $3, weight_kg = $4,
+         feeding_type = $5,
+         has_medical_condition = $6, medical_conditions = $7,
+         medical_condition_other = $8, toilet_assistance = $9, toilet_assistance_other = $10,
+         requires_vital_monitoring = $11, vital_monitoring_types = $12,
          updated_at = NOW()
-       WHERE id = $12
+       WHERE id = $13
        RETURNING *`,
       [
+        input.patient_name,
         input.age,
         input.gender,
         input.weight_kg,

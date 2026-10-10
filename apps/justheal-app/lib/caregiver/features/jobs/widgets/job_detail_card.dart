@@ -9,6 +9,13 @@ import '../../../core/providers.dart';
 String formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+/// dd/mm/yy — scoped to the Start Date badge only (BlinkingStartDateBadge
+/// below), not a replacement for [formatDate] itself, which stays
+/// yyyy-mm-dd for every other date on this card (Posted date, the
+/// application timeline's formatDateTime) since those weren't asked for.
+String formatStartDate(DateTime date) =>
+    '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${(date.year % 100).toString().padLeft(2, '0')}';
+
 // Seconds are included (not just hours:minutes) so two actions taken within
 // the same minute — e.g. one caregiver applying right after another — still
 // display in a visibly distinguishable, correctly ordered sequence. The
@@ -34,10 +41,6 @@ Color urgencyColor(int daysLeft) {
 }
 
 String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-
-/// Salary's unit follows Frequency of Care — a 'daily' job's figure is a
-/// per-day rate, everything else reads as monthly.
-String salaryUnit(String? frequencyOfCare) => frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
 
 class SectionLabel extends StatelessWidget {
   final String text;
@@ -91,8 +94,17 @@ class SalaryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Daily rate keeps its tiny "Daily" caption-size suffix next to the
+    // amount, unchanged. Monthly shows the amount alone, no "PM" suffix at
+    // all — this also means the monthly figure is just the one bold span
+    // at AppTypography.title - 2, the same size BlinkingStartDateBadge's
+    // label renders at, so the two badges read consistently next to each
+    // other. The icon's own circle/gap stay trimmed down so a long range
+    // (e.g. "₹26,000 - 30,000") still has room to render in full rather
+    // than getting ellipsized.
+    final isDaily = frequencyOfCare == FrequencyOfCare.daily;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: AppColors.success.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
@@ -102,18 +114,30 @@ class SalaryBadge extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 20,
-            height: 20,
+            width: 16,
+            height: 16,
             decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
-            child: const Icon(Icons.currency_rupee, size: 12, color: Colors.white),
+            child: const Icon(Icons.currency_rupee, size: 10, color: Colors.white),
           ),
-          const SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: 2),
           Flexible(
-            child: Text(
-              '$amount/${salaryUnit(frequencyOfCare)}',
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: amount,
+                    style: const TextStyle(
+                        fontSize: AppTypography.title - 2, fontWeight: FontWeight.bold, color: AppColors.success),
+                  ),
+                  if (isDaily)
+                    const TextSpan(
+                      text: ' Daily',
+                      style: TextStyle(
+                          fontSize: AppTypography.caption, fontWeight: FontWeight.w600, color: AppColors.success),
+                    ),
+                ],
+              ),
               textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
             ),
           ),
         ],
@@ -174,31 +198,6 @@ const _fieldLinkStyle = TextStyle(
     color: AppColors.success,
     fontWeight: FontWeight.w700,
     decoration: TextDecoration.underline);
-
-/// The job's real display id, set apart from the "Job Id" label (bold
-/// black, like every other field label) in its own larger bold green, same
-/// visual weight a hospital chart gives a record/MRN number.
-class _JobIdLine extends StatelessWidget {
-  final JobModel job;
-
-  const _JobIdLine({required this.job});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        children: [
-          const TextSpan(text: 'Job Id: ', style: _fieldLabelStyle),
-          TextSpan(
-            text: jobDisplayId(job),
-            style: const TextStyle(
-                fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// A single, uniformly-styled "Label: Value" record line — the value is
 /// either plain text or, when [isLink] is set, a tappable "Click Here"
@@ -366,7 +365,7 @@ class _JobHeaderContent extends ConsumerWidget {
               if (job.startDate != null)
                 Expanded(
                   child: BlinkingStartDateBadge(
-                    label: 'Start: ${formatDate(DateTime.parse(job.startDate!))}',
+                    label: 'Start: ${formatStartDate(DateTime.parse(job.startDate!))}',
                   ),
                 ),
             ],
@@ -380,11 +379,35 @@ class _JobHeaderContent extends ConsumerWidget {
           children: [
             IconField(icon: Icons.access_time, text: DutyType.displayNames[job.dutyType] ?? job.dutyType),
             // Only ever set on a NurseNow individual's own posting — null
-            // for an admin-posted job, so this tag doesn't show there.
+            // for an admin-posted job, so this tag doesn't show there. The
+            // info icon opens the exact same DutyRequirementsDialog as the
+            // "Patient Provides" field further down (same dutyType-keyed
+            // content) — just a second, more discoverable entry point
+            // right next to the duration text itself.
             if (job.careDuration != null)
-              IconField(
-                icon: Icons.date_range,
-                text: CareDuration.displayNames[job.careDuration!] ?? job.careDuration!,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconField(
+                    icon: Icons.date_range,
+                    text: CareDuration.displayNames[job.careDuration!] ?? job.careDuration!,
+                  ),
+                  const SizedBox(width: 2),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(AppSpacing.sm),
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => DutyRequirementsDialog(
+                        dutyType: job.dutyType,
+                        repository: ref.read(dutyRequirementsRepositoryProvider),
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Icon(Icons.info_outline, size: 16, color: AppColors.primaryDark),
+                    ),
+                  ),
+                ],
               ),
             IconField(
               icon: Icons.location_on,
@@ -395,60 +418,32 @@ class _JobHeaderContent extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _JobIdLine(job: job)),
-            if (job.careReceiver != null) ...[
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _FieldLine(
-                  label: 'Type Of Care',
-                  value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ??
-                      deriveCareTier(job.careReceiver!),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (job.careReceiver != null) ...[
-              Expanded(
-                child: _FieldLine(
-                  label: 'Scope Of Work',
-                  value: 'Click Here',
-                  isLink: true,
-                  onTap: () => showDialog(
-                    context: context,
-                    builder: (_) => ScopeOfWorkDialog(
-                      tier: deriveCareTier(job.careReceiver!),
-                      repository: ref.read(scopeOfWorkRepositoryProvider),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-            ],
-            Expanded(
-              child: _FieldLine(
-                label: 'Patient Provides',
-                value: 'Click Here',
-                isLink: true,
-                onTap: () => showDialog(
-                  context: context,
-                  builder: (_) => DutyRequirementsDialog(
-                    dutyType: job.dutyType,
-                    repository: ref.read(dutyRequirementsRepositoryProvider),
-                  ),
-                ),
+        if (job.careReceiver != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          // Clickable too, not just the "Scope Of Work" row further down —
+          // same dialog, same deriveCareTier() call (re-evaluated fresh
+          // every build from the job's own live careReceiver data, not
+          // cached), so if the tier this job derives to ever changes, both
+          // this value and the Scope Of Work popup it opens change
+          // together automatically.
+          _FieldLine(
+            label: 'Type Of Care',
+            value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ?? deriveCareTier(job.careReceiver!),
+            isLink: true,
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => ScopeOfWorkDialog(
+                tier: deriveCareTier(job.careReceiver!),
+                repository: ref.read(scopeOfWorkRepositoryProvider),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+        // The standalone "Scope Of Work" / "Patient Provides" Click Here
+        // row that used to live here is gone — both are now reachable from
+        // elsewhere on this same card: Scope Of Work via tapping the Type
+        // Of Care value itself (see above), Patient Provides via the info
+        // icon next to the Care Duration tag (see the Wrap above).
         const SizedBox(height: 2),
         Text(
           'Posted: ${formatDate(DateTime.parse(job.postedAt))}',
@@ -490,6 +485,16 @@ class JobFullDetailScreen extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 const SectionLabel('About Patient'),
                 const SizedBox(height: AppSpacing.xs),
+                // Older rows predate this field and have it null — shown
+                // only once set, same convention as every other optional
+                // "Other ..." free-text line on this card.
+                if (job.careReceiver!.patientName != null && job.careReceiver!.patientName!.isNotEmpty) ...[
+                  Text(
+                    job.careReceiver!.patientName!,
+                    style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                ],
                 Wrap(
                   children: [
                     Tag('${job.careReceiver!.age} yrs'),
@@ -827,7 +832,7 @@ class _BlinkingStartDateBadgeState extends State<BlinkingStartDateBadge>
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: AppTypography.title,
+                  fontSize: AppTypography.title - 2,
                   fontWeight: FontWeight.bold,
                   color: AppColors.error,
                 ),
