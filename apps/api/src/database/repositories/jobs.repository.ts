@@ -482,6 +482,42 @@ export class JobsRepository {
     return result.rows;
   }
 
+  /** Every job this caregiver has EVER had an application on, regardless of
+   *  the job's current status — unlike listActiveForCaregiver (status =
+   *  'active' only) and listAssignedForCaregiver (application status IN
+   *  accepted/completed only), this has no filter on either, so a
+   *  rejected/withdrawn application stays visible here even after the job
+   *  itself closes (e.g. another caregiver got accepted, or admin closed
+   *  it) — the only gap the other two queries leave: without this, that
+   *  history would simply vanish the moment the job closed, with no way
+   *  to ever see it again. Same my_application shape as every other query
+   *  here; no new fields. */
+  async listHistoryForCaregiver(profileId: string): Promise<JobAssignedRecord[]> {
+    const result = await this.db.query<JobAssignedRecord>(
+      `SELECT j.*, to_jsonb(cr) AS care_receiver,
+         jsonb_build_object(
+           'status', ja.status,
+           'applied_at', ja.applied_at,
+           'accepted_at', ja.accepted_at,
+           'rejected_at', ja.rejected_at,
+           'completed_at', ja.completed_at,
+           'reapplied_at', ja.reapplied_at,
+           'decided_by_admin', ja.decided_by IS NOT NULL,
+           'decline_reason', ja.decline_reason,
+           'close_reason', ja.close_reason
+         ) AS my_application,
+         jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
+       FROM job_applications ja
+       JOIN jobs j ON j.id = ja.job_id
+       JOIN care_receivers cr ON cr.id = j.care_receiver_id
+       JOIN users u ON u.id = j.posted_by
+       WHERE ja.profile_id = $1
+       ORDER BY ja.updated_at DESC`,
+      [profileId],
+    );
+    return result.rows;
+  }
+
   async update(id: string, input: UpdateJobInput, client?: PoolClient): Promise<JobRecord> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<JobRecord>(

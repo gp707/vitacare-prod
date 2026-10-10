@@ -43,6 +43,21 @@ class JobsRepository {
     }
   }
 
+  /// Every application this caregiver has ever made, regardless of the
+  /// job's current status — unlike listActiveJobs (active jobs only) and
+  /// getAssignedJobs (accepted/completed only), this is the only call that
+  /// still returns a rejected/withdrawn application once the underlying
+  /// job itself has closed. Used by the Past tab on MyJobs.
+  Future<List<JobModel>> getJobHistory() async {
+    try {
+      final res = await _dio.get(ApiRoutes.caregiverJobsHistory);
+      final items = res.data['data'] as List;
+      return items.map((item) => JobModel.fromJson(item as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Caregiver self-service "I finished this job" — the only way out of
   /// `assigned` now that they may hold several accepted jobs at once.
   /// [closeReason] defaults server-side to CaregiverCloseReason.noReason

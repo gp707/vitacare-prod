@@ -219,4 +219,33 @@ export class OrganisationRequirementApplicationsRepository {
     );
     return result.rows;
   }
+
+  /** Mirrors JobsRepository.listHistoryForCaregiver — every application
+   *  this caregiver has ever made on an organisation requirement,
+   *  regardless of its current status, so a rejected/withdrawn
+   *  application doesn't vanish once the requirement itself closes. */
+  async findHistoryByProfileId(profileId: string): Promise<OrganisationRequirementAssignedRecord[]> {
+    const result = await this.db.query<OrganisationRequirementAssignedRecord>(
+      `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area, u.phone AS organisation_phone,
+         jsonb_build_object(
+           'status', ora.status,
+           'applied_at', ora.applied_at,
+           'accepted_at', ora.accepted_at,
+           'rejected_at', ora.rejected_at,
+           'completed_at', ora.completed_at,
+           'reapplied_at', ora.reapplied_at,
+           'decided_by_admin', ora.decided_by IS NOT NULL,
+           'decline_reason', ora.decline_reason,
+           'close_reason', ora.close_reason
+         ) AS my_application
+       FROM organisation_requirement_applications ora
+       JOIN organisation_requirements r ON r.id = ora.requirement_id
+       JOIN organisation_profiles op ON op.user_id = r.posted_by
+       JOIN users u ON u.id = r.posted_by
+       WHERE ora.profile_id = $1
+       ORDER BY ora.updated_at DESC`,
+      [profileId],
+    );
+    return result.rows;
+  }
 }

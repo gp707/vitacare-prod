@@ -32,6 +32,13 @@ export class CaregiverJobsController {
     return this.jobsService.listMyAssignedJobs(user.sub);
   }
 
+  // Full application history, regardless of the job's current status —
+  // see JobsService.listMyJobHistory's own doc comment.
+  @Get('history')
+  getHistory(@CurrentUser() user: JwtPayload) {
+    return this.jobsService.listMyJobHistory(user.sub);
+  }
+
   @Post(':id/apply')
   @HttpCode(HttpStatus.OK)
   apply(

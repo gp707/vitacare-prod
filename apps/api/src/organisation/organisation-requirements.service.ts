@@ -373,6 +373,15 @@ export class OrganisationRequirementsService {
     return this.applicationsRepo.findAssignedByProfileId(profile.id);
   }
 
+  /** Mirrors JobsService.listMyJobHistory — every application this
+   *  caregiver has ever made on an organisation requirement, regardless
+   *  of its current status. */
+  async listMyRequirementHistory(userId: string) {
+    const profile = await this.caregiverProfilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('PROFILE_019');
+    return this.applicationsRepo.findHistoryByProfileId(profile.id);
+  }
+
   async applyToRequirement(userId: string, requirementId: string, dto: ApplyJobDto, ipAddress: string | null) {
     const profile = await this.caregiverProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');

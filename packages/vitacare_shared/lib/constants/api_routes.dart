@@ -75,6 +75,7 @@ class ApiRoutes {
   static const caregiverFcmToken = '/caregiver/fcm-token';
   static const caregiverJobs = '/caregiver/jobs';
   static const caregiverJobsAssigned = '/caregiver/jobs/assigned';
+  static const caregiverJobsHistory = '/caregiver/jobs/history';
 
   static const appVersionCheck = '/app-versions/check';
   static const appMaintenanceCheck = '/app-maintenance/check';

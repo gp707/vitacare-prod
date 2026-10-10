@@ -420,6 +420,16 @@ export class JobsService {
     return this.jobsRepo.listAssignedForCaregiver(profile.id);
   }
 
+  /** Every application this caregiver has ever made, regardless of the
+   *  job's current status — see JobsRepository.listHistoryForCaregiver's
+   *  own doc comment for why this exists alongside listMyAssignedJobs. */
+  async listMyJobHistory(userId: string) {
+    const profile = await this.profilesRepo.findByUserId(userId);
+    if (!profile) throw new AppException('PROFILE_019');
+
+    return this.jobsRepo.listHistoryForCaregiver(profile.id);
+  }
+
   async applyToJob(userId: string, jobId: string, dto: ApplyJobDto, ipAddress: string | null) {
     const profile = await this.profilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('PROFILE_019');

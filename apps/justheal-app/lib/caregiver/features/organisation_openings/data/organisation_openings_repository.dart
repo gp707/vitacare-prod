@@ -48,6 +48,19 @@ class OrganisationOpeningsRepository {
     }
   }
 
+  /// Mirrors JobsRepository.getJobHistory — every application this
+  /// caregiver has ever made on an organisation requirement, regardless of
+  /// its current status.
+  Future<List<OrganisationRequirementModel>> getHistory() async {
+    try {
+      final res = await _dio.get('${ApiRoutes.caregiverOrganisationRequirements}/history');
+      final items = res.data['data'] as List;
+      return items.map((item) => OrganisationRequirementModel.fromJson(item as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Caregiver self-service "I finished this requirement". [closeReason]
   /// defaults server-side to CaregiverCloseReason.noReason when omitted.
   Future<String> complete(String requirementId, {String? closeReason}) async {

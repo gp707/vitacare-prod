@@ -29,6 +29,13 @@ export class CaregiverOrganisationRequirementsController {
     return this.requirementsService.listMyAssignedRequirements(user.sub);
   }
 
+  // Full application history, regardless of the requirement's current
+  // status — see OrganisationRequirementsService.listMyRequirementHistory.
+  @Get('history')
+  getHistory(@CurrentUser() user: JwtPayload) {
+    return this.requirementsService.listMyRequirementHistory(user.sub);
+  }
+
   @Post(':id/apply')
   @HttpCode(HttpStatus.OK)
   apply(
