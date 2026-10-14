@@ -39,6 +39,17 @@ Future<void> _expandSection(WidgetTester tester, String title) async {
   await _settle(tester);
 }
 
+/// Each applicant's activity log is collapsed by default — tap every
+/// "Show Activity Log" link on screen so timeline entries become visible.
+/// Looping (rather than a single pass) handles multiple applicant tiles at
+/// once, since each tap only reveals that one tile's own entries.
+Future<void> _expandAllActivityLogs(WidgetTester tester) async {
+  while (find.text('Show Activity Log').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Show Activity Log').first);
+    await _settle(tester);
+  }
+}
+
 final _scopeOfWork = ScopeOfWorkModel(
   companionCare: ['Emotional companionship', 'Meal assistance'],
   bedsideCare: ['Diaper changing & hygiene care'],
@@ -450,9 +461,9 @@ void main() {
     // needs, so it derives to the baseline Companion Care tier.
     expect(find.text('Type Of Care: Companion Care'), findsOneWidget);
     // Visible up front — not gated behind "Show Full Details".
-    expect(find.text('Scope Of Work: Click Here'), findsOneWidget);
+    expect(find.text('What You Get'), findsOneWidget);
 
-    await tester.tap(find.text('Scope Of Work: Click Here'));
+    await tester.tap(find.text('What You Get'));
     await _settle(tester);
 
     expect(find.text('Companion Care'), findsWidgets);
@@ -468,16 +479,16 @@ void main() {
     );
 
     expect(find.textContaining('Type Of Care'), findsNothing);
-    expect(find.text('Scope Of Work: Click Here'), findsNothing);
+    expect(find.text('What You Get'), findsNothing);
   });
 
   testWidgets('shows Job Id and a Duty Requirements link on every card', (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement()]));
 
     expect(find.text('Job Id: PAT-JOB-542'), findsOneWidget);
-    expect(find.text('Duty Requirements: Click Here'), findsOneWidget);
+    expect(find.text('What You Provide'), findsOneWidget);
 
-    await tester.tap(find.text('Duty Requirements: Click Here'));
+    await tester.tap(find.text('What You Provide'));
     await _settle(tester);
 
     // "24Hrs - Live In" also appears as the card's own pre-filled "Hours
@@ -511,6 +522,44 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Reject'), findsNWidgets(2));
   });
 
+  testWidgets(
+      "each candidate's activity log is collapsed by default, expands independently on tap, and collapses again",
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {
+          'job-1': [
+            _application(id: 'app-1', fullName: 'Ramesh Kumar', appliedAt: '2026-08-01T10:00:00Z'),
+            _application(id: 'app-2', fullName: 'Sita Devi', appliedAt: '2026-08-02T10:00:00Z'),
+          ],
+        },
+      ),
+    );
+
+    // Collapsed by default — a "Show Activity Log" link per candidate, no
+    // raw "Applied: <date>" text visible yet for either one.
+    expect(find.text('Show Activity Log'), findsNWidgets(2));
+    expect(find.textContaining('Applied:'), findsNothing);
+
+    // Expanding Ramesh's log reveals only his entry — Sita's stays
+    // collapsed, proving each tile tracks its own state independently.
+    await tester.tap(find.text('Show Activity Log').first);
+    await _settle(tester);
+
+    expect(find.text('Show Activity Log'), findsOneWidget);
+    expect(find.text('Hide Activity Log'), findsOneWidget);
+    expect(find.textContaining('Applied:'), findsOneWidget);
+
+    // Tapping it again collapses it back.
+    await tester.tap(find.text('Hide Activity Log'));
+    await _settle(tester);
+
+    expect(find.text('Show Activity Log'), findsNWidgets(2));
+    expect(find.textContaining('Applied:'), findsNothing);
+  });
+
   testWidgets('shows a Re-applied line for a candidate under review who previously rejected/closed this job',
       (tester) async {
     await _pump(
@@ -525,6 +574,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     final expected = DateTime.parse('2026-08-05T10:00:00Z').toLocal();
     expect(
       find.text(
@@ -547,6 +597,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Re-applied:'), findsNothing);
   });
 
@@ -863,6 +914,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Reason: Not available on weekends'), findsOneWidget);
   });
 
@@ -915,6 +967,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Accepted by Asha Patel:'), findsOneWidget);
 
@@ -947,6 +1000,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Rejected by Asha Patel:'), findsOneWidget);
     expect(find.textContaining('Reason: Not a fit'), findsOneWidget);
@@ -969,6 +1023,7 @@ void main() {
     expect(find.text('Rejected by Caregiver'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
     // Full detail: exactly when the caregiver rejected it, not just the label.
+    await _expandAllActivityLogs(tester);
     final expected = DateTime.parse('2026-08-05T14:32:00Z').toLocal();
     expect(
       find.text(
@@ -1003,6 +1058,7 @@ void main() {
     expect(find.text('Rejected'), findsOneWidget);
     expect(find.text('Rejected by Caregiver'), findsNothing);
     // The timeline names exactly who decided, not just "by Caregiver".
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Rejected by Asha Patel:'), findsOneWidget);
   });
 
@@ -1025,6 +1081,7 @@ void main() {
     expect(find.text('+919876543210'), findsOneWidget);
     // Defaults to "No Reason" in the timeline when the fixture doesn't
     // specify one — same default the backend applies.
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Reason: No Reason'), findsOneWidget);
   });
 
@@ -1046,6 +1103,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Reason: Need to Go to Hometown'), findsOneWidget);
   });
 

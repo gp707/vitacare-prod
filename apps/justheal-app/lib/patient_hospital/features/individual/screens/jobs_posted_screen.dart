@@ -1072,8 +1072,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               if (careReceiver != null) ...[
                 Expanded(
                   child: _FieldLine(
-                    label: 'Scope Of Work',
-                    value: 'Click Here',
+                    value: 'What You Get',
                     isLink: true,
                     onTap: () => showDialog(
                       context: context,
@@ -1088,8 +1087,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               ],
               Expanded(
                 child: _FieldLine(
-                  label: 'Duty Requirements',
-                  value: 'Click Here',
+                  value: 'What You Provide',
                   isLink: true,
                   onTap: () => showDialog(
                     context: context,
@@ -1105,6 +1103,33 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
           const SizedBox(height: AppSpacing.sm),
+          // Candidates surface immediately, above the editable Patient
+          // Details/Care Preferences form below — a patient/family opening
+          // this card cares most about who's applied and their status, not
+          // re-reading the requirement they themselves posted. Only shown
+          // once the requirement has actually left pending_review (an
+          // admin-unapproved posting was never visible to caregivers, so
+          // it can't have any applicants yet).
+          if (requirement.status != JobStatus.pendingReview) ...[
+            if (requirement.isCancelled)
+              const Text(
+                'This requirement was cancelled. Candidate applications are no longer available.',
+                style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontStyle: FontStyle.italic),
+              )
+            else
+              _ApplicantsSection(
+                applications: widget.applications,
+                decidingApplicationId: widget.decidingApplicationId,
+                onAccept: widget.onAccept,
+                onReject: widget.onReject,
+                onViewProfile: widget.onViewProfile,
+              ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           // Every field is always directly editable — no lock any more
           // (see "Registration IS posting" in CLAUDE.md for the Individual
           // JOB_014 relaxation). Tapping Save while a candidate has an
@@ -1120,6 +1145,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                       collapsible: true,
                       expanded: _patientDetailsExpanded,
                       onToggle: () => setState(() => _patientDetailsExpanded = !_patientDetailsExpanded),
+                      compact: true,
                       children: [
                         TextField(
                           key: _patientNameKey,
@@ -1247,7 +1273,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                         ],
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.sm),
                   ],
                   SectionBox(
                     icon: Icons.tune,
@@ -1255,6 +1281,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     collapsible: true,
                     expanded: _carePreferencesExpanded,
                     onToggle: () => setState(() => _carePreferencesExpanded = !_carePreferencesExpanded),
+                    compact: true,
                     children: [
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1574,26 +1601,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               ],
             ),
           ],
-          if (requirement.status != JobStatus.pendingReview) ...[
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1),
-            const SizedBox(height: AppSpacing.sm),
-            if (requirement.isCancelled)
-              const Text(
-                'This requirement was cancelled. Candidate applications are no longer available.',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontStyle: FontStyle.italic),
-              )
-            else
-              _ApplicantsSection(
-                applications: widget.applications,
-                decidingApplicationId: widget.decidingApplicationId,
-                onAccept: widget.onAccept,
-                onReject: widget.onReject,
-                onViewProfile: widget.onViewProfile,
-              ),
-          ],
         ],
       ),
     );
@@ -1765,13 +1772,17 @@ class _JobIdLine extends StatelessWidget {
 /// across every line of this shape, so the card reads like a clean record
 /// rather than a mix of ad hoc chip styles.
 class _FieldLine extends StatelessWidget {
-  final String label;
+  /// Null renders just [value] on its own (no "label: " prefix) — used for
+  /// the Scope Of Work/Duty Requirements links, which are now a single
+  /// clickable phrase ("What You Get"/"What You Provide") rather than a
+  /// label followed by a separate "Click Here".
+  final String? label;
   final String value;
   final bool isLink;
   final VoidCallback? onTap;
 
   const _FieldLine({
-    required this.label,
+    this.label,
     required this.value,
     this.isLink = false,
     this.onTap,
@@ -1783,7 +1794,7 @@ class _FieldLine extends StatelessWidget {
     final text = Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: '$label: ', style: _fieldLabelStyle),
+          if (label != null) TextSpan(text: '$label: ', style: _fieldLabelStyle),
           TextSpan(text: value, style: baseValueStyle),
         ],
       ),
@@ -2116,24 +2127,12 @@ class _ApplicantTimeline extends StatefulWidget {
 }
 
 class _ApplicantTimelineState extends State<_ApplicantTimeline> {
-  // Same fixed per-row heights as caregiver-app's own ApplicationTimeline
-  // (job_detail_card.dart) — both parties see the same "4 rows by default,
-  // scroll for the rest" treatment.
   static const _fontSize = AppTypography.small;
-  static const _rowHeight = 18.0;
-  static const _reasonRowHeight = 32.0; // a "Rejected + Reason" row wraps to two lines
-  // Strictly less than 5 plain rows and strictly more than 4, so a 5th
-  // entry always genuinely overflows and the scrollbar is never shown
-  // without something real to scroll to.
-  static const _maxHeight = 78.0;
 
-  final _controller = ScrollController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  // Collapsed by default — each applicant tile's log is independent state,
+  // one instance of this widget per candidate, so expanding one never
+  // affects any other candidate's own tile.
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -2192,32 +2191,43 @@ class _ApplicantTimelineState extends State<_ApplicantTimeline> {
     // ApplicationTimeline.
     entries.sort((a, b) => b.key.compareTo(a.key));
 
-    final totalHeight = entries.fold<double>(
-      0,
-      (sum, entry) => sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
-    );
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: _maxHeight),
-      child: Scrollbar(
-        controller: _controller,
-        thumbVisibility: totalHeight > _maxHeight,
-        child: ListView(
-          controller: _controller,
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            for (final entry in entries)
-              SizedBox(
-                height: entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
-                child: Text(
-                  entry.value,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _expanded ? 'Hide Activity Log' : 'Show Activity Log',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: _fontSize,
+                  decoration: TextDecoration.underline,
                 ),
               ),
-          ],
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
         ),
-      ),
+        if (_expanded) ...[
+          const SizedBox(height: 2),
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                entry.value,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

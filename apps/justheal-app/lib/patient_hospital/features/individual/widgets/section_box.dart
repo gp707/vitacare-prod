@@ -36,6 +36,13 @@ class SectionBox extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onToggle;
 
+  /// Tighter padding/heading size for a context where several of these
+  /// boxes stack on one card and reading room matters more than the
+  /// heading's visual weight (currently just JobsPostedScreen's own
+  /// Patient Details/Care Preferences cards) — the Post/Edit Requirement
+  /// forms on RegistrationScreen are unaffected (defaults to false there).
+  final bool compact;
+
   const SectionBox({
     super.key,
     required this.icon,
@@ -44,6 +51,7 @@ class SectionBox extends StatelessWidget {
     this.collapsible = false,
     this.expanded = true,
     this.onToggle,
+    this.compact = false,
   });
 
   @override
@@ -51,7 +59,7 @@ class SectionBox extends StatelessWidget {
     final showChildren = !collapsible || expanded;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.success.withValues(alpha: 0.06),
         border: Border.all(color: AppColors.error, width: 2.5),
@@ -64,12 +72,14 @@ class SectionBox extends StatelessWidget {
             onTap: collapsible ? onToggle : null,
             child: Row(
               children: [
-                Icon(icon, size: 20, color: AppColors.primaryDark),
+                Icon(icon, size: compact ? 16 : 20, color: AppColors.primaryDark),
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(title,
-                      style: const TextStyle(
-                          fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success)),
+                      style: TextStyle(
+                          fontSize: compact ? AppTypography.subtitle : AppTypography.title,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success)),
                 ),
                 if (collapsible) ...[
                   const Spacer(),
@@ -79,7 +89,7 @@ class SectionBox extends StatelessWidget {
             ),
           ),
           if (showChildren) ...[
-            const SizedBox(height: AppSpacing.md),
+            SizedBox(height: compact ? AppSpacing.xs : AppSpacing.md),
             ...children,
           ],
         ],
