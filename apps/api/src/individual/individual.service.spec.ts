@@ -16,6 +16,7 @@ describe('IndividualService', () => {
   let fcmService: any;
 
   const careReceiverDto = {
+    patient_name: 'Lakshmi Rao',
     age: 70,
     gender: 'female',
     weight_kg: 55,
@@ -152,6 +153,18 @@ describe('IndividualService', () => {
       );
       expect(result.id).toBe('job-1');
     });
+
+    it("syncs the account's own profile name (users.full_name) to the patient's name entered on this posting", async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      jobsRepo.findLiveByPostedBy.mockResolvedValue(null);
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.create.mockResolvedValue({ id: 'job-1', duty_type: 'live_in', city: 'bangalore', status: 'pending_review' });
+
+      await service.createRequirement('user-1', dto, null);
+
+      expect(usersRepo.updateFullName).toHaveBeenCalledWith('user-1', 'Lakshmi Rao', client);
+    });
   });
 
   describe('editRequirement', () => {
@@ -255,6 +268,35 @@ describe('IndividualService', () => {
           afterValue: expect.objectContaining({ duty_type: 'day_duty', salary_amount: '1500' }),
         }),
       );
+    });
+
+    it("syncs the account's own profile name (users.full_name) whenever the patient's name is edited here too", async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'pending_review',
+        duty_type: 'live_in',
+        city: 'bangalore',
+        care_receiver_id: 'cr-1',
+        frequency_of_care: 'monthly',
+        salary_amount: '2000',
+        languages: ['hindi'],
+      });
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        status: 'pending_review',
+        frequency_of_care: 'daily',
+        salary_amount: '1500',
+        languages: ['hindi', 'english'],
+      });
+
+      await service.editRequirement('user-1', 'job-1', editDto, null);
+
+      expect(usersRepo.updateFullName).toHaveBeenCalledWith('user-1', 'Lakshmi Rao', client);
     });
 
     it('logs every changed field individually in beforeValue/afterValue, including salary_amount — not a generic duty_type/city/status summary',

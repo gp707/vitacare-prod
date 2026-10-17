@@ -462,12 +462,12 @@ class _JobCard extends StatelessWidget {
           else if (notInterestedMode)
             SizedBox(
               width: double.infinity,
-              child: _ApplyButton(onPressed: onApply, label: 'View and apply'),
+              child: _ApplyButton(onPressed: onApply, label: 'Apply'),
             )
           else
             Row(
               children: [
-                Expanded(child: _ApplyButton(onPressed: onApply, label: 'View and apply')),
+                Expanded(child: _ApplyButton(onPressed: onApply, label: 'Apply')),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: _NotInterestedButton(onPressed: onNotInterested)),
               ],
@@ -628,7 +628,7 @@ class _RequirementCard extends StatelessWidget {
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
           else
-            SizedBox(width: double.infinity, child: _ApplyButton(onPressed: onApply, label: 'View and apply')),
+            SizedBox(width: double.infinity, child: _ApplyButton(onPressed: onApply, label: 'Apply')),
         ],
       ),
     );

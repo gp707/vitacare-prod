@@ -186,7 +186,18 @@ location) that didn't fit the Individual/admin jobs-table model.
   contact card shown to an accepted caregiver, audit logs, etc.) still has something identifiable
   to show rather than a blank. The individual's own Profile screen already has a self-edit "Full
   Name" field (`updateName`, pre-existing, unaffected by this change) — an individual can still set
-  a real name anytime after registering, it's just no longer required up front.
+  a real name anytime after registering, it's just no longer required up front. **That phone-number
+  default is superseded the moment the account posts (or edits) its one requirement**: since Care
+  Receiver's own `patient_name` is mandatory (see "Patient's Name" below) and the Individual account
+  IS the patient/family in the common case, `IndividualService.createRequirement`/`editRequirement`
+  both sync `users.full_name` to the submitted `care_receiver.patient_name` in the same transaction
+  as the care-receiver write — so the account's profile name (and every display spot that reads it:
+  admin-web's Patients/Family list, the job-poster contact card, audit logs) shows the real patient
+  name, not the bare phone number, as soon as the patient's name is known. This resyncs on every
+  edit too, not just at creation — if the patient later corrects the name on the card, the profile
+  name follows it. A deliberate, separate name set via the Profile screen's own self-edit field gets
+  overwritten the next time the requirement is saved; this was a conscious choice (the two names are
+  kept in lockstep, not independently tracked) rather than an oversight.
 - **Registration IS posting, for Individual accounts.** The old standalone "Post a Requirement"
   screen (`PostRequirementScreen`) has been deleted entirely — every field it used to collect
   (About Patient / Care Preferences / the Salary guidance bar / the derived-tier line) is now

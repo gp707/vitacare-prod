@@ -185,12 +185,10 @@ class IconField extends StatelessWidget {
   }
 }
 
-// The label portion (before the colon) of every field line below — "Job
-// Id", "Type Of Care", "Scope Of Work", "Patient Provides" — is bold black,
-// distinct from the dark green value that follows it. Matches nursenow-app's
-// own job card field lines.
-const _fieldLabelStyle = TextStyle(
-    fontSize: AppTypography.body, color: AppColors.textPrimary, fontWeight: FontWeight.bold);
+// _fieldValueStyle/_fieldLinkStyle style _FieldLine's own plain/clickable
+// value text (e.g. "What You Provide"/"What You Get") — bold dark green,
+// underlined when clickable. Matches nursenow-app's own job card field
+// lines.
 const _fieldValueStyle = TextStyle(
     fontSize: AppTypography.body, color: AppColors.success, fontWeight: FontWeight.bold);
 const _fieldLinkStyle = TextStyle(
@@ -199,24 +197,21 @@ const _fieldLinkStyle = TextStyle(
     fontWeight: FontWeight.w700,
     decoration: TextDecoration.underline);
 
-/// A single, uniformly-styled "Label: Value" record line — the value is
-/// either plain text or, when [isLink] is set, a tappable "Click Here"
-/// styled like a link, opening whatever [onTap] shows (the derived Scope
-/// of Work or duty-requirements popup).
+/// A single clickable or plain phrase — [isLink] styles it as a tappable
+/// link (opening whatever [onTap] shows, e.g. the Scope Of Work or Duty
+/// Requirements popup).
 class _FieldLine extends StatelessWidget {
-  final String label;
   final String value;
   final bool isLink;
   final VoidCallback? onTap;
 
-  const _FieldLine({required this.label, required this.value, this.isLink = false, this.onTap});
+  const _FieldLine({required this.value, this.isLink = false, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final text = Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: '$label: ', style: _fieldLabelStyle),
           TextSpan(text: value, style: isLink ? _fieldLinkStyle : _fieldValueStyle),
         ],
       ),
@@ -267,7 +262,7 @@ class JobDetailCard extends ConsumerWidget {
                 child: Text(
                   'View Full Details about Patient Requirements',
                   style: TextStyle(
-                    fontSize: AppTypography.small,
+                    fontSize: AppTypography.body,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primary,
                   ),
@@ -418,35 +413,56 @@ class _JobHeaderContent extends ConsumerWidget {
             ),
           ],
         ),
-        if (job.careReceiver != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          // Clickable too, not just the "Scope Of Work" row further down —
-          // same dialog, same deriveCareTier() call (re-evaluated fresh
-          // every build from the job's own live careReceiver data, not
-          // cached), so if the tier this job derives to ever changes, both
-          // this value and the Scope Of Work popup it opens change
-          // together automatically.
-          _FieldLine(
-            label: 'Type Of Care',
-            value: CareTier.displayNames[deriveCareTier(job.careReceiver!)] ?? deriveCareTier(job.careReceiver!),
-            isLink: true,
-            onTap: () => showDialog(
-              context: context,
-              builder: (_) => ScopeOfWorkDialog(
-                tier: deriveCareTier(job.careReceiver!),
-                repository: ref.read(scopeOfWorkRepositoryProvider),
+        const SizedBox(height: AppSpacing.sm),
+        // Two single-phrase hyperlinks side by side, from the caregiver's
+        // own perspective: "What You Provide" opens Scope Of Work (the
+        // caregiving tasks this tier involves — re-derived fresh every
+        // build from the job's own live careReceiver data, not cached, so
+        // the popup always matches whatever tier this job currently
+        // derives to), "What You Get" opens Duty Requirements (what the
+        // patient/family must arrange for the nurse under this job's own
+        // duty type — same dialog the info icon next to the Care Duration
+        // tag above also opens, just a second, more discoverable entry
+        // point for it). Scope Of Work only applies once there's a
+        // careReceiver to derive a tier from; Duty Requirements always
+        // applies, since every job has a duty_type.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (job.careReceiver != null) ...[
+              Expanded(
+                child: _FieldLine(
+                  value: 'What You Provide',
+                  isLink: true,
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => ScopeOfWorkDialog(
+                      tier: deriveCareTier(job.careReceiver!),
+                      repository: ref.read(scopeOfWorkRepositoryProvider),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+            ],
+            Expanded(
+              child: _FieldLine(
+                value: 'What You Get',
+                isLink: true,
+                onTap: () => showDialog(
+                  context: context,
+                  builder: (_) => DutyRequirementsDialog(
+                    dutyType: job.dutyType,
+                    repository: ref.read(dutyRequirementsRepositoryProvider),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
-        // The standalone "Scope Of Work" / "Patient Provides" Click Here
-        // row that used to live here is gone — both are now reachable from
-        // elsewhere on this same card: Scope Of Work via tapping the Type
-        // Of Care value itself (see above), Patient Provides via the info
-        // icon next to the Care Duration tag (see the Wrap above).
+          ],
+        ),
         const SizedBox(height: 2),
         Text(
-          'Posted: ${formatDate(DateTime.parse(job.postedAt))}',
+          'Posted: ${formatDate(DateTime.parse(job.postedAt))} · ${jobDisplayId(job)}',
           style: const TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
         ),
       ],

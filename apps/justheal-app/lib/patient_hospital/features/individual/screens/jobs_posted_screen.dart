@@ -2044,19 +2044,20 @@ class _ApplicantTile extends StatelessWidget {
           // up again and reconsider.
           Text(application.phone,
               style: const TextStyle(color: AppColors.textSecondary)),
-          const SizedBox(height: 2),
           _ApplicantTimeline(application),
-          const SizedBox(height: AppSpacing.xs),
           if (isDeciding)
-            const SizedBox(
-                height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+            const Padding(
+              padding: EdgeInsets.only(top: AppSpacing.xs),
+              child: SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
+            )
           else
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: onViewProfile,
-                  icon: const Icon(Icons.person_outline, size: 16),
+                  style: _compactButtonStyle,
+                  icon: const Icon(Icons.person_outline, size: 14),
                   label: const Text('View Profile'),
                 ),
                 // Expanded + Align(centerRight), not a Spacer()+Flexible
@@ -2071,19 +2072,25 @@ class _ApplicantTile extends StatelessWidget {
                 // it. Align also gives the Wrap inside a real bounded
                 // width, so it still drops Accept/Reject to their own
                 // second line rather than overflow if the tile is too
-                // narrow to fit everything on one line.
+                // narrow to fit everything on one line — but Accept and
+                // Reject are deliberately the same Wrap "run" (same
+                // spacing, no forced break between them), so the common
+                // case keeps them sitting directly next to each other on
+                // one compact line rather than each button getting its own
+                // row.
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Wrap(
                       alignment: WrapAlignment.end,
-                      spacing: AppSpacing.sm,
+                      spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
                         if (canAccept)
                           TextButton.icon(
                             onPressed: onAccept,
-                            icon: const Icon(Icons.check, size: 16, color: AppColors.success),
+                            style: _compactButtonStyle,
+                            icon: const Icon(Icons.check, size: 14, color: AppColors.success),
                             label: Text(
                               (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
                               softWrap: false,
@@ -2094,7 +2101,8 @@ class _ApplicantTile extends StatelessWidget {
                         if (canReject)
                           TextButton.icon(
                             onPressed: onReject,
-                            icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                            style: _compactButtonStyle,
+                            icon: const Icon(Icons.close, size: 14, color: AppColors.error),
                             label: const Text('Reject', style: TextStyle(color: AppColors.error)),
                           ),
                       ],
@@ -2108,6 +2116,20 @@ class _ApplicantTile extends StatelessWidget {
     );
   }
 }
+
+/// Shared compact styling for View Profile/Accept/Reject — the default
+/// Material button padding/minimum tap target made this row (and the
+/// overall applicant tile) taller than it needed to be, especially on a
+/// freshly-applied candidate where both Accept and Reject are shown.
+/// Shrinking padding/tap target/visual density here is what lets Accept
+/// and Reject actually sit right next to each other on one line instead
+/// of wrapping to a second row in the common case.
+final _compactButtonStyle = ButtonStyle(
+  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0)),
+  minimumSize: WidgetStateProperty.all(Size.zero),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  visualDensity: VisualDensity.compact,
+);
 
 /// The candidate's full action history on this application — every
 /// transition with who did it and exactly when, newest first (the current

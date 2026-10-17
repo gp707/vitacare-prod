@@ -80,6 +80,16 @@ export class IndividualService {
         applyCareReceiverDefaults(dto.care_receiver),
         client,
       );
+      // The account's own profile name (users.full_name) otherwise defaults
+      // to the bare phone number (see AuthService.registerIndividual) —
+      // the Individual account IS the patient/family in the common case,
+      // so whatever real name they type as the patient's own name is the
+      // one worth showing everywhere the account's name is read (Patients/
+      // Family list, job-poster contact card, audit logs, etc.), not just
+      // on the care_receiver record. Unlike registration's own full_name
+      // field (now removed from the form), this value is guaranteed to
+      // exist, since patient_name is mandatory on CareReceiverDto.
+      await this.usersRepo.updateFullName(userId, dto.care_receiver.patient_name, client);
       return this.jobsRepo.create(
         {
           care_receiver_id: careReceiver.id,
@@ -152,6 +162,10 @@ export class IndividualService {
         applyCareReceiverDefaults(dto.care_receiver),
         client,
       );
+      // Keep the account's own profile name in sync with whatever the
+      // patient edits it to here too — see the matching comment in
+      // createRequirement above for why.
+      await this.usersRepo.updateFullName(userId, dto.care_receiver.patient_name, client);
       return this.jobsRepo.update(
         jobId,
         {
