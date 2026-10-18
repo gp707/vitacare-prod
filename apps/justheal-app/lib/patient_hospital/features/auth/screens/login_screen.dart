@@ -268,6 +268,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final session = ref.read(sessionProvider);
     if (session is SessionAuthenticated) {
       Navigator.of(context).pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
+    } else if (session is SessionLoadError) {
+      // Login itself already succeeded (tokens were saved) — this is
+      // loadSession's own post-auth profile fetch failing transiently.
+      // Surface it instead of silently doing nothing: tapping Log in
+      // again just re-runs loadSession, which usually recovers.
+      setState(() => _errorMessage = session.message);
+    } else {
+      setState(() => _errorMessage = 'Something went wrong. Please try again.');
     }
   }
 
@@ -284,6 +292,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final session = ref.read(caregiver_session.sessionProvider);
     if (session is caregiver_session_state.SessionAuthenticated) {
       Navigator.of(context).pushNamedAndRemoveUntil(caregiver_route.routeForStatus(session), (route) => false);
+    } else if (session is caregiver_session_state.SessionLoadError) {
+      setState(() => _errorMessage = session.message);
+    } else {
+      setState(() => _errorMessage = 'Something went wrong. Please try again.');
     }
   }
 

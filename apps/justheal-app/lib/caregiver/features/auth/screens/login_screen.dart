@@ -151,6 +151,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final session = ref.read(sessionProvider);
     if (session is SessionAuthenticated) {
       Navigator.of(context).pushNamedAndRemoveUntil(routeForStatus(session), (route) => false);
+    } else if (session is SessionLoadError) {
+      setState(() => _errorMessage = session.message);
+    } else {
+      setState(() => _errorMessage = 'Something went wrong. Please try again.');
     }
   }
 

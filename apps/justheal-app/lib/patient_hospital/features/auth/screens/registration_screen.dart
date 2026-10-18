@@ -581,6 +581,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final session = ref.read(sessionProvider);
       if (session is SessionAuthenticated) {
         Navigator.of(context).pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
+      } else if (session is SessionLoadError) {
+        // Registration/login itself already succeeded (tokens were saved)
+        // — this is loadSession's own post-auth profile fetch failing
+        // transiently. Surface it instead of silently doing nothing: the
+        // account exists and is logged in, so retrying Register just needs
+        // to re-run loadSession, which _submit does unconditionally.
+        setState(() => _errorMessage = session.message);
+      } else {
+        // SessionUnauthenticated here means loadSession's own token-
+        // invalid path ran (AUTH_004/AUTH_005) right after a registration
+        // that just issued that very token — should never happen, but
+        // show something rather than nothing if it somehow does.
+        setState(() => _errorMessage = 'Something went wrong. Please try again.');
       }
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);

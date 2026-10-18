@@ -23,7 +23,9 @@ Future<void> _pump(
       ),
     ),
   );
-  await tester.pump();
+  // Flushes past _reachableWithRetries' worst case (3 attempts, 2x 400ms
+  // gaps) so no timer is left pending when a test ends.
+  await tester.pump(const Duration(milliseconds: 900));
 }
 
 void main() {
@@ -78,8 +80,6 @@ void main() {
         return attempt > 1;
       },
     );
-    // Let the retry's internal delay elapse.
-    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byType(VitaOfflineBanner), findsNothing);
     expect(attempt, greaterThan(1));
@@ -105,7 +105,7 @@ void main() {
     reachable = true;
     controller.add([ConnectivityResult.wifi]);
     await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.byType(VitaOfflineBanner), findsNothing);
     await controller.close();
@@ -129,7 +129,7 @@ void main() {
     // adapter itself reconnected.
     controller.add([ConnectivityResult.wifi]);
     await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.byType(VitaOfflineBanner), findsOneWidget);
     await controller.close();
