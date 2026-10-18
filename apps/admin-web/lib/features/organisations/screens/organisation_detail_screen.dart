@@ -88,7 +88,7 @@ class _OrganisationDetailScreenState
     _fullNameController.text = detail.fullName;
     _phoneController.text = detail.phone;
     _organisationNameController.text = detail.organisationName;
-    _areaController.text = detail.area;
+    _areaController.text = detail.area ?? '';
     setState(() {
       _editOrganisationType = detail.organisationType;
       _editCity = detail.city;
@@ -391,7 +391,8 @@ class _OrganisationDetailScreenState
             OrganisationType.displayNames[detail.organisationType] ??
                 detail.organisationType),
         _field(Icons.location_city, 'City', City.displayNames[detail.city] ?? detail.city),
-        _field(Icons.location_on, 'Area', detail.area),
+        _field(Icons.location_on, 'Area',
+            detail.area != null && detail.area!.isNotEmpty ? detail.area! : 'Not set'),
         if (detail.blockReason != null)
           _field(Icons.report_outlined, 'Block Reason', detail.blockReason!),
       ],

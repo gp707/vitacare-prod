@@ -22,6 +22,7 @@ AdminOrganisationListItem _item({
   bool isActive = true,
   bool isJobPostingBlocked = false,
   String? blockReason,
+  String? area = 'Whitefield',
 }) {
   return AdminOrganisationListItem(
     userId: userId,
@@ -31,7 +32,7 @@ AdminOrganisationListItem _item({
     organisationName: organisationName,
     organisationType: organisationType,
     city: City.bangalore,
-    area: 'Whitefield',
+    area: area,
     isActive: isActive,
     isJobPostingBlocked: isJobPostingBlocked,
     blockReason: blockReason,
@@ -127,6 +128,44 @@ void main() {
     expect(find.text('Bangalore, Whitefield'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
     expect(find.text('ORG-500'), findsOneWidget);
+  });
+
+  testWidgets(
+      'renders an organisation with no area set (area is optional at registration) '
+      'instead of throwing and silently showing an empty list',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeAdminOrganisationsRepository([_item(area: null)]),
+    );
+
+    expect(find.text('City Rehab Center'), findsOneWidget);
+    expect(find.text('Bangalore'), findsOneWidget);
+  });
+
+  testWidgets(
+      'AdminOrganisationListItem.fromJson parses a row with a null area '
+      '(the real shape returned for an org that registered without one) '
+      'without throwing', (tester) async {
+    final json = {
+      'user_id': 'u1',
+      'org_number': 500,
+      'full_name': 'Dr. Rao',
+      'phone': '+919876543210',
+      'organisation_name': 'City Rehab Center',
+      'organisation_type': OrganisationType.hospital,
+      'city': City.bangalore,
+      'area': null,
+      'is_active': true,
+      'is_job_posting_blocked': false,
+      'block_reason': null,
+      'created_at': '2026-08-01T10:00:00Z',
+    };
+
+    final item = AdminOrganisationListItem.fromJson(json);
+
+    expect(item.area, isNull);
+    expect(item.organisationName, 'City Rehab Center');
   });
 
   testWidgets(

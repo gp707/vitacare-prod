@@ -81,6 +81,12 @@ class _OrganisationsListScreenState
     }
   }
 
+  String _locationText(AdminOrganisationListItem item) {
+    final city = City.displayNames[item.city] ?? item.city;
+    final area = item.area;
+    return (area != null && area.isNotEmpty) ? '$city, $area' : city;
+  }
+
   void _applyFilters() {
     _page = 1;
     _load();
@@ -341,8 +347,7 @@ class _OrganisationsListScreenState
                   'ID', organisationDisplayId(item.orgNumber) ?? '-'),
               VitaListCard.kv('Contact', item.fullName),
               VitaListCard.kv('Phone', item.phone),
-              VitaListCard.kv('Location',
-                  '${City.displayNames[item.city] ?? item.city}, ${item.area}'),
+              VitaListCard.kv('Location', _locationText(item)),
               VitaListCard.kv('Registered', item.createdAt.split('T').first),
             ],
             actions: [
@@ -408,7 +413,7 @@ class _OrganisationsListScreenState
                         DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
                         DataCell(Text(item.phone), onTap: () => _openDetail(item)),
                         DataCell(
-                            Text('${City.displayNames[item.city] ?? item.city}, ${item.area}'),
+                            Text(_locationText(item)),
                             onTap: () => _openDetail(item)),
                         DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
                         DataCell(Text(item.createdAt.split('T').first),

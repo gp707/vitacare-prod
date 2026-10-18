@@ -10,7 +10,13 @@ class AdminOrganisationListItem {
   final String organisationName;
   final String organisationType;
   final String city;
-  final String area;
+  // Nullable — RegisterOrganisationDto.area is optional at registration, so
+  // a real account can have a null area (see CLAUDE.md's "NurseNow" org
+  // registration section). Casting this as a non-null String here used to
+  // throw inside fromJson for exactly those accounts, which aborted the
+  // whole list's .map(...).toList() and silently left admin-web showing
+  // zero organisations rather than just the ones with no area set.
+  final String? area;
   final bool isActive;
   final bool isJobPostingBlocked;
   final String? blockReason;
@@ -27,7 +33,7 @@ class AdminOrganisationListItem {
     required this.organisationName,
     required this.organisationType,
     required this.city,
-    required this.area,
+    this.area,
     required this.isActive,
     required this.isJobPostingBlocked,
     this.blockReason,
@@ -44,7 +50,7 @@ class AdminOrganisationListItem {
         organisationName: json['organisation_name'] as String,
         organisationType: json['organisation_type'] as String,
         city: json['city'] as String,
-        area: json['area'] as String,
+        area: json['area'] as String?,
         isActive: json['is_active'] as bool,
         isJobPostingBlocked: json['is_job_posting_blocked'] as bool,
         blockReason: json['block_reason'] as String?,
