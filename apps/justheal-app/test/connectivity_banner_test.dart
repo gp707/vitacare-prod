@@ -63,6 +63,28 @@ void main() {
     expect(find.byType(VitaOfflineBanner), findsOneWidget);
   });
 
+  testWidgets(
+      'does not show the banner for a transient cold-start probe failure — retries before concluding offline',
+      (tester) async {
+    var attempt = 0;
+    await _pump(
+      tester,
+      initialConnectivity: () async => [ConnectivityResult.wifi],
+      connectivityStream: const Stream.empty(),
+      checkReachable: () async {
+        attempt++;
+        // Fails on the very first attempt (the cold-start hiccup this bug
+        // was about), succeeds from the second attempt onward.
+        return attempt > 1;
+      },
+    );
+    // Let the retry's internal delay elapse.
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(VitaOfflineBanner), findsNothing);
+    expect(attempt, greaterThan(1));
+  });
+
   testWidgets('the banner clears once a later reachability probe succeeds, triggered by the interface reconnecting',
       (tester) async {
     final controller = StreamController<List<ConnectivityResult>>();

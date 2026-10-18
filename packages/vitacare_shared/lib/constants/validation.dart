@@ -17,12 +17,12 @@ class Validation {
   // realistic paragraph of pasted text fits without silent truncation.
   static const specialSkillsMaxLength = 1000;
   static const fileMaxSizeBytes = 10 * 1024 * 1024;
-  // How long a job stays within its caregiver-facing "apply-by" urgency
-  // window (see JobModel.applyByDate/daysLeftToApply) — purely
-  // informational, never blocks applying or auto-closes the job. Also the
-  // default threshold for admin-web's "posted more than N days ago" Jobs
-  // filter, which finds jobs that have fallen out of this window and may
-  // need manual attention.
+  // Default threshold for admin-web's "posted more than N days ago" Jobs
+  // filter, which finds jobs that may need manual attention. The
+  // caregiver-facing "apply-by" urgency badge this used to also drive
+  // (JobModel.applyByDate/daysLeftToApply) was removed from the product
+  // entirely — this constant now only backs that one admin-web filter
+  // hint.
   static const applyByWindowDays = 3;
   // Display-only convenience derived from fileMaxSizeBytes — shown to the
   // user wherever a document/photo picker is offered, so the client-side

@@ -1,4 +1,3 @@
-import '../constants/validation.dart';
 import 'care_receiver_model.dart';
 
 /// The posting admin's contact info — only ever present on
@@ -215,22 +214,6 @@ class JobModel {
         applicantCount: json['applicant_count'] as int?,
         notes: json['notes'] as String?,
       );
-
-  /// The apply-by urgency window, always computed from [postedAt] (not
-  /// [createdAt] — a repost restarts this). Purely informational: it does
-  /// not block applying, it just drives the caregiver-facing urgency
-  /// message. [windowDays] is admin-configurable server-side (GET
-  /// /job-settings, previously a hardcoded 3-day constant) — callers that
-  /// have fetched the live value should pass it; the default
-  /// (Validation.applyByWindowDays) is only a fail-open fallback for when
-  /// that fetch hasn't resolved yet or failed.
-  DateTime applyByDate([int windowDays = Validation.applyByWindowDays]) =>
-      DateTime.parse(postedAt).add(Duration(days: windowDays));
-
-  /// Whole calendar days left until [applyByDate]. 0 means "last day", a
-  /// negative number means the window has passed.
-  int daysLeftToApply([int windowDays = Validation.applyByWindowDays]) =>
-      applyByDate(windowDays).difference(DateTime.now()).inDays;
 
   /// Whether the posting individual cancelled this requirement themselves
   /// — always implies [status] is 'closed', but distinct from a plain

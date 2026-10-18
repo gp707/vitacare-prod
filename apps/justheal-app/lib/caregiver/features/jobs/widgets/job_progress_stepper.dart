@@ -5,20 +5,24 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 /// requirement card. Purely a client-side visualization over existing
 /// data — no new backend status. The 4 stages map onto what already
 /// exists:
-///   0 Applied   — MyApplicationModel.status == applied
-///   1 Selected  — status == accepted, startDate still in the future
-///   2 On duty   — status == accepted, startDate has passed (today >= it)
-///   3 Completed — status == completed
+///   0 Applied     — MyApplicationModel.status == applied
+///   1 Selected    — status == accepted, startDate still in the future
+///   2 On duty     — status == accepted, startDate has passed (today >= it)
+///   3 Closed Duty — status == completed
 /// "Selected" vs "On duty" is a pure date comparison the caller makes
 /// (see jobStepperStage() below) — there is no distinct backend state for
-/// it. Never shown for a rejected/withdrawn application (see the Past tab
-/// in jobs_history_screen.dart), which has no meaningful progress to show.
+/// it. Never shown for a rejected application (see the Past tab in
+/// jobs_history_screen.dart), which has no meaningful progress to show.
 class JobProgressStepper extends StatelessWidget {
   final int currentStage;
 
   const JobProgressStepper({super.key, required this.currentStage});
 
-  static const _labels = ['Applied', 'Selected', 'On duty', 'Completed'];
+  // "Closed Duty" matches job_status_chip.dart's own label for 'completed'
+  // (and the "Close Duty" action button that gets a caregiver here) — kept
+  // consistent so a card never shows two different names for the same
+  // outcome.
+  static const _labels = ['Applied', 'Selected', 'On duty', 'Closed Duty'];
 
   @override
   Widget build(BuildContext context) {

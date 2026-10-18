@@ -27,7 +27,7 @@ class JobCardStatus {
 ///   accepted                                 -> "Selected" (see
 ///                                                jobStepperStage for the
 ///                                                Selected/On duty split)
-///   completed                                -> "Completed"
+///   completed                                -> "Closed Duty"
 ///   rejected, appliedAt == null               -> "Not interested" (the
 ///                                                caregiver declined
 ///                                                before ever applying —
@@ -37,7 +37,11 @@ class JobCardStatus {
 ///                                                leaves applied_at NULL"
 ///                                                comment)
 ///   rejected, appliedAt != null, decided by
-///     the caregiver themselves (!decidedByAdmin) -> "Withdrawn by you"
+///     the caregiver themselves (!decidedByAdmin) -> "Rejected" (was
+///     "Withdrawn by you" — renamed so the caregiver's own post-apply
+///     decline uses the same "Reject"/"Rejected" term as the pre-apply
+///     "Not interested" action's underlying Reject button on My Jobs'
+///     Applied tab)
 ///   rejected, appliedAt != null, decided by
 ///     the employer (decidedByAdmin)              -> "Not selected"
 JobCardStatus jobCardStatus({
@@ -54,7 +58,11 @@ JobCardStatus jobCardStatus({
           ? const JobCardStatus(label: 'On duty', icon: Icons.work, color: AppColors.primary)
           : const JobCardStatus(label: 'Selected', icon: Icons.check_circle, color: AppColors.success);
     case 'completed':
-      return const JobCardStatus(label: 'Completed', icon: Icons.check_circle, color: AppColors.textSecondary);
+      // "Closed Duty" matches the existing "Close Duty" action button a
+      // caregiver taps to get here (MyAssignmentScreen's Selected tab) —
+      // past tense since this describes the already-closed outcome, not
+      // the action itself.
+      return const JobCardStatus(label: 'Closed Duty', icon: Icons.check_circle, color: AppColors.textSecondary);
     case 'rejected':
       if (!hasAppliedAt) {
         return const JobCardStatus(label: 'Not interested', icon: Icons.not_interested, color: AppColors.textSecondary);
@@ -67,10 +75,10 @@ JobCardStatus jobCardStatus({
               explanation: 'They chose another caregiver, or the position was filled.',
             )
           : const JobCardStatus(
-              label: 'Withdrawn by you',
-              icon: Icons.undo,
+              label: 'Rejected',
+              icon: Icons.close,
               color: AppColors.textSecondary,
-              explanation: 'You withdrew your application.',
+              explanation: 'You rejected this application.',
             );
     default:
       return const JobCardStatus(label: '', icon: Icons.circle, color: AppColors.textSecondary);

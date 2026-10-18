@@ -93,22 +93,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     super.initState();
     // This screen (and login_screen.dart) is a real, reachable entry point
     // into the caregiver flow post-merge — the caregiver's own splash
-    // screen that used to fetch both of these (OTP mode and the
-    // apply-by-window setting) was removed entirely for being permanently
-    // unreachable (nothing navigates to the bare '/caregiver' route; see
-    // CLAUDE.md). Each entry point now fetches both independently rather
-    // than relying on a splash screen having already run first. Both calls
-    // are unauthenticated and fail open to their provider's own default
-    // (false/PIN mode, Validation.applyByWindowDays) on any error, so
-    // running them in parallel is safe.
+    // screen that used to fetch OTP mode was removed entirely for being
+    // permanently unreachable (nothing navigates to the bare '/caregiver'
+    // route; see CLAUDE.md). Each entry point now fetches it
+    // independently rather than relying on a splash screen having already
+    // run first. Unauthenticated and fails open to otpModeProvider's own
+    // default (false/PIN mode) on any error.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final results = await Future.wait([
-        ref.read(authConfigRepositoryProvider).isOtpEnabled(),
-        ref.read(jobSettingsRepositoryProvider).getApplyByWindowDays(),
-      ]);
+      final isOtpEnabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
       if (!mounted) return;
-      ref.read(otpModeProvider.notifier).state = results[0] as bool;
-      ref.read(applyByWindowDaysProvider.notifier).state = results[1] as int;
+      ref.read(otpModeProvider.notifier).state = isOtpEnabled;
     });
   }
 

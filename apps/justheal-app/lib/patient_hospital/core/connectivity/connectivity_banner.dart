@@ -114,9 +114,33 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
     if (!interfaceDown) _probeReachability();
   }
 
-  Future<void> _probeReachability() async {
+  // The very first probe after a cold app launch is exactly the scenario
+  // SessionNotifier.loadSession already retries for (its own doc comment:
+  // "the device's network/DNS stack isn't always fully ready in the first
+  // moment after the process starts... even though the exact same call
+  // succeeds a moment later"). This probe used to fire a single attempt
+  // with no retry, right at the worst possible moment (app launch) — a
+  // transient cold-start hiccup on that one attempt was enough to show a
+  // false "You're offline" banner for up to a full probeInterval, even
+  // with a genuinely fine connection. Retrying a couple of times with a
+  // short gap before concluding "actually offline" fixes the false
+  // positive without weakening real-outage detection — a true outage
+  // still fails every attempt.
+  static const _maxProbeAttempts = 3;
+
+  Future<bool> _reachableWithRetries() async {
     final check = widget.checkReachable ?? _defaultReachabilityProbe;
-    final reachable = await check();
+    for (var attempt = 1; attempt <= _maxProbeAttempts; attempt++) {
+      if (await check()) return true;
+      if (attempt < _maxProbeAttempts) {
+        await Future.delayed(const Duration(milliseconds: 400));
+      }
+    }
+    return false;
+  }
+
+  Future<void> _probeReachability() async {
+    final reachable = await _reachableWithRetries();
     if (!mounted) return;
     setState(() => _offline = _interfaceDown || !reachable);
   }

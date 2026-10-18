@@ -26,20 +26,6 @@ String formatDateTime(DateTime date) =>
     '${formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
     '${date.second.toString().padLeft(2, '0')}';
 
-/// Purely informational urgency message — never blocks applying, even once
-/// the 3-day window has passed.
-String urgencyLabel(int daysLeft) {
-  if (daysLeft <= 0) return 'Application window closed';
-  if (daysLeft == 1) return '1 day left to apply';
-  return '$daysLeft days left to apply';
-}
-
-Color urgencyColor(int daysLeft) {
-  if (daysLeft <= 0) return AppColors.error;
-  if (daysLeft == 1) return AppColors.warning;
-  return AppColors.success;
-}
-
 String capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
 class SectionLabel extends StatelessWidget {
@@ -278,8 +264,8 @@ class JobDetailCard extends ConsumerWidget {
 }
 
 /// The header content every job listing shows up front — display id,
-/// urgency, salary, start date, duty type + city, posted date — shared
-/// between the collapsed [JobDetailCard] (a preview, so a caregiver can
+/// salary, start date, duty type + city, posted date — shared between
+/// the collapsed [JobDetailCard] (a preview, so a caregiver can
 /// decide whether to open the full page) and [JobFullDetailScreen] (a
 /// self-contained full page, so it doesn't read as missing the basics
 /// once you're actually on it).
@@ -290,64 +276,41 @@ class _JobHeaderContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final applyByWindowDays = ref.watch(applyByWindowDaysProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      color: Colors.yellow,
-                      child: Text(
-                        'Job in ${jobPostedByLabel(job)}',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: AppTypography.body,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                color: Colors.yellow,
+                child: Text(
+                  'Job in ${jobPostedByLabel(job)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: AppTypography.body,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
                   ),
-                  // Only present on the browse list (GET /caregiver/jobs) —
-                  // null on the assigned/MyJobs list, where this doesn't
-                  // apply. Placed right next to the "Job in <poster>" header
-                  // — same prominence as an organisation requirement's own
-                  // "N applied" line, which sits right at the top too.
-                  if (job.applicantCount != null) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      '${job.applicantCount} applied',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: AppTypography.small,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Flexible(
-              child: Text(
-                urgencyLabel(job.daysLeftToApply(applyByWindowDays)),
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: AppTypography.small,
-                  fontWeight: FontWeight.bold,
-                  color: urgencyColor(job.daysLeftToApply(applyByWindowDays)),
                 ),
               ),
             ),
+            // Only present on the browse list (GET /caregiver/jobs) — null
+            // on the assigned/MyJobs list, where this doesn't apply.
+            // Placed right next to the "Job in <poster>" header — same
+            // prominence as an organisation requirement's own "N applied"
+            // line, which sits right at the top too.
+            if (job.applicantCount != null) ...[
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                '${job.applicantCount} applied',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+              ),
+            ],
           ],
         ),
         if (job.salaryAmount != null || job.startDate != null) ...[

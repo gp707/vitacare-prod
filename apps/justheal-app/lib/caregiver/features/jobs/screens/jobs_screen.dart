@@ -21,12 +21,14 @@ const _kCategoryOptions = <(String value, String label)>[
   (OrganisationType.agency, 'Agency Jobs'),
 ];
 
-/// "Find Jobs" — jobs/requirements the caregiver has NOT applied to yet
-/// (plus a collapsed "marked not interested" section for ones they
-/// declined). Once applied, a listing moves to the My Jobs tab (Applied
-/// sub-tab) and stops appearing here at all — this is a deliberate IA
-/// split from the single merged browse+track list this screen used to be:
-/// "where do I find new work" and "where do I track what I've already
+/// "Find Jobs" — jobs/requirements the caregiver has NOT applied to and
+/// has NOT marked not interested. Both actions remove a listing from this
+/// screen entirely: applying moves it to the My Jobs tab's Applied
+/// sub-tab, and marking not interested moves it to My Jobs' Past sub-tab
+/// (tagged "Not interested" there) — symmetric treatment, since both are
+/// "I'm done deciding on this one for now" actions. This is a deliberate
+/// IA split from the single merged browse+track list this screen used to
+/// be: "where do I find new work" and "where do I track what I've already
 /// gone for" are now two different places, matching the My Jobs/Find Jobs
 /// split in the reference design. Every status/terminology here is still
 /// exactly what CLAUDE.md documents (applied/rejected/accepted/completed,
@@ -45,9 +47,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _applyingId = {};
-  // Defaults off — matches the reference design's "Show N jobs you marked
-  // not interested" collapsed link at the bottom of the list.
-  bool _showNotInterested = false;
   String? _categoryFilter;
   String? _cityFilter;
 
@@ -159,15 +158,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Widget build(BuildContext context) {
     final merged = _mergedListings();
     final filtered = merged.where(_matchesFilters).toList();
-    // Three buckets, mutually exclusive: never applied (shown up front),
-    // not interested / rejected (collapsed), and applied/accepted/
-    // completed (not shown here at all — see My Jobs). The "applications"
-    // summary counts below are deliberately computed from the full
-    // `merged` list, not `filtered` — a caregiver's own application
-    // counts shouldn't change just because they're filtering the browse
-    // list by city/category.
+    // Only never-applied listings ever render here — applied and
+    // not-interested listings have both already moved to My Jobs (Applied
+    // and Past respectively, see the class doc comment above). The
+    // "applications" summary counts below are deliberately computed from
+    // the full `merged` list, not `filtered` — a caregiver's own
+    // application counts shouldn't change just because they're filtering
+    // the browse list by city/category.
     final neverApplied = filtered.where((l) => l.myApplicationStatus == null).toList();
-    final notInterested = filtered.where((l) => l.myApplicationStatus == JobApplicationStatus.rejected).toList();
     final waitingCount = merged.where((l) => l.myApplicationStatus == JobApplicationStatus.applied).length;
     final selectedCount = merged.where((l) => l.myApplicationStatus == JobApplicationStatus.accepted).length;
 
@@ -283,40 +281,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                                 ),
                               ),
                             for (final listing in neverApplied) ...[
-                              _buildCard(listing, notInterestedMode: false),
+                              _buildCard(listing),
                               const SizedBox(height: AppSpacing.md),
                             ],
-                          ],
-                          if (notInterested.isNotEmpty) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            InkWell(
-                              onTap: () => setState(() => _showNotInterested = !_showNotInterested),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _showNotInterested
-                                          ? 'Hide jobs you marked not interested'
-                                          : 'Show ${notInterested.length} job${notInterested.length == 1 ? '' : 's'} you marked not interested',
-                                      style: const TextStyle(
-                                          color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: AppTypography.small),
-                                    ),
-                                    Icon(
-                                      _showNotInterested ? Icons.expand_less : Icons.expand_more,
-                                      color: AppColors.primary,
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            if (_showNotInterested)
-                              for (final listing in notInterested) ...[
-                                _buildCard(listing, notInterestedMode: true),
-                                const SizedBox(height: AppSpacing.md),
-                              ],
                           ],
                         ],
                       ),
@@ -328,12 +295,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     );
   }
 
-  Widget _buildCard(_Listing listing, {required bool notInterestedMode}) {
+  Widget _buildCard(_Listing listing) {
     if (listing is _JobListing) {
       return _JobCard(
         job: listing.job,
         isApplying: _applyingId.contains(listing.job.id),
-        notInterestedMode: notInterestedMode,
         onApply: () => _applyToJob(listing.job, JobApplicationStatus.applied),
         onNotInterested: () => _notInterested(listing.job),
       );
@@ -342,7 +308,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     return _RequirementCard(
       requirement: requirement,
       isApplying: _applyingId.contains(requirement.id),
-      notInterestedMode: notInterestedMode,
       onApply: () => _applyToRequirement(requirement, JobApplicationStatus.applied),
     );
   }
@@ -431,14 +396,12 @@ class _RequirementListing extends _Listing {
 class _JobCard extends StatelessWidget {
   final JobModel job;
   final bool isApplying;
-  final bool notInterestedMode;
   final VoidCallback onApply;
   final VoidCallback onNotInterested;
 
   const _JobCard({
     required this.job,
     required this.isApplying,
-    required this.notInterestedMode,
     required this.onApply,
     required this.onNotInterested,
   });
@@ -449,7 +412,7 @@ class _JobCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: notInterestedMode ? AppColors.textSecondary : AppColors.error, width: 2.5),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -459,11 +422,6 @@ class _JobCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
-          else if (notInterestedMode)
-            SizedBox(
-              width: double.infinity,
-              child: _ApplyButton(onPressed: onApply, label: 'Apply'),
-            )
           else
             Row(
               children: [
@@ -520,13 +478,11 @@ class _NotInterestedButton extends StatelessWidget {
 class _RequirementCard extends StatelessWidget {
   final OrganisationRequirementModel requirement;
   final bool isApplying;
-  final bool notInterestedMode;
   final VoidCallback onApply;
 
   const _RequirementCard({
     required this.requirement,
     required this.isApplying,
-    required this.notInterestedMode,
     required this.onApply,
   });
 
@@ -540,7 +496,7 @@ class _RequirementCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: notInterestedMode ? AppColors.textSecondary : AppColors.error, width: 2.5),
+        border: Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'network/api_client.dart';
 import 'storage/local_storage.dart';
@@ -8,7 +7,6 @@ import 'auth_config/auth_config_repository.dart';
 import 'rate_card/rate_card_repository.dart';
 import 'scope_of_work/scope_of_work_repository.dart';
 import 'duty_requirements/duty_requirements_repository.dart';
-import 'job_settings/job_settings_repository.dart';
 import 'caregiver_messages/caregiver_messages_repository.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/state/session_notifier.dart';
@@ -67,10 +65,6 @@ final dutyRequirementsRepositoryProvider = Provider<DutyRequirementsRepository>(
   return DutyRequirementsRepository(ref.watch(apiClientProvider).dio);
 });
 
-final jobSettingsRepositoryProvider = Provider<JobSettingsRepository>((ref) {
-  return JobSettingsRepository(ref.watch(apiClientProvider).dio);
-});
-
 final caregiverMessagesRepositoryProvider = Provider<CaregiverMessagesRepository>((ref) {
   return CaregiverMessagesRepository(ref.watch(apiClientProvider).dio);
 });
@@ -81,15 +75,3 @@ final caregiverMessagesRepositoryProvider = Provider<CaregiverMessagesRepository
 /// phone+PIN. Defaults to false (PIN mode), the known-safe default this
 /// falls back to on any error.
 final otpModeProvider = StateProvider<bool>((ref) => false);
-
-/// The admin-configurable apply-by urgency window (in days) — refreshed
-/// from JobSettingsRepository.getApplyByWindowDays() both at login/
-/// registration (login_screen.dart/registration_screen.dart) and on every
-/// CaregiverBottomNav mount (the latter is what actually covers an
-/// already-authenticated caregiver, who never visits either of those two
-/// screens — see caregiver_bottom_nav.dart's own comment on why this
-/// can't rely on a single splash-time fetch post-merge). Read by
-/// JobDetailCard wherever it shows the "X days left to apply" badge.
-/// Defaults to Validation.applyByWindowDays, the known-safe fallback this
-/// falls back to on any error or before the first fetch resolves.
-final applyByWindowDaysProvider = StateProvider<int>((ref) => Validation.applyByWindowDays);

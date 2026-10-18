@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -14,7 +16,7 @@ import '../widgets/job_status_chip.dart';
 /// "My Jobs" — every job/requirement this caregiver has ever gone for,
 /// split into 3 sub-tabs matching the stage of that application: Applied
 /// (waiting on a decision), Selected (currently accepted), and Past
-/// (completed, withdrawn, or not selected). Exactly the same three
+/// (closed duty, rejected, or not selected). Exactly the same three
 /// MyApplicationModel states CLAUDE.md documents (applied/accepted/
 /// completed/rejected, decided_by_admin, applied_at) — only the layout is
 /// new, split across tabs instead of one long mixed list; see
@@ -54,18 +56,40 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   bool _loading = true;
   String? _errorMessage;
   final Set<String> _busyId = {};
-  // Mirrors the reference design's Past-tab filter chips exactly.
+  // Needed to decide whether a Past-tab row is still "Reapply"-eligible
+  // (see _canReapply) — gender is locked from self-edit, so one fetch at
+  // launch is enough; no need to re-fetch on every pull-to-refresh.
+  String? _myGender;
+  // The reference design's own 4 Past-tab filter chips (All/Closed Duty/
+  // Not selected/Rejected — "Rejected" was originally "Withdrawn", renamed
+  // so the caregiver-initiated post-apply decline uses the same term as
+  // the pre-apply one), plus a 5th ("Not interested") added once plain
+  // pre-apply declines moved from Find Jobs' own collapsed section into
+  // this tab — the explicit way to list just those.
   String _pastFilter = _kPastAll;
 
   static const _kPastAll = 'all';
   static const _kPastCompleted = 'completed';
   static const _kPastNotSelected = 'not_selected';
-  static const _kPastWithdrawn = 'withdrawn';
+  static const _kPastRejected = 'rejected_by_you';
+  static const _kPastNotInterested = 'not_interested';
 
   @override
   void initState() {
     super.initState();
     _load();
+    unawaited(_loadMyGender());
+  }
+
+  Future<void> _loadMyGender() async {
+    try {
+      final profile = await ref.read(profileRepositoryProvider).getProfile();
+      if (mounted) setState(() => _myGender = profile.gender);
+    } on ApiException {
+      // Fails open — see _canReapply, which just skips the Reapply action
+      // when gender isn't known yet rather than blocking the whole Past
+      // tab on this one extra, non-essential fetch.
+    }
   }
 
   Future<void> _load() async {
@@ -97,13 +121,16 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     }
   }
 
-  /// Withdrawing a still-pending application — same backend call as
+  /// Rejecting a still-pending application — same backend call as
   /// declining a job before ever applying (POST .../apply with
   /// status=rejected), the only difference being this one already has an
   /// appliedAt, which is exactly the signal job_status_chip.dart uses to
-  /// label it "Withdrawn by you" rather than "Not interested".
-  Future<void> _withdrawJob(JobModel job) async {
-    if (!await _confirmWithdraw(jobDisplayId(job))) return;
+  /// label it "Rejected" rather than "Not interested". "Withdraw" is
+  /// deliberately not used anywhere in this flow — both the pre-apply and
+  /// post-apply self-declines are called "Reject"/"Rejected" now, so the
+  /// Past tab's tag and filter chip name match exactly.
+  Future<void> _rejectJob(JobModel job) async {
+    if (!await _confirmReject(jobDisplayId(job))) return;
     setState(() => _busyId.add(job.id));
     try {
       await ref.read(jobsRepositoryProvider).applyToJob(job.id, JobApplicationStatus.rejected);
@@ -115,8 +142,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     }
   }
 
-  Future<void> _withdrawRequirement(OrganisationRequirementModel requirement) async {
-    if (!await _confirmWithdraw(organisationJobDisplayId(requirement))) return;
+  Future<void> _rejectRequirement(OrganisationRequirementModel requirement) async {
+    if (!await _confirmReject(organisationJobDisplayId(requirement))) return;
     setState(() => _busyId.add(requirement.id));
     try {
       await ref.read(organisationOpeningsRepositoryProvider).apply(requirement.id, JobApplicationStatus.rejected);
@@ -128,19 +155,64 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     }
   }
 
-  Future<bool> _confirmWithdraw(String displayId) async {
+  Future<bool> _confirmReject(String displayId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Withdraw this application?'),
-        content: Text('You are withdrawing your application to $displayId. You can apply again later if it\'s still open.'),
+        title: const Text('Reject this application?'),
+        content: Text('You are rejecting your application to $displayId. You can apply again later if it\'s still open.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Withdraw')),
+          ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Reject')),
         ],
       ),
     );
     return confirmed == true;
+  }
+
+  /// Any Past-tab row — rejected, not interested, not selected, or even a
+  /// closed-duty (completed) one, since completing a job reopens it to
+  /// `active` server-side (see CLAUDE.md's "Closing an accepted job") and
+  /// the caregiver may well want to take the same, now-reopened job again
+  /// — is offered a "Reapply" action whenever the underlying job/
+  /// requirement is both still open and still something this caregiver
+  /// would actually see on Find Jobs today: status == active (not closed/
+  /// cancelled), and its own preferred_gender either unset or matching
+  /// this caregiver's gender — the same eligibility rule
+  /// JobsRepository.listActiveForCaregiver/OrganisationRequirementsRepository's
+  /// own equivalent already enforce at browse time (see CLAUDE.md). The
+  /// history record itself carries the job's/requirement's CURRENT
+  /// status/preferredGender (not a frozen snapshot), so no second fetch is
+  /// needed beyond the caregiver's own gender (_loadMyGender).
+  bool _canReapplyToJob(JobModel job) =>
+      job.status == JobStatus.active && (job.preferredGender == null || job.preferredGender == _myGender);
+
+  bool _canReapplyToRequirement(OrganisationRequirementModel requirement) =>
+      requirement.status == JobStatus.active &&
+      (requirement.preferredGender == null || requirement.preferredGender == _myGender);
+
+  Future<void> _reapplyToJob(JobModel job) async {
+    setState(() => _busyId.add(job.id));
+    try {
+      await ref.read(jobsRepositoryProvider).applyToJob(job.id, JobApplicationStatus.applied);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) showVitaErrorBanner(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyId.remove(job.id));
+    }
+  }
+
+  Future<void> _reapplyToRequirement(OrganisationRequirementModel requirement) async {
+    setState(() => _busyId.add(requirement.id));
+    try {
+      await ref.read(organisationOpeningsRepositoryProvider).apply(requirement.id, JobApplicationStatus.applied);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) showVitaErrorBanner(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyId.remove(requirement.id));
+    }
   }
 
   /// Closing an accepted job is the only exit from `assigned` for it — same
@@ -267,17 +339,29 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   List<OrganisationRequirementModel> get _selectedRequirements =>
       _assignedRequirements.where((r) => r.myApplication?.status == JobApplicationStatus.accepted).toList();
 
-  bool _isPastRow(String status, bool hasAppliedAt) =>
-      status == JobApplicationStatus.completed || (status == JobApplicationStatus.rejected && hasAppliedAt);
+  // Every completed or rejected row belongs on Past now, including a plain
+  // pre-apply "not interested" decline (rejected, never applied) — that
+  // used to stay behind in Find Jobs' own collapsed section; now marking
+  // a job not interested removes it from Find Jobs entirely, same as
+  // applying does, so Past is the only place it's visible afterward (see
+  // jobs_screen.dart's own class doc comment).
+  bool _isPastRow(String status) =>
+      status == JobApplicationStatus.completed || status == JobApplicationStatus.rejected;
 
-  bool _matchesPastFilter(String status, bool decidedByAdmin) {
+  bool _matchesPastFilter(String status, bool decidedByAdmin, bool hasAppliedAt) {
     switch (_pastFilter) {
       case _kPastCompleted:
         return status == JobApplicationStatus.completed;
       case _kPastNotSelected:
         return status == JobApplicationStatus.rejected && decidedByAdmin;
-      case _kPastWithdrawn:
-        return status == JobApplicationStatus.rejected && !decidedByAdmin;
+      // hasAppliedAt is what actually distinguishes a genuine rejection
+      // (applied, then rejected it) from a plain not-interested decline
+      // below — decidedByAdmin is false for both, since both are the
+      // caregiver's own action.
+      case _kPastRejected:
+        return status == JobApplicationStatus.rejected && !decidedByAdmin && hasAppliedAt;
+      case _kPastNotInterested:
+        return status == JobApplicationStatus.rejected && !hasAppliedAt;
       default:
         return true;
     }
@@ -286,15 +370,15 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   List<JobModel> get _pastJobs => _jobHistory.where((j) {
         final app = j.myApplication;
         if (app == null) return false;
-        if (!_isPastRow(app.status, app.appliedAt != null)) return false;
-        return _matchesPastFilter(app.status, app.decidedByAdmin);
+        if (!_isPastRow(app.status)) return false;
+        return _matchesPastFilter(app.status, app.decidedByAdmin, app.appliedAt != null);
       }).toList();
 
   List<OrganisationRequirementModel> get _pastRequirements => _requirementHistory.where((r) {
         final app = r.myApplication;
         if (app == null) return false;
-        if (!_isPastRow(app.status, app.appliedAt != null)) return false;
-        return _matchesPastFilter(app.status, app.decidedByAdmin);
+        if (!_isPastRow(app.status)) return false;
+        return _matchesPastFilter(app.status, app.decidedByAdmin, app.appliedAt != null);
       }).toList();
 
   @override
@@ -350,9 +434,9 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               stepperStage: jobStepperStage(applicationStatus: JobApplicationStatus.applied, startDate: job.startDate),
               status: jobCardStatus(status: JobApplicationStatus.applied, decidedByAdmin: false, hasAppliedAt: true),
               timeline: job.myApplication != null ? ApplicationTimeline(job.myApplication!) : null,
-              actionLabel: 'Withdraw Application',
+              actionLabel: 'Reject',
               busy: _busyId.contains(job.id),
-              onAction: () => _withdrawJob(job),
+              onAction: () => _rejectJob(job),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -362,9 +446,9 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               stepperStage: jobStepperStage(applicationStatus: JobApplicationStatus.applied, startDate: null),
               status: jobCardStatus(status: JobApplicationStatus.applied, decidedByAdmin: false, hasAppliedAt: true),
               timeline: requirement.myApplication != null ? ApplicationTimeline(requirement.myApplication!) : null,
-              actionLabel: 'Withdraw Application',
+              actionLabel: 'Reject',
               busy: _busyId.contains(requirement.id),
-              onAction: () => _withdrawRequirement(requirement),
+              onAction: () => _rejectRequirement(requirement),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -452,11 +536,16 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
             children: [
               _PastFilterChip(label: 'All', value: _kPastAll, selected: _pastFilter, onSelected: _setPastFilter),
               _PastFilterChip(
-                  label: 'Completed', value: _kPastCompleted, selected: _pastFilter, onSelected: _setPastFilter),
+                  label: 'Closed Duty', value: _kPastCompleted, selected: _pastFilter, onSelected: _setPastFilter),
               _PastFilterChip(
                   label: 'Not selected', value: _kPastNotSelected, selected: _pastFilter, onSelected: _setPastFilter),
               _PastFilterChip(
-                  label: 'Withdrawn', value: _kPastWithdrawn, selected: _pastFilter, onSelected: _setPastFilter),
+                  label: 'Rejected', value: _kPastRejected, selected: _pastFilter, onSelected: _setPastFilter),
+              _PastFilterChip(
+                  label: 'Not interested',
+                  value: _kPastNotInterested,
+                  selected: _pastFilter,
+                  onSelected: _setPastFilter),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -480,6 +569,9 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               ),
               timeline: ApplicationTimeline(job.myApplication!),
               contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!, showPhone: false) : null,
+              actionLabel: _canReapplyToJob(job) ? 'Reapply' : null,
+              busy: _busyId.contains(job.id),
+              onAction: _canReapplyToJob(job) ? () => _reapplyToJob(job) : null,
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -502,6 +594,9 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                       showPhone: false,
                     )
                   : null,
+              actionLabel: _canReapplyToRequirement(requirement) ? 'Reapply' : null,
+              busy: _busyId.contains(requirement.id),
+              onAction: _canReapplyToRequirement(requirement) ? () => _reapplyToRequirement(requirement) : null,
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -613,12 +708,13 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isWithdraw = label == 'Withdraw Application';
+    final isReject = label == 'Reject';
+    final isReapply = label == 'Reapply';
     return OutlinedButton.icon(
       onPressed: busy ? null : onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: isWithdraw ? AppColors.error : AppColors.success,
-        side: BorderSide(color: isWithdraw ? AppColors.error : AppColors.success),
+        foregroundColor: isReject ? AppColors.error : AppColors.success,
+        side: BorderSide(color: isReject ? AppColors.error : AppColors.success),
       ),
       icon: busy
           ? SizedBox(
@@ -626,10 +722,10 @@ class _ActionButton extends StatelessWidget {
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: isWithdraw ? AppColors.error : AppColors.success,
+                color: isReject ? AppColors.error : AppColors.success,
               ),
             )
-          : Icon(isWithdraw ? Icons.undo : Icons.task_alt, size: 18),
+          : Icon(isReject ? Icons.close : (isReapply ? Icons.replay : Icons.task_alt), size: 18),
       label: Text(label),
     );
   }
