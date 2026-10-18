@@ -8,7 +8,9 @@ class OrganisationModel {
   final String contactPersonName;
   final String organisationType;
   final String city;
-  final String area;
+  // Nullable — RegisterOrganisationDto.area is optional at registration, so
+  // a real account can have no area set.
+  final String? area;
   final String phone;
   final bool isJobPostingBlocked;
 
@@ -19,7 +21,7 @@ class OrganisationModel {
     required this.contactPersonName,
     required this.organisationType,
     required this.city,
-    required this.area,
+    this.area,
     required this.phone,
     required this.isJobPostingBlocked,
   });
@@ -31,7 +33,7 @@ class OrganisationModel {
         contactPersonName: json['contact_person_name'] as String,
         organisationType: json['organisation_type'] as String,
         city: json['city'] as String,
-        area: json['area'] as String,
+        area: json['area'] as String?,
         phone: json['phone'] as String,
         isJobPostingBlocked: json['is_job_posting_blocked'] as bool,
       );

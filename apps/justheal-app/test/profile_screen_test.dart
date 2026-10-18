@@ -187,7 +187,7 @@ String _fakeJwt(Map<String, dynamic> payload) {
   return '${segment({'alg': 'none'})}.${segment(payload)}.signature';
 }
 
-Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository repo) async {
+Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository repo, {String? area = 'Indiranagar'}) async {
   // Organisation Details (5 fields) + Login PIN section + Logout — taller
   // than the default viewport, same reasoning as _pump above.
   await tester.binding.setSurfaceSize(const Size(400, 1800));
@@ -209,7 +209,7 @@ Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository 
         organisationRepositoryProvider.overrideWithValue(repo),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage, individualRepo, repo, FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
-            ..state = const SessionAuthenticated(
+            ..state = SessionAuthenticated(
               role: 'organisation',
               fullName: 'Ravi Sharma',
               phone: '+919876543210',
@@ -217,7 +217,7 @@ Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository 
               organisationName: 'City Hospital',
               organisationType: 'hospital',
               city: 'bangalore',
-              area: 'Indiranagar',
+              area: area,
             ),
         ),
       ],
@@ -425,6 +425,16 @@ void main() {
       expect(find.widgetWithText(TextField, 'Contact person name'), findsNothing);
     });
 
+    testWidgets(
+        'renders without throwing for an organisation account with no area set '
+        '(area is optional at registration)', (tester) async {
+      await _pumpOrganisation(tester, _FakeOrganisationRepository(), area: null);
+
+      expect(find.text('Organisation Details'), findsOneWidget);
+      expect(find.text('Hospital'), findsWidgets);
+      expect(find.text('Bangalore'), findsWidgets);
+    });
+
     testWidgets('tapping the pencil on Contact person name reveals a field prefilled with the current value, '
         'capped at the same 24-character limit as Individual\'s Full Name', (tester) async {
       await _pumpOrganisation(tester, _FakeOrganisationRepository());
@@ -560,6 +570,29 @@ void main() {
       await _tapSave(tester);
 
       expect(find.text('Invalid or missing field'), findsOneWidget);
+    });
+  });
+
+  group('OrganisationModel.fromJson', () {
+    testWidgets(
+        'parses a row with a null area (area is optional at registration — a real '
+        'account can have none set) without throwing', (tester) async {
+      final json = {
+        'user_id': 'org-1',
+        'org_number': 501,
+        'organisation_name': 'Vitacasahealth',
+        'contact_person_name': 'Rahul Dutta',
+        'organisation_type': 'agency',
+        'city': 'bangalore',
+        'area': null,
+        'phone': '+919845204336',
+        'is_job_posting_blocked': false,
+      };
+
+      final model = OrganisationModel.fromJson(json);
+
+      expect(model.area, isNull);
+      expect(model.organisationName, 'Vitacasahealth');
     });
   });
 }

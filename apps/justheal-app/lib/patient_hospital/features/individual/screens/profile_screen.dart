@@ -151,7 +151,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       [
                         OrganisationType.displayNames[authenticated.organisationType] ?? authenticated.organisationType!,
                         City.displayNames[authenticated.city] ?? authenticated.city!,
-                        authenticated.area!,
+                        if (authenticated.area != null && authenticated.area!.isNotEmpty) authenticated.area!,
                       ].join(' · '),
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
