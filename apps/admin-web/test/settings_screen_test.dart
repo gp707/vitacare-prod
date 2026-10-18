@@ -310,7 +310,17 @@ Future<void> _pump(WidgetTester tester, _Repos repos) async {
         appMaintenanceRepositoryProvider.overrideWithValue(repos.appMaintenance),
         otpSettingsRepositoryProvider.overrideWithValue(repos.otpSettings),
       ],
-      child: const MaterialApp(home: SettingsScreen()),
+      // Mirrors router.dart's own '/settings*' routes — a tab switch now
+      // pushes a replacement route matching that tab (see SettingsScreen's
+      // own doc comment), so this MaterialApp needs a real route table for
+      // that navigation to resolve, same as the live app.
+      child: MaterialApp(
+        initialRoute: '/settings',
+        routes: {
+          for (var i = 0; i < SettingsScreen.tabRoutes.length; i++)
+            SettingsScreen.tabRoutes[i]: (_) => SettingsScreen(initialTabIndex: i),
+        },
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -586,4 +596,115 @@ void main() {
       expect(repos.otpSettings.updatedEnabled, isTrue);
     });
   });
+
+  group('Each tab has its own URL', () {
+    testWidgets('tapping a tab pushes a replacement route matching that tab — bookmarkable/refresh-stable',
+        (tester) async {
+      final pushedRoutes = <String>[];
+      final observer = _RouteNameRecordingObserver(pushedRoutes);
+
+      SharedPreferences.setMockInitialValues({});
+      final localStorage = await LocalStorage.create();
+      await tester.binding.setSurfaceSize(const Size(1400, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repos = _Repos();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            localStorageProvider.overrideWithValue(localStorage),
+            sessionProvider.overrideWith(
+              (ref) => SessionNotifier(localStorage)
+                ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+            ),
+            jobSettingsRepositoryProvider.overrideWithValue(repos.jobSettings),
+            auditLogRetentionRepositoryProvider.overrideWithValue(repos.auditLogRetention),
+            adminProfileRepositoryProvider.overrideWithValue(repos.adminProfile),
+            rateCardRepositoryProvider.overrideWithValue(repos.rateCard),
+            scopeOfWorkRepositoryProvider.overrideWithValue(repos.scopeOfWork),
+            dutyRequirementsRepositoryProvider.overrideWithValue(repos.dutyRequirements),
+            appVersionsRepositoryProvider.overrideWithValue(repos.appVersions),
+            appMaintenanceRepositoryProvider.overrideWithValue(repos.appMaintenance),
+            otpSettingsRepositoryProvider.overrideWithValue(repos.otpSettings),
+          ],
+          child: MaterialApp(
+            initialRoute: '/settings',
+            navigatorObservers: [observer],
+            routes: {
+              for (var i = 0; i < SettingsScreen.tabRoutes.length; i++)
+                SettingsScreen.tabRoutes[i]: (_) => SettingsScreen(initialTabIndex: i),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _selectTab(tester, 'Scope of Work');
+      expect(pushedRoutes.last, '/settings/scope-of-work');
+
+      await _selectTab(tester, 'Login Settings');
+      expect(pushedRoutes.last, '/settings/login');
+    });
+
+    testWidgets('opening a tab\'s own URL directly lands on that tab, not General', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final localStorage = await LocalStorage.create();
+      await tester.binding.setSurfaceSize(const Size(1400, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repos = _Repos();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            localStorageProvider.overrideWithValue(localStorage),
+            sessionProvider.overrideWith(
+              (ref) => SessionNotifier(localStorage)
+                ..state = AdminSessionAuthenticated(userId: 'u1', role: 'super_admin'),
+            ),
+            jobSettingsRepositoryProvider.overrideWithValue(repos.jobSettings),
+            auditLogRetentionRepositoryProvider.overrideWithValue(repos.auditLogRetention),
+            adminProfileRepositoryProvider.overrideWithValue(repos.adminProfile),
+            rateCardRepositoryProvider.overrideWithValue(repos.rateCard),
+            scopeOfWorkRepositoryProvider.overrideWithValue(repos.scopeOfWork),
+            dutyRequirementsRepositoryProvider.overrideWithValue(repos.dutyRequirements),
+            appVersionsRepositoryProvider.overrideWithValue(repos.appVersions),
+            appMaintenanceRepositoryProvider.overrideWithValue(repos.appMaintenance),
+            otpSettingsRepositoryProvider.overrideWithValue(repos.otpSettings),
+          ],
+          // Straight to /settings/maintenance — mirrors a direct URL visit
+          // or a page refresh restored via root_screen.dart's
+          // _restorableRoutes.
+          child: MaterialApp(
+            initialRoute: '/settings/maintenance',
+            routes: {
+              for (var i = 0; i < SettingsScreen.tabRoutes.length; i++)
+                SettingsScreen.tabRoutes[i]: (_) => SettingsScreen(initialTabIndex: i),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Maintenance Mode', skipOffstage: false), findsWidgets);
+      // General tab's own content must not be the one showing.
+      expect(find.text('Apply-By Window'), findsNothing);
+    });
+  });
+}
+
+class _RouteNameRecordingObserver extends NavigatorObserver {
+  final List<String> pushedRoutes;
+  _RouteNameRecordingObserver(this.pushedRoutes);
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    final name = route.settings.name;
+    if (name != null) pushedRoutes.add(name);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final name = newRoute?.settings.name;
+    if (name != null) pushedRoutes.add(name);
+  }
 }

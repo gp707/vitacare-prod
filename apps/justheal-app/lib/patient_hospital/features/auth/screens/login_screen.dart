@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/whatsapp_help_button.dart';
+import '../../../app/text_zoom_button.dart';
 import '../../../app/forgot_pin_dialog.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
@@ -325,13 +326,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Positioned(
                     top: 0,
                     right: 0,
-                    child: WhatsAppHelpButton(
-                      backgroundColor: _LoginPalette.helpRed,
-                      margin: EdgeInsets.zero,
-                      minimumSize: Size(0, 44),
-                      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                      iconSize: 16,
-                      fontSize: AppTypography.body,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextZoomButton(),
+                        WhatsAppHelpButton(
+                          backgroundColor: _LoginPalette.helpRed,
+                          margin: EdgeInsets.zero,
+                          minimumSize: Size(0, 44),
+                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          iconSize: 16,
+                          fontSize: AppTypography.body,
+                        ),
+                      ],
                     ),
                   ),
                 ],

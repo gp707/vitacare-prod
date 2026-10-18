@@ -19,6 +19,7 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+
 android {
     namespace = "in.vitacasahealth.justheal"
     compileSdk = flutter.compileSdkVersion
@@ -34,6 +35,15 @@ android {
         applicationId = "in.vitacasahealth.justheal"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Flutter's own default (24, as of Flutter 3.44) — confirmed this
+        // can't safely go lower: image_picker_android's published AAR
+        // hard-requires minSdk 24 in its own manifest (a real AGP
+        // manifest-merger error, not just flutter_tools' own default), and
+        // image_picker is core to selfie/document uploads throughout the
+        // app. Pinning an older image_picker to restore support for the
+        // ~19K pre-Android-7.0 devices Play Console warns about was
+        // explicitly declined in favor of staying on the current,
+        // actively-maintained version.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/rate_card_button.dart';
+import '../../../app/text_zoom_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/utils/image_compression.dart';
@@ -413,7 +414,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const VitaAppBarTitle('Register'),
-        actions: const [RateCardButton()],
+        actions: const [TextZoomButton(), RateCardButton()],
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(

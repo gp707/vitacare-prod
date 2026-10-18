@@ -6,6 +6,13 @@ class LocalStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _readMessageIdsKey = 'read_message_ids';
+  // Deliberately the same unprefixed key as the caregiver tree's own
+  // LocalStorage — both read/write the same underlying SharedPreferences
+  // file (one installed binary, see CLAUDE.md's JustHeal merge notes), so
+  // a senior's chosen text size stays consistent whether they're on the
+  // patient/hospital side or the caregiver side, rather than being a
+  // separate per-flow setting that resets when they cross between them.
+  static const _textScaleKey = 'text_scale';
 
   final SharedPreferences _prefs;
 
@@ -39,4 +46,10 @@ class LocalStorage {
     final updated = {...readMessageIds, ...ids};
     await _prefs.setStringList(_readMessageIdsKey, updated.toList());
   }
+
+  /// Accessibility text/UI scale — 1.0 (Normal) if never set. See
+  /// core/text_scale/text_scale_provider.dart.
+  double get textScale => _prefs.getDouble(_textScaleKey) ?? 1.0;
+
+  Future<void> setTextScale(double scale) => _prefs.setDouble(_textScaleKey, scale);
 }

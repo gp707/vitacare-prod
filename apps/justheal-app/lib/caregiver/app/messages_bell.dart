@@ -6,12 +6,15 @@ import '../core/network/api_exception.dart';
 import '../core/providers.dart';
 import '../features/jobs/data/caregiver_messages_logic.dart';
 import 'rate_card_button.dart';
+import 'text_zoom_button.dart';
 import 'whatsapp_help_button.dart';
 
-/// Rate Card + Help sit flush right, immediately next to the bell (no
-/// longer centered in the AppBar — that was an earlier iteration, reversed
-/// on explicit request). Mirrors nursenow-app's individualAppBarActions().
+/// Text Size + Rate Card + Help sit flush right, immediately next to the
+/// bell (no longer centered in the AppBar — that was an earlier iteration,
+/// reversed on explicit request). Mirrors nursenow-app's
+/// individualAppBarActions().
 List<Widget> caregiverAppBarActions({required bool showBell}) => [
+      const TextZoomButton(),
       const RateCardButton(),
       const WhatsAppHelpButton(),
       if (showBell) const MessagesBellButton(),

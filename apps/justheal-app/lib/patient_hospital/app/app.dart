@@ -7,6 +7,7 @@ import '../core/navigation/navigator_key.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
 import 'package:nursenow_app/caregiver/app/app.dart' show CaregiverSessionWatcher;
+import 'pinch_to_zoom_wrapper.dart';
 import 'router.dart';
 
 /// Redirects to /login the moment the session becomes unauthenticated,
@@ -68,8 +69,11 @@ class NurseNowApp extends StatelessWidget {
       // own flow's sessionProvider (this app's own Individual/Organisation
       // session vs. the ported caregiver flow's own session) and redirects
       // only when its own flow logs out, never the other's.
-      builder: (context, child) =>
-          SessionWatcher(child: CaregiverSessionWatcher(child: ConnectivityBanner(child: child!))),
+      builder: (context, child) => SessionWatcher(
+        child: CaregiverSessionWatcher(
+          child: ConnectivityBanner(child: PinchToZoomWrapper(child: child!)),
+        ),
+      ),
     );
   }
 }

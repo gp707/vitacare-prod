@@ -6,16 +6,19 @@ import '../core/network/api_exception.dart';
 import '../core/providers.dart';
 import '../features/individual/data/requirement_messages.dart';
 import 'rate_card_button.dart';
+import 'text_zoom_button.dart';
 import 'whatsapp_help_button.dart';
 
-/// Replaces the old dedicated Messages tab/screen: Rate Card + Help sit
-/// flush right, immediately next to the bell (no longer centered in the
-/// AppBar — that was an earlier iteration, reversed on explicit request).
+/// Replaces the old dedicated Messages tab/screen: Text Size + Rate Card +
+/// Help sit flush right, immediately next to the bell (no longer centered
+/// in the AppBar — that was an earlier iteration, reversed on explicit
+/// request).
 /// [showBell] is false only for a shared route (profile_screen.dart) when
 /// the session turns out to be Organisation — Organisation has no
 /// requirement/care-tier/applicant concepts feeding resolveMessages(), so
 /// there's nothing for a bell on that account type to count.
 List<Widget> individualAppBarActions({required bool showBell}) => [
+      const TextZoomButton(),
       const RateCardButton(),
       const WhatsAppHelpButton(),
       if (showBell) const MessagesBellButton(),

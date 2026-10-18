@@ -2,9 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
 import 'package:nursenow_app/patient_hospital/core/providers.dart';
+import 'package:nursenow_app/patient_hospital/core/storage/local_storage.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/screens/edit_organisation_requirement_screen.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -95,9 +97,14 @@ Future<void> _pump(
 }) async {
   await tester.binding.setSurfaceSize(const Size(400, 1200));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [organisationRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        organisationRepositoryProvider.overrideWithValue(repo),
+        localStorageProvider.overrideWithValue(localStorage),
+      ],
       child: MaterialApp(home: EditOrganisationRequirementScreen(requirement: requirement)),
     ),
   );

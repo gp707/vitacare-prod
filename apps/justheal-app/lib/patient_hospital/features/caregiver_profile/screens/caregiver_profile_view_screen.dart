@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 
@@ -48,7 +49,10 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
   Widget build(BuildContext context) {
     final profile = _profile;
     return Scaffold(
-      appBar: AppBar(title: VitaAppBarTitle(profile?.fullName ?? 'Caregiver Profile'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(
+        title: VitaAppBarTitle(profile?.fullName ?? 'Caregiver Profile'),
+        actions: const [TextZoomButton(), WhatsAppHelpButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: _loading

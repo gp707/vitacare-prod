@@ -1,9 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
+import 'package:nursenow_app/patient_hospital/core/providers.dart';
+import 'package:nursenow_app/patient_hospital/core/storage/local_storage.dart';
 import 'package:nursenow_app/patient_hospital/features/caregiver_profile/screens/caregiver_profile_view_screen.dart';
+
+// This screen embeds TextZoomButton (see WhatsAppHelpButton's own AppBar
+// placement), a ConsumerWidget reading localStorageProvider — needs a real
+// ProviderScope override, unlike the rest of this screen's own plain
+// callback-driven content.
+Future<void> _pump(WidgetTester tester, CaregiverProfileViewScreen screen) async {
+  SharedPreferences.setMockInitialValues({});
+  final localStorage = await LocalStorage.create();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [localStorageProvider.overrideWithValue(localStorage)],
+      child: MaterialApp(home: screen),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
 
 CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileModel.fromJson({
       'user_id': 'user-1',
@@ -30,12 +50,7 @@ CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileMode
 void main() {
   testWidgets('shows the full profile once loaded — name, phone, age, gender, qualification, religion, languages',
       (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: CaregiverProfileViewScreen(fetchProfile: () async => _profile()),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile()));
 
     expect(find.text('Nurse Nita'), findsWidgets);
     expect(find.text('NUR-500'), findsOneWidget);
@@ -62,26 +77,19 @@ void main() {
   });
 
   testWidgets('shows a person icon placeholder when there is no selfie photo', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: CaregiverProfileViewScreen(fetchProfile: () async => _profile(selfiePhotoUrl: null)),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile(selfiePhotoUrl: null)));
 
     expect(find.byIcon(Icons.person), findsOneWidget);
   });
 
   testWidgets('shows the server error message on load failure', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: CaregiverProfileViewScreen(
-          fetchProfile: () async =>
-              throw const ApiException(code: 'GEN_002', message: 'This applicant profile is not available.'),
-        ),
+    await _pump(
+      tester,
+      CaregiverProfileViewScreen(
+        fetchProfile: () async =>
+            throw const ApiException(code: 'GEN_002', message: 'This applicant profile is not available.'),
       ),
     );
-    await tester.pumpAndSettle();
 
     expect(find.text('This applicant profile is not available.'), findsOneWidget);
   });

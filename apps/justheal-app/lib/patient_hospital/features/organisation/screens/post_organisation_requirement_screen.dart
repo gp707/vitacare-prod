@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
@@ -149,7 +150,10 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const VitaAppBarTitle('Post a Requirement'), actions: const [WhatsAppHelpButton()]),
+      appBar: AppBar(
+        title: const VitaAppBarTitle('Post a Requirement'),
+        actions: const [TextZoomButton(), WhatsAppHelpButton()],
+      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
