@@ -16,28 +16,26 @@ Future<LocalStorage> _freshLocalStorage() async {
 
 void main() {
   group('TextScaleNotifier', () {
-    test('starts at 1.0 (Normal) when nothing has ever been saved', () async {
+    test('starts at 1.15 (A+) when nothing has ever been saved — the default was bumped up a step from plain '
+        'Normal, since most users skew older and the plain baseline read as too small', () async {
       final localStorage = await _freshLocalStorage();
       final notifier = TextScaleNotifier(localStorage);
 
-      expect(notifier.state, 1.0);
+      expect(notifier.state, 1.15);
     });
 
-    test('starts at whatever was previously persisted', () async {
-      SharedPreferences.setMockInitialValues({'text_scale': 1.15});
+    test('starts at whatever was previously persisted, not the default', () async {
+      SharedPreferences.setMockInitialValues({'text_scale': 1.3});
       final localStorage = await LocalStorage.create();
       final notifier = TextScaleNotifier(localStorage);
 
-      expect(notifier.state, 1.15);
+      expect(notifier.state, 1.3);
     });
 
-    test('cycleNext steps Normal -> Large -> Extra Large -> Normal, persisting each step', () async {
+    test('cycleNext steps Large (the new default) -> Extra Large -> Normal -> Large, persisting each step',
+        () async {
       final localStorage = await _freshLocalStorage();
       final notifier = TextScaleNotifier(localStorage);
-
-      await notifier.cycleNext();
-      expect(notifier.state, 1.15);
-      expect(localStorage.textScale, 1.15);
 
       await notifier.cycleNext();
       expect(notifier.state, 1.3);
@@ -46,6 +44,10 @@ void main() {
       await notifier.cycleNext();
       expect(notifier.state, 1.0);
       expect(localStorage.textScale, 1.0);
+
+      await notifier.cycleNext();
+      expect(notifier.state, 1.15);
+      expect(localStorage.textScale, 1.15);
     });
 
     test('cycleNext from a mid-pinch value jumps to the next step strictly above it', () async {
@@ -73,7 +75,7 @@ void main() {
       final notifier = TextScaleNotifier(localStorage);
 
       notifier.setContinuous(1.3);
-      expect(localStorage.textScale, 1.0);
+      expect(localStorage.textScale, 1.15);
 
       await notifier.persist();
       expect(localStorage.textScale, 1.3);
@@ -93,14 +95,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('shows A, A+, A++ as it cycles, wrapping back to A', (tester) async {
+    testWidgets('shows A+ by default (the new bumped-up default), cycles to A++, then A, then back to A+',
+        (tester) async {
       final localStorage = await _freshLocalStorage();
       await pump(tester, localStorage);
 
-      expect(find.text('A'), findsOneWidget);
-
-      await tester.tap(find.byType(TextZoomButton));
-      await tester.pumpAndSettle();
       expect(find.text('A+'), findsOneWidget);
 
       await tester.tap(find.byType(TextZoomButton));
@@ -110,6 +109,10 @@ void main() {
       await tester.tap(find.byType(TextZoomButton));
       await tester.pumpAndSettle();
       expect(find.text('A'), findsOneWidget);
+
+      await tester.tap(find.byType(TextZoomButton));
+      await tester.pumpAndSettle();
+      expect(find.text('A+'), findsOneWidget);
     });
 
     testWidgets('persists the new level so it survives a fresh provider read', (tester) async {
@@ -119,7 +122,7 @@ void main() {
       await tester.tap(find.byType(TextZoomButton));
       await tester.pumpAndSettle();
 
-      expect(localStorage.textScale, 1.15);
+      expect(localStorage.textScale, 1.3);
     });
   });
 
@@ -182,7 +185,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final container = ProviderScope.containerOf(tester.element(find.byType(Scaffold).first));
-      expect(container.read(textScaleProvider), 1.0);
+      expect(container.read(textScaleProvider), 1.15);
     });
   });
 }

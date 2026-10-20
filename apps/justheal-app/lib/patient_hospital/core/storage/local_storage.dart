@@ -47,9 +47,13 @@ class LocalStorage {
     await _prefs.setStringList(_readMessageIdsKey, updated.toList());
   }
 
-  /// Accessibility text/UI scale — 1.0 (Normal) if never set. See
-  /// core/text_scale/text_scale_provider.dart.
-  double get textScale => _prefs.getDouble(_textScaleKey) ?? 1.0;
+  /// Accessibility text/UI scale — defaults to TextScaleLevels.steps[1]
+  /// ("A+", 1.15) if never set, not the plain 1.0 "A" baseline: the plain
+  /// default read as too small on request, and most users skew older
+  /// (senior caregivers/patients/family), so starting one step up reads
+  /// better out of the box while still leaving A and A++ reachable via the
+  /// same cycle. See core/text_scale/text_scale_provider.dart.
+  double get textScale => _prefs.getDouble(_textScaleKey) ?? 1.15;
 
   Future<void> setTextScale(double scale) => _prefs.setDouble(_textScaleKey, scale);
 }

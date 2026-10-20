@@ -13,11 +13,13 @@ import 'package:nursenow_app/patient_hospital/features/auth/data/auth_result.dar
 import 'package:nursenow_app/patient_hospital/features/auth/screens/login_screen.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_model.dart';
+import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_route;
 import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
 import 'package:nursenow_app/caregiver/core/network/api_exception.dart' as caregiver_net;
 import 'package:nursenow_app/caregiver/core/storage/local_storage.dart' as caregiver_storage;
 import 'package:nursenow_app/caregiver/features/auth/data/auth_repository.dart' as caregiver_auth_repo;
 import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart' as caregiver_auth;
+import 'package:nursenow_app/caregiver/features/profile/data/profile_repository.dart' as caregiver_profile_repo;
 
 class _FakeAuthRepository extends AuthRepository {
   final ApiException? loginCodeError;
@@ -102,6 +104,33 @@ class _FakeCaregiverAuthRepository extends caregiver_auth_repo.AuthRepository {
   }
 }
 
+/// Stands in for the real GET /caregiver/profile call loadSession() makes
+/// right after a successful loginCode — without this override, that call
+/// hits a real (unmocked) Dio instance and loadSession() falls through its
+/// own retry-then-SessionLoadError path, so `session is SessionAuthenticated`
+/// is never true and the post-login navigation branch never actually runs.
+class _FakeCaregiverProfileRepository extends caregiver_profile_repo.ProfileRepository {
+  final String verificationStatus;
+
+  _FakeCaregiverProfileRepository({this.verificationStatus = 'available'}) : super(Dio());
+
+  @override
+  Future<CaregiverProfileModel> getProfile() async => CaregiverProfileModel(
+        userId: 'c1',
+        profileId: 'profile-c1',
+        fullName: 'Test Caregiver',
+        phone: '+919876543210',
+        gender: 'female',
+        age: 30,
+        languages: const ['english'],
+        otherDocumentUrls: const [],
+        termsAccepted: true,
+        verificationStatus: verificationStatus,
+        preferredCities: const [],
+        createdAt: DateTime(2026).toIso8601String(),
+      );
+}
+
 class _FakeIndividualRepository extends IndividualRepository {
   _FakeIndividualRepository() : super(Dio());
 
@@ -119,6 +148,7 @@ Future<void> _pumpLogin(
   required _FakeAuthRepository authRepo,
   bool otpMode = false,
   _FakeCaregiverAuthRepository? caregiverAuthRepo,
+  _FakeCaregiverProfileRepository? caregiverProfileRepo,
   List<RouteSettings>? pushedRoutes,
   // Registration moved above Log in, so the whole screen is now taller
   // than the default 800x600 test window — tall enough that buttons
@@ -152,6 +182,7 @@ Future<void> _pumpLogin(
         otpModeProvider.overrideWith((ref) => otpMode),
         caregiver.localStorageProvider.overrideWithValue(caregiverLocalStorage),
         if (caregiverAuthRepo != null) caregiver.authRepositoryProvider.overrideWithValue(caregiverAuthRepo),
+        if (caregiverProfileRepo != null) caregiver.profileRepositoryProvider.overrideWithValue(caregiverProfileRepo),
       ],
       child: MaterialApp(
         home: const LoginScreen(),
@@ -336,6 +367,65 @@ void main() {
       expect(caregiverAuthRepo.loginCodeCalled, isTrue);
       expect(caregiverAuthRepo.capturedPhone, '+919876543210');
       expect(caregiverAuthRepo.capturedCode, '1234');
+    });
+
+    // Regression: "default them to MyJobs's Selected tab when selected for
+    // a job" — verified end-to-end through the actual login screen (not
+    // just routeForStatus/routeArgumentsForStatus in isolation, which
+    // already passed even when this path was broken), since the real bug
+    // report was "caregiver logs in, was accepted for a job, but lands on
+    // Profile" — a wiring problem between login and routing, not a
+    // mapping-logic problem.
+    testWidgets('a caregiver who is assigned to a job lands on MyJobs\'s Selected tab after logging in via the '
+        'nursenow fallback, not on Profile', (tester) async {
+      final authRepo = _FakeAuthRepository(
+        loginCodeError: const ApiException(code: 'AUTH_002', message: 'No account found with this phone number'),
+      );
+      final caregiverAuthRepo = _FakeCaregiverAuthRepository();
+      final caregiverProfileRepo = _FakeCaregiverProfileRepository(verificationStatus: VerificationStatus.assigned);
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(
+        tester,
+        authRepo: authRepo,
+        caregiverAuthRepo: caregiverAuthRepo,
+        caregiverProfileRepo: caregiverProfileRepo,
+        pushedRoutes: pushedRoutes,
+      );
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
+      await tester.pumpAndSettle();
+
+      expect(pushedRoutes, isNotEmpty, reason: 'expected a named push once loadSession() resolved');
+      final lastRoute = pushedRoutes.last;
+      expect(lastRoute.name, '/caregiver/my-jobs');
+      expect(lastRoute.arguments, isA<caregiver_route.MyAssignmentScreenArgs>());
+      expect((lastRoute.arguments as caregiver_route.MyAssignmentScreenArgs).initialTabIndex, 1);
+    });
+
+    testWidgets('an available (not assigned) caregiver still lands on Profile, same as before', (tester) async {
+      final authRepo = _FakeAuthRepository(
+        loginCodeError: const ApiException(code: 'AUTH_002', message: 'No account found with this phone number'),
+      );
+      final caregiverAuthRepo = _FakeCaregiverAuthRepository();
+      final caregiverProfileRepo = _FakeCaregiverProfileRepository(verificationStatus: VerificationStatus.available);
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(
+        tester,
+        authRepo: authRepo,
+        caregiverAuthRepo: caregiverAuthRepo,
+        caregiverProfileRepo: caregiverProfileRepo,
+        pushedRoutes: pushedRoutes,
+      );
+
+      await tester.enterText(find.widgetWithText(TextField, 'Phone number'), '9876543210');
+      await tester.enterText(find.widgetWithText(TextField, '4-digit code'), '1234');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Log in'));
+      await tester.pumpAndSettle();
+
+      expect(pushedRoutes, isNotEmpty);
+      expect(pushedRoutes.last.name, '/caregiver/profile');
     });
 
     testWidgets('a non-AUTH_002 error surfaces directly without trying the caregiver login', (tester) async {
