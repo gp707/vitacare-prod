@@ -696,8 +696,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const VitaAppBarTitle('Register'),
+      appBar: VitaAppBar(
+        title: 'Register',
         actions: _isOrganisation
             ? const [TextZoomButton(), WhatsAppHelpButton()]
             : const [TextZoomButton(), RateCardButton(), WhatsAppHelpButton()],

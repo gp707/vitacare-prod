@@ -144,8 +144,9 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle('Edit Requirement', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+      appBar: VitaAppBar(
+        title: 'Edit Requirement',
+        onTripleTap: () => logoutAndNavigateToLogin(context, ref),
         actions: const [TextZoomButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,

@@ -292,7 +292,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     final session = ref.read(caregiver_session.sessionProvider);
     if (session is caregiver_session_state.SessionAuthenticated) {
-      Navigator.of(context).pushNamedAndRemoveUntil(caregiver_route.routeForStatus(session), (route) => false);
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        caregiver_route.routeForStatus(session),
+        (route) => false,
+        arguments: caregiver_route.routeArgumentsForStatus(session),
+      );
     } else if (session is caregiver_session_state.SessionLoadError) {
       setState(() => _errorMessage = session.message);
     } else {

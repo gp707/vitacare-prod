@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/caregiver/app/app.dart';
+import 'package:nursenow_app/caregiver/app/route_for_status.dart';
 import 'package:nursenow_app/caregiver/core/fcm/fcm_service.dart';
 import 'package:nursenow_app/caregiver/core/storage/local_storage.dart';
 import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart';
@@ -24,7 +25,15 @@ Future<void> _pump(WidgetTester tester, LocalStorage localStorage, SessionNotifi
         home: const CaregiverSessionWatcher(child: Scaffold(body: Text('Some Caregiver Screen'))),
         routes: {
           '/login': (_) => const Scaffold(body: Text('Login Page')),
-          '/caregiver/my-jobs': (_) => const Scaffold(body: Text('MyJobs Page')),
+          // Renders the received initialTabIndex (defaulting to 0, same as
+          // MyAssignmentScreenArgs's own default) so tests can assert the
+          // live redirect actually requested the Selected tab (index 1),
+          // not just "some" MyJobs screen.
+          '/caregiver/my-jobs': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments;
+            final tabIndex = args is MyAssignmentScreenArgs ? args.initialTabIndex : 0;
+            return Scaffold(body: Text('MyJobs Page (tab $tabIndex)'));
+          },
         },
       ),
     ),
@@ -93,7 +102,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('MyJobs Page'), findsOneWidget);
+    // tab 1 = Selected — "default them to MyJobs" means the Selected tab
+    // specifically, not just the MyJobs screen defaulting to Applied.
+    expect(find.text('MyJobs Page (tab 1)'), findsOneWidget);
     expect(find.text('Some Caregiver Screen'), findsNothing);
 
     await _unmount(tester);

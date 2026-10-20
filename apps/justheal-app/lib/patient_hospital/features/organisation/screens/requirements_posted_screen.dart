@@ -233,8 +233,9 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
     final isJobPostingBlocked = session is SessionAuthenticated && session.isJobPostingBlocked;
 
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle('Requirements Posted', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+      appBar: VitaAppBar(
+        title: 'Requirements Posted',
+        onTripleTap: () => logoutAndNavigateToLogin(context, ref),
         actions: const [TextZoomButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,

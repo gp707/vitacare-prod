@@ -32,11 +32,11 @@ class WhatsAppHelpButton extends StatelessWidget {
     super.key,
     this.launcher,
     this.backgroundColor = AppColors.error,
-    this.padding = const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-    this.margin = const EdgeInsets.only(right: 6),
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    this.margin = const EdgeInsets.only(right: 8),
     this.minimumSize = Size.zero,
-    this.iconSize = 12,
-    this.fontSize = AppTypography.caption,
+    this.iconSize = 14,
+    this.fontSize = AppTypography.small,
   });
 
   Future<void> _open(BuildContext context) async {
@@ -82,7 +82,7 @@ class WhatsAppHelpButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.phone_in_talk, size: iconSize),
-            SizedBox(width: isCompact ? 1 : 6),
+            SizedBox(width: isCompact ? 3 : 6),
             Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fontSize, color: Colors.white)),
           ],
         ),

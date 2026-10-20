@@ -117,8 +117,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final authenticated = session is SessionAuthenticated ? session : null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle('Profile', onTripleTap: _logout),
+      appBar: VitaAppBar(
+        title: 'Profile',
+        onTripleTap: _logout,
         actions: individualAppBarActions(
             showBell:
                 !(session is SessionAuthenticated && session.isOrganisation)),

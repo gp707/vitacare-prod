@@ -39,13 +39,13 @@ class WhatsAppHelpButton extends StatelessWidget {
     // shrink to 2px instead. Wrapped in a right-margin Padding so it never
     // sits flush against the screen edge when it's the last AppBar action.
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: 8),
       child: ElevatedButton(
         onPressed: () => _open(context),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.error,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
@@ -54,9 +54,9 @@ class WhatsAppHelpButton extends StatelessWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.phone_in_talk, size: 12),
-            SizedBox(width: 1),
-            Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
+            Icon(Icons.phone_in_talk, size: 14),
+            SizedBox(width: 3),
+            Text('Help', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
           ],
         ),
       ),

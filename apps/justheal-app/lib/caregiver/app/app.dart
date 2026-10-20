@@ -6,6 +6,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:nursenow_app/patient_hospital/core/navigation/navigator_key.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
+import 'route_for_status.dart';
 
 /// NOTE: the old `CaregiverApp` (its own `MaterialApp`) is gone — this
 /// flow is merged into the host JustHeal app's single `MaterialApp`/
@@ -32,14 +33,15 @@ import '../features/auth/state/session_state.dart';
 /// 2. Getting accepted onto a job (verification_status flipping to
 ///    `assigned`) while already using the app elsewhere — e.g. sitting on
 ///    Jobs or Profile when an admin accepts their application. On its own,
-///    routeForStatus() already sends an `assigned` caregiver straight to
-///    MyJobs at login — but that only resolves the NEXT time they log in.
-///    This poll (same cheap single-GET refreshStatus()/cadence rationale
-///    as PendingCallScreen's own poll, which still owns the pendingCall ->
-///    anything-else transition — this only fires for available/unavailable
-///    -> assigned, so the two never fight over the same redirect) is what
-///    catches it live, so "default them to MyJobs when selected for a job"
-///    holds true mid-session too, not just at next login.
+///    routeForStatus()/routeArgumentsForStatus() already send an `assigned`
+///    caregiver straight to MyJobs's Selected tab at login — but that only
+///    resolves the NEXT time they log in. This poll (same cheap single-GET
+///    refreshStatus()/cadence rationale as PendingCallScreen's own poll,
+///    which still owns the pendingCall -> anything-else transition — this
+///    only fires for available/unavailable -> assigned, so the two never
+///    fight over the same redirect) is what catches it live, so "default
+///    them to MyJobs's Selected tab when selected for a job" holds true
+///    mid-session too, not just at next login.
 ///
 /// Named distinctly from the host's own `SessionWatcher` (same file name,
 /// `app/app.dart`, in the host) since both now live in the same program —
@@ -88,7 +90,11 @@ class _CaregiverSessionWatcherState extends ConsumerState<CaregiverSessionWatche
           previous.verificationStatus != VerificationStatus.pendingCall &&
           next is SessionAuthenticated &&
           next.verificationStatus == VerificationStatus.assigned) {
-        navigatorKey.currentState?.pushNamedAndRemoveUntil('/caregiver/my-jobs', (route) => false);
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/caregiver/my-jobs',
+          (route) => false,
+          arguments: const MyAssignmentScreenArgs(initialTabIndex: 1),
+        );
       }
     });
     return widget.child;

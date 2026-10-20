@@ -22,3 +22,23 @@ String routeForStatus(SessionAuthenticated session) {
       return '/caregiver/profile';
   }
 }
+
+/// Route arguments for `/caregiver/my-jobs` — lets a caller land directly
+/// on a specific tab instead of always defaulting to Applied (tab 0).
+class MyAssignmentScreenArgs {
+  final int initialTabIndex;
+  const MyAssignmentScreenArgs({this.initialTabIndex = 0});
+}
+
+/// Paired with [routeForStatus] — pass as `arguments:` on the same
+/// `pushNamed`/`pushNamedAndRemoveUntil` call. "default them to MyJobs"
+/// means the right TAB too, not just the right screen: a caregiver who
+/// just became `assigned` lands straight on the Selected tab, not Applied.
+/// Every other status has nothing to say here (`routes:` ignores a null
+/// `settings.arguments`).
+Object? routeArgumentsForStatus(SessionAuthenticated session) {
+  if (session.verificationStatus == VerificationStatus.assigned) {
+    return const MyAssignmentScreenArgs(initialTabIndex: 1);
+  }
+  return null;
+}

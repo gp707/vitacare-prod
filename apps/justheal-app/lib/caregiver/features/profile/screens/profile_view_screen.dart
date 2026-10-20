@@ -271,18 +271,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Flexible(
-                child: VitaAppBarTitle('My Profile', onTripleTap: _logout)),
-            if (_profile != null) ...[
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                  child: VitaStatusBadge(status: _profile!.verificationStatus)),
-            ],
-          ],
-        ),
+      appBar: VitaAppBar(
+        title: 'My Profile',
+        onTripleTap: _logout,
         actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,

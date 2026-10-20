@@ -171,8 +171,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final selectedCount = merged.where((l) => l.myApplicationStatus == JobApplicationStatus.accepted).length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle('Find Jobs', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+      appBar: VitaAppBar(
+        title: 'Find Jobs',
+        onTripleTap: () => logoutAndNavigateToLogin(context, ref),
         actions: caregiverAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,

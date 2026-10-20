@@ -23,7 +23,7 @@ class TextZoomButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scale = ref.watch(textScaleProvider);
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: 8),
       child: Tooltip(
         message: 'Text Size',
         child: ElevatedButton(
@@ -31,7 +31,7 @@ class TextZoomButton extends ConsumerWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,
@@ -39,7 +39,7 @@ class TextZoomButton extends ConsumerWidget {
           ),
           child: Text(
             _shortLabel(scale),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small),
           ),
         ),
       ),

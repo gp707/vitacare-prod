@@ -7,7 +7,11 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 String statusMessageFor(String status, String? rejectionMessage) {
   switch (status) {
     case VerificationStatus.available:
-      return "You're verified and marked as available. We'll notify you when there's work for you.";
+      // Deliberately action-oriented, not passive — a caregiver is
+      // expected to actively browse and apply (Find Jobs tab), not just
+      // wait to be notified; there's no "job match" push, only the daily
+      // 8am status-confirmation reminder (see CLAUDE.md).
+      return "You're verified and available. Head to Find Jobs to browse openings and apply.";
     case VerificationStatus.unavailable:
       return "You're verified, but currently marked as not taking work. Contact the office to change this.";
     case VerificationStatus.assigned:

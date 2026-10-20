@@ -29,7 +29,7 @@ class RateCardButton extends ConsumerWidget {
     // Padding so it never sits flush against a neighboring button or the
     // screen edge.
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: 8),
       child: ElevatedButton(
         onPressed: () => showDialog(
           context: context,
@@ -38,7 +38,7 @@ class RateCardButton extends ConsumerWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.success,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
@@ -47,9 +47,9 @@ class RateCardButton extends ConsumerWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.currency_rupee, size: 12),
-            SizedBox(width: 1),
-            Text('Rate Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.caption)),
+            Icon(Icons.currency_rupee, size: 14),
+            SizedBox(width: 3),
+            Text('Rate Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
           ],
         ),
       ),

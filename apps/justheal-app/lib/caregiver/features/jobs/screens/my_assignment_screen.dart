@@ -7,6 +7,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/logout_helper.dart';
 import '../../../app/messages_bell.dart';
+import '../../../app/route_for_status.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/job_detail_card.dart';
@@ -384,11 +385,21 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Lets a caller (routeForStatus/routeArgumentsForStatus at login, or
+    // CaregiverSessionWatcher's own live mid-session redirect) land
+    // straight on the Selected tab instead of always defaulting to Applied
+    // — see MyAssignmentScreenArgs. Reached via the bottom nav's own tab
+    // tap, settings.arguments is null and this falls back to tab 0, same
+    // as before.
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final initialTabIndex = args is MyAssignmentScreenArgs ? args.initialTabIndex : 0;
     return DefaultTabController(
       length: 3,
+      initialIndex: initialTabIndex,
       child: Scaffold(
-        appBar: AppBar(
-          title: VitaAppBarTitle('My Jobs', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+        appBar: VitaAppBar(
+          title: 'My Jobs',
+          onTripleTap: () => logoutAndNavigateToLogin(context, ref),
           actions: caregiverAppBarActions(showBell: true),
           bottom: const TabBar(
             tabs: [Tab(text: 'Applied'), Tab(text: 'Selected'), Tab(text: 'Past')],

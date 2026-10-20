@@ -49,8 +49,8 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
   Widget build(BuildContext context) {
     final profile = _profile;
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle(profile?.fullName ?? 'Caregiver Profile'),
+      appBar: VitaAppBar(
+        title: profile?.fullName ?? 'Caregiver Profile',
         actions: const [TextZoomButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,

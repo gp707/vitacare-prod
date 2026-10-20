@@ -68,7 +68,8 @@ class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
 
     ref.listen<SessionState>(sessionProvider, (previous, next) {
       if (next is SessionAuthenticated && next.verificationStatus != VerificationStatus.pendingCall) {
-        Navigator.of(context).pushNamedAndRemoveUntil(routeForStatus(next), (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil(routeForStatus(next), (route) => false, arguments: routeArgumentsForStatus(next));
       }
     });
 
@@ -78,8 +79,9 @@ class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        appBar: AppBar(
-          title: VitaAppBarTitle('JustHeal', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+        appBar: VitaAppBar(
+          title: 'JustHeal',
+          onTripleTap: () => logoutAndNavigateToLogin(context, ref),
           automaticallyImplyLeading: false,
           // Logout lives only on the Profile screen now (moved to the
           // bottom of the page there) — no longer duplicated in every

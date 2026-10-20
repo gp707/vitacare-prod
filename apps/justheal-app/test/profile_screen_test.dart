@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
-import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/patient_hospital/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
@@ -404,12 +403,12 @@ void main() {
 
     expect(find.widgetWithText(OutlinedButton, 'Logout'), findsNothing);
 
-    // The onTripleTap GestureDetector only wraps the small icon inside
-    // VitaAppBarTitle, not the whole title row (which also includes the
-    // "Profile" text) — target that specifically rather than the outer
-    // widget's full bounding box, whose geometric center could land on
-    // either part.
-    final logoIcon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+    // The onTripleTap GestureDetector only wraps the small icon, keyed so
+    // it can be targeted unambiguously — VitaAppBar's own subtree also
+    // contains each action button's own GestureDetector (TextZoomButton/
+    // RateCardButton/WhatsAppHelpButton/bell/…), which a plain
+    // find.byType(GestureDetector) scoped to VitaAppBar would also match.
+    final logoIcon = find.byKey(const ValueKey('vitaAppBarBrandIconTap'));
     await tester.tap(logoIcon);
     await tester.tap(logoIcon);
     await tester.tap(logoIcon);
@@ -452,7 +451,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final logoIcon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+    final logoIcon = find.byKey(const ValueKey('vitaAppBarBrandIconTap'));
     await tester.tap(logoIcon);
     await tester.tap(logoIcon);
     await tester.pumpAndSettle();

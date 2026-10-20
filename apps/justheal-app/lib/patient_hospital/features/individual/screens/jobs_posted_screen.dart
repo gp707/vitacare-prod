@@ -259,8 +259,9 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: VitaAppBarTitle('Requirement Posted', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
+      appBar: VitaAppBar(
+        title: 'Requirement Posted',
+        onTripleTap: () => logoutAndNavigateToLogin(context, ref),
         actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
