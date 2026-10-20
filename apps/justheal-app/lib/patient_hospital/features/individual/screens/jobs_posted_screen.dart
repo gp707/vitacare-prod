@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/logout_helper.dart';
 import '../../../app/messages_bell.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/scope_of_work_button.dart';
@@ -259,7 +260,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('Requirement Posted'),
+        title: VitaAppBarTitle('Requirement Posted', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
         actions: individualAppBarActions(showBell: true),
       ),
       backgroundColor: AppColors.background,
@@ -758,7 +759,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       context: context,
       initialDate: _startDate ?? now,
       firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      // At most 90 days out — same cap as the registration form's own
+      // Preferred Start Date picker.
+      lastDate: now.add(const Duration(days: 90)),
     );
     if (picked != null) setState(() => _startDate = picked);
   }

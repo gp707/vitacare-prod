@@ -19,6 +19,7 @@ describe('AdminService', () => {
   let organisationsRepo: any;
   let jobsRepo: any;
   let organisationRequirementsRepo: any;
+  let ticketsRepo: any;
   let db: any;
 
   const detail = {
@@ -93,6 +94,7 @@ describe('AdminService', () => {
     organisationsRepo = { countNewLast7Days: jest.fn().mockResolvedValue(0) };
     jobsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
     organisationRequirementsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
+    ticketsRepo = { countOpen: jest.fn().mockResolvedValue(0) };
     db = { withTransaction: jest.fn((fn: any) => fn({ query: jest.fn() })) };
 
     service = new AdminService(
@@ -111,6 +113,7 @@ describe('AdminService', () => {
       organisationsRepo,
       jobsRepo,
       organisationRequirementsRepo,
+      ticketsRepo,
       db,
     );
   });
@@ -132,6 +135,7 @@ describe('AdminService', () => {
       organisationRequirementsRepo.countPendingApproval.mockResolvedValue(2);
       organisationsRepo.countNewLast7Days.mockResolvedValue(3);
       individualsRepo.countNewLast7Days.mockResolvedValue(7);
+      ticketsRepo.countOpen.mockResolvedValue(5);
 
       const result = await service.getDashboardStats();
 
@@ -141,6 +145,7 @@ describe('AdminService', () => {
           jobs_pending_approval: 6,
           new_organisations_7d: 3,
           new_individuals_7d: 7,
+          open_tickets_count: 5,
         }),
       );
     });

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pre-Android-12 (API < 31) Auto Backup rules. Explicitly includes the one
+  SharedPreferences file the `shared_preferences` plugin writes to
+  (FlutterSharedPreferences.xml) — this is where both the caregiver and
+  patient_hospital/organisation LocalStorage classes store their access
+  tokens (see lib/caregiver/core/storage/local_storage.dart and
+  lib/patient_hospital/core/storage/local_storage.dart). Caregiver/
+  individual/organisation tokens never expire and this app has no
+  re-login flow (see CLAUDE.md), so Android restoring this file on a
+  fresh install (same package + signing cert, same Google account with
+  backup enabled) is what lets a user stay logged in across an uninstall
+  + reinstall, not just an in-place update (which already preserves app
+  storage without any of this).
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+</full-backup-content>

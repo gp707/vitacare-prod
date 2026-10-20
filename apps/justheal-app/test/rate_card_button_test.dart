@@ -85,6 +85,34 @@ void main() {
     expect(find.textContaining('Could not load salary guidance'), findsOneWidget);
   });
 
+  testWidgets(
+      'a long admin-entered title (e.g. "...(12 hrs/24 hrs duty) — Monthly") wraps instead of '
+      'clipping off the dialog on a narrow screen — the frequency word at the end is what actually '
+      'tells the two tables apart', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final longTitleCard = RateCardModel(
+      frequencyOfCare: FrequencyOfCare.monthly,
+      title: 'Salary Guidelines (12 hrs/24 hrs duty) — Monthly',
+      columnLabels: ['Companion care', 'Bedside Care', 'Critical Care'],
+      rowLabels: ['Care'],
+      cells: [
+        ['26,000 - 30,000', '28,000 - 32000', '32,000 - 42,000'],
+      ],
+    );
+    await _pump(tester, _FakeRateCardRepository(result: [longTitleCard]));
+
+    await tester.tap(find.text('Rate Card'));
+    await tester.pumpAndSettle();
+
+    // No RenderFlex overflow (the title used to clip off the dialog's
+    // right edge, including the "— Monthly" suffix — the one word that
+    // distinguishes this table from the daily one).
+    expect(tester.takeException(), isNull);
+    expect(find.text('Salary Guidelines (12 hrs/24 hrs duty) — Monthly'), findsOneWidget);
+  });
+
   testWidgets('Close dismisses the dialog', (tester) async {
     await _pump(tester, _FakeRateCardRepository(result: [_dailyCard, _monthlyCard]));
 

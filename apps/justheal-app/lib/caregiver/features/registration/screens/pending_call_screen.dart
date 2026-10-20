@@ -7,6 +7,7 @@ import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../../app/route_for_status.dart';
 import '../../../app/caregiver_bottom_nav.dart';
+import '../../../app/logout_helper.dart';
 import '../../../app/messages_bell.dart';
 
 /// SPEC.md section 12.3: waiting screen shown while verification_status is
@@ -78,7 +79,7 @@ class _PendingCallScreenState extends ConsumerState<PendingCallScreen> {
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: const VitaAppBarTitle('JustHeal'),
+          title: VitaAppBarTitle('JustHeal', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
           automaticallyImplyLeading: false,
           // Logout lives only on the Profile screen now (moved to the
           // bottom of the page there) — no longer duplicated in every

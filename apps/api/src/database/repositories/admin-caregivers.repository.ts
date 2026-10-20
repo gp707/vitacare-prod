@@ -24,6 +24,10 @@ export interface DashboardStats {
   /** users.role = 'individual' created in the last 7 days. Populated by
    *  AdminService.getDashboardStats, not this repository's own query. */
   new_individuals_7d: number;
+  /** support_tickets.status = 'open' — feeds the Tickets sidebar badge.
+   *  Populated by AdminService.getDashboardStats, not this repository's
+   *  own query. */
+  open_tickets_count: number;
 }
 
 export interface AdminCaregiverListItem {

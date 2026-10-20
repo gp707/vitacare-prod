@@ -126,15 +126,29 @@ class _RateCardDialogState extends State<_RateCardDialog> {
                             child: Divider(height: 1),
                           ),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.access_time, size: 15, color: AppColors.primaryDark),
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(Icons.access_time, size: 15, color: AppColors.primaryDark),
+                              ),
                               const SizedBox(width: AppSpacing.xs),
-                              Text(
-                                _rateCards![i].title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: AppTypography.body,
-                                    color: AppColors.error),
+                              // Expanded so a long admin-entered title (e.g.
+                              // "Salary Guidelines (12 hrs/24 hrs duty) —
+                              // Monthly") wraps onto a second line instead
+                              // of clipping off the dialog's edge — the
+                              // "Daily"/"Monthly" suffix is the one word
+                              // that actually tells the two tables apart,
+                              // so losing it to a clip made the whole
+                              // dialog ambiguous, not just untidy.
+                              Expanded(
+                                child: Text(
+                                  _rateCards![i].title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: AppTypography.body,
+                                      color: AppColors.error),
+                                ),
                               ),
                             ],
                           ),
@@ -171,7 +185,11 @@ class _RateCardTable extends StatelessWidget {
         1: FlexColumnWidth(1),
         2: FlexColumnWidth(1),
       },
-      border: TableBorder.all(color: AppColors.border),
+      // A darker, thicker grid than the default border color — the faint
+      // AppColors.border line was hard to tell apart from the dialog's
+      // own white background, making the 3 columns and the header/data
+      // rows blur together at a glance.
+      border: TableBorder.all(color: AppColors.textSecondary, width: 1.5),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(

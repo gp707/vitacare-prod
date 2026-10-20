@@ -320,7 +320,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Stack(
                 children: [
                   Image.asset(
-                    'packages/vitacare_ui/assets/branding/logo_lockup.webp',
+                    'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
                     width: 56,
                   ),
                   const Positioned(

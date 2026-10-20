@@ -132,4 +132,103 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
   });
+
+  group('VitaAppBarTitle', () {
+    testWidgets('with no onTripleTap (the default), the icon is a plain static image — no tap handling at all',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(appBar: AppBar(title: const VitaAppBarTitle('Title')))),
+      );
+
+      expect(find.text('Title'), findsOneWidget);
+      expect(find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector)),
+          findsNothing);
+    });
+
+    testWidgets('3 taps within the window fires onTripleTap exactly once', (tester) async {
+      var callCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(appBar: AppBar(title: VitaAppBarTitle('Title', onTripleTap: () => callCount++))),
+        ),
+      );
+
+      final icon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+      await tester.tap(icon);
+      await tester.tap(icon);
+      expect(callCount, 0);
+      await tester.tap(icon);
+
+      expect(callCount, 1);
+    });
+
+    testWidgets('only 2 taps never fires it', (tester) async {
+      var callCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(appBar: AppBar(title: VitaAppBarTitle('Title', onTripleTap: () => callCount++))),
+        ),
+      );
+
+      final icon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+      await tester.tap(icon);
+      await tester.tap(icon);
+
+      expect(callCount, 0);
+    });
+
+    testWidgets('a 4th tap right after a completed triple-tap starts counting fresh, not firing again immediately',
+        (tester) async {
+      var callCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(appBar: AppBar(title: VitaAppBarTitle('Title', onTripleTap: () => callCount++))),
+        ),
+      );
+
+      final icon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+      await tester.tap(icon);
+      await tester.tap(icon);
+      await tester.tap(icon);
+      expect(callCount, 1);
+
+      await tester.tap(icon);
+      expect(callCount, 1);
+    });
+
+    testWidgets('a gap longer than the window resets the count — 2 taps, a pause, then 2 more never fires it',
+        (tester) async {
+      var callCount = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            appBar: AppBar(
+              title: VitaAppBarTitle(
+                'Title',
+                onTripleTap: () => callCount++,
+                tripleTapWindow: const Duration(milliseconds: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      final icon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+
+      await tester.runAsync(() async {
+        await tester.tap(icon);
+        await tester.tap(icon);
+        // Real wall-clock wait past the 100ms window — _handleTap compares
+        // against DateTime.now(), which FakeAsync's virtual time doesn't
+        // advance, so this needs a genuine delay via runAsync.
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        await tester.tap(icon);
+        await tester.tap(icon);
+      });
+
+      // The post-gap pair only reaches a count of 2 (reset, then +1, +1),
+      // never the 3 needed to fire — proves the gap genuinely resets state
+      // rather than the count just accumulating indefinitely.
+      expect(callCount, 0);
+    });
+  });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import '../../../app/logout_helper.dart';
 import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
@@ -151,7 +152,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('Post a Requirement'),
+        title: VitaAppBarTitle('Post a Requirement', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
         actions: const [TextZoomButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,

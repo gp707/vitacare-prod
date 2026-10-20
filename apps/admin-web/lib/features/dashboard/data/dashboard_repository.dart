@@ -17,6 +17,9 @@ class DashboardStats {
   final int jobsPendingApproval;
   final int newOrganisations7d;
   final int newIndividuals7d;
+  // support_tickets.status = 'open' — feeds the Tickets sidebar badge, same
+  // as jobsPendingApproval/pendingCall feed the Jobs/Caregivers badges.
+  final int openTicketsCount;
 
   const DashboardStats({
     required this.totalCaregivers,
@@ -31,6 +34,7 @@ class DashboardStats {
     required this.jobsPendingApproval,
     required this.newOrganisations7d,
     required this.newIndividuals7d,
+    required this.openTicketsCount,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) => DashboardStats(
@@ -46,6 +50,7 @@ class DashboardStats {
         jobsPendingApproval: json['jobs_pending_approval'] as int,
         newOrganisations7d: json['new_organisations_7d'] as int,
         newIndividuals7d: json['new_individuals_7d'] as int,
+        openTicketsCount: json['open_tickets_count'] as int,
       );
 }
 

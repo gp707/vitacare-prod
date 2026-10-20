@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
+import '../shared/state/sidebar_badge_counts_notifier.dart';
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's static buildRoutes() map (all argument-free
@@ -67,6 +68,7 @@ class _RootScreenState extends ConsumerState<RootScreen> {
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/login', (route) => false);
       } else if (next is AdminSessionAuthenticated) {
+        ref.read(sidebarBadgeCountsProvider.notifier).load();
         final restoreRoute = widget.initialDeepLinkRoute;
         final target =
             restoreRoute != null && _restorableRoutes.contains(restoreRoute)

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/patient_hospital/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
@@ -367,11 +368,8 @@ void main() {
     expect(repo.updatedCode, isNull);
   });
 
-  testWidgets('logging out clears the session and navigates to /login', (tester) async {
-    // The Logout button sits below the Full Name and Login PIN sections —
-    // tall enough to fall outside the default 800x600 surface's viewport +
-    // cache extent, so the ListView's sliver never mounts it without a
-    // taller surface.
+  testWidgets('tapping the AppBar logo 3 times clears the session and navigates to /login (no visible Logout button)',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -404,10 +402,62 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Logout'));
+    expect(find.widgetWithText(OutlinedButton, 'Logout'), findsNothing);
+
+    // The onTripleTap GestureDetector only wraps the small icon inside
+    // VitaAppBarTitle, not the whole title row (which also includes the
+    // "Profile" text) — target that specifically rather than the outer
+    // widget's full bounding box, whose geometric center could land on
+    // either part.
+    final logoIcon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+    await tester.tap(logoIcon);
+    await tester.tap(logoIcon);
+    await tester.tap(logoIcon);
     await tester.pumpAndSettle();
 
     expect(find.text('login screen'), findsOneWidget);
+  });
+
+  testWidgets('tapping the AppBar logo only twice does not log out — the gesture needs a genuine 3rd tap',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    final repo = _FakeIndividualRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localStorageProvider.overrideWithValue(localStorage),
+          individualRepositoryProvider.overrideWithValue(repo),
+          individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
+          sessionProvider.overrideWith(
+            (ref) => SessionNotifier(localStorage, repo, OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))
+              ..state = const SessionAuthenticated(
+                role: 'individual',
+                fullName: 'Asha Patel',
+                phone: '+919876543210',
+                isJobPostingBlocked: false,
+              ),
+          ),
+        ],
+        child: MaterialApp(
+          home: const ProfileScreen(),
+          routes: {'/login': (_) => const Scaffold(body: Text('login screen'))},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final logoIcon = find.descendant(of: find.byType(VitaAppBarTitle), matching: find.byType(GestureDetector));
+    await tester.tap(logoIcon);
+    await tester.tap(logoIcon);
+    await tester.pumpAndSettle();
+
+    expect(find.text('login screen'), findsNothing);
   });
 
   group('Organisation account — Organisation Details, each field independently inline-editable', () {

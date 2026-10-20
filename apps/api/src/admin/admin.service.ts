@@ -18,6 +18,7 @@ import { AdminIndividualsRepository } from '../database/repositories/admin-indiv
 import { AdminOrganisationsRepository } from '../database/repositories/admin-organisations.repository';
 import { JobsRepository } from '../database/repositories/jobs.repository';
 import { OrganisationRequirementsRepository } from '../database/repositories/organisation-requirements.repository';
+import { TicketsRepository } from '../database/repositories/tickets.repository';
 import { DatabaseService } from '../database/database.service';
 import { UploadService } from '../upload/upload.service';
 import { AuditService } from '../audit/audit.service';
@@ -49,23 +50,32 @@ export class AdminService {
     private readonly organisationsRepo: AdminOrganisationsRepository,
     private readonly jobsRepo: JobsRepository,
     private readonly organisationRequirementsRepo: OrganisationRequirementsRepository,
+    private readonly ticketsRepo: TicketsRepository,
     private readonly db: DatabaseService,
   ) {}
 
   async getDashboardStats(): Promise<DashboardStats> {
-    const [caregiverStats, jobsPendingApproval, requirementsPendingApproval, newOrganisations7d, newIndividuals7d] =
-      await Promise.all([
-        this.caregiversRepo.getDashboardStats(),
-        this.jobsRepo.countPendingApproval(),
-        this.organisationRequirementsRepo.countPendingApproval(),
-        this.organisationsRepo.countNewLast7Days(),
-        this.individualsRepo.countNewLast7Days(),
-      ]);
+    const [
+      caregiverStats,
+      jobsPendingApproval,
+      requirementsPendingApproval,
+      newOrganisations7d,
+      newIndividuals7d,
+      openTicketsCount,
+    ] = await Promise.all([
+      this.caregiversRepo.getDashboardStats(),
+      this.jobsRepo.countPendingApproval(),
+      this.organisationRequirementsRepo.countPendingApproval(),
+      this.organisationsRepo.countNewLast7Days(),
+      this.individualsRepo.countNewLast7Days(),
+      this.ticketsRepo.countOpen(),
+    ]);
     return {
       ...caregiverStats,
       jobs_pending_approval: jobsPendingApproval + requirementsPendingApproval,
       new_organisations_7d: newOrganisations7d,
       new_individuals_7d: newIndividuals7d,
+      open_tickets_count: openTicketsCount,
     };
   }
 

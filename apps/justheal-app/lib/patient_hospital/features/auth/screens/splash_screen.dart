@@ -116,7 +116,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const VitaSplashBranding(appLabel: 'JUSTHEAL', tagline: 'By VitaCasaHealth.in'),
+            // The new JustHeal lockup already bakes in the wordmark +
+            // "Helping Hands, Healing Hearts" tagline, so this renders it
+            // directly rather than through VitaSplashBranding (which would
+            // duplicate that text as separate captions below the image —
+            // right for admin-web's splash, which still uses the plain
+            // icon+wordmark logo_lockup.webp, but not for this one).
+            Image.asset('packages/vitacare_ui/assets/branding/justheal_splash_logo.webp', width: 200),
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'By VitaCasaHealth',
+              style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+            ),
             const SizedBox(height: AppSpacing.xl),
             if (session is SessionLoadError) ...[
               Padding(

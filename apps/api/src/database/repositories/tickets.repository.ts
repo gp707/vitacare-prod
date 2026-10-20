@@ -69,6 +69,14 @@ export class TicketsRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Feeds the Tickets sidebar badge — same cheap single-COUNT shape as
+   *  JobsRepository.countPendingApproval/OrganisationRequirementsRepository
+   *  .countPendingApproval, not a full paginated list fetch. */
+  async countOpen(): Promise<number> {
+    const result = await this.db.query<{ count: string }>(`SELECT COUNT(*) FROM support_tickets WHERE status = 'open'`);
+    return Number(result.rows[0].count);
+  }
+
   /** Only a still-open ticket can be resolved — returns null (not an
    *  exception) otherwise, same convention as
    *  AdminPushNotificationsRepository.cancel. */

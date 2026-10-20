@@ -61,8 +61,9 @@ void main() {
     expect(find.text('Christian'), findsOneWidget);
     expect(find.text('Hindi'), findsOneWidget);
     expect(find.text('Kannada'), findsOneWidget);
-    // assigned counts as verified too, not just available.
-    expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
+    // The "VitaCare-verified caregiver" badge was removed from the
+    // product entirely — never shown regardless of verification_status.
+    expect(find.text('VitaCare-verified caregiver'), findsNothing);
     expect(find.text('nita@example.com'), findsOneWidget);
     // Aadhaar/qualification/other documents and preferred cities are shown
     // in full, not trimmed. Job search preferences (duty type/min salary)

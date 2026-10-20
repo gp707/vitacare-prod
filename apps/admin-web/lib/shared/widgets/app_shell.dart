@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../features/auth/state/session_notifier.dart';
 import '../../features/auth/state/session_state.dart';
+import '../../features/dashboard/data/dashboard_repository.dart';
+import '../state/sidebar_badge_counts_notifier.dart';
 
 enum AppShellSection {
   dashboard,
@@ -43,6 +45,7 @@ class AppShell extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
     final isSuperAdmin =
         session is AdminSessionAuthenticated && session.isSuperAdmin;
+    final badgeCounts = ref.watch(sidebarBadgeCountsProvider);
 
     if (context.isCompact) {
       return Scaffold(
@@ -63,7 +66,10 @@ class AppShell extends ConsumerWidget {
           backgroundColor: AppColors.surface,
           child: SafeArea(
               child: _NavList(
-                  current: current, isSuperAdmin: isSuperAdmin, ref: ref)),
+                  current: current,
+                  isSuperAdmin: isSuperAdmin,
+                  ref: ref,
+                  badgeCounts: badgeCounts)),
         ),
         body: child,
         bottomNavigationBar: bottomBar,
@@ -78,7 +84,10 @@ class AppShell extends ConsumerWidget {
             width: 220,
             color: AppColors.surface,
             child: _NavList(
-                current: current, isSuperAdmin: isSuperAdmin, ref: ref),
+                current: current,
+                isSuperAdmin: isSuperAdmin,
+                ref: ref,
+                badgeCounts: badgeCounts),
           ),
           Expanded(child: child),
         ],
@@ -94,9 +103,13 @@ class _NavList extends StatelessWidget {
   final AppShellSection current;
   final bool isSuperAdmin;
   final WidgetRef ref;
+  final DashboardStats? badgeCounts;
 
   const _NavList(
-      {required this.current, required this.isSuperAdmin, required this.ref});
+      {required this.current,
+      required this.isSuperAdmin,
+      required this.ref,
+      required this.badgeCounts});
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +148,7 @@ class _NavList extends StatelessWidget {
                   icon: Icons.people,
                   label: 'Caregivers',
                   selected: current == AppShellSection.caregivers,
+                  count: badgeCounts?.pendingCall,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/caregivers', (r) => false),
                 ),
@@ -149,6 +163,7 @@ class _NavList extends StatelessWidget {
                   icon: Icons.work,
                   label: 'Jobs',
                   selected: current == AppShellSection.jobs,
+                  count: badgeCounts?.jobsPendingApproval,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/jobs', (r) => false),
                 ),
@@ -191,6 +206,7 @@ class _NavList extends StatelessWidget {
                   icon: Icons.confirmation_number_outlined,
                   label: 'Tickets',
                   selected: current == AppShellSection.tickets,
+                  count: badgeCounts?.openTicketsCount,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/tickets', (r) => false),
                 ),
@@ -241,12 +257,17 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  // Shown as a small red "needs immediate attention" badge next to the
+  // label — null while badgeCounts hasn't loaded yet, 0 (or null) hides
+  // the badge entirely rather than showing an empty/zero pill.
+  final int? count;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
+    this.count,
   });
 
   @override
@@ -261,7 +282,37 @@ class _NavItem extends StatelessWidget {
           style: TextStyle(
               color: selected ? AppColors.primary : AppColors.textPrimary),
         ),
+        trailing: (count != null && count! > 0) ? _CountBadge(count!) : null,
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// Small numeric pill — e.g. "3 open tickets", "5 pending jobs" — red to
+/// read as needing immediate admin attention, not just an informational
+/// count. Caps the displayed text at "99+" so a pathologically large
+/// backlog never overflows/wraps the fixed-width sidebar row.
+class _CountBadge extends StatelessWidget {
+  final int count;
+
+  const _CountBadge(this.count);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.error,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: AppTypography.caption,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

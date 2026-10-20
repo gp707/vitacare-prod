@@ -103,7 +103,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _deleteAccount(bool isOrganisation) async {
-    final deleted = await showDeleteAccountDialog(context, ref, isOrganisation: isOrganisation);
+    final deleted = await showDeleteAccountDialog(context, ref,
+        isOrganisation: isOrganisation);
     if (!deleted || !mounted) return;
     final navigator = Navigator.of(context);
     await ref.read(sessionProvider.notifier).logout();
@@ -117,155 +118,199 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('Profile'),
-        actions: individualAppBarActions(showBell: !(session is SessionAuthenticated && session.isOrganisation)),
+        title: VitaAppBarTitle('Profile', onTripleTap: _logout),
+        actions: individualAppBarActions(
+            showBell:
+                !(session is SessionAuthenticated && session.isOrganisation)),
       ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 0),
       body: authenticated == null
           ? const Center(child: VitaLoadingIndicator())
           : SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
                 children: [
-                  Text(
-                    authenticated.isOrganisation ? authenticated.organisationName! : authenticated.fullName,
-                    style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
-                  ),
-                  if ((authenticated.isOrganisation
-                          ? organisationDisplayId(authenticated.orgNumber)
-                          : patientDisplayId(authenticated.patientNumber)) !=
-                      null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      (authenticated.isOrganisation
-                          ? organisationDisplayId(authenticated.orgNumber)
-                          : patientDisplayId(authenticated.patientNumber))!,
-                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  Expanded(child: _buildFields(authenticated)),
+                  // Delete My Account is pinned to the very bottom of the
+                  // screen (not just scrolled further down the field list
+                  // above) — a destructive, rarely-used action deliberately
+                  // kept as far as possible from the frequently-tapped
+                  // fields. No visible Logout button here either — tapping
+                  // the AppBar logo 3 times logs out instead (see
+                  // VitaAppBarTitle's own doc comment, a deliberate
+                  // hidden-feature request).
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          _deleteAccount(authenticated.isOrganisation),
+                      icon: Icon(Icons.delete_forever,
+                          size: 13,
+                          color:
+                              AppColors.textSecondary.withValues(alpha: 0.6)),
+                      label: Text(
+                        'Delete My Account',
+                        style: TextStyle(
+                          color: AppColors.textSecondary.withValues(alpha: 0.6),
+                          fontSize: AppTypography.caption,
+                        ),
+                      ),
                     ),
-                  ],
-                  if (authenticated.isOrganisation) ...[
-                    const SizedBox(height: 2),
-                    Text('Contact: ${authenticated.fullName}', style: const TextStyle(color: AppColors.textSecondary)),
-                    Text(
-                      [
-                        OrganisationType.displayNames[authenticated.organisationType] ?? authenticated.organisationType!,
-                        City.displayNames[authenticated.city] ?? authenticated.city!,
-                        if (authenticated.area != null && authenticated.area!.isNotEmpty) authenticated.area!,
-                      ].join(' · '),
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.xs),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.phone, size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 4),
-                      Text(authenticated.phone, style: const TextStyle(color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    "To change the mobile number linked to your account, tap the Help button above to chat "
-                    "with us on WhatsApp and let us know.",
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
-                  ),
-                  if (authenticated.isJobPostingBlocked) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    const Text(
-                      'Posting new requirements is currently blocked. Contact the office for details.',
-                      style: TextStyle(color: AppColors.error),
-                    ),
-                  ],
-                  if (!authenticated.isOrganisation) ...[
-                    const Divider(height: AppSpacing.xxl),
-                    _InlineTextField(
-                      icon: Icons.badge,
-                      label: 'Full Name',
-                      value: authenticated.fullName,
-                      maxLength: Validation.nameMaxLength,
-                      validate: _nameValidationError,
-                      onSave: _saveName,
-                    ),
-                  ] else ...[
-                    const Divider(height: AppSpacing.xxl),
-                    const Row(
-                      children: [
-                        Icon(Icons.business, size: 18, color: AppColors.primaryDark),
-                        SizedBox(width: AppSpacing.xs),
-                        Text('Organisation Details',
-                            style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _InlineTextField(
-                      icon: Icons.person,
-                      label: 'Contact person name',
-                      value: authenticated.fullName,
-                      maxLength: Validation.nameMaxLength,
-                      validate: _nameValidationError,
-                      onSave: (v) => _saveOrgField(fullName: v),
-                    ),
-                    _InlineTextField(
-                      icon: Icons.apartment,
-                      label: 'Organisation name',
-                      value: authenticated.organisationName ?? '',
-                      validate: (v) => v.trim().isEmpty ? 'Organisation name is required' : null,
-                      onSave: (v) => _saveOrgField(organisationName: v),
-                    ),
-                    _InlineDropdownField(
-                      icon: Icons.category,
-                      label: 'Type of organisation',
-                      value: authenticated.organisationType,
-                      displayValue:
-                          OrganisationType.displayNames[authenticated.organisationType] ?? authenticated.organisationType ?? '',
-                      items: OrganisationType.all
-                          .map((t) => DropdownMenuItem(value: t, child: Text(OrganisationType.displayNames[t] ?? t)))
-                          .toList(),
-                      onSave: (v) => _saveOrgField(organisationType: v),
-                    ),
-                    _InlineDropdownField(
-                      icon: Icons.location_city,
-                      label: 'City',
-                      value: authenticated.city,
-                      displayValue: City.displayNames[authenticated.city] ?? authenticated.city ?? '',
-                      items: [
-                        ...City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))),
-                        const DropdownMenuItem(value: 'others', child: Text('Others')),
-                      ],
-                      onSave: (v) => _saveOrgField(city: v),
-                    ),
-                    _InlineTextField(
-                      icon: Icons.map,
-                      label: 'Area (Optional)',
-                      value: authenticated.area ?? '',
-                      // Matches the previous form's own semantics: clearing
-                      // this field back to empty is treated as "nothing to
-                      // update" (sent as null, so the existing area stays
-                      // put) rather than an unset request — there's no
-                      // backend support for clearing area once set.
-                      onSave: (v) => _saveOrgField(area: v.trim().isEmpty ? null : v.trim()),
-                    ),
-                  ],
-                  const Divider(height: AppSpacing.xxl),
-                  _InlinePinField(onSave: (code) => _saveCode(code, authenticated.isOrganisation)),
-                  const Divider(height: AppSpacing.xxl),
-                  OutlinedButton.icon(
-                    onPressed: _logout,
-                    icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
-                    label: const Text('Logout', style: TextStyle(color: AppColors.error)),
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextButton.icon(
-                    onPressed: () => _deleteAccount(authenticated.isOrganisation),
-                    icon: const Icon(Icons.delete_forever, size: 16, color: AppColors.textSecondary),
-                    label: const Text('Delete My Account', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildFields(SessionAuthenticated authenticated) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        Text(
+          authenticated.isOrganisation
+              ? authenticated.organisationName!
+              : authenticated.fullName,
+          style: const TextStyle(
+              fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
+        ),
+        if ((authenticated.isOrganisation
+                ? organisationDisplayId(authenticated.orgNumber)
+                : patientDisplayId(authenticated.patientNumber)) !=
+            null) ...[
+          const SizedBox(height: 2),
+          Text(
+            (authenticated.isOrganisation
+                ? organisationDisplayId(authenticated.orgNumber)
+                : patientDisplayId(authenticated.patientNumber))!,
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+          ),
+        ],
+        if (authenticated.isOrganisation) ...[
+          const SizedBox(height: 2),
+          Text('Contact: ${authenticated.fullName}',
+              style: const TextStyle(color: AppColors.textSecondary)),
+          Text(
+            [
+              OrganisationType.displayNames[authenticated.organisationType] ??
+                  authenticated.organisationType!,
+              City.displayNames[authenticated.city] ?? authenticated.city!,
+              if (authenticated.area != null && authenticated.area!.isNotEmpty)
+                authenticated.area!,
+            ].join(' · '),
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.phone, size: 14, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(authenticated.phone,
+                style: const TextStyle(color: AppColors.textSecondary)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          "To change the mobile number linked to your account, tap the Help button above to chat "
+          "with us on WhatsApp and let us know.",
+          style: TextStyle(
+              color: AppColors.textSecondary, fontSize: AppTypography.small),
+        ),
+        if (authenticated.isJobPostingBlocked) ...[
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Posting new requirements is currently blocked. Contact the office for details.',
+            style: TextStyle(color: AppColors.error),
+          ),
+        ],
+        if (!authenticated.isOrganisation) ...[
+          const Divider(height: AppSpacing.xxl),
+          _InlineTextField(
+            icon: Icons.badge,
+            label: 'Full Name',
+            value: authenticated.fullName,
+            maxLength: Validation.nameMaxLength,
+            validate: _nameValidationError,
+            onSave: _saveName,
+          ),
+        ] else ...[
+          const Divider(height: AppSpacing.xxl),
+          const Row(
+            children: [
+              Icon(Icons.business, size: 18, color: AppColors.primaryDark),
+              SizedBox(width: AppSpacing.xs),
+              Text('Organisation Details',
+                  style: TextStyle(
+                      fontSize: AppTypography.subtitle,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _InlineTextField(
+            icon: Icons.person,
+            label: 'Contact person name',
+            value: authenticated.fullName,
+            maxLength: Validation.nameMaxLength,
+            validate: _nameValidationError,
+            onSave: (v) => _saveOrgField(fullName: v),
+          ),
+          _InlineTextField(
+            icon: Icons.apartment,
+            label: 'Organisation name',
+            value: authenticated.organisationName ?? '',
+            validate: (v) =>
+                v.trim().isEmpty ? 'Organisation name is required' : null,
+            onSave: (v) => _saveOrgField(organisationName: v),
+          ),
+          _InlineDropdownField(
+            icon: Icons.category,
+            label: 'Type of organisation',
+            value: authenticated.organisationType,
+            displayValue:
+                OrganisationType.displayNames[authenticated.organisationType] ??
+                    authenticated.organisationType ??
+                    '',
+            items: OrganisationType.all
+                .map((t) => DropdownMenuItem(
+                    value: t,
+                    child: Text(OrganisationType.displayNames[t] ?? t)))
+                .toList(),
+            onSave: (v) => _saveOrgField(organisationType: v),
+          ),
+          _InlineDropdownField(
+            icon: Icons.location_city,
+            label: 'City',
+            value: authenticated.city,
+            displayValue: City.displayNames[authenticated.city] ??
+                authenticated.city ??
+                '',
+            items: [
+              ...City.all.map((c) => DropdownMenuItem(
+                  value: c, child: Text(City.displayNames[c] ?? c))),
+              const DropdownMenuItem(value: 'others', child: Text('Others')),
+            ],
+            onSave: (v) => _saveOrgField(city: v),
+          ),
+          _InlineTextField(
+            icon: Icons.map,
+            label: 'Area (Optional)',
+            value: authenticated.area ?? '',
+            // Matches the previous form's own semantics: clearing
+            // this field back to empty is treated as "nothing to
+            // update" (sent as null, so the existing area stays
+            // put) rather than an unset request — there's no
+            // backend support for clearing area once set.
+            onSave: (v) =>
+                _saveOrgField(area: v.trim().isEmpty ? null : v.trim()),
+          ),
+        ],
+        const Divider(height: AppSpacing.xxl),
+        _InlinePinField(
+            onSave: (code) => _saveCode(code, authenticated.isOrganisation)),
+      ],
     );
   }
 }
@@ -281,7 +326,8 @@ abstract class _InlineFieldRow<T> extends StatefulWidget {
   const _InlineFieldRow({required this.icon, required this.label});
 }
 
-abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>> extends State<W> {
+abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>>
+    extends State<W> {
   bool editing = false;
   bool saving = false;
   String? error;
@@ -358,12 +404,17 @@ abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>> extends Sta
             children: [
               Icon(widget.icon, size: 18, color: AppColors.primaryDark),
               const SizedBox(width: AppSpacing.xs),
-              Expanded(child: editing ? buildEditor(context) : buildDisplay(context)),
+              Expanded(
+                  child:
+                      editing ? buildEditor(context) : buildDisplay(context)),
               if (editing) ...[
                 if (saving)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                    child: SizedBox(height: 18, width: 18, child: VitaLoadingIndicator(size: 18)),
+                    child: SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: VitaLoadingIndicator(size: 18)),
                   )
                 else ...[
                   IconButton(
@@ -379,7 +430,8 @@ abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>> extends Sta
                 ],
               ] else
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 18, color: AppColors.primaryDark),
+                  icon: const Icon(Icons.edit,
+                      size: 18, color: AppColors.primaryDark),
                   tooltip: 'Edit ${widget.label}',
                   onPressed: startEditing,
                 ),
@@ -388,7 +440,9 @@ abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>> extends Sta
           if (error != null)
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 2),
-              child: Text(error!, style: const TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text(error!,
+                  style: const TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),
@@ -403,7 +457,9 @@ abstract class _InlineFieldRowState<T, W extends _InlineFieldRow<T>> extends Sta
 Widget _displayRow(String label, String value) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
         Text(
           value,
           style: const TextStyle(color: AppColors.textSecondary),
@@ -431,8 +487,10 @@ class _InlineTextField extends _InlineFieldRow<String> {
   State<_InlineTextField> createState() => _InlineTextFieldState();
 }
 
-class _InlineTextFieldState extends _InlineFieldRowState<String, _InlineTextField> {
-  late final TextEditingController _controller = TextEditingController(text: widget.value);
+class _InlineTextFieldState
+    extends _InlineFieldRowState<String, _InlineTextField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
 
   @override
   String get committedValue => widget.value;
@@ -455,7 +513,8 @@ class _InlineTextFieldState extends _InlineFieldRowState<String, _InlineTextFiel
   void resetEditingState() => _controller.text = committedValue;
 
   @override
-  String? validateBeforeSave() => widget.validate?.call(_controller.text.trim());
+  String? validateBeforeSave() =>
+      widget.validate?.call(_controller.text.trim());
 
   @override
   Future<String?> save() => widget.onSave(_controller.text.trim());
@@ -469,7 +528,8 @@ class _InlineTextFieldState extends _InlineFieldRowState<String, _InlineTextFiel
       );
 
   @override
-  Widget buildDisplay(BuildContext context) => _displayRow(widget.label, widget.value.isEmpty ? '—' : widget.value);
+  Widget buildDisplay(BuildContext context) =>
+      _displayRow(widget.label, widget.value.isEmpty ? '—' : widget.value);
 }
 
 class _InlineDropdownField extends _InlineFieldRow<String?> {
@@ -491,7 +551,8 @@ class _InlineDropdownField extends _InlineFieldRow<String?> {
   State<_InlineDropdownField> createState() => _InlineDropdownFieldState();
 }
 
-class _InlineDropdownFieldState extends _InlineFieldRowState<String?, _InlineDropdownField> {
+class _InlineDropdownFieldState
+    extends _InlineFieldRowState<String?, _InlineDropdownField> {
   late String? _pending = widget.value;
 
   @override
@@ -516,7 +577,8 @@ class _InlineDropdownFieldState extends _InlineFieldRowState<String?, _InlineDro
       );
 
   @override
-  Widget buildDisplay(BuildContext context) => _displayRow(widget.label, widget.displayValue);
+  Widget buildDisplay(BuildContext context) =>
+      _displayRow(widget.label, widget.displayValue);
 }
 
 class _InlinePinField extends StatefulWidget {
@@ -589,7 +651,8 @@ class _InlinePinFieldState extends State<_InlinePinField> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.lock_outline, size: 18, color: AppColors.primaryDark),
+              const Icon(Icons.lock_outline,
+                  size: 18, color: AppColors.primaryDark),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: _editing
@@ -599,13 +662,18 @@ class _InlinePinFieldState extends State<_InlinePinField> {
                         keyboardType: TextInputType.number,
                         obscureText: true,
                         maxLength: Validation.codeLength,
-                        decoration: const InputDecoration(labelText: 'New 4-digit PIN', isDense: true),
+                        decoration: const InputDecoration(
+                            labelText: 'New 4-digit PIN', isDense: true),
                       )
                     : const Row(
                         children: [
-                          Text('Login PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Login PIN',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                           SizedBox(width: AppSpacing.sm),
-                          Text('••••', style: TextStyle(color: AppColors.textSecondary, letterSpacing: 2)),
+                          Text('••••',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  letterSpacing: 2)),
                         ],
                       ),
               ),
@@ -613,15 +681,25 @@ class _InlinePinFieldState extends State<_InlinePinField> {
                 if (_saving)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                    child: SizedBox(height: 18, width: 18, child: VitaLoadingIndicator(size: 18)),
+                    child: SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: VitaLoadingIndicator(size: 18)),
                   )
                 else ...[
-                  IconButton(icon: const Icon(Icons.check, color: AppColors.success), tooltip: 'Save', onPressed: _save),
-                  IconButton(icon: const Icon(Icons.close, color: AppColors.error), tooltip: 'Cancel', onPressed: _cancel),
+                  IconButton(
+                      icon: const Icon(Icons.check, color: AppColors.success),
+                      tooltip: 'Save',
+                      onPressed: _save),
+                  IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.error),
+                      tooltip: 'Cancel',
+                      onPressed: _cancel),
                 ],
               ] else
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 18, color: AppColors.primaryDark),
+                  icon: const Icon(Icons.edit,
+                      size: 18, color: AppColors.primaryDark),
                   tooltip: 'Edit Login PIN',
                   onPressed: _startEditing,
                 ),
@@ -630,7 +708,9 @@ class _InlinePinFieldState extends State<_InlinePinField> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 2),
-              child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text(_error!,
+                  style: const TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),

@@ -165,6 +165,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   List<String>? capturedLanguages;
   String? capturedFrequencyOfCare;
   String? capturedSalaryAmount;
+  String? capturedStartDate;
 
   _FakeIndividualRepository({this.createError}) : super(Dio());
 
@@ -200,6 +201,7 @@ class _FakeIndividualRepository extends IndividualRepository {
     capturedLanguages = languages;
     capturedFrequencyOfCare = frequencyOfCare;
     capturedSalaryAmount = salaryAmount;
+    capturedStartDate = startDate;
     if (createError != null) {
       final error = createError!;
       createError = null;
@@ -281,10 +283,9 @@ Future<void> _fillIndividualMandatoryFields(WidgetTester tester) async {
   await tester.tap(find.text('24Hrs - Live In').last);
   await tester.pumpAndSettle();
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('OK'));
-  await tester.pumpAndSettle();
+  // Preferred Start Date defaults to tomorrow and is never left unset, so
+  // no interaction is needed here for the form to be valid — see its own
+  // dedicated test group below.
 
   await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
   await tester.pumpAndSettle();
@@ -321,7 +322,9 @@ void main() {
     expect(find.text('Please select a city'), findsOneWidget);
     expect(find.text('Area is required'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
-    expect(find.text('Select a preferred start date'), findsOneWidget);
+    // No "Select a preferred start date" error — the field defaults to
+    // tomorrow rather than being left unset, so it's never part of the
+    // missing-mandatory-fields set. See its own test group below.
     expect(find.text('Please select how long care is needed'), findsOneWidget);
     expect(find.text('You must accept the Terms & Conditions to continue'), findsOneWidget);
     expect(authRepo.registerCalled, isFalse);
@@ -400,6 +403,12 @@ void main() {
     expect(individualRepo.capturedCity, 'bangalore');
     expect(individualRepo.capturedArea, 'Indiranagar');
     expect(individualRepo.capturedDutyType, DutyType.liveIn);
+    // Never touched the Preferred Start Date field — it still submits a
+    // real date, defaulted to tomorrow rather than erroring.
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final expectedStartDate = '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-'
+        '${tomorrow.day.toString().padLeft(2, '0')}';
+    expect(individualRepo.capturedStartDate, expectedStartDate);
     expect(individualRepo.capturedCareDuration, CareDuration.fewWeeks);
     expect(individualRepo.capturedFrequencyOfCare, FrequencyOfCare.daily);
     expect(individualRepo.capturedSalaryAmount, 'DAILY_COMPANION_RATE');
@@ -412,6 +421,31 @@ void main() {
     // see the dedicated "None" test below.
 
     expect(find.text('home'), findsOneWidget);
+  });
+
+  group('Preferred Start Date', () {
+    testWidgets('defaults to tomorrow (not a "Select date" placeholder) and the field stays genuinely tappable',
+        (tester) async {
+      await _pumpRegistration(tester, authRepo: _FakeAuthRepository());
+      await _fillIndividualMandatoryFields(tester);
+
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final defaultLabel = '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-'
+          '${tomorrow.day.toString().padLeft(2, '0')}';
+      expect(find.widgetWithText(OutlinedButton, defaultLabel), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Select date'), findsNothing);
+
+      // Tapping still opens a real, interactive date picker — not a
+      // disabled/decorative button now that it has a default value.
+      await tester.tap(find.widgetWithText(OutlinedButton, defaultLabel));
+      await tester.pumpAndSettle();
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+
+      // Cancelling leaves the default untouched (didn't silently clear it).
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OutlinedButton, defaultLabel), findsOneWidget);
+    });
   });
 
   testWidgets('"None" for Feeding/Toilet Assistance submits the same values and salary as their real equivalents',
@@ -438,10 +472,6 @@ void main() {
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Hours Care Needed (Mandatory)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('24Hrs - Live In').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Select date'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'How long you need the care for? (Mandatory)'));
     await tester.pumpAndSettle();

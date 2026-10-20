@@ -16,6 +16,7 @@ DashboardStats _stats({
   int jobsPendingApproval = 4,
   int newOrganisations7d = 2,
   int newIndividuals7d = 6,
+  int openTicketsCount = 0,
 }) {
   return DashboardStats(
     totalCaregivers: 100,
@@ -30,6 +31,7 @@ DashboardStats _stats({
     jobsPendingApproval: jobsPendingApproval,
     newOrganisations7d: newOrganisations7d,
     newIndividuals7d: newIndividuals7d,
+    openTicketsCount: openTicketsCount,
   );
 }
 

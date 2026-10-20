@@ -155,7 +155,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String? _city;
   final _areaController = TextEditingController();
   String? _dutyType;
-  DateTime? _startDate;
+  // Defaults to the next day rather than starting unset — a patient who
+  // never touches this field still ends up with a sensible real date
+  // (never null at submission), so it's never part of the mandatory-field
+  // highlight-and-scroll sweep below. Tapping the field still opens the
+  // picker and overrides this with whatever they actually choose.
+  DateTime? _startDate = DateTime.now().add(const Duration(days: 1));
   String? _careDuration;
   // Defaults to "No Preference" — a real, deliberate choice, not an unset
   // field (see _noPreferenceLanguage above).
@@ -438,7 +443,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       context: context,
       initialDate: _startDate ?? now,
       firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      // At most 90 days out — the calendar simply doesn't open past that
+      // month, rather than allowing a pick and rejecting it afterward.
+      lastDate: now.add(const Duration(days: 90)),
     );
     if (picked != null) setState(() => _startDate = picked);
   }

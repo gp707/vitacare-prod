@@ -84,11 +84,6 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                                 style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                               ),
                             ],
-                            if (profile.verificationStatus == VerificationStatus.available ||
-                                profile.verificationStatus == VerificationStatus.assigned) ...[
-                              const SizedBox(height: AppSpacing.xs),
-                              const _VerifiedBadge(),
-                            ],
                             const SizedBox(height: AppSpacing.lg),
                             _InfoCard(profile: profile),
                             const SizedBox(height: AppSpacing.md),
@@ -117,36 +112,6 @@ class _Avatar extends StatelessWidget {
       backgroundColor: AppColors.primaryLight,
       backgroundImage: url != null ? NetworkImage(url!) : null,
       child: url == null ? const Icon(Icons.person, size: 48, color: AppColors.primary) : null,
-    );
-  }
-}
-
-class _VerifiedBadge extends StatelessWidget {
-  const _VerifiedBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-        border: Border.all(color: AppColors.success),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.verified, size: 14, color: AppColors.success),
-          SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'VitaCare-verified caregiver',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.success),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

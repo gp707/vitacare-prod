@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/caregiver_bottom_nav.dart';
+import '../../../app/logout_helper.dart';
 import '../../../app/messages_bell.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
@@ -387,7 +388,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const VitaAppBarTitle('My Jobs'),
+          title: VitaAppBarTitle('My Jobs', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
           actions: caregiverAppBarActions(showBell: true),
           bottom: const TabBar(
             tabs: [Tab(text: 'Applied'), Tab(text: 'Selected'), Tab(text: 'Past')],

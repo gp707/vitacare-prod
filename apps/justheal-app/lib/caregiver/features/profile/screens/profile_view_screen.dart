@@ -74,7 +74,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   bool get _willTriggerReview =>
-      _profile != null && _reReviewStatuses.contains(_profile!.verificationStatus);
+      _profile != null &&
+      _reReviewStatuses.contains(_profile!.verificationStatus);
 
   /// Shared save feedback for every inline field below (Age, Languages,
   /// Qualification, PIN) — reflects the same "flagged for review, or
@@ -82,9 +83,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   /// visible edit form used to show as a persistent success line, now
   /// surfaced as a transient SnackBar since the field itself already shows
   /// the saved value in place.
-  void _showSavedSnackBar({required bool wasRejected, required String? newStatus}) {
+  void _showSavedSnackBar(
+      {required bool wasRejected, required String? newStatus}) {
     if (!mounted) return;
-    final resubmitted = wasRejected && newStatus == VerificationStatus.pendingCall;
+    final resubmitted =
+        wasRejected && newStatus == VerificationStatus.pendingCall;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -101,9 +104,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     if (age == null || !Validators.isValidAge(age)) {
       return 'Age must be between ${Validation.ageMin} and ${Validation.ageMax}';
     }
-    final wasRejected = _profile?.verificationStatus == VerificationStatus.rejected;
+    final wasRejected =
+        _profile?.verificationStatus == VerificationStatus.rejected;
     try {
-      final status = await ref.read(profileRepositoryProvider).editProfile(age: age);
+      final status =
+          await ref.read(profileRepositoryProvider).editProfile(age: age);
       await _load();
       _showSavedSnackBar(wasRejected: wasRejected, newStatus: status);
       return null;
@@ -114,9 +119,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
 
   Future<String?> _saveLanguages(List<String> languages) async {
     if (languages.isEmpty) return 'Select at least one language';
-    final wasRejected = _profile?.verificationStatus == VerificationStatus.rejected;
+    final wasRejected =
+        _profile?.verificationStatus == VerificationStatus.rejected;
     try {
-      final status = await ref.read(profileRepositoryProvider).editProfile(languages: languages);
+      final status = await ref
+          .read(profileRepositoryProvider)
+          .editProfile(languages: languages);
       await _load();
       _showSavedSnackBar(wasRejected: wasRejected, newStatus: status);
       return null;
@@ -126,9 +134,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<String?> _saveQualification(String qualification) async {
-    final wasRejected = _profile?.verificationStatus == VerificationStatus.rejected;
+    final wasRejected =
+        _profile?.verificationStatus == VerificationStatus.rejected;
     try {
-      final status = await ref.read(profileRepositoryProvider).editProfile(highestQualification: qualification);
+      final status = await ref
+          .read(profileRepositoryProvider)
+          .editProfile(highestQualification: qualification);
       await _load();
       _showSavedSnackBar(wasRejected: wasRejected, newStatus: status);
       return null;
@@ -142,7 +153,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     try {
       await ref.read(profileRepositoryProvider).updateCode(code);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login code updated.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Login code updated.')));
       }
       return null;
     } on ApiException catch (e) {
@@ -158,8 +170,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   bool _rejectIfTooLarge(int sizeBytes, {int? maxBytes, String? message}) {
     final limit = maxBytes ?? Validation.fileMaxSizeBytes;
     if (sizeBytes <= limit) return false;
-    setState(() => _docError =
-        message ?? 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
+    setState(() => _docError = message ??
+        'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
     return true;
   }
 
@@ -177,7 +189,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     );
     if (photo == null) return;
     final bytes = await photo.readAsBytes();
-    if (_rejectIfTooLarge(bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
+    if (_rejectIfTooLarge(bytes.length,
+        maxBytes: photoAadhaarMaxSizeBytes,
+        message: photoAadhaarTooLargeMessage)) {
       return;
     }
     setState(() {
@@ -219,12 +233,16 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       _docSuccess = null;
     });
     try {
-      final wasReReviewed = documentType == DocumentType.aadhaar && _willTriggerReview;
-      await ref.read(profileRepositoryProvider).uploadDocument(compressed.bytes, compressed.filename, documentType);
+      final wasReReviewed =
+          documentType == DocumentType.aadhaar && _willTriggerReview;
+      await ref
+          .read(profileRepositoryProvider)
+          .uploadDocument(compressed.bytes, compressed.filename, documentType);
       await ref.read(sessionProvider.notifier).refreshStatus();
       await _load();
       if (wasReReviewed && mounted) {
-        setState(() => _docSuccess = 'Aadhaar updated. Your profile has been sent back for re-review.');
+        setState(() => _docSuccess =
+            'Aadhaar updated. Your profile has been sent back for re-review.');
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _docError = e.message);
@@ -256,10 +274,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Flexible(child: VitaAppBarTitle('My Profile')),
+            Flexible(
+                child: VitaAppBarTitle('My Profile', onTripleTap: _logout)),
             if (_profile != null) ...[
               const SizedBox(width: AppSpacing.xs),
-              Flexible(child: VitaStatusBadge(status: _profile!.verificationStatus)),
+              Flexible(
+                  child: VitaStatusBadge(status: _profile!.verificationStatus)),
             ],
           ],
         ),
@@ -268,18 +288,50 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       backgroundColor: AppColors.background,
       bottomNavigationBar: const CaregiverBottomNav(currentIndex: 0),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: _loading
-              ? const Center(child: VitaLoadingIndicator())
-              : _errorMessage != null
-                  ? ListView(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      children: [
-                        Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
-                      ],
-                    )
-                  : _buildContent(context, _profile!),
+        child: Column(
+          children: [
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: _loading
+                    ? const Center(child: VitaLoadingIndicator())
+                    : _errorMessage != null
+                        ? ListView(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            children: [
+                              Text(_errorMessage!,
+                                  style:
+                                      const TextStyle(color: AppColors.error)),
+                            ],
+                          )
+                        : _buildContent(context, _profile!),
+              ),
+            ),
+            // Delete My Account is pinned to the very bottom of the screen
+            // (not just scrolled further down the content above) — a
+            // destructive, rarely-used action deliberately kept as far as
+            // possible from the frequently-tapped fields. No visible
+            // Logout button here either — tapping the AppBar logo 3 times
+            // logs out instead (see VitaAppBarTitle's own doc comment, a
+            // deliberate hidden-feature request).
+            if (!_loading && _errorMessage == null && _profile != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                child: TextButton.icon(
+                  onPressed: _deleteAccount,
+                  icon: Icon(Icons.delete_forever,
+                      size: 13,
+                      color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                  label: Text(
+                    'Delete My Account',
+                    style: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                      fontSize: AppTypography.caption,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -290,7 +342,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         Text(
-          statusMessageFor(profile.verificationStatus, profile.rejectionMessage),
+          statusMessageFor(
+              profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -299,7 +352,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           trailing: caregiverDisplayId(profile.caregiverNumber) != null
               ? Text(
                   'Nurse Id: ${caregiverDisplayId(profile.caregiverNumber)}',
-                  style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: AppColors.success, fontWeight: FontWeight.w600),
                 )
               : null,
           children: [
@@ -310,10 +364,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               child: Text(
                 "To change the mobile number linked to your account, tap the Help button above to "
                 "chat with us on WhatsApp and let us know.",
-                style: TextStyle(color: AppColors.success, fontSize: AppTypography.caption),
+                style: TextStyle(
+                    color: AppColors.success, fontSize: AppTypography.caption),
               ),
             ),
-            _Field(Icons.wc, 'Gender', profile.gender[0].toUpperCase() + profile.gender.substring(1)),
+            _Field(Icons.wc, 'Gender',
+                profile.gender[0].toUpperCase() + profile.gender.substring(1)),
             _EditableTextField(
               icon: Icons.cake,
               label: 'Age',
@@ -337,13 +393,18 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               icon: Icons.school,
               label: 'Qualification',
               value: profile.highestQualification,
-              displayValue: Qualification.displayNames[profile.highestQualification] ?? '—',
+              displayValue:
+                  Qualification.displayNames[profile.highestQualification] ??
+                      '—',
               items: Qualification.all
-                  .map((q) => DropdownMenuItem(value: q, child: Text(Qualification.displayNames[q] ?? q)))
+                  .map((q) => DropdownMenuItem(
+                      value: q,
+                      child: Text(Qualification.displayNames[q] ?? q)))
                   .toList(),
               onSave: _saveQualification,
             ),
-            _Field(Icons.diversity_3, 'Religion', Religion.displayNames[profile.religion] ?? '—'),
+            _Field(Icons.diversity_3, 'Religion',
+                Religion.displayNames[profile.religion] ?? '—'),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -360,7 +421,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               child: Text(
                 'Selfie and Aadhaar Card must each be under ${photoAadhaarMaxSizeMb}MB. '
                 'Qualification Document and Other Documents must each be under ${Validation.fileMaxSizeMb}MB.',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: AppTypography.small),
               ),
             ),
             _DocumentSlot(
@@ -380,7 +443,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             _DocumentSlot(
               title: 'Qualification Document (optional)',
               uploaded: profile.qualificationDocumentUrl != null,
-              isUploading: _uploadingDocType.contains(DocumentType.qualification),
+              isUploading:
+                  _uploadingDocType.contains(DocumentType.qualification),
               onTap: () => _pickAndUploadDocument(DocumentType.qualification),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -388,8 +452,11 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               _DocumentSlot(
                 title: 'Other document ${i + 1}',
                 uploaded: i < profile.otherDocumentUrls.length,
-                isUploading: _uploadingDocType.contains(DocumentType.other) && i == profile.otherDocumentUrls.length,
-                onTap: i <= profile.otherDocumentUrls.length ? () => _pickAndUploadDocument(DocumentType.other) : null,
+                isUploading: _uploadingDocType.contains(DocumentType.other) &&
+                    i == profile.otherDocumentUrls.length,
+                onTap: i <= profile.otherDocumentUrls.length
+                    ? () => _pickAndUploadDocument(DocumentType.other)
+                    : null,
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
@@ -399,22 +466,10 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             ],
             if (_docSuccess != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(_docSuccess!, style: const TextStyle(color: AppColors.success)),
+              Text(_docSuccess!,
+                  style: const TextStyle(color: AppColors.success)),
             ],
           ],
-        ),
-        const Divider(height: AppSpacing.xxl),
-        OutlinedButton.icon(
-          onPressed: _logout,
-          icon: const Icon(Icons.logout, size: 16, color: AppColors.error),
-          label: const Text('Logout', style: TextStyle(color: AppColors.error)),
-          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        TextButton.icon(
-          onPressed: _deleteAccount,
-          icon: const Icon(Icons.delete_forever, size: 16, color: AppColors.textSecondary),
-          label: const Text('Delete My Account', style: TextStyle(color: AppColors.textSecondary)),
         ),
       ],
     );
@@ -449,7 +504,9 @@ class _Section extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold, color: AppColors.success)),
+                        fontSize: AppTypography.subtitle,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success)),
               ),
               if (trailing != null) ...[
                 const SizedBox(width: AppSpacing.sm),
@@ -483,12 +540,14 @@ class _Field extends StatelessWidget {
           SizedBox(
             width: 130,
             child: Text(label,
-                style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                style: const TextStyle(
+                    color: AppColors.success, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: AppColors.success, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -507,7 +566,9 @@ class _FieldIcon extends StatelessWidget {
       width: 22,
       height: 22,
       margin: const EdgeInsets.only(right: AppSpacing.xs),
-      decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(7)),
+      decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(7)),
       child: Icon(icon, size: 13, color: AppColors.primaryDark),
     );
   }
@@ -529,7 +590,8 @@ abstract class _EditableFieldRow<T> extends StatefulWidget {
   const _EditableFieldRow({required this.icon, required this.label});
 }
 
-abstract class _EditableFieldRowState<T, W extends _EditableFieldRow<T>> extends State<W> {
+abstract class _EditableFieldRowState<T, W extends _EditableFieldRow<T>>
+    extends State<W> {
   bool editing = false;
   bool saving = false;
   String? error;
@@ -582,7 +644,8 @@ abstract class _EditableFieldRowState<T, W extends _EditableFieldRow<T>> extends
     if (editing && saving) {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 4),
-        child: SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16)),
+        child: SizedBox(
+            height: 16, width: 16, child: VitaLoadingIndicator(size: 16)),
       );
     }
     if (editing) {
@@ -629,12 +692,17 @@ abstract class _EditableFieldRowState<T, W extends _EditableFieldRow<T>> extends
               _FieldIcon(widget.icon),
               SizedBox(
                 width: 130,
-                child: Text(widget.label, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                child: Text(widget.label,
+                    style: const TextStyle(
+                        color: AppColors.success, fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: editing
                     ? const SizedBox.shrink()
-                    : Text(buildDisplayValue(), style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                    : Text(buildDisplayValue(),
+                        style: const TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.bold)),
               ),
               _trailingAction(),
             ],
@@ -649,7 +717,9 @@ abstract class _EditableFieldRowState<T, W extends _EditableFieldRow<T>> extends
           if (error != null)
             Padding(
               padding: const EdgeInsets.only(left: 30, top: AppSpacing.xs),
-              child: Text(error!, style: const TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text(error!,
+                  style: const TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),
@@ -674,8 +744,10 @@ class _EditableTextField extends _EditableFieldRow<String> {
   State<_EditableTextField> createState() => _EditableTextFieldState();
 }
 
-class _EditableTextFieldState extends _EditableFieldRowState<String, _EditableTextField> {
-  late final TextEditingController _controller = TextEditingController(text: widget.value);
+class _EditableTextFieldState
+    extends _EditableFieldRowState<String, _EditableTextField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
 
   @override
   void didUpdateWidget(covariant _EditableTextField oldWidget) {
@@ -705,7 +777,10 @@ class _EditableTextFieldState extends _EditableFieldRowState<String, _EditableTe
         controller: _controller,
         autofocus: true,
         keyboardType: widget.keyboardType,
-        decoration: InputDecoration(labelText: widget.label, isDense: true, border: const OutlineInputBorder()),
+        decoration: InputDecoration(
+            labelText: widget.label,
+            isDense: true,
+            border: const OutlineInputBorder()),
       );
 
   @override
@@ -731,7 +806,8 @@ class _EditableDropdownField extends _EditableFieldRow<String?> {
   State<_EditableDropdownField> createState() => _EditableDropdownFieldState();
 }
 
-class _EditableDropdownFieldState extends _EditableFieldRowState<String?, _EditableDropdownField> {
+class _EditableDropdownFieldState
+    extends _EditableFieldRowState<String?, _EditableDropdownField> {
   late String? _pending = widget.value;
 
   @override
@@ -747,7 +823,10 @@ class _EditableDropdownFieldState extends _EditableFieldRowState<String?, _Edita
   Widget buildEditor(BuildContext context) => DropdownButtonFormField<String>(
         isExpanded: true,
         initialValue: _pending,
-        decoration: InputDecoration(labelText: widget.label, isDense: true, border: const OutlineInputBorder()),
+        decoration: InputDecoration(
+            labelText: widget.label,
+            isDense: true,
+            border: const OutlineInputBorder()),
         items: widget.items,
         onChanged: (v) => setState(() => _pending = v),
       );
@@ -771,14 +850,16 @@ class _EditableChipsField extends _EditableFieldRow<List<String>> {
   State<_EditableChipsField> createState() => _EditableChipsFieldState();
 }
 
-class _EditableChipsFieldState extends _EditableFieldRowState<List<String>, _EditableChipsField> {
+class _EditableChipsFieldState
+    extends _EditableFieldRowState<List<String>, _EditableChipsField> {
   late List<String> _pending = [...widget.value];
 
   @override
   void resetEditingState() => _pending = [...widget.value];
 
   @override
-  String? validateBeforeSave() => _pending.isEmpty ? 'Select at least one language' : null;
+  String? validateBeforeSave() =>
+      _pending.isEmpty ? 'Select at least one language' : null;
 
   @override
   Future<String?> save() => widget.onSave(_pending);
@@ -792,7 +873,8 @@ class _EditableChipsFieldState extends _EditableFieldRowState<List<String>, _Edi
       );
 
   @override
-  String buildDisplayValue() => widget.value.map((l) => Language.displayNames[l] ?? l).join(', ');
+  String buildDisplayValue() =>
+      widget.value.map((l) => Language.displayNames[l] ?? l).join(', ');
 }
 
 class _EditablePinField extends StatefulWidget {
@@ -860,24 +942,34 @@ class _EditablePinFieldState extends State<_EditablePinField> {
               const _FieldIcon(Icons.lock_outline),
               const SizedBox(
                 width: 130,
-                child: Text('Login PIN', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                child: Text('Login PIN',
+                    style: TextStyle(
+                        color: AppColors.success, fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: _editing
                     ? const SizedBox.shrink()
-                    : const Text('••••', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                    : const Text('••••',
+                        style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2)),
               ),
               if (_editing && _saving)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: SizedBox(height: 16, width: 16, child: VitaLoadingIndicator(size: 16)),
+                  child: SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: VitaLoadingIndicator(size: 16)),
                 )
               else if (_editing)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.check, color: AppColors.success, size: 20),
+                      icon: const Icon(Icons.check,
+                          color: AppColors.success, size: 20),
                       tooltip: 'Save',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -885,7 +977,8 @@ class _EditablePinFieldState extends State<_EditablePinField> {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     IconButton(
-                      icon: const Icon(Icons.close, color: AppColors.error, size: 20),
+                      icon: const Icon(Icons.close,
+                          color: AppColors.error, size: 20),
                       tooltip: 'Cancel',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -895,7 +988,8 @@ class _EditablePinFieldState extends State<_EditablePinField> {
                 )
               else
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 16, color: AppColors.primaryDark),
+                  icon: const Icon(Icons.edit,
+                      size: 16, color: AppColors.primaryDark),
                   tooltip: 'Edit Login PIN',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -913,15 +1007,19 @@ class _EditablePinFieldState extends State<_EditablePinField> {
                 keyboardType: TextInputType.number,
                 maxLength: Validation.codeLength,
                 obscureText: true,
-                decoration:
-                    const InputDecoration(labelText: 'New 4-Digit PIN', isDense: true, border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'New 4-Digit PIN',
+                    isDense: true,
+                    border: OutlineInputBorder()),
               ),
             ),
           ],
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(left: 30, top: AppSpacing.xs),
-              child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text(_error!,
+                  style: const TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),
@@ -948,7 +1046,9 @@ class _DocumentSlot extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.success.withValues(alpha: 0.06),
-        border: Border.all(color: uploaded ? AppColors.error : AppColors.textSecondary, width: 2.5),
+        border: Border.all(
+            color: uploaded ? AppColors.error : AppColors.textSecondary,
+            width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Row(
@@ -959,12 +1059,15 @@ class _DocumentSlot extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(title,
-                style: TextStyle(
-                    color: uploaded ? AppColors.success : AppColors.textSecondary,
-                    fontWeight: FontWeight.bold))),
+              child: Text(title,
+                  style: TextStyle(
+                      color: uploaded
+                          ? AppColors.success
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.bold))),
           if (isUploading)
-            const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+            const SizedBox(
+                height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
           else
             TextButton(
               onPressed: onTap,

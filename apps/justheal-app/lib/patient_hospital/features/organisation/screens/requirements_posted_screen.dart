@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/icon_widgets.dart';
+import '../../../app/logout_helper.dart';
 import '../../../app/nursenow_bottom_nav.dart';
 import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
@@ -233,7 +234,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
 
     return Scaffold(
       appBar: AppBar(
-        title: const VitaAppBarTitle('Requirements Posted'),
+        title: VitaAppBarTitle('Requirements Posted', onTripleTap: () => logoutAndNavigateToLogin(context, ref)),
         actions: const [TextZoomButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,

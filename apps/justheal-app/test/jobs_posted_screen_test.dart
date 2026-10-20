@@ -830,7 +830,9 @@ void main() {
     expect(repo.profileFetchedApplicationId, 'app-1');
     expect(find.text('30 yrs'), findsOneWidget);
     expect(find.text('Registered Nurse above 2 years of experience'), findsOneWidget);
-    expect(find.text('VitaCare-verified caregiver'), findsOneWidget);
+    // The "VitaCare-verified caregiver" badge was removed from the
+    // product entirely.
+    expect(find.text('VitaCare-verified caregiver'), findsNothing);
   });
 
   testWidgets('View Profile stays available for an accepted candidate', (tester) async {
