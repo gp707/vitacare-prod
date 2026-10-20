@@ -50,7 +50,16 @@ class DashboardStats {
         jobsPendingApproval: json['jobs_pending_approval'] as int,
         newOrganisations7d: json['new_organisations_7d'] as int,
         newIndividuals7d: json['new_individuals_7d'] as int,
-        openTicketsCount: json['open_tickets_count'] as int,
+        // Defaults to 0 (not a hard `as int`) — a backend deploy still
+        // running the pre-open_tickets_count version of this endpoint
+        // simply omits the key entirely; without this default, the whole
+        // fromJson call throws a TypeError that neither this repository's
+        // own DioException catch nor DashboardScreen's `on ApiException`
+        // catch can see, silently blanking the entire dashboard (every
+        // other field too, not just this one) until the backend catches
+        // up — this default keeps everything else working in the
+        // meantime, with the Tickets badge simply reading 0 until then.
+        openTicketsCount: json['open_tickets_count'] as int? ?? 0,
       );
 }
 
