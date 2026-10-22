@@ -619,17 +619,37 @@ class OrganisationType {
   };
 }
 
-/// How long an organisation requirement's engagement is expected to run —
-/// org-set at creation, alongside TypeOfNurse/numberOfVacancies/
-/// preferredGender. Distinct from Individual's 4-value CareDuration.
-class RequirementDuration {
-  static const shortTerm = 'short_term';
-  static const longTerm = 'long_term';
+/// How much caregiving experience an organisation requirement calls for —
+/// org-set, optional, at creation or edit.
+class ExperienceRequired {
+  static const fresher = 'fresher';
+  static const oneToTwoYears = '1_2_years';
+  static const threeToFiveYears = '3_5_years';
+  static const fiveToTenYears = '5_10_years';
+  static const tenPlusYears = '10_plus_years';
 
-  static const all = [shortTerm, longTerm];
+  static const all = [fresher, oneToTwoYears, threeToFiveYears, fiveToTenYears, tenPlusYears];
   static const displayNames = {
-    shortTerm: 'Short Term (Few Days/Weeks Only)',
-    longTerm: 'Long Term',
+    fresher: 'Fresher',
+    oneToTwoYears: '1-2 Years',
+    threeToFiveYears: '3-5 Years',
+    fiveToTenYears: '5-10 Years',
+    tenPlusYears: '10+ Years',
+  };
+}
+
+/// The employment arrangement an organisation requirement is offering —
+/// org-set, optional, at creation or edit.
+class EmploymentType {
+  static const fullTime = 'full_time';
+  static const partTime = 'part_time';
+  static const temporary = 'temporary';
+
+  static const all = [fullTime, partTime, temporary];
+  static const displayNames = {
+    fullTime: 'Full Time',
+    partTime: 'Part Time',
+    temporary: 'Temporary',
   };
 }
 

@@ -140,7 +140,6 @@ describe('Admin Bulk Delete (e2e)', () => {
         type_of_nurse: 'registered_nurse',
         accommodation_provided: true,
         food_provided: true,
-        duration_type: 'short_term',
       })
       .expect(201);
     const requirementId = res.body.data.id as string;

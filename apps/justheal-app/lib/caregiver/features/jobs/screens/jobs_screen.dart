@@ -557,8 +557,11 @@ class _RequirementCard extends StatelessWidget {
               Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               Tag('Vacancies: ${requirement.numberOfVacancies}'),
-              if (requirement.durationType != null)
-                Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+              if (requirement.experienceRequired != null)
+                Tag(ExperienceRequired.displayNames[requirement.experienceRequired] ??
+                    requirement.experienceRequired!),
+              if (requirement.employmentType != null)
+                Tag(EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType!),
               Tag(
                 'Preferred Gender: ${requirement.preferredGender != null ? (Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!) : 'No Preference'}',
               ),

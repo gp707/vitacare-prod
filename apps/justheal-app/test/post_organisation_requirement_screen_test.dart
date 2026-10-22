@@ -21,7 +21,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? capturedSpecialSkills;
   int? capturedNumberOfVacancies;
   String? capturedPreferredGender;
-  String? capturedDurationType;
+  String? capturedExperienceRequired;
+  String? capturedEmploymentType;
 
   _FakeOrganisationRepository({this.createError}) : super(Dio());
 
@@ -34,7 +35,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? specialSkills,
     int? numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     createCalled = true;
     capturedTypeOfNurse = typeOfNurse;
@@ -44,7 +46,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     capturedSpecialSkills = specialSkills;
     capturedNumberOfVacancies = numberOfVacancies;
     capturedPreferredGender = preferredGender;
-    capturedDurationType = durationType;
+    capturedExperienceRequired = experienceRequired;
+    capturedEmploymentType = employmentType;
     if (createError != null) throw createError!;
     return OrganisationRequirementModel.fromJson({
       'id': 'req-1',
@@ -56,18 +59,12 @@ class _FakeOrganisationRepository extends OrganisationRepository {
       'food_provided': foodProvided,
       'number_of_vacancies': numberOfVacancies ?? 1,
       'preferred_gender': preferredGender,
-      'duration_type': durationType,
+      'experience_required': experienceRequired,
+      'employment_type': employmentType,
       'status': 'pending_review',
       'posted_at': '2026-08-01T10:00:00Z',
     });
   }
-}
-
-Future<void> _selectDuration(WidgetTester tester) async {
-  await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Duration (Mandatory)'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Short Term (Few Days/Weeks Only)').last);
-  await tester.pumpAndSettle();
 }
 
 Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo) async {
@@ -116,8 +113,6 @@ void main() {
       find.widgetWithText(TextField, 'Job description/Special Skills (optional)'),
       'Wound care experience',
     );
-
-    await _selectDuration(tester);
 
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
@@ -170,7 +165,8 @@ void main() {
     await tester.pump();
 
     expect(
-        find.text('500 entered · 500 characters remaining (max ${Validation.specialSkillsMaxLength} characters)'),
+        find.text('500 entered · ${Validation.specialSkillsMaxLength - 500} characters remaining '
+            '(max ${Validation.specialSkillsMaxLength} characters)'),
         findsOneWidget);
     expect(
       find.text('Please enter less than ${Validation.specialSkillsMaxLength} characters'),
@@ -202,7 +198,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Registered Nurse').last);
     await tester.pumpAndSettle();
-    await _selectDuration(tester);
 
     await tester.enterText(
       find.widgetWithText(TextField, 'Job description/Special Skills (optional)'),
@@ -237,8 +232,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Registered Nurse').last);
     await tester.pumpAndSettle();
-
-    await _selectDuration(tester);
 
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
@@ -280,7 +273,6 @@ void main() {
     expect(repo.createCalled, isFalse);
 
     await tester.enterText(find.widgetWithText(TextField, 'Please specify (Mandatory)'), 'Physiotherapist');
-    await _selectDuration(tester);
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
 
@@ -310,8 +302,6 @@ void main() {
     await tester.tap(find.text('Registered Nurse').last);
     await tester.pumpAndSettle();
 
-    await _selectDuration(tester);
-
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
     expect(repo.capturedPreferredGender, isNull);
@@ -331,8 +321,6 @@ void main() {
     await tester.tap(find.text('Female').last);
     await tester.pumpAndSettle();
 
-    await _selectDuration(tester);
-
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();
     expect(repo.capturedPreferredGender, 'female');
@@ -348,8 +336,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Auxiliary Nurse').last);
     await tester.pumpAndSettle();
-
-    await _selectDuration(tester);
 
     await tester.tap(find.text('Submit for Review'));
     await tester.pumpAndSettle();

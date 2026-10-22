@@ -16,7 +16,6 @@ describe('OrganisationRequirementsService', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
-    duration_type: 'short_term',
   } as any;
 
   beforeEach(() => {
@@ -237,7 +236,6 @@ describe('OrganisationRequirementsService', () => {
       accommodation_provided: true,
       food_provided: false,
       number_of_vacancies: 2,
-      duration_type: 'long_term',
     } as any;
 
     it('throws GEN_002 when the requirement does not exist', async () => {
@@ -299,7 +297,8 @@ describe('OrganisationRequirementsService', () => {
         special_skills: null,
         number_of_vacancies: 2,
         preferred_gender: null,
-        duration_type: 'long_term',
+        experience_required: null,
+        employment_type: null,
       });
       expect(result.id).toBe('req-1');
     });
@@ -805,7 +804,8 @@ describe('OrganisationRequirementsService', () => {
       special_skills: 'Wound care',
       number_of_vacancies: 2,
       preferred_gender: 'female',
-      duration_type: 'long_term',
+      experience_required: '3_5_years',
+      employment_type: 'full_time',
     };
 
     beforeEach(() => {
@@ -837,7 +837,8 @@ describe('OrganisationRequirementsService', () => {
           special_skills: 'Wound care',
           number_of_vacancies: 2,
           preferred_gender: 'female',
-          duration_type: 'long_term',
+          experience_required: '3_5_years',
+          employment_type: 'full_time',
         });
       });
 

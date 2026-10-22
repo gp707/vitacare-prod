@@ -20,9 +20,10 @@ export interface OrganisationRequirementRecord {
   /** Org-set at creation. Null = no preference. Mirrors jobs.preferred_gender
    *  exactly (including excluding 'other' as a preference value). */
   preferred_gender: string | null;
-  /** Org-set at creation — 'short_term' or 'long_term'. See
-   *  RequirementDuration in shared-constants. */
-  duration_type: string | null;
+  /** Org-set, optional. See ExperienceRequired in shared-constants. */
+  experience_required: string | null;
+  /** Org-set, optional. See EmploymentType in shared-constants. */
+  employment_type: string | null;
   status: string;
   rejection_reason: string | null;
   /** Mirrors jobs.cancelled_at (migration 048) — set by the org's own
@@ -75,7 +76,8 @@ export interface CreateOrganisationRequirementInput {
   special_skills: string | null;
   number_of_vacancies: number;
   preferred_gender: string | null;
-  duration_type: string;
+  experience_required: string | null;
+  employment_type: string | null;
   status: string;
 }
 
@@ -92,7 +94,8 @@ export interface UpdateOwnOrganisationRequirementInput {
   special_skills: string | null;
   number_of_vacancies: number;
   preferred_gender: string | null;
-  duration_type: string;
+  experience_required: string | null;
+  employment_type: string | null;
 }
 
 export interface ListOrganisationRequirementsFilters {
@@ -122,8 +125,8 @@ export class OrganisationRequirementsRepository {
     const result = await runner.query<OrganisationRequirementRecord>(
       `INSERT INTO organisation_requirements
          (posted_by, type_of_nurse, type_of_nurse_other, accommodation_provided, food_provided,
-          special_skills, number_of_vacancies, preferred_gender, duration_type, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          special_skills, number_of_vacancies, preferred_gender, experience_required, employment_type, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         input.posted_by,
@@ -134,7 +137,8 @@ export class OrganisationRequirementsRepository {
         input.special_skills,
         input.number_of_vacancies,
         input.preferred_gender,
-        input.duration_type,
+        input.experience_required,
+        input.employment_type,
         input.status,
       ],
     );
@@ -290,7 +294,8 @@ export class OrganisationRequirementsRepository {
          special_skills = $6,
          number_of_vacancies = $7,
          preferred_gender = $8,
-         duration_type = $9,
+         experience_required = $9,
+         employment_type = $10,
          updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -303,7 +308,8 @@ export class OrganisationRequirementsRepository {
         input.special_skills,
         input.number_of_vacancies,
         input.preferred_gender,
-        input.duration_type,
+        input.experience_required,
+        input.employment_type,
       ],
     );
     return result.rows[0];

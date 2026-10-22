@@ -14,12 +14,12 @@ export const Validation = {
   AGE_MIN: 18,
   AGE_MAX: 65,
   REJECTION_MESSAGE_MAX_LENGTH: 1000,
-  // A NurseNow organisation's own "Special Skills Required" field on a
-  // requirement posting — a large plain-text textarea. Originally capped at
-  // 256, which was cutting off real-world pasted text (e.g. copied from
-  // WhatsApp/Word); raised to match REJECTION_MESSAGE_MAX_LENGTH so a
-  // realistic paragraph of pasted text fits without silent truncation.
-  SPECIAL_SKILLS_MAX_LENGTH: 1000,
+  // A NurseNow organisation's own "Job description/Special Skills" field on
+  // a requirement posting — a large plain-text textarea. Originally capped
+  // at 256, raised to 1000 to match REJECTION_MESSAGE_MAX_LENGTH, then
+  // raised again to 2000 to comfortably fit a full job description, not
+  // just a short skills list.
+  SPECIAL_SKILLS_MAX_LENGTH: 2000,
   FILE_MAX_SIZE_BYTES: 10 * 1024 * 1024,
   // How long a job stays within its caregiver-facing "apply-by" urgency
   // window (see JobModel.applyByDate/daysLeftToApply) — purely

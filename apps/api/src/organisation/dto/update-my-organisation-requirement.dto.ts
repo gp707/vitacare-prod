@@ -1,5 +1,5 @@
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { Gender, RequirementDuration, TypeOfNurse, Validation } from '@vitacare/shared-constants';
+import { EmploymentType, ExperienceRequired, Gender, TypeOfNurse, Validation } from '@vitacare/shared-constants';
 
 /** The org's own self-edit body (PATCH /organisation/requirements/:id) —
  *  every field the org itself controls (see CreateOrganisationRequirementDto).
@@ -35,6 +35,11 @@ export class UpdateMyOrganisationRequirementDto {
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
   preferred_gender?: string;
 
-  @IsIn(Object.values(RequirementDuration), { message: 'GEN_001' })
-  duration_type!: string;
+  @IsOptional()
+  @IsIn(Object.values(ExperienceRequired), { message: 'GEN_001' })
+  experience_required?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(EmploymentType), { message: 'GEN_001' })
+  employment_type?: string;
 }

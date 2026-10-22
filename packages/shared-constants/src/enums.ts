@@ -319,14 +319,25 @@ export const OrganisationType = {
 } as const;
 export type OrganisationType = (typeof OrganisationType)[keyof typeof OrganisationType];
 
-/** How long an organisation requirement's engagement is expected to run —
- *  org-set at creation, alongside type_of_nurse/number_of_vacancies/
- *  preferred_gender. Distinct from Individual's 4-value CareDuration. */
-export const RequirementDuration = {
-  SHORT_TERM: 'short_term',
-  LONG_TERM: 'long_term',
+/** How much caregiving experience an organisation requirement calls for —
+ *  org-set, optional, at creation or edit. */
+export const ExperienceRequired = {
+  FRESHER: 'fresher',
+  ONE_TO_TWO_YEARS: '1_2_years',
+  THREE_TO_FIVE_YEARS: '3_5_years',
+  FIVE_TO_TEN_YEARS: '5_10_years',
+  TEN_PLUS_YEARS: '10_plus_years',
 } as const;
-export type RequirementDuration = (typeof RequirementDuration)[keyof typeof RequirementDuration];
+export type ExperienceRequired = (typeof ExperienceRequired)[keyof typeof ExperienceRequired];
+
+/** The employment arrangement an organisation requirement is offering —
+ *  org-set, optional, at creation or edit. */
+export const EmploymentType = {
+  FULL_TIME: 'full_time',
+  PART_TIME: 'part_time',
+  TEMPORARY: 'temporary',
+} as const;
+export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
 
 // Distinct from Qualification (a caregiver's own self-reported
 // credential) — this is the category an organisation requests when

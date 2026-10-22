@@ -96,7 +96,6 @@ describe('Organisation requirement enhancements (e2e)', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
-    duration_type: 'short_term',
     ...overrides,
   });
 
@@ -297,55 +296,111 @@ describe('Organisation requirement enhancements (e2e)', () => {
     });
   });
 
-  describe('POST /v1/organisation/requirements — Duration Type', () => {
-    it('is mandatory — rejects when omitted', async () => {
-      const org = await registerOrganisation('0090');
+  describe('POST /v1/organisation/requirements — Experience Required', () => {
+    it('is optional — accepted when omitted', async () => {
+      const org = await registerOrganisation('0110');
       const res = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send({ type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: false })
-        .expect(400);
-      expect(res.body.error.code).toBe('GEN_001');
+        .send(requirementPayload())
+        .expect(201);
+      expect(res.body.data.experience_required).toBeNull();
     });
 
     it('rejects an unrecognized value', async () => {
-      const org = await registerOrganisation('0091');
+      const org = await registerOrganisation('0111');
       const res = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload({ duration_type: 'medium_term' }))
+        .send(requirementPayload({ experience_required: 'veteran' }))
         .expect(400);
       expect(res.body.error.code).toBe('GEN_001');
     });
 
     it.each([
-      ['0092', 'short_term'],
-      ['0093', 'long_term'],
+      ['0112', 'fresher'],
+      ['0113', '1_2_years'],
+      ['0114', '3_5_years'],
+      ['0115', '5_10_years'],
+      ['0116', '10_plus_years'],
     ])('accepts and persists %s: %s', async (phoneSuffix, value) => {
       const org = await registerOrganisation(phoneSuffix);
       const res = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload({ duration_type: value }))
+        .send(requirementPayload({ experience_required: value }))
         .expect(201);
-      expect(res.body.data.duration_type).toBe(value);
+      expect(res.body.data.experience_required).toBe(value);
     });
 
     it('can be changed via org self-edit', async () => {
-      const org = await registerOrganisation('0094');
+      const org = await registerOrganisation('0117');
       const create = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send(requirementPayload({ duration_type: 'short_term' }))
+        .send(requirementPayload({ experience_required: 'fresher' }))
         .expect(201);
       const requirementId = create.body.data.id;
 
       const res = await request(app.getHttpServer())
         .patch(`/v1/organisation/requirements/${requirementId}`)
         .set('Authorization', `Bearer ${org.access_token}`)
-        .send(selfEditPayload({ duration_type: 'long_term' }))
+        .send(selfEditPayload({ experience_required: '10_plus_years' }))
         .expect(200);
-      expect(res.body.data.duration_type).toBe('long_term');
+      expect(res.body.data.experience_required).toBe('10_plus_years');
+    });
+  });
+
+  describe('POST /v1/organisation/requirements — Employment Type', () => {
+    it('is optional — accepted when omitted', async () => {
+      const org = await registerOrganisation('0118');
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload())
+        .expect(201);
+      expect(res.body.data.employment_type).toBeNull();
+    });
+
+    it('rejects an unrecognized value', async () => {
+      const org = await registerOrganisation('0119');
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ employment_type: 'contract' }))
+        .expect(400);
+      expect(res.body.error.code).toBe('GEN_001');
+    });
+
+    it.each([
+      ['0120', 'full_time'],
+      ['0121', 'part_time'],
+      ['0122', 'temporary'],
+    ])('accepts and persists %s: %s', async (phoneSuffix, value) => {
+      const org = await registerOrganisation(phoneSuffix);
+      const res = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ employment_type: value }))
+        .expect(201);
+      expect(res.body.data.employment_type).toBe(value);
+    });
+
+    it('can be changed via org self-edit', async () => {
+      const org = await registerOrganisation('0123');
+      const create = await request(app.getHttpServer())
+        .post('/v1/organisation/requirements')
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(requirementPayload({ employment_type: 'full_time' }))
+        .expect(201);
+      const requirementId = create.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/v1/organisation/requirements/${requirementId}`)
+        .set('Authorization', `Bearer ${org.access_token}`)
+        .send(selfEditPayload({ employment_type: 'temporary' }))
+        .expect(200);
+      expect(res.body.data.employment_type).toBe('temporary');
     });
   });
 

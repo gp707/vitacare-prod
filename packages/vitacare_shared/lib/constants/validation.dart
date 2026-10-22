@@ -10,12 +10,12 @@ class Validation {
   static const ageMin = 18;
   static const ageMax = 65;
   static const rejectionMessageMaxLength = 1000;
-  // A NurseNow organisation's own "Special Skills Required" field on a
-  // requirement posting — a large plain-text textarea. Originally capped at
-  // 256, which was cutting off real-world pasted text (e.g. copied from
-  // WhatsApp/Word); raised to match rejectionMessageMaxLength so a
-  // realistic paragraph of pasted text fits without silent truncation.
-  static const specialSkillsMaxLength = 1000;
+  // A NurseNow organisation's own "Job description/Special Skills" field on
+  // a requirement posting — a large plain-text textarea. Originally capped
+  // at 256, raised to 1000 to match rejectionMessageMaxLength, then raised
+  // again to 2000 to comfortably fit a full job description, not just a
+  // short skills list.
+  static const specialSkillsMaxLength = 2000;
   static const fileMaxSizeBytes = 10 * 1024 * 1024;
   // Default threshold for admin-web's "posted more than N days ago" Jobs
   // filter, which finds jobs that may need manual attention. The

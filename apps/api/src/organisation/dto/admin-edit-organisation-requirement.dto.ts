@@ -1,5 +1,5 @@
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { Gender, RequirementDuration, TypeOfNurse, Validation } from '@vitacare/shared-constants';
+import { EmploymentType, ExperienceRequired, Gender, TypeOfNurse, Validation } from '@vitacare/shared-constants';
 
 /** Admin's edit body (PATCH /admin/organisation-requirements/:id) — every
  *  field the org itself can set via UpdateMyOrganisationRequirementDto,
@@ -42,6 +42,10 @@ export class AdminEditOrganisationRequirementDto {
   preferred_gender?: string;
 
   @IsOptional()
-  @IsIn(Object.values(RequirementDuration), { message: 'GEN_001' })
-  duration_type?: string;
+  @IsIn(Object.values(ExperienceRequired), { message: 'GEN_001' })
+  experience_required?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(EmploymentType), { message: 'GEN_001' })
+  employment_type?: string;
 }

@@ -26,9 +26,10 @@ class OrganisationRequirementModel {
   /// Org-set at creation. Null = no preference. Mirrors JobModel's own
   /// preferredGender exactly (male/female only — never 'other').
   final String? preferredGender;
-  /// Org-set at creation — 'short_term' or 'long_term'. See
-  /// RequirementDuration in enums.dart.
-  final String? durationType;
+  /// Org-set, optional. See ExperienceRequired in enums.dart.
+  final String? experienceRequired;
+  /// Org-set, optional. See EmploymentType in enums.dart.
+  final String? employmentType;
   final String status;
   final String? rejectionReason;
   /// Set once the org cancels this requirement themselves (distinct from
@@ -71,7 +72,8 @@ class OrganisationRequirementModel {
     this.specialSkills,
     required this.numberOfVacancies,
     this.preferredGender,
-    this.durationType,
+    this.experienceRequired,
+    this.employmentType,
     required this.status,
     this.rejectionReason,
     this.cancelledAt,
@@ -96,7 +98,8 @@ class OrganisationRequirementModel {
         specialSkills: json['special_skills'] as String?,
         numberOfVacancies: json['number_of_vacancies'] as int,
         preferredGender: json['preferred_gender'] as String?,
-        durationType: json['duration_type'] as String?,
+        experienceRequired: json['experience_required'] as String?,
+        employmentType: json['employment_type'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
         cancelledAt: json['cancelled_at'] as String?,

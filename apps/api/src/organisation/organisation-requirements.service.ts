@@ -83,7 +83,8 @@ export class OrganisationRequirementsService {
       special_skills: dto.special_skills ?? null,
       number_of_vacancies: dto.number_of_vacancies ?? 1,
       preferred_gender: dto.preferred_gender ?? null,
-      duration_type: dto.duration_type,
+      experience_required: dto.experience_required ?? null,
+      employment_type: dto.employment_type ?? null,
       status: JobStatus.PENDING_REVIEW,
     });
 
@@ -136,7 +137,8 @@ export class OrganisationRequirementsService {
       special_skills: dto.special_skills ?? null,
       number_of_vacancies: dto.number_of_vacancies,
       preferred_gender: dto.preferred_gender ?? null,
-      duration_type: dto.duration_type,
+      experience_required: dto.experience_required ?? null,
+      employment_type: dto.employment_type ?? null,
     });
 
     await this.auditService.log({
@@ -543,7 +545,9 @@ export class OrganisationRequirementsService {
       special_skills: dto.special_skills !== undefined ? dto.special_skills : existing.special_skills,
       number_of_vacancies: dto.number_of_vacancies ?? existing.number_of_vacancies,
       preferred_gender: dto.preferred_gender !== undefined ? dto.preferred_gender : existing.preferred_gender,
-      duration_type: dto.duration_type ?? existing.duration_type!,
+      experience_required:
+        dto.experience_required !== undefined ? dto.experience_required : existing.experience_required,
+      employment_type: dto.employment_type !== undefined ? dto.employment_type : existing.employment_type,
     });
 
     if (existing.status !== JobStatus.ACTIVE) {

@@ -685,10 +685,14 @@ class RequirementFullDetailScreen extends StatelessWidget {
                       : 'No accommodation'),
                   Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
                   Tag('Vacancies: ${requirement.numberOfVacancies}'),
-                  if (requirement.durationType != null)
-                    Tag(RequirementDuration
-                            .displayNames[requirement.durationType] ??
-                        requirement.durationType!),
+                  if (requirement.experienceRequired != null)
+                    Tag(ExperienceRequired
+                            .displayNames[requirement.experienceRequired] ??
+                        requirement.experienceRequired!),
+                  if (requirement.employmentType != null)
+                    Tag(EmploymentType
+                            .displayNames[requirement.employmentType] ??
+                        requirement.employmentType!),
                   // Always shown, even when there's no preference — never a
                   // blank gap, same convention as the job/requirement's
                   // other preference fields elsewhere in the app.

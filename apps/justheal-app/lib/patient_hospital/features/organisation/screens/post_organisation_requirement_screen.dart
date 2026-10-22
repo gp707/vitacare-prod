@@ -36,7 +36,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _specialSkillsController = TextEditingController();
   final _numberOfVacanciesController = TextEditingController(text: '1');
   String? _preferredGender;
-  String? _durationType;
+  String? _experienceRequired;
+  String? _employmentType;
 
   bool _saving = false;
   String? _error;
@@ -45,7 +46,6 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _typeOfNurseKey = GlobalKey();
   final _typeOfNurseOtherKey = GlobalKey();
   final _numberOfVacanciesKey = GlobalKey();
-  final _durationTypeKey = GlobalKey();
   final _specialSkillsKey = GlobalKey();
 
   @override
@@ -60,7 +60,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _specialSkillsController.text = source.specialSkills ?? '';
       _numberOfVacanciesController.text = source.numberOfVacancies.toString();
       _preferredGender = source.preferredGender;
-      _durationType = source.durationType;
+      _experienceRequired = source.experienceRequired;
+      _employmentType = source.employmentType;
     }
   }
 
@@ -71,8 +72,6 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
     final value = int.tryParse(_numberOfVacanciesController.text.trim());
     return value != null && value > 0 && value < 50;
   }
-
-  bool get _isDurationTypeValid => _durationType != null;
 
   /// Optional field, so an empty value is always valid — only invalid once
   /// typed/pasted past Validation.specialSkillsMaxLength, since the field
@@ -85,7 +84,6 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _isTypeOfNurseValid &&
       _isTypeOfNurseOtherValid &&
       _isNumberOfVacanciesValid &&
-      _isDurationTypeValid &&
       _isSpecialSkillsValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
@@ -94,7 +92,6 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
         _typeOfNurseKey,
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
-        _durationTypeKey,
         if (!_isSpecialSkillsValid) _specialSkillsKey,
       ];
 
@@ -138,7 +135,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             specialSkills: _specialSkillsController.text.trim(),
             numberOfVacancies: int.parse(_numberOfVacanciesController.text.trim()),
             preferredGender: _preferredGender,
-            durationType: _durationType!,
+            experienceRequired: _experienceRequired,
+            employmentType: _employmentType,
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -208,19 +206,37 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
-              key: _durationTypeKey,
               isExpanded: true,
-              initialValue: _durationType,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.hourglass_bottom),
-                labelText: 'Duration (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isDurationTypeValid ? 'Please select a duration' : null,
+              initialValue: _experienceRequired,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.work_history_outlined),
+                labelText: 'Experience Required',
+                border: OutlineInputBorder(),
               ),
-              items: RequirementDuration.all
-                  .map((d) => DropdownMenuItem(value: d, child: Text(RequirementDuration.displayNames[d] ?? d)))
-                  .toList(),
-              onChanged: (value) => setState(() => _durationType = value),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('No preference')),
+                ...ExperienceRequired.all.map(
+                  (e) => DropdownMenuItem(value: e, child: Text(ExperienceRequired.displayNames[e] ?? e)),
+                ),
+              ],
+              onChanged: (value) => setState(() => _experienceRequired = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _employmentType,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.badge_outlined),
+                labelText: 'Employment Type',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('No preference')),
+                ...EmploymentType.all.map(
+                  (e) => DropdownMenuItem(value: e, child: Text(EmploymentType.displayNames[e] ?? e)),
+                ),
+              ],
+              onChanged: (value) => setState(() => _employmentType = value),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

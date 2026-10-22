@@ -31,7 +31,8 @@ class OrganisationRepository {
     String? specialSkills,
     int? numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.organisationRequirements, data: {
@@ -42,7 +43,8 @@ class OrganisationRepository {
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
         if (numberOfVacancies != null) 'number_of_vacancies': numberOfVacancies,
         if (preferredGender != null) 'preferred_gender': preferredGender,
-        'duration_type': durationType,
+        if (experienceRequired != null) 'experience_required': experienceRequired,
+        if (employmentType != null) 'employment_type': employmentType,
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -62,7 +64,8 @@ class OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     try {
       final res = await _dio.patch(ApiRoutes.organisationRequirement(requirementId), data: {
@@ -73,7 +76,8 @@ class OrganisationRepository {
         if (specialSkills != null && specialSkills.isNotEmpty) 'special_skills': specialSkills,
         'number_of_vacancies': numberOfVacancies,
         if (preferredGender != null) 'preferred_gender': preferredGender,
-        'duration_type': durationType,
+        if (experienceRequired != null) 'experience_required': experienceRequired,
+        if (employmentType != null) 'employment_type': employmentType,
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {

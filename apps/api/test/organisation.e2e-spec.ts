@@ -96,7 +96,6 @@ describe('Organisation (NurseNow) (e2e)', () => {
     type_of_nurse: 'registered_nurse',
     accommodation_provided: true,
     food_provided: false,
-    duration_type: 'short_term',
     ...overrides,
   });
 

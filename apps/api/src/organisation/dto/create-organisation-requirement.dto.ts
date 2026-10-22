@@ -10,7 +10,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { Gender, RequirementDuration, TypeOfNurse, Validation } from '@vitacare/shared-constants';
+import { EmploymentType, ExperienceRequired, Gender, TypeOfNurse, Validation } from '@vitacare/shared-constants';
 
 /** The "exclusive" org posting form — no care_receiver, no city/area/
  *  duty_type (inherited from the org's own registered location). Unlike
@@ -53,8 +53,13 @@ export class CreateOrganisationRequirementDto {
   @IsIn([Gender.MALE, Gender.FEMALE], { message: 'GEN_001' })
   preferred_gender?: string;
 
-  /** How long the engagement is expected to run — org-owned, org-set at
-   *  creation, distinct from Individual's 4-value care_duration. */
-  @IsIn(Object.values(RequirementDuration), { message: 'GEN_001' })
-  duration_type!: string;
+  /** How much experience the role calls for — org-owned, optional. */
+  @IsOptional()
+  @IsIn(Object.values(ExperienceRequired), { message: 'GEN_001' })
+  experience_required?: string;
+
+  /** The employment arrangement being offered — org-owned, optional. */
+  @IsOptional()
+  @IsIn(Object.values(EmploymentType), { message: 'GEN_001' })
+  employment_type?: string;
 }

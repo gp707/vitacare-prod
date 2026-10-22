@@ -443,8 +443,11 @@ class _RequirementFullDetailScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 children: [
-                  if (requirement.durationType != null)
-                    _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+                  if (requirement.experienceRequired != null)
+                    _Tag(ExperienceRequired.displayNames[requirement.experienceRequired] ??
+                        requirement.experienceRequired!),
+                  if (requirement.employmentType != null)
+                    _Tag(EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType!),
                   _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
                   _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
                   _Tag('Vacancies: ${requirement.numberOfVacancies}'),
@@ -650,8 +653,11 @@ class _RequirementCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             children: [
-              if (requirement.durationType != null)
-                _Tag(RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType!),
+              if (requirement.experienceRequired != null)
+                _Tag(ExperienceRequired.displayNames[requirement.experienceRequired] ??
+                    requirement.experienceRequired!),
+              if (requirement.employmentType != null)
+                _Tag(EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType!),
               _Tag(requirement.accommodationProvided ? 'Accommodation provided' : 'No accommodation'),
               _Tag(requirement.foodProvided ? 'Food provided' : 'No food'),
               _Tag('Vacancies: ${requirement.numberOfVacancies}'),
