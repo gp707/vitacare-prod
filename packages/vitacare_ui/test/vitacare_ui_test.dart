@@ -56,7 +56,7 @@ void main() {
 
   testWidgets('VitaOfflineBanner shows the offline message', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: VitaOfflineBanner())));
-    expect(find.textContaining("You're offline"), findsOneWidget);
+    expect(find.textContaining('You are Offline'), findsOneWidget);
   });
 
   group('showVitaErrorBanner', () {

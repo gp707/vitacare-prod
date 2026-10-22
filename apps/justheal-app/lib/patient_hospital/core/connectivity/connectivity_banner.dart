@@ -156,7 +156,14 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        if (_offline) const VitaOfflineBanner(),
+        // This sits above the whole app via MaterialApp.builder, outside
+        // any individual screen's own SafeArea — without its own SafeArea
+        // here, the banner rendered flush at y=0 and overlapped the system
+        // status bar (battery/signal/clock icons). Scoped to just the
+        // banner (not the whole Column) so widget.child's own screens keep
+        // handling their own top inset exactly as before — this sibling
+        // SafeArea doesn't consume anything from their branch of the tree.
+        if (_offline) const SafeArea(bottom: false, child: VitaOfflineBanner()),
         Expanded(child: widget.child),
       ],
     );

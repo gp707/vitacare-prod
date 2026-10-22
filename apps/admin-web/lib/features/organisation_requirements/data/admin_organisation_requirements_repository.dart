@@ -200,6 +200,29 @@ class AdminOrganisationRequirementsRepository {
     }
   }
 
+  /// One-click approve — there's no dedicated backend approve endpoint for
+  /// organisation requirements (unlike admin-posted jobs' own
+  /// PATCH /admin/jobs/:id/approve); per CLAUDE.md, the existing edit
+  /// endpoint already treats any save from pending_review (or closed) as
+  /// an activation, with a bare/unchanged body being a valid "pure
+  /// approve". This just calls [edit] with every field taken as-is from
+  /// [requirement] — a real PATCH, but with zero actual field changes, so
+  /// the only effect is the status transition. durationType is asserted
+  /// non-null, same as EditRequirementDialog's own save call — it's
+  /// required at creation (CreateOrganisationRequirementDto.duration_type),
+  /// so a requirement that's actually reached pending_review always has one.
+  Future<void> approve(AdminOrganisationRequirement requirement) => edit(
+        requirement.id,
+        typeOfNurse: requirement.typeOfNurse,
+        typeOfNurseOther: requirement.typeOfNurseOther,
+        accommodationProvided: requirement.accommodationProvided,
+        foodProvided: requirement.foodProvided,
+        specialSkills: requirement.specialSkills,
+        numberOfVacancies: requirement.numberOfVacancies,
+        preferredGender: requirement.preferredGender,
+        durationType: requirement.durationType!,
+      );
+
   Future<void> reject(String id, String reason) async {
     try {
       await _dio.patch('/admin/organisation-requirements/$id/reject',

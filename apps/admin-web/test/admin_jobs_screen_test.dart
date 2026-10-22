@@ -2327,6 +2327,56 @@ void main() {
       expect(find.text('ADMIN-JOB-542'), findsNothing);
       expect(find.text('ORG-JOB-101'), findsOneWidget);
     });
+
+    // Regression: the Approve button was missing entirely for organisation
+    // requirements — only Reject was offered, unlike admin-posted jobs'
+    // own pending_review row, which has both. There's no dedicated backend
+    // approve endpoint for requirements (unlike jobs' own
+    // PATCH /admin/jobs/:id/approve) — this is a one-click shortcut over
+    // the existing edit endpoint, sending every field back unchanged (see
+    // AdminOrganisationRequirementsRepository.approve).
+    testWidgets(
+        'a pending_review requirement shows an Approve button next to Reject; confirming it calls the '
+        'repository with every field sent back unchanged', (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(
+          typeOfNurse: TypeOfNurse.registeredNurse,
+          accommodationProvided: true,
+          foodProvided: false,
+          numberOfVacancies: 3,
+          durationType: RequirementDuration.shortTerm,
+        ),
+      ]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(find.widgetWithText(TextButton, 'Approve'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Approve'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Approve requirement'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Approve'));
+      await tester.pumpAndSettle();
+
+      expect(requirementsRepo.editedId, 'r1');
+      expect(requirementsRepo.editedTypeOfNurse, TypeOfNurse.registeredNurse);
+      expect(requirementsRepo.editedAccommodationProvided, true);
+      expect(requirementsRepo.editedFoodProvided, false);
+      expect(requirementsRepo.editedNumberOfVacancies, 3);
+      expect(requirementsRepo.editedDurationType, RequirementDuration.shortTerm);
+    });
+
+    testWidgets('an already-active requirement offers neither Approve nor Reject', (tester) async {
+      final repo = _FakeAdminJobsRepository([]);
+      final requirementsRepo = _FakeAdminOrganisationRequirementsRepository([
+        _requirement(status: JobStatus.active),
+      ]);
+      await _pump(tester, repo, requirementsRepo: requirementsRepo);
+
+      expect(find.widgetWithText(TextButton, 'Approve'), findsNothing);
+      expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
+    });
   });
 
   group(

@@ -8,6 +8,10 @@ import '../../../app/maintenance_screen.dart';
 import '../../../core/providers.dart';
 import '../../../core/version/app_version_repository.dart';
 import '../../../core/version/app_maintenance_repository.dart';
+import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_route;
+import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
+import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
+import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
 
 /// Routes safe to restore on refresh once authenticated — every route
 /// registered in router.dart's buildRoutes() map except the pre-auth ones
@@ -85,6 +89,43 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     ref.read(sessionProvider.notifier).loadSession();
   }
 
+  /// Fallback for when the HOST's own session resolves to
+  /// SessionUnauthenticated (no stored Individual/Organisation token) —
+  /// before concluding "truly logged out" and sending the account to
+  /// /login, also check whether a caregiver session is stored, since the
+  /// caregiver flow has no cold-launch restore of its own (unlike this
+  /// host flow, which already handles its own session right here). Without
+  /// this, a caregiver whose app process got killed (swiped from recents,
+  /// or the OS reclaiming memory) would always be forced to re-login on
+  /// next open, even though caregiver tokens are deliberately non-expiring
+  /// specifically because this app has no re-login flow built for them
+  /// (see CLAUDE.md) — this was a real, reported bug, not just a gap.
+  Future<void> _tryRestoreCaregiverSessionOrLogin() async {
+    final caregiverLocalStorage = ref.read(caregiver.localStorageProvider);
+    if (caregiverLocalStorage.accessToken == null) {
+      if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      return;
+    }
+    await ref.read(caregiver_session.sessionProvider.notifier).loadSession();
+    if (!mounted) return;
+    final caregiverSession = ref.read(caregiver_session.sessionProvider);
+    if (caregiverSession is caregiver_session_state.SessionAuthenticated) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        caregiver_route.routeForStatus(caregiverSession),
+        (route) => false,
+        arguments: caregiver_route.routeArgumentsForStatus(caregiverSession),
+      );
+    } else {
+      // A stored caregiver token exists but came back invalid/expired
+      // (SessionUnauthenticated — the token itself was rejected) or
+      // SessionLoadError (e.g. no connectivity right now). Either way,
+      // falling back to /login matches today's existing behavior for
+      // every other case — not a regression, since this path is only
+      // reached when the host session was already unauthenticated too.
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_maintenanceInfo != null) {
@@ -96,7 +137,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     ref.listen<SessionState>(sessionProvider, (previous, next) {
       if (next is SessionUnauthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        _tryRestoreCaregiverSessionOrLogin();
       } else if (next is SessionAuthenticated) {
         final restoreRoute = widget.initialDeepLinkRoute;
         final isOrgOnlyRoute = restoreRoute == '/org-home' || restoreRoute == '/org-post-requirement';

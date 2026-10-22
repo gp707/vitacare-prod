@@ -26,8 +26,14 @@ class RequirementRow extends StatelessWidget {
   /// Always offered, regardless of status — admin can edit any org-owned
   /// field at any point in the requirement's lifecycle; saving from
   /// pending_review (or closed) also approves/reposts it (see
-  /// EditRequirementDialog).
+  /// EditRequirementDialog). [onApprove] is the one-click shortcut for the
+  /// common case of approving with no field changes, so admin doesn't have
+  /// to open the full Edit dialog and re-save every field unchanged just to
+  /// activate it — same reasoning as admin-posted jobs' own Approve button.
   final VoidCallback onEdit;
+  /// Only supplied for a pending_review requirement — same one-click
+  /// activation admin-posted jobs' own Approve button offers.
+  final VoidCallback? onApprove;
   /// Only supplied for a pending_review requirement — declines it, same as
   /// admin-posted jobs' own Reject action.
   final VoidCallback? onReject;
@@ -38,6 +44,7 @@ class RequirementRow extends StatelessWidget {
     required this.requirement,
     required this.onTap,
     required this.onEdit,
+    required this.onApprove,
     required this.onReject,
     required this.onViewApplicants,
   });
@@ -113,6 +120,13 @@ class RequirementRow extends StatelessWidget {
                       onPressed: onViewApplicants,
                       child: const Text('Applicants')),
                   TextButton(onPressed: onEdit, child: const Text('Edit')),
+                  if (onApprove != null)
+                    TextButton.icon(
+                      onPressed: onApprove,
+                      style: TextButton.styleFrom(foregroundColor: AppColors.success),
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('Approve'),
+                    ),
                   if (onReject != null)
                     TextButton(
                         onPressed: onReject, child: const Text('Reject')),

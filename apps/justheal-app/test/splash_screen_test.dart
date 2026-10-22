@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
 import 'package:nursenow_app/patient_hospital/core/providers.dart';
@@ -10,8 +11,15 @@ import 'package:nursenow_app/patient_hospital/core/storage/local_storage.dart';
 import 'package:nursenow_app/patient_hospital/core/version/app_version_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/version/app_maintenance_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/auth/screens/splash_screen.dart';
-import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_model.dart';
+import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
+import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_route;
+import 'package:nursenow_app/caregiver/core/fcm/fcm_service.dart' as caregiver_fcm;
+import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
+import 'package:nursenow_app/caregiver/core/storage/local_storage.dart' as caregiver_local_storage;
+import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
+import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
+import 'package:nursenow_app/caregiver/features/profile/data/profile_repository.dart' as caregiver_profile;
 
 class _FakeIndividualRepository extends IndividualRepository {
   final ApiException? error;
@@ -55,6 +63,27 @@ class _FakeAppMaintenanceRepository extends AppMaintenanceRepository {
   }
 }
 
+/// Stands in for the caregiver flow's own SessionNotifier so the new
+/// splash-screen fallback (_tryRestoreCaregiverSessionOrLogin) can be
+/// exercised without it making a real GET /caregiver/profile call —
+/// loadSession() just sets [result] directly, same stand-in pattern as
+/// caregiver_session_watcher_test.dart's own notifier construction.
+class _FakeCaregiverSessionNotifier extends caregiver_session.SessionNotifier {
+  final caregiver_session_state.SessionState result;
+
+  _FakeCaregiverSessionNotifier(caregiver_local_storage.LocalStorage localStorage, this.result)
+      : super(
+          localStorage,
+          caregiver_profile.ProfileRepository(Dio()),
+          caregiver_fcm.FcmService(caregiver_profile.ProfileRepository(Dio())),
+        );
+
+  @override
+  Future<void> loadSession() async {
+    state = result;
+  }
+}
+
 Future<void> _pumpSplash(
   WidgetTester tester, {
   String? initialDeepLinkRoute,
@@ -63,10 +92,23 @@ Future<void> _pumpSplash(
   int getMeFailFirstNCalls = 0,
   AppVersionRepository? appVersionRepo,
   AppMaintenanceRepository? maintenanceRepo,
+  // A stored caregiver access token (or none) — exercises the fallback the
+  // host's own splash now attempts once its own session resolves to
+  // SessionUnauthenticated, before concluding the account is truly logged
+  // out. [caregiverLoadSessionResult] is only consulted when a token is
+  // also supplied — without one, the real (un-overridden) caregiver
+  // SessionNotifier.loadSession() already resolves to SessionUnauthenticated
+  // with no network call, exactly like production.
+  String? caregiverAccessToken,
+  caregiver_session_state.SessionState? caregiverLoadSessionResult,
 }) async {
   // ignore: invalid_use_of_visible_for_testing_member
-  SharedPreferences.setMockInitialValues(authenticated ? {'access_token': 'fake-token'} : {});
+  SharedPreferences.setMockInitialValues({
+    if (authenticated) 'access_token': 'fake-token',
+    if (caregiverAccessToken != null) 'caregiver_access_token': caregiverAccessToken,
+  });
   final localStorage = await LocalStorage.create();
+  final caregiverLocalStorage = await caregiver_local_storage.LocalStorage.create();
 
   await tester.pumpWidget(
     ProviderScope(
@@ -77,6 +119,11 @@ Future<void> _pumpSplash(
         ),
         appVersionRepositoryProvider.overrideWithValue(appVersionRepo ?? _FakeAppVersionRepository(null)),
         appMaintenanceRepositoryProvider.overrideWithValue(maintenanceRepo ?? _FakeAppMaintenanceRepository(null)),
+        caregiver.localStorageProvider.overrideWithValue(caregiverLocalStorage),
+        if (caregiverLoadSessionResult != null)
+          caregiver_session.sessionProvider.overrideWith(
+            (ref) => _FakeCaregiverSessionNotifier(caregiverLocalStorage, caregiverLoadSessionResult),
+          ),
       ],
       child: MaterialApp(
         home: SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
@@ -84,6 +131,12 @@ Future<void> _pumpSplash(
           '/login': (_) => const Scaffold(body: Text('Login Page')),
           '/home': (_) => const Scaffold(body: Text('Home Page')),
           '/profile': (_) => const Scaffold(body: Text('Profile Page')),
+          '/caregiver/profile': (_) => const Scaffold(body: Text('Caregiver Profile Page')),
+          '/caregiver/my-jobs': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments;
+            final tabIndex = args is caregiver_route.MyAssignmentScreenArgs ? args.initialTabIndex : 0;
+            return Scaffold(body: Text('Caregiver MyJobs Page (tab $tabIndex)'));
+          },
         },
       ),
     ),
@@ -93,6 +146,76 @@ Future<void> _pumpSplash(
 void main() {
   testWidgets('unauthenticated session navigates to Login', (tester) async {
     await _pumpSplash(tester, authenticated: false);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login Page'), findsOneWidget);
+  });
+
+  testWidgets(
+      'when the host session is unauthenticated but a caregiver token is stored, restores the caregiver '
+      'session instead of forcing a re-login — the cold-launch fallback for a force-killed caregiver app',
+      (tester) async {
+    await _pumpSplash(
+      tester,
+      authenticated: false,
+      caregiverAccessToken: 'fake-caregiver-token',
+      caregiverLoadSessionResult: const caregiver_session_state.SessionAuthenticated(
+        fullName: 'Nurse One',
+        phone: '+919876543210',
+        verificationStatus: VerificationStatus.available,
+        hasRequiredDocuments: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Caregiver Profile Page'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+  });
+
+  testWidgets(
+      'restoring a caregiver session that is currently assigned lands on MyJobs\' Selected tab, same as the '
+      'caregiver\'s own routeForStatus/routeArgumentsForStatus mapping used elsewhere', (tester) async {
+    await _pumpSplash(
+      tester,
+      authenticated: false,
+      caregiverAccessToken: 'fake-caregiver-token',
+      caregiverLoadSessionResult: const caregiver_session_state.SessionAuthenticated(
+        fullName: 'Nurse One',
+        phone: '+919876543210',
+        verificationStatus: VerificationStatus.assigned,
+        hasRequiredDocuments: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Caregiver MyJobs Page (tab 1)'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+  });
+
+  testWidgets(
+      'falls back to Login when a stored caregiver token exists but is rejected as invalid/expired '
+      '(mirrors the existing "genuinely invalid token" behavior, just via the caregiver fallback path)',
+      (tester) async {
+    await _pumpSplash(
+      tester,
+      authenticated: false,
+      caregiverAccessToken: 'fake-caregiver-token',
+      caregiverLoadSessionResult: const caregiver_session_state.SessionUnauthenticated(),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login Page'), findsOneWidget);
+  });
+
+  testWidgets(
+      'falls back to Login when a stored caregiver token exists but loading it hits a transient/load error — '
+      'never strands the user on the splash screen', (tester) async {
+    await _pumpSplash(
+      tester,
+      authenticated: false,
+      caregiverAccessToken: 'fake-caregiver-token',
+      caregiverLoadSessionResult: const caregiver_session_state.SessionLoadError('Could not reach the server.'),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Login Page'), findsOneWidget);

@@ -493,6 +493,47 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
   }
 
+  /// Only offered for a pending_review requirement — same one-click
+  /// activation admin-posted jobs' own Approve button offers, instead of
+  /// requiring admin to open the full Edit dialog and re-save every field
+  /// unchanged just to activate it.
+  Future<void> _approveRequirement(
+      AdminOrganisationRequirement requirement) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Approve requirement'),
+        content: const Text(
+          'This requirement will go live immediately and every caregiver will be notified. Continue?',
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref
+          .read(adminOrganisationRequirementsRepositoryProvider)
+          .approve(requirement);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   /// Only offered for a pending_review requirement — declines it with a
   /// reason, which the organisation sees on their own requirement view. It
   /// never goes live.
@@ -982,6 +1023,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             requirement: requirement,
                             onTap: () => _viewRequirementDetail(requirement),
                             onEdit: () => _editRequirement(requirement),
+                            onApprove:
+                                requirement.status == JobStatus.pendingReview
+                                    ? () => _approveRequirement(requirement)
+                                    : null,
                             onReject:
                                 requirement.status == JobStatus.pendingReview
                                     ? () => _rejectRequirement(requirement)

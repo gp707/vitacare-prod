@@ -16,7 +16,7 @@ class VitaOfflineBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       color: AppColors.warning,
       child: const Text(
-        "You're offline. Some actions may not work.",
+        'You are Offline.',
         textAlign: TextAlign.center,
         style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
       ),
