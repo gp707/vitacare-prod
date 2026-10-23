@@ -22,7 +22,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? capturedSpecialSkills;
   int? capturedNumberOfVacancies;
   String? capturedPreferredGender;
-  String? capturedDurationType;
+  String? capturedExperienceRequired;
+  String? capturedEmploymentType;
 
   _FakeOrganisationRepository({this.editError}) : super(Dio());
 
@@ -36,7 +37,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     editCalled = true;
     capturedRequirementId = requirementId;
@@ -47,7 +49,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     capturedSpecialSkills = specialSkills;
     capturedNumberOfVacancies = numberOfVacancies;
     capturedPreferredGender = preferredGender;
-    capturedDurationType = durationType;
+    capturedExperienceRequired = experienceRequired;
+    capturedEmploymentType = employmentType;
     if (editError != null) throw editError!;
     return _requirement(
       typeOfNurse: typeOfNurse,
@@ -57,7 +60,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
       specialSkills: specialSkills,
       numberOfVacancies: numberOfVacancies,
       preferredGender: preferredGender,
-      durationType: durationType,
+      experienceRequired: experienceRequired,
+      employmentType: employmentType,
     );
   }
 }
@@ -71,7 +75,8 @@ OrganisationRequirementModel _requirement({
   String? specialSkills,
   int numberOfVacancies = 3,
   String? preferredGender,
-  String durationType = 'short_term',
+  String? experienceRequired,
+  String? employmentType,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -84,7 +89,8 @@ OrganisationRequirementModel _requirement({
     'special_skills': specialSkills,
     'number_of_vacancies': numberOfVacancies,
     'preferred_gender': preferredGender,
-    'duration_type': durationType,
+    'experience_required': experienceRequired,
+    'employment_type': employmentType,
     'status': 'pending_review',
     'posted_at': '2026-08-01T10:00:00Z',
   });
@@ -125,7 +131,8 @@ void main() {
         specialSkills: 'Fluent in Kannada',
         numberOfVacancies: 5,
         preferredGender: 'female',
-        durationType: 'long_term',
+        experienceRequired: '5_10_years',
+        employmentType: 'part_time',
       ),
     );
 
@@ -134,7 +141,8 @@ void main() {
     expect(find.text('Wound care specialist'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
     expect(find.text('Fluent in Kannada'), findsOneWidget);
-    expect(find.text('Long Term'), findsOneWidget);
+    expect(find.text('5-10 Years'), findsOneWidget);
+    expect(find.text('Part Time'), findsOneWidget);
 
     final accommodationSwitch =
         tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Accommodation provided?'));
@@ -164,6 +172,30 @@ void main() {
     expect(repo.capturedRequirementId, 'req-42');
     expect(repo.capturedNumberOfVacancies, 10);
     expect(repo.capturedTypeOfNurse, 'registered_nurse');
+    expect(repo.capturedExperienceRequired, isNull);
+    expect(repo.capturedEmploymentType, isNull);
+  });
+
+  testWidgets('sends the selected Experience Required and Employment Type', (tester) async {
+    final repo = _FakeOrganisationRepository();
+    await _pump(tester, repo, requirement: _requirement());
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Experience Required'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1-2 Years').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Employment Type'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Temporary').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(repo.editCalled, isTrue);
+    expect(repo.capturedExperienceRequired, '1_2_years');
+    expect(repo.capturedEmploymentType, 'temporary');
   });
 
   testWidgets('rejects a Number of Vacancies outside 1-49 without saving', (tester) async {

@@ -53,7 +53,8 @@ OrganisationRequirementModel _requirement({
   String? typeOfNurseOther,
   int numberOfVacancies = 1,
   String? preferredGender,
-  String durationType = 'short_term',
+  String? experienceRequired = 'fresher',
+  String? employmentType = 'full_time',
   String postedAt = '2026-08-01T10:00:00Z',
 }) {
   return OrganisationRequirementModel.fromJson({
@@ -67,7 +68,8 @@ OrganisationRequirementModel _requirement({
     'special_skills': 'Wound care',
     'number_of_vacancies': numberOfVacancies,
     'preferred_gender': preferredGender,
-    'duration_type': durationType,
+    'experience_required': experienceRequired,
+    'employment_type': employmentType,
     'status': status,
     'rejection_reason': rejectionReason,
     'cancelled_at': cancelledAt,
@@ -152,7 +154,8 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     editedRequirementId = requirementId;
     return _requirement(id: requirementId);
@@ -302,16 +305,19 @@ void main() {
     expect(activeOlderTop, lessThan(closedTop));
   });
 
-  testWidgets('shows requirement details: type of nurse, duration, accommodation/food, and a View Full '
-      'Details link (Special Skills moved to its own page)', (tester) async {
+  testWidgets('shows requirement details: type of nurse, experience/employment, accommodation/food, and a '
+      'View Full Details link (Special Skills moved to its own page)', (tester) async {
     await _pump(
       tester,
-      _FakeOrganisationRepository(requirements: [_requirement(durationType: 'long_term')]),
+      _FakeOrganisationRepository(
+        requirements: [_requirement(experienceRequired: '5_10_years', employmentType: 'part_time')],
+      ),
     );
 
     expect(find.text('Live — visible to caregivers'), findsOneWidget);
     expect(find.text('Registered Nurse'), findsOneWidget);
-    expect(find.text('Long Term'), findsOneWidget);
+    expect(find.text('5-10 Years'), findsOneWidget);
+    expect(find.text('Part Time'), findsOneWidget);
     expect(find.text('Accommodation provided'), findsOneWidget);
     expect(find.text('No food'), findsOneWidget);
     expect(find.text('Wound care'), findsNothing);

@@ -6,9 +6,11 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ErrorCatalog } from '@vitacare/shared-constants';
 import { AppException } from '../exceptions/app.exception';
+import { ErrorLogsRepository } from '../../database/repositories/error-logs.repository';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 /**
  * Converts every thrown error into the { success: false, error: { code, message } }
@@ -17,6 +19,13 @@ import { AppException } from '../exceptions/app.exception';
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
+
+  // Optional — main.ts passes the real repository once the app is
+  // bootstrapped (this filter is instantiated before Nest's DI container is
+  // usable, so it can't be constructor-injected the normal way). Left
+  // undefined in any test that constructs this filter directly, where
+  // persisting error rows isn't the point of the test.
+  constructor(private readonly errorLogsRepo?: ErrorLogsRepository) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -58,9 +67,35 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     this.logger.error(exception instanceof Error ? exception.stack : exception);
+    this.persistErrorLog(exception, ctx.getRequest<Request & { user?: JwtPayload }>());
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: { code: 'GEN_003', message: ErrorCatalog.GEN_003.message },
     });
+  }
+
+  /** Fire-and-forget — never awaited, and any failure here (e.g. the DB
+   *  itself being what's down) is swallowed rather than risking a second
+   *  unhandled error inside the error handler. See migration 082's comment
+   *  for exactly what does/doesn't land here. */
+  private persistErrorLog(exception: unknown, request: Request & { user?: JwtPayload }): void {
+    if (!this.errorLogsRepo) return;
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const ipAddress =
+      typeof forwardedFor === 'string' && forwardedFor.length > 0
+        ? forwardedFor.split(',')[0].trim()
+        : (request.ip ?? null);
+    this.errorLogsRepo
+      .create({
+        method: request.method,
+        path: request.originalUrl,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: exception instanceof Error ? exception.message : String(exception),
+        stack: exception instanceof Error ? (exception.stack ?? null) : null,
+        userId: request.user?.sub ?? null,
+        userRole: request.user?.role ?? null,
+        ipAddress,
+      })
+      .catch((err) => this.logger.error('Failed to persist error log', err));
   }
 }

@@ -103,9 +103,13 @@ class RequirementRow extends StatelessWidget {
                 children: [
                   Text(TypeOfNurse.displayNames[requirement.typeOfNurse] ??
                       requirement.typeOfNurse),
-                  if (requirement.durationType != null)
+                  if (requirement.experienceRequired != null)
                     Text(
-                      '· ${RequirementDuration.displayNames[requirement.durationType] ?? requirement.durationType}',
+                      '· ${ExperienceRequired.displayNames[requirement.experienceRequired] ?? requirement.experienceRequired}',
+                    ),
+                  if (requirement.employmentType != null)
+                    Text(
+                      '· ${EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType}',
                     ),
                   Text(
                       '· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
@@ -193,7 +197,8 @@ class EditRequirementDialog extends StatefulWidget {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) onSubmit;
 
   const EditRequirementDialog(
@@ -214,7 +219,8 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
   late final _numberOfVacanciesController =
       TextEditingController(text: widget.requirement.numberOfVacancies.toString());
   late String? _preferredGender = widget.requirement.preferredGender;
-  late String? _durationType = widget.requirement.durationType;
+  late String? _experienceRequired = widget.requirement.experienceRequired;
+  late String? _employmentType = widget.requirement.employmentType;
 
   bool _submitting = false;
   String? _error;
@@ -228,14 +234,11 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
     return value != null && value > 0 && value < 50;
   }
 
-  bool get _isDurationTypeValid => _durationType != null;
-
   bool get _canSubmit =>
       !_submitting &&
       _isTypeOfNurseValid &&
       _isTypeOfNurseOtherValid &&
-      _isNumberOfVacanciesValid &&
-      _isDurationTypeValid;
+      _isNumberOfVacanciesValid;
 
   @override
   void dispose() {
@@ -263,7 +266,8 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
         specialSkills: _specialSkillsController.text.trim(),
         numberOfVacancies: int.parse(_numberOfVacanciesController.text.trim()),
         preferredGender: _preferredGender,
-        durationType: _durationType!,
+        experienceRequired: _experienceRequired,
+        employmentType: _employmentType,
       );
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
@@ -327,16 +331,34 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: _durationType,
-                decoration: InputDecoration(
-                  labelText: 'Duration (Mandatory)',
-                  border: const OutlineInputBorder(),
-                  errorText: _showValidationErrors && !_isDurationTypeValid ? 'Please select a duration' : null,
+                initialValue: _experienceRequired,
+                decoration: const InputDecoration(
+                  labelText: 'Experience Required',
+                  border: OutlineInputBorder(),
                 ),
-                items: RequirementDuration.all
-                    .map((d) => DropdownMenuItem(value: d, child: Text(RequirementDuration.displayNames[d] ?? d)))
-                    .toList(),
-                onChanged: (value) => setState(() => _durationType = value),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('No preference')),
+                  ...ExperienceRequired.all.map(
+                    (e) => DropdownMenuItem(value: e, child: Text(ExperienceRequired.displayNames[e] ?? e)),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _experienceRequired = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _employmentType,
+                decoration: const InputDecoration(
+                  labelText: 'Employment Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('No preference')),
+                  ...EmploymentType.all.map(
+                    (e) => DropdownMenuItem(value: e, child: Text(EmploymentType.displayNames[e] ?? e)),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _employmentType = value),
               ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<String>(
@@ -580,10 +602,17 @@ class RequirementReadOnlyDialog extends StatelessWidget {
                     : 'No preference',
               ),
               _DetailRow(
-                'Duration',
-                requirement.durationType != null
-                    ? RequirementDuration.displayNames[requirement.durationType] ??
-                        requirement.durationType!
+                'Experience Required',
+                requirement.experienceRequired != null
+                    ? ExperienceRequired.displayNames[requirement.experienceRequired] ??
+                        requirement.experienceRequired!
+                    : '—',
+              ),
+              _DetailRow(
+                'Employment Type',
+                requirement.employmentType != null
+                    ? EmploymentType.displayNames[requirement.employmentType] ??
+                        requirement.employmentType!
                     : '—',
               ),
               _DetailRow(

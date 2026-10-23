@@ -21,6 +21,7 @@ import { JobSettingsModule } from './job-settings/job-settings.module';
 import { IndividualMessagesModule } from './individual-messages/individual-messages.module';
 import { CaregiverMessagesModule } from './caregiver-messages/caregiver-messages.module';
 import { AuditLogRetentionModule } from './audit-log-retention/audit-log-retention.module';
+import { ErrorLogsModule } from './error-logs/error-logs.module';
 import { AdminPushNotificationsModule } from './admin-push-notifications/admin-push-notifications.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { validateEnv } from './config/env.validation';
@@ -52,6 +53,7 @@ import { validateEnv } from './config/env.validation';
     IndividualMessagesModule,
     CaregiverMessagesModule,
     AuditLogRetentionModule,
+    ErrorLogsModule,
     AdminPushNotificationsModule,
     TicketsModule,
   ],

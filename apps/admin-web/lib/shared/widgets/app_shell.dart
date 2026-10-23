@@ -18,6 +18,7 @@ enum AppShellSection {
   pushNotifications,
   tickets,
   auditLogs,
+  errorLogs,
   adminManagement,
   settings,
 }
@@ -216,6 +217,13 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.auditLogs,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/audit-logs', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.error_outline,
+                  label: 'Error Logs',
+                  selected: current == AppShellSection.errorLogs,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/error-logs', (r) => false),
                 ),
                 if (isSuperAdmin)
                   _NavItem(

@@ -2,10 +2,13 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
+import { ErrorLogsRepository } from './database/repositories/error-logs.repository';
+import { RequestStatsRepository } from './database/repositories/request-stats.repository';
 import { Config } from '@vitacare/shared-constants';
 
 async function bootstrap() {
@@ -25,8 +28,23 @@ async function bootstrap() {
       exceptionFactory: validationExceptionFactory,
     }),
   );
-  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter(app.get(ErrorLogsRepository)));
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // Daily request/error counters for the admin-web "Error Logs" screen —
+  // one UPSERT per request, fire-and-forget (never blocks the response).
+  // Registered before the route handlers so it sees every request,
+  // including ones that 404 before reaching a controller.
+  const requestStatsRepo = app.get(RequestStatsRepository);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.on('finish', () => {
+      requestStatsRepo.increment(res.statusCode >= 500).catch(() => {
+        // Swallowed — a missed counter increment is never worth logging
+        // noise over, let alone risking an unhandled rejection.
+      });
+    });
+    next();
+  });
 
   const port = configService.get<number>('API_PORT') ?? 3000;
   await app.listen(port);

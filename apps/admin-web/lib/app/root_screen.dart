@@ -36,6 +36,7 @@ const _restorableRoutes = {
   '/nursejobs-messages',
   '/push-notifications',
   '/tickets',
+  '/error-logs',
 };
 
 /// Checks for a stored session and redirects to /login, or back to

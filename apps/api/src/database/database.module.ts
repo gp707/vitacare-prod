@@ -35,6 +35,8 @@ import { JobSettingsRepository } from './repositories/job-settings.repository';
 import { IndividualMessagesRepository } from './repositories/individual-messages.repository';
 import { CaregiverMessagesRepository } from './repositories/caregiver-messages.repository';
 import { AuditLogRetentionRepository } from './repositories/audit-log-retention.repository';
+import { ErrorLogsRepository } from './repositories/error-logs.repository';
+import { RequestStatsRepository } from './repositories/request-stats.repository';
 
 const repositories = [
   UsersRepository,
@@ -72,6 +74,8 @@ const repositories = [
   IndividualMessagesRepository,
   CaregiverMessagesRepository,
   AuditLogRetentionRepository,
+  ErrorLogsRepository,
+  RequestStatsRepository,
 ];
 
 @Global()

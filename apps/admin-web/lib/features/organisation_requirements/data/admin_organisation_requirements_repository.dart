@@ -19,9 +19,10 @@ class AdminOrganisationRequirement {
   final int numberOfVacancies;
   /// Org-set at creation. Null = no preference. Org-owned, same as above.
   final String? preferredGender;
-  /// Org-set at creation — 'short_term' or 'long_term'. Org-owned, same as
-  /// above; admin never sets or edits this.
-  final String? durationType;
+  /// Org-set, optional. Org-owned, same as above.
+  final String? experienceRequired;
+  /// Org-set, optional. Org-owned, same as above.
+  final String? employmentType;
   final String status;
   final String? rejectionReason;
   final String postedAt;
@@ -47,7 +48,8 @@ class AdminOrganisationRequirement {
     this.specialSkills,
     required this.numberOfVacancies,
     this.preferredGender,
-    this.durationType,
+    this.experienceRequired,
+    this.employmentType,
     required this.status,
     this.rejectionReason,
     required this.postedAt,
@@ -71,7 +73,8 @@ class AdminOrganisationRequirement {
         specialSkills: json['special_skills'] as String?,
         numberOfVacancies: json['number_of_vacancies'] as int,
         preferredGender: json['preferred_gender'] as String?,
-        durationType: json['duration_type'] as String?,
+        experienceRequired: json['experience_required'] as String?,
+        employmentType: json['employment_type'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
         postedAt: json['posted_at'] as String,
@@ -179,7 +182,8 @@ class AdminOrganisationRequirementsRepository {
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     try {
       await _dio.patch(
@@ -192,7 +196,8 @@ class AdminOrganisationRequirementsRepository {
           'special_skills': specialSkills,
           'number_of_vacancies': numberOfVacancies,
           'preferred_gender': preferredGender,
-          'duration_type': durationType,
+          'experience_required': experienceRequired,
+          'employment_type': employmentType,
         },
       );
     } on DioException catch (e) {
@@ -207,10 +212,7 @@ class AdminOrganisationRequirementsRepository {
   /// an activation, with a bare/unchanged body being a valid "pure
   /// approve". This just calls [edit] with every field taken as-is from
   /// [requirement] — a real PATCH, but with zero actual field changes, so
-  /// the only effect is the status transition. durationType is asserted
-  /// non-null, same as EditRequirementDialog's own save call — it's
-  /// required at creation (CreateOrganisationRequirementDto.duration_type),
-  /// so a requirement that's actually reached pending_review always has one.
+  /// the only effect is the status transition.
   Future<void> approve(AdminOrganisationRequirement requirement) => edit(
         requirement.id,
         typeOfNurse: requirement.typeOfNurse,
@@ -220,7 +222,8 @@ class AdminOrganisationRequirementsRepository {
         specialSkills: requirement.specialSkills,
         numberOfVacancies: requirement.numberOfVacancies,
         preferredGender: requirement.preferredGender,
-        durationType: requirement.durationType!,
+        experienceRequired: requirement.experienceRequired,
+        employmentType: requirement.employmentType,
       );
 
   Future<void> reject(String id, String reason) async {

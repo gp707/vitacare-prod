@@ -85,7 +85,8 @@ AdminOrganisationRequirement _requirement({
   String? specialSkills,
   int numberOfVacancies = 1,
   String? preferredGender,
-  String? durationType = RequirementDuration.longTerm,
+  String? experienceRequired = ExperienceRequired.fresher,
+  String? employmentType = EmploymentType.fullTime,
 }) {
   return AdminOrganisationRequirement(
     id: id,
@@ -98,7 +99,8 @@ AdminOrganisationRequirement _requirement({
     specialSkills: specialSkills,
     numberOfVacancies: numberOfVacancies,
     preferredGender: preferredGender,
-    durationType: durationType,
+    experienceRequired: experienceRequired,
+    employmentType: employmentType,
     status: status,
     postedAt: postedAt,
     organisationName: 'City Rehab Center',
@@ -123,7 +125,8 @@ class _FakeAdminOrganisationRequirementsRepository
   String? editedSpecialSkills;
   int? editedNumberOfVacancies;
   String? editedPreferredGender;
-  String? editedDurationType;
+  String? editedExperienceRequired;
+  String? editedEmploymentType;
 
   _FakeAdminOrganisationRequirementsRepository([this.items = const []])
       : super(Dio());
@@ -148,7 +151,8 @@ class _FakeAdminOrganisationRequirementsRepository
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     editedId = id;
     editedTypeOfNurse = typeOfNurse;
@@ -158,7 +162,8 @@ class _FakeAdminOrganisationRequirementsRepository
     editedSpecialSkills = specialSkills;
     editedNumberOfVacancies = numberOfVacancies;
     editedPreferredGender = preferredGender;
-    editedDurationType = durationType;
+    editedExperienceRequired = experienceRequired;
+    editedEmploymentType = employmentType;
   }
 }
 
@@ -2154,7 +2159,8 @@ void main() {
           specialSkills: 'Post-surgery wound care',
           numberOfVacancies: 5,
           preferredGender: Gender.female,
-          durationType: RequirementDuration.longTerm,
+          experienceRequired: ExperienceRequired.fiveToTenYears,
+          employmentType: EmploymentType.partTime,
         ),
       ]);
       await _pump(tester, _FakeAdminJobsRepository([]), requirementsRepo: requirementsRepo);
@@ -2345,7 +2351,7 @@ void main() {
           accommodationProvided: true,
           foodProvided: false,
           numberOfVacancies: 3,
-          durationType: RequirementDuration.shortTerm,
+          experienceRequired: ExperienceRequired.fresher,
         ),
       ]);
       await _pump(tester, repo, requirementsRepo: requirementsRepo);
@@ -2364,7 +2370,7 @@ void main() {
       expect(requirementsRepo.editedAccommodationProvided, true);
       expect(requirementsRepo.editedFoodProvided, false);
       expect(requirementsRepo.editedNumberOfVacancies, 3);
-      expect(requirementsRepo.editedDurationType, RequirementDuration.shortTerm);
+      expect(requirementsRepo.editedExperienceRequired, ExperienceRequired.fresher);
     });
 
     testWidgets('an already-active requirement offers neither Approve nor Reject', (tester) async {

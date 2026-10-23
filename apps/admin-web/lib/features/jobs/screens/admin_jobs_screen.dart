@@ -474,7 +474,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           specialSkills,
           required numberOfVacancies,
           preferredGender,
-          required durationType,
+          experienceRequired,
+          employmentType,
         }) async {
           await ref.read(adminOrganisationRequirementsRepositoryProvider).edit(
                 requirement.id,
@@ -485,7 +486,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 specialSkills: specialSkills,
                 numberOfVacancies: numberOfVacancies,
                 preferredGender: preferredGender,
-                durationType: durationType,
+                experienceRequired: experienceRequired,
+                employmentType: employmentType,
               );
           await _load();
         },

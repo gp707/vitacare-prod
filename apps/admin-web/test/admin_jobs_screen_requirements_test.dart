@@ -31,7 +31,8 @@ AdminOrganisationRequirement _requirement({
   String? typeOfNurseOther,
   int numberOfVacancies = 1,
   String? preferredGender,
-  String? durationType = RequirementDuration.shortTerm,
+  String? experienceRequired = ExperienceRequired.fresher,
+  String? employmentType = EmploymentType.fullTime,
 }) {
   return AdminOrganisationRequirement(
     id: id,
@@ -43,7 +44,8 @@ AdminOrganisationRequirement _requirement({
     foodProvided: foodProvided,
     numberOfVacancies: numberOfVacancies,
     preferredGender: preferredGender,
-    durationType: durationType,
+    experienceRequired: experienceRequired,
+    employmentType: employmentType,
     status: status,
     rejectionReason: rejectionReason,
     postedAt: '2026-08-01T10:00:00Z',
@@ -117,7 +119,8 @@ class _FakeAdminOrganisationRequirementsRepository
     String? specialSkills,
     required int numberOfVacancies,
     String? preferredGender,
-    required String durationType,
+    String? experienceRequired,
+    String? employmentType,
   }) async {
     editedId = id;
     editedNumberOfVacancies = numberOfVacancies;
