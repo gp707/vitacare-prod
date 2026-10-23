@@ -43,6 +43,15 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   UpdateRequiredInfo? _updateInfo;
   MaintenanceInfo? _maintenanceInfo;
+  // Set only when the caregiver-session fallback below hits a transient
+  // load error (e.g. no connectivity right at cold launch) — deliberately
+  // NOT treated the same as a rejected/invalid token. The caregiver's own
+  // loadSession() only clears the stored token on a definitive rejection
+  // (AUTH_005), never on a load error, so forcing a fresh login here would
+  // throw away a perfectly valid, still-stored session over a momentary
+  // network hiccup — exactly the "force-kill then asked to relogin"
+  // symptom this whole fallback exists to fix.
+  String? _caregiverLoadErrorMessage;
 
   @override
   void initState() {
@@ -106,6 +115,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       return;
     }
+    if (mounted) setState(() => _caregiverLoadErrorMessage = null);
     await ref.read(caregiver_session.sessionProvider.notifier).loadSession();
     if (!mounted) return;
     final caregiverSession = ref.read(caregiver_session.sessionProvider);
@@ -115,13 +125,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         (route) => false,
         arguments: caregiver_route.routeArgumentsForStatus(caregiverSession),
       );
+    } else if (caregiverSession is caregiver_session_state.SessionLoadError) {
+      // Transient failure — the token is still in storage. Show a retry
+      // affordance (via the same error+Retry block the host's own
+      // SessionLoadError already renders, see build() below) instead of
+      // forcing a fresh login the account doesn't actually need.
+      setState(() => _caregiverLoadErrorMessage = caregiverSession.message);
     } else {
-      // A stored caregiver token exists but came back invalid/expired
-      // (SessionUnauthenticated — the token itself was rejected) or
-      // SessionLoadError (e.g. no connectivity right now). Either way,
-      // falling back to /login matches today's existing behavior for
-      // every other case — not a regression, since this path is only
-      // reached when the host session was already unauthenticated too.
+      // SessionUnauthenticated — the stored token was actively rejected
+      // (e.g. AUTH_005) and caregiver's own loadSession() already cleared
+      // it from storage. This is a genuine logout, so falling back to
+      // /login is correct.
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }
@@ -150,6 +164,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     });
 
     final session = ref.watch(sessionProvider);
+    // Either the host's own session load failed, or (more likely for a
+    // caregiver, since the host session resolves instantly to
+    // SessionUnauthenticated when there's no individual/org token at all)
+    // the caregiver fallback's own load attempt did — same retry UI either
+    // way, just pointed at whichever loadSession() actually needs retrying.
+    final loadErrorMessage = session is SessionLoadError ? session.message : _caregiverLoadErrorMessage;
+    final onRetryLoadError = _caregiverLoadErrorMessage != null
+        ? _tryRestoreCaregiverSessionOrLogin
+        : () => ref.read(sessionProvider.notifier).loadSession();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -170,18 +193,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.xl),
-            if (session is SessionLoadError) ...[
+            if (loadErrorMessage != null) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 child: Text(
-                  session.message,
+                  loadErrorMessage,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.error),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
               ElevatedButton(
-                onPressed: () => ref.read(sessionProvider.notifier).loadSession(),
+                onPressed: onRetryLoadError,
                 child: const Text('Retry'),
               ),
             ] else

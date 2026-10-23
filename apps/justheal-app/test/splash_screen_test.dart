@@ -69,9 +69,23 @@ class _FakeAppMaintenanceRepository extends AppMaintenanceRepository {
 /// loadSession() just sets [result] directly, same stand-in pattern as
 /// caregiver_session_watcher_test.dart's own notifier construction.
 class _FakeCaregiverSessionNotifier extends caregiver_session.SessionNotifier {
-  final caregiver_session_state.SessionState result;
+  /// One result per call to loadSession(), in order — the last entry
+  /// repeats for any call beyond the list's length (so a single-result
+  /// construction behaves exactly as before). Lets a test simulate a
+  /// transient failure that clears up on retry (e.g. [SessionLoadError]
+  /// then [SessionAuthenticated]).
+  final List<caregiver_session_state.SessionState> results;
+  int callCount = 0;
 
-  _FakeCaregiverSessionNotifier(caregiver_local_storage.LocalStorage localStorage, this.result)
+  _FakeCaregiverSessionNotifier(caregiver_local_storage.LocalStorage localStorage, caregiver_session_state.SessionState result)
+      : results = [result],
+        super(
+          localStorage,
+          caregiver_profile.ProfileRepository(Dio()),
+          caregiver_fcm.FcmService(caregiver_profile.ProfileRepository(Dio())),
+        );
+
+  _FakeCaregiverSessionNotifier.sequence(caregiver_local_storage.LocalStorage localStorage, this.results)
       : super(
           localStorage,
           caregiver_profile.ProfileRepository(Dio()),
@@ -80,7 +94,9 @@ class _FakeCaregiverSessionNotifier extends caregiver_session.SessionNotifier {
 
   @override
   Future<void> loadSession() async {
-    state = result;
+    final index = callCount < results.length ? callCount : results.length - 1;
+    callCount++;
+    state = results[index];
   }
 }
 
@@ -101,6 +117,11 @@ Future<void> _pumpSplash(
   // with no network call, exactly like production.
   String? caregiverAccessToken,
   caregiver_session_state.SessionState? caregiverLoadSessionResult,
+  // One result per successive loadSession() call — for a test that taps
+  // Retry and expects a different outcome the second time around (e.g.
+  // SessionLoadError then SessionAuthenticated). Takes precedence over
+  // [caregiverLoadSessionResult] when both are supplied.
+  List<caregiver_session_state.SessionState>? caregiverLoadSessionResults,
 }) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({
@@ -120,7 +141,11 @@ Future<void> _pumpSplash(
         appVersionRepositoryProvider.overrideWithValue(appVersionRepo ?? _FakeAppVersionRepository(null)),
         appMaintenanceRepositoryProvider.overrideWithValue(maintenanceRepo ?? _FakeAppMaintenanceRepository(null)),
         caregiver.localStorageProvider.overrideWithValue(caregiverLocalStorage),
-        if (caregiverLoadSessionResult != null)
+        if (caregiverLoadSessionResults != null)
+          caregiver_session.sessionProvider.overrideWith(
+            (ref) => _FakeCaregiverSessionNotifier.sequence(caregiverLocalStorage, caregiverLoadSessionResults),
+          )
+        else if (caregiverLoadSessionResult != null)
           caregiver_session.sessionProvider.overrideWith(
             (ref) => _FakeCaregiverSessionNotifier(caregiverLocalStorage, caregiverLoadSessionResult),
           ),
@@ -208,8 +233,8 @@ void main() {
   });
 
   testWidgets(
-      'falls back to Login when a stored caregiver token exists but loading it hits a transient/load error — '
-      'never strands the user on the splash screen', (tester) async {
+      'shows a Retry screen (not Login) when a stored caregiver token exists but loading it hits a transient/load '
+      'error — the token is never cleared on a load error, so forcing a fresh login would be wrong', (tester) async {
     await _pumpSplash(
       tester,
       authenticated: false,
@@ -218,7 +243,38 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Login Page'), findsOneWidget);
+    expect(find.text('Could not reach the server.'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+  });
+
+  testWidgets(
+      'tapping Retry on the caregiver load-error screen re-attempts the caregiver session and restores it on '
+      'success, without ever forcing the user through Login', (tester) async {
+    await _pumpSplash(
+      tester,
+      authenticated: false,
+      caregiverAccessToken: 'fake-caregiver-token',
+      caregiverLoadSessionResults: [
+        const caregiver_session_state.SessionLoadError('Could not reach the server.'),
+        const caregiver_session_state.SessionAuthenticated(
+          fullName: 'Nurse One',
+          phone: '+919876543210',
+          verificationStatus: VerificationStatus.available,
+          hasRequiredDocuments: true,
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Retry'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Caregiver Profile Page'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
   });
 
   testWidgets('an authenticated session restores the pre-refresh route (e.g. Profile) instead of the default Home',
