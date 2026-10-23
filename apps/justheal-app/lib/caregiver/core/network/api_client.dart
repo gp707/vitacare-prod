@@ -7,7 +7,9 @@ import 'api_interceptors.dart';
 /// SPEC.md section 6.1: Production https://api.vitacasahealth.in/v1,
 /// Development http://localhost:3000/v1.
 const String _productionBaseUrl = 'https://api.vitacasahealth.in/v1';
-const String _developmentBaseUrl = 'http://localhost:3000/v1';
+// Overridable via --dart-define=API_BASE_URL=... (integration tests point a
+// debug build at a real backend); release builds always use production.
+const String _developmentBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:3000/v1');
 
 class ApiClient {
   final Dio dio;

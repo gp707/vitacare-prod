@@ -11,7 +11,9 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 // wiring, since this widget sits above the whole app (including before
 // login) and must never depend on a session existing.
 const String _productionBaseUrl = 'https://api.vitacasahealth.in/v1';
-const String _developmentBaseUrl = 'http://localhost:3000/v1';
+// Overridable via --dart-define=API_BASE_URL=... (integration tests point a
+// debug build at a real backend); release builds always use production.
+const String _developmentBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:3000/v1');
 
 /// Real reachability probe — a cheap request against our own API's public
 /// Rate Card endpoint (the same one every registration/Jobs screen already

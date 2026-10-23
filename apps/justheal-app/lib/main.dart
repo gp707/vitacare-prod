@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'patient_hospital/app/app.dart';
@@ -10,6 +11,18 @@ import 'caregiver/core/storage/local_storage.dart' as caregiver_storage;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Edge-to-edge: transparent system bars with legible icons, no contrast
+  // scrim, so the 3-button/gesture nav bar doesn't paint a dark slab under
+  // the bottom navigation on any Android version.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
 
   try {
     // Configured via android/app/google-services.json (and, once added,
