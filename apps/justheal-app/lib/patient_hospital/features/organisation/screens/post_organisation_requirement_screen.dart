@@ -34,6 +34,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   bool _accommodationProvided = false;
   bool _foodProvided = false;
   final _specialSkillsController = TextEditingController();
+  final _specialSkillsScrollController = ScrollController();
   final _numberOfVacanciesController = TextEditingController(text: '1');
   String? _preferredGender;
   String? _experienceRequired;
@@ -99,6 +100,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   void dispose() {
     _typeOfNurseOtherController.dispose();
     _specialSkillsController.dispose();
+    _specialSkillsScrollController.dispose();
     _numberOfVacanciesController.dispose();
     super.dispose();
   }
@@ -270,25 +272,29 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
               onChanged: (value) => setState(() => _foodProvided = value),
             ),
             const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _specialSkillsKey,
-              controller: _specialSkillsController,
-              maxLines: 6,
-              // Deliberately no `maxLength` here — it would silently
-              // truncate a long paste (and can't show an over-limit count
-              // at all). The org can keep typing/pasting past
-              // Validation.specialSkillsMaxLength and see exactly how far
-              // over in SpecialSkillsCharLimitNote below; the field's own
-              // border/errorText turns red immediately once they do.
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.star_outline),
-                labelText: 'Job description/Special Skills (optional)',
-                border: const OutlineInputBorder(),
-                alignLabelWithHint: true,
-                errorText: !_isSpecialSkillsValid
-                    ? 'Please enter less than ${Validation.specialSkillsMaxLength} characters'
-                    : null,
+            Scrollbar(
+              controller: _specialSkillsScrollController,
+              thumbVisibility: true,
+              child: TextField(
+                key: _specialSkillsKey,
+                controller: _specialSkillsController,
+                scrollController: _specialSkillsScrollController,
+                maxLines: 6,
+                // Deliberately no `maxLength` here — it would silently
+                // truncate a long paste (and can't show an over-limit count
+                // at all). The org can keep typing/pasting past
+                // Validation.specialSkillsMaxLength and see exactly how far
+                // over in SpecialSkillsCharLimitNote below; the field's own
+                // border/errorText turns red immediately once they do.
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Job description/Special Skills (optional)',
+                  border: const OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                  errorText: !_isSpecialSkillsValid
+                      ? 'Please enter less than ${Validation.specialSkillsMaxLength} characters'
+                      : null,
+                ),
               ),
             ),
             SpecialSkillsCharLimitNote(currentLength: _specialSkillsController.text.length),

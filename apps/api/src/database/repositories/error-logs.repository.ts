@@ -12,6 +12,17 @@ export interface ErrorLogRecord {
   user_role: string | null;
   ip_address: string | null;
   created_at: Date;
+  // Resolved via a LEFT JOIN on users/caregiver_profiles/individual_profiles/
+  // organisation_profiles, same pattern as AuditLogsRepository's own target
+  // resolution — so admin-web can show who actually hit this error (name,
+  // phone, NUR-/PAT-/ORG-<n> display id), not just a bare user_id UUID.
+  // Only populated by list(), not create() (which never reads these back).
+  user_full_name: string | null;
+  user_phone: string | null;
+  caregiver_number: number | null;
+  caregiver_profile_id: string | null;
+  patient_number: number | null;
+  org_number: number | null;
 }
 
 export interface CreateErrorLogInput {
@@ -64,7 +75,15 @@ export class ErrorLogsRepository {
     const offset = (page.page - 1) * page.limit;
     const [listResult, countResult] = await Promise.all([
       this.db.query<ErrorLogRecord>(
-        `SELECT * FROM error_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        `SELECT e.*, u.full_name AS user_full_name, u.phone AS user_phone,
+                cp.caregiver_number, cp.id AS caregiver_profile_id,
+                ip.patient_number, op.org_number
+         FROM error_logs e
+         LEFT JOIN users u ON u.id = e.user_id
+         LEFT JOIN caregiver_profiles cp ON cp.user_id = e.user_id
+         LEFT JOIN individual_profiles ip ON ip.user_id = e.user_id
+         LEFT JOIN organisation_profiles op ON op.user_id = e.user_id
+         ORDER BY e.created_at DESC LIMIT $1 OFFSET $2`,
         [page.limit, offset],
       ),
       this.db.query<{ count: string }>(`SELECT COUNT(*) FROM error_logs`),

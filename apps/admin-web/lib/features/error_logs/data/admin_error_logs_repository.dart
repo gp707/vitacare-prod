@@ -11,6 +11,12 @@ class AdminErrorLogItem {
   final String? stack;
   final String? userId;
   final String? userRole;
+  final String? userFullName;
+  final String? userPhone;
+  final int? caregiverNumber;
+  final String? caregiverProfileId;
+  final int? patientNumber;
+  final int? orgNumber;
   final String? ipAddress;
   final String createdAt;
 
@@ -23,9 +29,20 @@ class AdminErrorLogItem {
     this.stack,
     this.userId,
     this.userRole,
+    this.userFullName,
+    this.userPhone,
+    this.caregiverNumber,
+    this.caregiverProfileId,
+    this.patientNumber,
+    this.orgNumber,
     this.ipAddress,
     required this.createdAt,
   });
+
+  /// "NUR-500" / "PAT-500" / "ORG-500", whichever applies — null if this
+  /// error happened on an unauthenticated request (no user at all).
+  String? get userDisplayId =>
+      caregiverDisplayId(caregiverNumber) ?? patientDisplayId(patientNumber) ?? organisationDisplayId(orgNumber);
 
   factory AdminErrorLogItem.fromJson(Map<String, dynamic> json) => AdminErrorLogItem(
         id: json['id'] as String,
@@ -36,6 +53,12 @@ class AdminErrorLogItem {
         stack: json['stack'] as String?,
         userId: json['user_id'] as String?,
         userRole: json['user_role'] as String?,
+        userFullName: json['user_full_name'] as String?,
+        userPhone: json['user_phone'] as String?,
+        caregiverNumber: json['caregiver_number'] as int?,
+        caregiverProfileId: json['caregiver_profile_id'] as String?,
+        patientNumber: json['patient_number'] as int?,
+        orgNumber: json['org_number'] as int?,
         ipAddress: json['ip_address'] as String?,
         createdAt: json['created_at'] as String,
       );

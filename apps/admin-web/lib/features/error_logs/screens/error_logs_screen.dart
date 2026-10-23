@@ -59,7 +59,45 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
     }
   }
 
+  /// Opens the account's own detail screen — same per-role routing as
+  /// TicketsScreen._openAccount. Does nothing for an admin/super_admin
+  /// (no detail screen for those) or an unauthenticated request (no user
+  /// at all).
+  void _openAccount(AdminErrorLogItem item) {
+    switch (item.userRole) {
+      case 'caregiver':
+        if (item.caregiverProfileId != null) {
+          Navigator.of(context).pushNamed('/caregiver-detail', arguments: item.caregiverProfileId);
+        }
+        break;
+      case 'individual':
+        Navigator.of(context).pushNamed('/individual-detail', arguments: item.userId);
+        break;
+      case 'organisation':
+        Navigator.of(context).pushNamed('/organisation-detail', arguments: item.userId);
+        break;
+    }
+  }
+
+  String _roleLabel(String? role) {
+    switch (role) {
+      case 'caregiver':
+        return 'Caregiver';
+      case 'individual':
+        return 'Patient/Family';
+      case 'organisation':
+        return 'Organisation';
+      case 'admin':
+      case 'super_admin':
+        return 'Admin';
+      default:
+        return role ?? 'Unknown';
+    }
+  }
+
   void _showDetail(AdminErrorLogItem item) {
+    final hasOpenableAccount = item.userId != null &&
+        (item.userRole == 'caregiver' || item.userRole == 'individual' || item.userRole == 'organisation');
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -73,7 +111,33 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
               children: [
                 _DetailRow('Time', item.createdAt),
                 _DetailRow('Status', item.statusCode.toString()),
-                if (item.userId != null) _DetailRow('User', '${item.userRole} · ${item.userId}'),
+                if (item.userId != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  const Text('Customer', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: AppSpacing.xs),
+                  InkWell(
+                    onTap: hasOpenableAccount
+                        ? () {
+                            Navigator.of(context).pop();
+                            _openAccount(item);
+                          }
+                        : null,
+                    child: Text(
+                      [
+                        if (item.userDisplayId != null) item.userDisplayId!,
+                        if (item.userFullName != null) item.userFullName!,
+                        _roleLabel(item.userRole),
+                        if (item.userPhone != null) item.userPhone!,
+                      ].join(' · '),
+                      style: TextStyle(
+                        color: hasOpenableAccount ? AppColors.primary : null,
+                        decoration: hasOpenableAccount ? TextDecoration.underline : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                ] else
+                  const _DetailRow('Customer', 'Unauthenticated request — no account yet'),
                 if (item.ipAddress != null) _DetailRow('IP', item.ipAddress!),
                 const SizedBox(height: AppSpacing.sm),
                 const Text('Message', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -163,6 +227,15 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
     );
   }
 
+  /// Short "who" summary for the list view — the dialog shows the fuller
+  /// version. Falls back to the bare role (or '-' for an unauthenticated
+  /// request) when a display id/name isn't resolvable (e.g. an admin, who
+  /// has no caregiver/individual/organisation profile to join against).
+  String _customerSummary(AdminErrorLogItem item) {
+    if (item.userId == null) return '-';
+    return item.userDisplayId ?? item.userFullName ?? _roleLabel(item.userRole);
+  }
+
   Widget _buildList() {
     if (_items.isEmpty) {
       return const Center(child: Text('No errors in the last 7 days.'));
@@ -179,6 +252,7 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
             onTap: () => _showDetail(item),
             fields: [
               VitaListCard.kv('Time', item.createdAt),
+              VitaListCard.kv('Customer', _customerSummary(item)),
               VitaListCard.kv('Message', item.message),
             ],
           );
@@ -193,6 +267,7 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
             DataColumn(label: Text('Time')),
             DataColumn(label: Text('Method')),
             DataColumn(label: Text('Path')),
+            DataColumn(label: Text('Customer')),
             DataColumn(label: Text('Status')),
             DataColumn(label: Text('Message')),
           ],
@@ -207,6 +282,7 @@ class _ErrorLogsScreenState extends ConsumerState<ErrorLogsScreen> {
                       ),
                       onTap: () => _showDetail(item),
                     ),
+                    DataCell(Text(_customerSummary(item)), onTap: () => _showDetail(item)),
                     DataCell(_StatusCodeChip(statusCode: item.statusCode)),
                     DataCell(
                       ConstrainedBox(
