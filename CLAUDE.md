@@ -1215,6 +1215,42 @@ that account's own detail screen (same per-role routing as Tickets/Error Logs).
 - **Deploy order:** apply migration 084 (done on the shared DB) → deploy the backend → deploy admin-web →
   ship the app build. The admin screen works (with empty usage tabs) before the app ships.
 
+## Actionable Error Logs (who it hit, what they were doing, follow-up)
+
+admin-web's **Error Logs** screen is now a follow-up tool, not just a log: two tabs under the daily
+request/error counters. **Errors** — Open/Resolved/All filter (defaults to **Open**), search on path or
+message, each row showing the customer (display id · name), their phone, a **Call** (`tel:`) and
+**WhatsApp** (`wa.me`) button, and **Resolve**; the detail dialog adds the *real request data*, client
+(user agent), IP and stack, with the person's name linking to their own detail screen. **Affected users**
+— one row per signed-in person who hit an error (most recent first): phone + Call/WhatsApp, open/total
+error counts, last error; **View errors** jumps to the Errors tab narrowed to that person, **Mark
+contacted** resolves all their open errors in one go ("I called them", optional note). A person drops off
+the default "With open errors" view once everything of theirs is resolved.
+
+- **Migration 085** adds to `error_logs`: `request_context` (JSONB), `user_agent`, `status`
+  (`open`/`resolved`, existing rows start open), `resolved_at/by`, `resolution_note`, and extends the
+  `audit_logs.action` CHECK with `error_log_resolved` (`AuditAction.ERROR_LOG_RESOLVED`, TS + Dart).
+- **Request data is sanitized before it is stored** (`sanitizeRequestContext`, applied in
+  `GlobalExceptionFilter`): `{query, params, body}` with anything secret-shaped replaced by `[redacted]`.
+  A key is secret if **any of its snake/kebab/camel-case words** is `pin`, `code`, `password`, `passcode`,
+  `token`, `secret`, `authorization`, `otp`, `aadhaar`, `cvv` or `signature` (so `current_code`,
+  `access_token`, `newCode` are redacted but `shipping_area`/`medical_conditions` are not — word match,
+  not substring). It is also bounded (depth 4, 40 keys, 20 array items, 300-char strings, 8 KB total,
+  falling back to a small preview) so one hostile request can't bloat the table. Phone numbers and the
+  rest of the business payload are kept on purpose — that is the "real data" an admin needs. Rows are
+  still purged after **7 days** (resolved or not) by `ErrorLogsService.purgeExpiredLogs`.
+- **Endpoints** (admin/super_admin): `GET /admin/error-logs` gained `status`/`user_id`/`search` (default
+  `status=all`, so existing callers are unchanged); `GET /admin/error-logs/affected-users`;
+  `PATCH /admin/error-logs/:id/resolve` (idempotent: an already-resolved error is a no-op with no second
+  audit entry and the first note kept — the `status = 'open'` guard is in the `UPDATE` itself);
+  `PATCH /admin/error-logs/users/:userId/resolve`. Both resolves are audit-logged against the affected
+  person.
+- **What it deliberately does not capture**: only *unexpected* server errors land here (see migration 082) —
+  not ordinary coded 4xx outcomes such as a wrong PIN (`AUTH_008`) or an unknown account. A person who can't
+  log in therefore won't appear; that would be a separate "failed attempts" report.
+- Call/WhatsApp go through `shared/widgets/contact_actions.dart` (`uriLauncher` is swappable so tests
+  capture the URI instead of leaving the app).
+
 ## Support Tickets ("Forgot PIN")
 
 There's no OTP/email PIN reset (see "No OTP" above — phone login has no OTP, and this doesn't

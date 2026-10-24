@@ -516,6 +516,7 @@ class AuditAction {
   static const supportTicketCreated = 'support_ticket_created';
   static const supportTicketResolved = 'support_ticket_resolved';
   static const accountDeleted = 'account_deleted';
+  static const errorLogResolved = 'error_log_resolved';
 
   static const all = [
     registration,
@@ -567,6 +568,7 @@ class AuditAction {
     supportTicketCreated,
     supportTicketResolved,
     accountDeleted,
+    errorLogResolved,
   ];
 }
 

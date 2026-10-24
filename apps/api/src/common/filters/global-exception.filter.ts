@@ -11,6 +11,7 @@ import { ErrorCatalog } from '@vitacare/shared-constants';
 import { AppException } from '../exceptions/app.exception';
 import { ErrorLogsRepository } from '../../database/repositories/error-logs.repository';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
+import { sanitizeRequestContext } from '../utils/sanitize-request-context';
 
 /**
  * Converts every thrown error into the { success: false, error: { code, message } }
@@ -95,7 +96,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         userId: request.user?.sub ?? null,
         userRole: request.user?.role ?? null,
         ipAddress,
+        // What the user was actually doing — sanitized (no PINs/tokens/OTPs,
+        // bounded size) — so an admin can see the real data and act on it.
+        requestContext: sanitizeRequestContext({ query: request.query, params: request.params, body: request.body }),
+        userAgent: this.userAgentOf(request),
       })
       .catch((err) => this.logger.error('Failed to persist error log', err));
+  }
+
+  private userAgentOf(request: Request): string | null {
+    const header = request.headers['user-agent'];
+    return typeof header === 'string' && header.length > 0 ? header.slice(0, 300) : null;
   }
 }

@@ -221,6 +221,7 @@ export const AuditAction = {
   // event logged against the account it happened to" convention as
   // registration/login.
   ACCOUNT_DELETED: 'account_deleted',
+  ERROR_LOG_RESOLVED: 'error_log_resolved',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

@@ -63,7 +63,34 @@ describe('GlobalExceptionFilter', () => {
       userId: 'user-1',
       userRole: 'organisation',
       ipAddress: '203.0.113.5',
+      requestContext: null,
+      userAgent: null,
     });
+  });
+
+  it('stores the real request data an admin needs to act on, but never secrets, plus the user agent', async () => {
+    const request = {
+      method: 'POST',
+      originalUrl: '/v1/auth/register/individual',
+      headers: { 'user-agent': 'Dart/3.6 (dart:io)' },
+      query: { source: 'app' },
+      params: {},
+      body: { phone: '+919876543210', full_name: 'Asha Rao', code: '1234', care_receiver: { age: 74 } },
+      ip: '127.0.0.1',
+    };
+    const { host } = makeHost(request);
+
+    filter.catch(new Error('boom'), host);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const input = errorLogsRepo.create.mock.calls[0][0];
+    expect(input.userAgent).toBe('Dart/3.6 (dart:io)');
+    expect(input.requestContext).toEqual({
+      query: { source: 'app' },
+      body: { phone: '+919876543210', full_name: 'Asha Rao', code: '[redacted]', care_receiver: { age: 74 } },
+    });
+    expect(JSON.stringify(input)).not.toContain('1234');
   });
 
   it('falls back to req.ip when there is no x-forwarded-for header', async () => {

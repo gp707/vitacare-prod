@@ -1,8 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { AuditAction } from '@vitacare/shared-constants';
+import { AppException } from '../common/exceptions/app.exception';
+import { AuditService } from '../audit/audit.service';
 import { ErrorLogsRepository } from '../database/repositories/error-logs.repository';
 import { RequestStatsRepository } from '../database/repositories/request-stats.repository';
 import { ListErrorLogsQueryDto } from './dto/list-error-logs-query.dto';
+import { ListAffectedUsersQueryDto } from './dto/list-affected-users-query.dto';
 
 /** Hardcoded, not admin-configurable (unlike AuditLogRetentionService's own
  *  window) — the user explicitly asked for a fixed 7-day rolling window
@@ -16,14 +20,68 @@ export class ErrorLogsService {
   constructor(
     private readonly errorLogsRepo: ErrorLogsRepository,
     private readonly requestStatsRepo: RequestStatsRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   async list(query: ListErrorLogsQueryDto) {
-    const { items, total } = await this.errorLogsRepo.list({ page: query.page, limit: query.limit });
+    const { items, total } = await this.errorLogsRepo.list(
+      { page: query.page, limit: query.limit },
+      { status: query.status, userId: query.user_id, search: query.search },
+    );
     return {
       data: items,
       meta: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
     };
+  }
+
+  /** Everyone who has hit an unexpected error, one row each, with the
+   *  identity needed to call them — see ErrorLogsRepository.listAffectedUsers. */
+  async listAffectedUsers(query: ListAffectedUsersQueryDto) {
+    const { items, total } = await this.errorLogsRepo.listAffectedUsers(
+      { page: query.page, limit: query.limit },
+      query.status,
+    );
+    return {
+      data: items,
+      meta: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
+    };
+  }
+
+  /** Marks one error handled. Idempotent: resolving an already-resolved
+   *  error is a no-op (no second audit entry), not an error. */
+  async resolve(id: string, adminId: string, note: string | undefined, ipAddress: string | null) {
+    const existing = await this.errorLogsRepo.findById(id);
+    if (!existing) throw new AppException('GEN_002');
+
+    const resolved = await this.errorLogsRepo.resolve(id, adminId, note ?? null);
+    if (resolved) {
+      await this.auditService.log({
+        userId: adminId,
+        targetUserId: existing.user_id ?? undefined,
+        action: AuditAction.ERROR_LOG_RESOLVED,
+        entityType: 'error_logs',
+        entityId: id,
+        afterValue: { note: note ?? null },
+        ipAddress,
+      });
+    }
+    return { message: resolved ? 'Error marked resolved' : 'Error was already resolved' };
+  }
+
+  /** "I called them" — resolves every open error for one person in one go. */
+  async resolveAllForUser(userId: string, adminId: string, note: string | undefined, ipAddress: string | null) {
+    const count = await this.errorLogsRepo.resolveAllForUser(userId, adminId, note ?? null);
+    if (count > 0) {
+      await this.auditService.log({
+        userId: adminId,
+        targetUserId: userId,
+        action: AuditAction.ERROR_LOG_RESOLVED,
+        entityType: 'error_logs',
+        afterValue: { note: note ?? null, resolved_count: count },
+        ipAddress,
+      });
+    }
+    return { resolved_count: count };
   }
 
   /** Daily request/error counts for the last [days] calendar days
