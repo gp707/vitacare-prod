@@ -80,6 +80,20 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       builder: (context) => CaregiverDetailScreen(profileId: id),
     );
   }
+  if (name.startsWith('/patients-family/') && name.length > '/patients-family/'.length) {
+    final id = name.substring('/patients-family/'.length);
+    return MaterialPageRoute(
+      settings: settings,
+      builder: (context) => IndividualDetailScreen(userId: id),
+    );
+  }
+  if (name.startsWith('/rehab-hospitals/') && name.length > '/rehab-hospitals/'.length) {
+    final id = name.substring('/rehab-hospitals/'.length);
+    return MaterialPageRoute(
+      settings: settings,
+      builder: (context) => OrganisationDetailScreen(userId: id),
+    );
+  }
   switch (settings.name) {
     case '/jobs':
       return MaterialPageRoute(
@@ -112,14 +126,16 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
             : AuditLogsScreen(initialTargetUserId: args as String?),
       );
     case '/individual-detail':
+      final individualId = settings.arguments as String;
       return MaterialPageRoute(
-        builder: (context) =>
-            IndividualDetailScreen(userId: settings.arguments as String),
+        settings: RouteSettings(name: '/patients-family/$individualId', arguments: individualId),
+        builder: (context) => IndividualDetailScreen(userId: individualId),
       );
     case '/organisation-detail':
+      final organisationId = settings.arguments as String;
       return MaterialPageRoute(
-        builder: (context) =>
-            OrganisationDetailScreen(userId: settings.arguments as String),
+        settings: RouteSettings(name: '/rehab-hospitals/$organisationId', arguments: organisationId),
+        builder: (context) => OrganisationDetailScreen(userId: organisationId),
       );
     default:
       return null;
