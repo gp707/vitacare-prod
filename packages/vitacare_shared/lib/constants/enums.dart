@@ -700,6 +700,30 @@ class LoginApp {
   static const nursenow = 'nursenow';
 }
 
+// Why a phone login failed — recorded in login_attempts (migration 086) and
+// shown on admin-web's Insights "Login problems" tab. The attempted PIN/OTP
+// itself is never stored, only which of these happened.
+class LoginFailureReason {
+  static const wrongPin = 'wrong_pin';
+  static const unknownAccount = 'unknown_account';
+  static const wrongApp = 'wrong_app';
+  static const accountDeactivated = 'account_deactivated';
+  static const otpInvalid = 'otp_invalid';
+  static const otpWrong = 'otp_wrong';
+  static const otpLocked = 'otp_locked';
+
+  static const all = [wrongPin, unknownAccount, wrongApp, accountDeactivated, otpInvalid, otpWrong, otpLocked];
+  static const displayNames = {
+    wrongPin: 'Wrong PIN',
+    unknownAccount: 'No account with this number',
+    wrongApp: 'Tried the wrong login type',
+    accountDeactivated: 'Account deactivated',
+    otpInvalid: 'Phone verification expired/invalid',
+    otpWrong: 'Wrong OTP code',
+    otpLocked: 'Too many wrong OTP attempts',
+  };
+}
+
 // Scopes an OTP send/verify to what it's proving — a register OTP can never
 // be replayed to satisfy a login, and vice versa.
 class OtpPurpose {

@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
-import { Config, Validation } from '@vitacare/shared-constants';
+import { Config, LoginFailureReason, OtpPurpose, Validation } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { OtpVerificationsRepository } from '../database/repositories/otp-verifications.repository';
 import { TokenService } from '../auth/token.service';
 import { Msg91Service } from './msg91.service';
+import { LoginAttemptsService } from '../login-attempts/login-attempts.service';
 
 @Injectable()
 export class OtpService {
@@ -13,6 +14,7 @@ export class OtpService {
     private readonly otpVerificationsRepo: OtpVerificationsRepository,
     private readonly tokenService: TokenService,
     private readonly smsProvider: Msg91Service,
+    private readonly loginAttempts: LoginAttemptsService,
   ) {}
 
   async send(phone: string, app: string, purpose: string): Promise<void> {
@@ -45,9 +47,16 @@ export class OtpService {
     await this.smsProvider.sendOtp(phone, otp);
   }
 
-  async verify(phone: string, app: string, purpose: string, otp: string): Promise<string> {
+  async verify(
+    phone: string,
+    app: string,
+    purpose: string,
+    otp: string,
+    context: { ipAddress?: string | null; userAgent?: string | null } = {},
+  ): Promise<string> {
     const row = await this.otpVerificationsRepo.findLatestActive(phone, app, purpose);
     if (!row) {
+      this.recordLoginFailure(purpose, phone, app, LoginFailureReason.OTP_WRONG, context);
       throw new AppException('AUTH_012');
     }
 
@@ -55,12 +64,37 @@ export class OtpService {
     if (!matches) {
       const updated = await this.otpVerificationsRepo.incrementAttempts(row.id);
       if (updated.attempts >= updated.max_attempts) {
+        this.recordLoginFailure(purpose, phone, app, LoginFailureReason.OTP_LOCKED, context);
         throw new AppException('AUTH_013');
       }
+      this.recordLoginFailure(purpose, phone, app, LoginFailureReason.OTP_WRONG, context);
       throw new AppException('AUTH_012');
     }
 
     await this.otpVerificationsRepo.markConsumed(row.id);
     return this.tokenService.signPhoneVerificationToken({ phone, app, purpose });
+  }
+
+  /** Only a *login* OTP that fails means someone couldn't get in — a failed
+   *  registration OTP is a different story (no account yet). The identity is
+   *  resolved from the phone when the report is read, so no user lookup here. */
+  private recordLoginFailure(
+    purpose: string,
+    phone: string,
+    app: string,
+    reason: string,
+    context: { ipAddress?: string | null; userAgent?: string | null },
+  ): void {
+    if (purpose !== OtpPurpose.LOGIN) return;
+    this.loginAttempts.recordFailure({
+      phone,
+      app,
+      method: 'otp',
+      reason,
+      userId: null,
+      userRole: null,
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+    });
   }
 }

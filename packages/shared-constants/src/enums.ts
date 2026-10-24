@@ -369,6 +369,20 @@ export const LoginApp = {
 } as const;
 export type LoginApp = (typeof LoginApp)[keyof typeof LoginApp];
 
+// Why a phone login failed — recorded in login_attempts (migration 086) and
+// shown on admin-web's Insights "Login problems" tab. The attempted PIN/OTP
+// itself is never stored, only which of these happened.
+export const LoginFailureReason = {
+  WRONG_PIN: 'wrong_pin',
+  UNKNOWN_ACCOUNT: 'unknown_account',
+  WRONG_APP: 'wrong_app',
+  ACCOUNT_DEACTIVATED: 'account_deactivated',
+  OTP_INVALID: 'otp_invalid',
+  OTP_WRONG: 'otp_wrong',
+  OTP_LOCKED: 'otp_locked',
+} as const;
+export type LoginFailureReason = (typeof LoginFailureReason)[keyof typeof LoginFailureReason];
+
 // Scopes an OTP send/verify to what it's proving — a register OTP can never
 // be replayed to satisfy a login, and vice versa.
 export const OtpPurpose = {

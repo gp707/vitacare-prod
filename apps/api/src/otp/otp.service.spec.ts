@@ -6,6 +6,7 @@ describe('OtpService', () => {
   let otpVerificationsRepo: any;
   let tokenService: any;
   let smsProvider: any;
+  let loginAttempts: { recordFailure: jest.Mock };
 
   beforeEach(() => {
     otpVerificationsRepo = {
@@ -18,7 +19,8 @@ describe('OtpService', () => {
     };
     tokenService = { signPhoneVerificationToken: jest.fn().mockReturnValue('verified-token') };
     smsProvider = { sendOtp: jest.fn().mockResolvedValue(undefined) };
-    service = new OtpService(otpVerificationsRepo, tokenService, smsProvider);
+    loginAttempts = { recordFailure: jest.fn() };
+    service = new OtpService(otpVerificationsRepo, tokenService, smsProvider, loginAttempts as any);
   });
 
   describe('send', () => {
@@ -120,6 +122,45 @@ describe('OtpService', () => {
         app: 'nursejobs',
         purpose: 'register',
       });
+    });
+  });
+
+  describe('verify — failed login recording', () => {
+    const ctx = { ipAddress: '1.2.3.4', userAgent: 'Dart/3.6' };
+
+    it('records a wrong login OTP', async () => {
+      otpVerificationsRepo.findLatestActive.mockResolvedValue({ id: 'otp-1', otp_hash: await bcrypt.hash('123456', 4) });
+      otpVerificationsRepo.incrementAttempts.mockResolvedValue({ attempts: 1, max_attempts: 5 });
+      await expect(service.verify('+919876543210', 'nursenow', 'login', '000000', ctx)).rejects.toMatchObject({ code: 'AUTH_012' });
+      expect(loginAttempts.recordFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '+919876543210', app: 'nursenow', method: 'otp', reason: 'otp_wrong', ipAddress: '1.2.3.4' }),
+      );
+      expect(JSON.stringify(loginAttempts.recordFailure.mock.calls[0][0])).not.toContain('000000');
+    });
+
+    it('records the lock-out once the wrong-attempt limit is reached', async () => {
+      otpVerificationsRepo.findLatestActive.mockResolvedValue({ id: 'otp-1', otp_hash: await bcrypt.hash('123456', 4) });
+      otpVerificationsRepo.incrementAttempts.mockResolvedValue({ attempts: 5, max_attempts: 5 });
+      await expect(service.verify('+919876543210', 'nursenow', 'login', '000000')).rejects.toMatchObject({ code: 'AUTH_013' });
+      expect(loginAttempts.recordFailure).toHaveBeenCalledWith(expect.objectContaining({ reason: 'otp_locked' }));
+    });
+
+    it('records an expired/missing login OTP as a wrong code', async () => {
+      otpVerificationsRepo.findLatestActive.mockResolvedValue(null);
+      await expect(service.verify('+919876543210', 'nursenow', 'login', '000000')).rejects.toMatchObject({ code: 'AUTH_012' });
+      expect(loginAttempts.recordFailure).toHaveBeenCalledWith(expect.objectContaining({ reason: 'otp_wrong' }));
+    });
+
+    it('does NOT record a failed REGISTRATION OTP — that is not someone failing to log in', async () => {
+      otpVerificationsRepo.findLatestActive.mockResolvedValue(null);
+      await expect(service.verify('+919876543210', 'nursenow', 'register', '000000')).rejects.toMatchObject({ code: 'AUTH_012' });
+      expect(loginAttempts.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('records nothing on a successful verification', async () => {
+      otpVerificationsRepo.findLatestActive.mockResolvedValue({ id: 'otp-1', otp_hash: await bcrypt.hash('123456', 4) });
+      await service.verify('+919876543210', 'nursenow', 'login', '123456');
+      expect(loginAttempts.recordFailure).not.toHaveBeenCalled();
     });
   });
 });

@@ -29,6 +29,32 @@ export interface PosterWithoutAcceptedRecord extends InsightAccount {
   first_applied_at: Date | null;
 }
 
+/** One phone number that has had failed logins — the person to call. */
+export interface LoginProblemRecord {
+  phone: string;
+  attempts: number;
+  wrong_pin_attempts: number;
+  first_attempt_at: Date;
+  last_attempt_at: Date;
+  last_reason: string;
+  last_app: string;
+  /** 'locked_out' until they get in (or register); then 'recovered'. */
+  status: 'locked_out' | 'recovered';
+  // The account behind the number, when there is one (null for a number that
+  // has no account at all — a mistyped or never-registered phone).
+  user_id: string | null;
+  full_name: string | null;
+  role: string | null;
+  is_active: boolean | null;
+  created_at: Date | null;
+  last_seen_at: Date | null;
+  caregiver_number: number | null;
+  caregiver_profile_id: string | null;
+  patient_number: number | null;
+  org_number: number | null;
+  organisation_name: string | null;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;
@@ -152,6 +178,65 @@ export class InsightsRepository {
         AND NOT EXISTS (SELECT 1 FROM job_applications ja WHERE ja.profile_id = cp.id)
         AND NOT EXISTS (SELECT 1 FROM organisation_requirement_applications oa WHERE oa.profile_id = cp.id)`;
     return this.page<InsightAccount>(ACCOUNT_COLUMNS, from, [], 'u.created_at ASC', params);
+  }
+
+  /** Phone numbers with failed logins in the last [days], most recent first —
+   *  with the account behind each number and whether the person has since
+   *  got in. "Got in" = any activity or a successful login after their last
+   *  failure, or (for a number that had no account) registering afterwards.
+   *  [status] 'locked_out' (default) is the follow-up list: people still stuck. */
+  async listLoginProblems(
+    params: PageParams & { days: number; status: 'locked_out' | 'recovered' | 'all' },
+  ): Promise<Page<LoginProblemRecord>> {
+    // LATERAL + LIMIT 1: a number can (for legacy dual-registered accounts)
+    // match more than one app account — show one row per phone, preferring
+    // the most recently active account.
+    const from = `
+      FROM (
+        SELECT f.*, u.id AS user_id, u.full_name, u.role, u.is_active, u.created_at, u.last_seen_at,
+               cp.caregiver_number, cp.id AS caregiver_profile_id,
+               ip.patient_number, op.org_number, op.organisation_name,
+               -- COALESCE: last_seen_at can be NULL, and a NULL here would make
+               -- "NOT recovered" NULL too and silently drop the row from the list.
+               (u.id IS NOT NULL AND (
+                  COALESCE(u.last_seen_at > f.last_attempt_at, FALSE)
+                  OR u.created_at > f.last_attempt_at
+                  OR EXISTS (SELECT 1 FROM audit_logs a
+                              WHERE a.user_id = u.id AND a.action = 'login' AND a.created_at > f.last_attempt_at)
+               )) AS recovered
+          FROM (
+            SELECT phone,
+                   COUNT(*) AS attempts,
+                   COUNT(*) FILTER (WHERE reason = 'wrong_pin') AS wrong_pin_attempts,
+                   MIN(created_at) AS first_attempt_at,
+                   MAX(created_at) AS last_attempt_at,
+                   (ARRAY_AGG(reason ORDER BY created_at DESC))[1] AS last_reason,
+                   (ARRAY_AGG(app ORDER BY created_at DESC))[1] AS last_app
+              FROM login_attempts
+             WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
+             GROUP BY phone
+          ) f
+          LEFT JOIN LATERAL (
+            SELECT * FROM users u2
+             WHERE u2.phone = f.phone AND ${APP_ROLES_SQL.replace(/u\./g, 'u2.')} AND u2.deleted_at IS NULL
+             ORDER BY u2.last_seen_at DESC NULLS LAST
+             LIMIT 1
+          ) u ON TRUE
+          LEFT JOIN caregiver_profiles cp ON cp.user_id = u.id
+          LEFT JOIN individual_profiles ip ON ip.user_id = u.id
+          LEFT JOIN organisation_profiles op ON op.user_id = u.id
+      ) p
+      WHERE ${params.status === 'all' ? 'TRUE' : params.status === 'recovered' ? 'p.recovered' : 'NOT p.recovered'}`;
+    const columns = `p.*, CASE WHEN p.recovered THEN 'recovered' ELSE 'locked_out' END AS status`;
+    const page = await this.page<Record<string, unknown>>(columns, from, [params.days], 'p.last_attempt_at DESC', params);
+    return {
+      total: page.total,
+      items: page.items.map((row) => ({
+        ...(row as unknown as LoginProblemRecord),
+        attempts: Number(row.attempts),
+        wrong_pin_attempts: Number(row.wrong_pin_attempts),
+      })),
+    };
   }
 
   /** Runs the list query and its matching count query from the same

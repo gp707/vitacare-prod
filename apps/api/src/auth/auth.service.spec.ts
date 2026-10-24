@@ -16,6 +16,7 @@ describe('AuthService', () => {
   let tokenService: any;
   let emailService: any;
   let auditService: any;
+  let loginAttempts: { recordFailure: jest.Mock };
 
   const baseUser = {
     id: 'user-1',
@@ -66,6 +67,7 @@ describe('AuthService', () => {
     refreshTokensRepo.create.mockResolvedValue({ id: 'rt-1' });
     emailService = { sendToAdmin: jest.fn(), send: jest.fn() };
     auditService = { log: jest.fn() };
+    loginAttempts = { recordFailure: jest.fn() };
 
     service = new AuthService(
       db,
@@ -79,6 +81,7 @@ describe('AuthService', () => {
       tokenService,
       emailService,
       auditService,
+      loginAttempts as any,
     );
   });
 
@@ -449,6 +452,104 @@ describe('AuthService', () => {
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: baseUser.id, action: 'login' }),
       );
+    });
+
+    describe('failed-login recording (admin "Login problems")', () => {
+      const attemptCtx = { phone: baseUser.phone, app: 'nursejobs', method: 'code' };
+
+      it('records a wrong PIN against the account — and never the PIN that was tried', async () => {
+        const codeHash = await bcrypt.hash('1234', 4);
+        usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+
+        await expect(
+          service.loginCode({ phone: baseUser.phone, code: '9999', app: 'nursejobs' }, '1.2.3.4', 'Dart/3.6'),
+        ).rejects.toMatchObject({ code: 'AUTH_008' });
+
+        expect(loginAttempts.recordFailure).toHaveBeenCalledTimes(1);
+        const recorded = loginAttempts.recordFailure.mock.calls[0][0];
+        expect(recorded).toMatchObject({
+          ...attemptCtx,
+          userId: baseUser.id,
+          userRole: baseUser.role,
+          reason: 'wrong_pin',
+          ipAddress: '1.2.3.4',
+          userAgent: 'Dart/3.6',
+        });
+        expect(JSON.stringify(recorded)).not.toContain('9999');
+        expect(JSON.stringify(recorded)).not.toContain('1234');
+      });
+
+      it('records a deactivated account', async () => {
+        usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, is_active: false });
+        await expect(
+          service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' }),
+        ).rejects.toMatchObject({ code: 'AUTH_004' });
+        expect(loginAttempts.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ reason: 'account_deactivated', userId: baseUser.id }),
+        );
+      });
+
+      it('records "no account" when nothing is registered on the number (caregiver login)', async () => {
+        usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+        await expect(
+          service.loginCode({ phone: '+919000000000', app: 'nursejobs', code: '1234' }),
+        ).rejects.toMatchObject({ code: 'AUTH_002' });
+        expect(loginAttempts.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ phone: '+919000000000', reason: 'unknown_account', userId: null }),
+        );
+      });
+
+      it('records "wrong app" when a patient/organisation number is used on the caregiver login', async () => {
+        usersRepo.findByPhoneAndRoles.mockImplementation(async (_phone: string, roles: UserRole[]) =>
+          roles.includes(UserRole.INDIVIDUAL) ? { ...baseUser, id: 'patient-1', role: UserRole.INDIVIDUAL } : null,
+        );
+        await expect(
+          service.loginCode({ phone: baseUser.phone, app: 'nursejobs', code: '1234' }),
+        ).rejects.toMatchObject({ code: 'AUTH_002' });
+        expect(loginAttempts.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ reason: 'wrong_app', userId: 'patient-1', userRole: UserRole.INDIVIDUAL }),
+        );
+      });
+
+      it('does NOT record the first leg of the unified login for a caregiver (nursenow miss, caregiver exists)', async () => {
+        usersRepo.findByPhoneAndRoles.mockImplementation(async (_phone: string, roles: UserRole[]) =>
+          roles.includes(UserRole.CAREGIVER) ? baseUser : null,
+        );
+        await expect(
+          service.loginCode({ phone: baseUser.phone, app: 'nursenow', code: '1234' }),
+        ).rejects.toMatchObject({ code: 'AUTH_002' });
+        expect(loginAttempts.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('records a nursenow miss when no caregiver account exists either (a real unknown number)', async () => {
+        usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+        await expect(
+          service.loginCode({ phone: '+919000000000', app: 'nursenow', code: '1234' }),
+        ).rejects.toMatchObject({ code: 'AUTH_002' });
+        expect(loginAttempts.recordFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ reason: 'unknown_account', app: 'nursenow' }),
+        );
+      });
+
+      it('does not record anything for a successful login', async () => {
+        const codeHash = await bcrypt.hash('1234', 4);
+        usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+        caregiverProfilesRepo.findByUserId.mockResolvedValue({ verification_status: VerificationStatus.AVAILABLE });
+        await service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' });
+        expect(loginAttempts.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('never changes the login\'s own error, even if looking up the account for the record blows up', async () => {
+        let calls = 0;
+        usersRepo.findByPhoneAndRoles.mockImplementation(async () => {
+          calls += 1;
+          if (calls > 1) throw new Error('db hiccup');
+          return null;
+        });
+        await expect(
+          service.loginCode({ phone: '+919000000000', app: 'nursejobs', code: '1234' }),
+        ).rejects.toMatchObject({ code: 'AUTH_002' });
+      });
     });
 
     it('passes only the caregiver role to findByPhoneAndRoles for app=nursejobs', async () => {

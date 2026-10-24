@@ -39,6 +39,7 @@ import { ErrorLogsRepository } from './repositories/error-logs.repository';
 import { RequestStatsRepository } from './repositories/request-stats.repository';
 import { AppEventsRepository } from './repositories/app-events.repository';
 import { InsightsRepository } from './repositories/insights.repository';
+import { LoginAttemptsRepository } from './repositories/login-attempts.repository';
 
 const repositories = [
   UsersRepository,
@@ -80,6 +81,7 @@ const repositories = [
   RequestStatsRepository,
   AppEventsRepository,
   InsightsRepository,
+  LoginAttemptsRepository,
 ];
 
 @Global()

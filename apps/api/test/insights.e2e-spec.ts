@@ -27,6 +27,7 @@ describe('Insights (e2e)', () => {
   async function cleanup() {
     const users = `(SELECT id FROM users WHERE phone LIKE '+91700014%')`;
     await db.query(`DELETE FROM app_events WHERE flow = $1 OR user_id IN ${users}`, [E2E_FLOW]);
+    await db.query(`DELETE FROM login_attempts WHERE phone LIKE '+91700014%'`);
     await db.query(`DELETE FROM jobs WHERE posted_by IN ${users}`);
     await db.query(
       `DELETE FROM care_receivers WHERE id NOT IN (SELECT care_receiver_id FROM jobs) AND created_at > NOW() - INTERVAL '1 day'
@@ -415,6 +416,153 @@ describe('Insights (e2e)', () => {
       }
       expect(res.body.data.active_users_24h).toBeLessThanOrEqual(res.body.data.active_users_48h);
       expect(res.body.data.active_users_48h).toBeLessThanOrEqual(res.body.data.active_users_7d);
+    });
+  });
+
+  describe('GET /v1/admin/insights/login-problems', () => {
+    jest.setTimeout(60_000); // these tests make several real logins + wait for async writes
+    const login = (phone: string, code: string, appName: 'nursenow' | 'nursejobs') =>
+      request(app.getHttpServer()).post('/v1/auth/login/code').send({ phone, code, app: appName });
+    // The recorder is fire-and-forget (it must never slow or break a login),
+    // so the row can land a few ms after the HTTP response: wait for it.
+    // [expected] undefined = just give any in-flight write a moment, for the
+    // "nothing should have been recorded" assertions.
+    const attempts = async (phone: string, expected?: number) => {
+      const read = async () =>
+        (await db.query('SELECT reason, app, method, user_id FROM login_attempts WHERE phone = $1 ORDER BY created_at', [phone])).rows;
+      for (let i = 0; i < 40; i++) {
+        const rows = await read();
+        if (expected !== undefined && rows.length >= expected) return rows;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return read();
+    };
+    const problems = (query = '') => adminGet(`login-problems?limit=100${query}`);
+
+    it('records wrong PINs, lists the person with attempt counts and identity, and never stores the PIN', async () => {
+      const patient = await registerIndividual('0060');
+      await login(indivPhone('0060'), '9999', 'nursenow').expect(401);
+      await login(indivPhone('0060'), '8888', 'nursenow').expect(401);
+
+      const rows = await attempts(indivPhone('0060'), 2);
+      expect(rows.map((r) => r.reason)).toEqual(['wrong_pin', 'wrong_pin']);
+      expect(rows.every((r) => r.user_id === patient.user_id && r.method === 'code' && r.app === 'nursenow')).toBe(true);
+      const stored = JSON.stringify((await db.query('SELECT * FROM login_attempts WHERE phone = $1', [indivPhone('0060')])).rows);
+      expect(stored).not.toContain('9999');
+      expect(stored).not.toContain('8888');
+
+      const res = await problems().expect(200);
+      const entry = res.body.data.find((r: any) => r.phone === indivPhone('0060'));
+      expect(entry).toMatchObject({
+        full_name: 'Insights Patient',
+        role: 'individual',
+        attempts: 2,
+        wrong_pin_attempts: 2,
+        last_reason: 'wrong_pin',
+        last_app: 'nursenow',
+        status: 'locked_out',
+        user_id: patient.user_id,
+      });
+      expect(typeof entry.patient_number).toBe('number');
+      expect(res.body.meta.total).toBe(res.body.data.length);
+    });
+
+    it('moves a person to "recovered" once they get in, and the default list stops showing them', async () => {
+      await registerIndividual('0061');
+      await login(indivPhone('0061'), '0000', 'nursenow').expect(401);
+      await attempts(indivPhone('0061'), 1);
+      expect((await problems().expect(200)).body.data.some((r: any) => r.phone === indivPhone('0061'))).toBe(true);
+
+      await login(indivPhone('0061'), '1234', 'nursenow').expect(200);
+
+      const locked = await problems().expect(200);
+      expect(locked.body.data.some((r: any) => r.phone === indivPhone('0061'))).toBe(false);
+      const recovered = await problems('&status=recovered').expect(200);
+      expect(recovered.body.data.find((r: any) => r.phone === indivPhone('0061'))).toMatchObject({ status: 'recovered', attempts: 1 });
+      const all = await problems('&status=all').expect(200);
+      expect(all.body.data.some((r: any) => r.phone === indivPhone('0061'))).toBe(true);
+    });
+
+    it('records a number with no account at all, with no identity — and drops it to recovered once they register', async () => {
+      const phone = indivPhone('0062');
+      await login(phone, '1234', 'nursenow').expect(404);
+      expect((await attempts(phone, 1)).map((r) => r.reason)).toEqual(['unknown_account']);
+
+      const entry = (await problems().expect(200)).body.data.find((r: any) => r.phone === phone);
+      expect(entry).toMatchObject({ last_reason: 'unknown_account', status: 'locked_out', user_id: null, full_name: null });
+
+      // They then register — whatever was wrong has been dealt with.
+      await registerIndividual('0062');
+      const after = await problems('&status=recovered').expect(200);
+      expect(after.body.data.find((r: any) => r.phone === phone)).toMatchObject({ status: 'recovered' });
+    });
+
+    it('does NOT count a caregiver\'s normal login (the patient/organisation leg misses first, then the caregiver one succeeds)', async () => {
+      await registerCaregiver('0063');
+      // JustHeal\'s single login screen: nursenow first (no account -> 404)...
+      await login(cgPhone('0063'), '1234', 'nursenow').expect(404);
+      // ...then the caregiver bucket, which succeeds.
+      await login(cgPhone('0063'), '1234', 'nursejobs').expect(200);
+      expect(await attempts(cgPhone('0063'))).toHaveLength(0); // waits ~4s for any (wrongly) in-flight write
+    });
+
+    it('does count a caregiver who then gets their PIN wrong on the caregiver leg', async () => {
+      const cg = await registerCaregiver('0064');
+      await login(cgPhone('0064'), '1234', 'nursenow').expect(404); // fallback leg, not recorded
+      await login(cgPhone('0064'), '7777', 'nursejobs').expect(401);
+      const rows = await attempts(cgPhone('0064'), 1);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ reason: 'wrong_pin', app: 'nursejobs', user_id: cg.user_id });
+      const entry = (await problems().expect(200)).body.data.find((r: any) => r.phone === cgPhone('0064'));
+      expect(entry).toMatchObject({ role: 'caregiver', status: 'locked_out' });
+      expect(typeof entry.caregiver_number).toBe('number');
+    });
+
+    it('records "wrong login type" when a patient number is used on the caregiver login', async () => {
+      const patient = await registerIndividual('0065');
+      await login(indivPhone('0065'), '1234', 'nursejobs').expect(404);
+      const rows = await attempts(indivPhone('0065'), 1);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ reason: 'wrong_app', app: 'nursejobs', user_id: patient.user_id });
+    });
+
+    it('records a deactivated account and keeps it locked out', async () => {
+      const patient = await registerIndividual('0066');
+      await db.query('UPDATE users SET is_active = false WHERE id = $1', [patient.user_id]);
+      await login(indivPhone('0066'), '1234', 'nursenow').expect(401);
+      await attempts(indivPhone('0066'), 1);
+      const entry = (await problems().expect(200)).body.data.find((r: any) => r.phone === indivPhone('0066'));
+      expect(entry).toMatchObject({ last_reason: 'account_deactivated', status: 'locked_out', is_active: false });
+    });
+
+    it('only looks back over the requested window', async () => {
+      await registerIndividual('0067');
+      await login(indivPhone('0067'), '0000', 'nursenow').expect(401);
+      await attempts(indivPhone('0067'), 1);
+      await db.query(`UPDATE login_attempts SET created_at = NOW() - INTERVAL '10 days' WHERE phone = $1`, [indivPhone('0067')]);
+      // status=all: backdating the failure to before this account registered makes it count as
+      // "recovered" (they registered afterwards), which is not what this test is about.
+      expect((await problems('&days=7&status=all').expect(200)).body.data.some((r: any) => r.phone === indivPhone('0067'))).toBe(false);
+      expect((await problems('&days=14&status=all').expect(200)).body.data.some((r: any) => r.phone === indivPhone('0067'))).toBe(true);
+    });
+
+    it('is admin-only and validates its parameters', async () => {
+      await request(app.getHttpServer()).get('/v1/admin/insights/login-problems').expect(401);
+      const patient = await registerIndividual('0068');
+      await request(app.getHttpServer())
+        .get('/v1/admin/insights/login-problems')
+        .set('Authorization', `Bearer ${patient.access_token}`)
+        .expect(403);
+      await problems('&days=0').expect(400);
+      await problems('&days=31').expect(400);
+      await problems('&status=weird').expect(400);
+    });
+
+    it('feeds the summary count of people still locked out', async () => {
+      const summary = await adminGet('summary').expect(200);
+      expect(typeof summary.body.data.login_problems).toBe('number');
+      const list = await problems().expect(200);
+      expect(summary.body.data.login_problems).toBe(list.body.meta.total);
     });
   });
 });

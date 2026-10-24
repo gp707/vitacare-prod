@@ -32,6 +32,8 @@ describe('Auth (e2e)', () => {
       `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700000%')
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700000%')`,
     );
+    // Failed logins are recorded for the admin "Login problems" report; clear this suite's so test numbers never show up there.
+    await db.query("DELETE FROM login_attempts WHERE phone LIKE '+91700000%'");
     await db.query("DELETE FROM users WHERE phone LIKE '+91700000%'");
   }
 

@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_insights_repository.dart';
 
@@ -12,6 +13,7 @@ const _tabActive = 0;
 const _tabNeverCameBack = 2;
 const _tabNoAccepted = 3;
 const _tabCaregiversNotApplied = 4;
+const _tabLoginProblems = 5;
 
 String _roleLabel(String role) {
   switch (role) {
@@ -79,7 +81,7 @@ class InsightsScreen extends ConsumerStatefulWidget {
 }
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 5, vsync: this);
+  late final TabController _tabs = TabController(length: 6, vsync: this);
   InsightsSummary? _summary;
   String? _summaryError;
 
@@ -151,6 +153,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTick
                   Tab(text: 'Never came back'),
                   Tab(text: 'No candidate accepted'),
                   Tab(text: 'Caregivers not applied'),
+                  Tab(text: 'Login problems'),
                 ],
               ),
               Expanded(
@@ -162,6 +165,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTick
                     _NeverCameBackTab(),
                     _NoAcceptedTab(),
                     _CaregiversNotAppliedTab(),
+                    _LoginProblemsTab(),
                   ],
                 ),
               ),
@@ -193,6 +197,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTick
         card('Never came back', s?.inactiveSinceRegistration, _tabNeverCameBack, hint: 'registered 24 h+ ago'),
         card('No candidate accepted', s?.postersWithoutAccepted, _tabNoAccepted, hint: 'had applicants'),
         card('Caregivers not applied', s?.caregiversNeverApplied, _tabCaregiversNotApplied, hint: 'never applied'),
+        card("Can't log in", s?.loginProblems, _tabLoginProblems, hint: 'last 7 days, still stuck'),
       ],
     );
   }
@@ -240,16 +245,20 @@ class _SummaryCard extends StatelessWidget {
 // Shared paged account report
 // ---------------------------------------------------------------------------
 
-/// A filter bar + a table (or, on mobile, cards) + a pager, for any report
-/// that returns [InsightAccount]s. Reloads from page 1 whenever [reloadKey]
-/// changes (i.e. a filter was changed).
-class _AccountReport extends StatefulWidget {
-  final Future<InsightsPage<InsightAccount>> Function(int page) loader;
+/// A filter bar + a table (or, on mobile, cards) + a pager, for any report of
+/// people. Every row can be opened ([openItem]) and, when [phoneOf] gives a
+/// number, called or WhatsApped straight from the table — the point of most
+/// of these reports is to reach the person. Reloads from page 1 whenever
+/// [reloadKey] changes (i.e. a filter was changed).
+class _AccountReport<T> extends StatefulWidget {
+  final Future<InsightsPage<T>> Function(int page) loader;
   final Object reloadKey;
   final Widget? filters;
   final List<String> columns;
-  final List<String> Function(InsightAccount) cells;
+  final List<String> Function(T) cells;
   final String emptyText;
+  final void Function(BuildContext, T)? openItem;
+  final String? Function(T)? phoneOf;
 
   const _AccountReport({
     required this.loader,
@@ -258,15 +267,17 @@ class _AccountReport extends StatefulWidget {
     required this.cells,
     required this.emptyText,
     this.filters,
+    this.openItem,
+    this.phoneOf,
   });
 
   @override
-  State<_AccountReport> createState() => _AccountReportState();
+  State<_AccountReport<T>> createState() => _AccountReportState<T>();
 }
 
-class _AccountReportState extends State<_AccountReport> {
+class _AccountReportState<T> extends State<_AccountReport<T>> {
   int _page = 1;
-  List<InsightAccount> _items = [];
+  List<T> _items = [];
   PaginationMeta? _meta;
   bool _loading = true;
   String? _error;
@@ -278,7 +289,7 @@ class _AccountReportState extends State<_AccountReport> {
   }
 
   @override
-  void didUpdateWidget(covariant _AccountReport oldWidget) {
+  void didUpdateWidget(covariant _AccountReport<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.reloadKey != widget.reloadKey) {
       _page = 1;
@@ -336,10 +347,12 @@ class _AccountReportState extends State<_AccountReport> {
         itemBuilder: (context, index) {
           final item = _items[index];
           final cells = widget.cells(item);
+          final phone = widget.phoneOf?.call(item);
           return VitaListCard(
             title: Text(cells.first),
-            onTap: () => _openAccount(context, item),
+            onTap: widget.openItem == null ? null : () => widget.openItem!(context, item),
             fields: [for (var i = 1; i < cells.length; i++) VitaListCard.kv(widget.columns[i], cells[i])],
+            actions: [if (phone != null) ContactButtons(phone: phone)],
           );
         },
       );
@@ -349,12 +362,20 @@ class _AccountReportState extends State<_AccountReport> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           showCheckboxColumn: false,
-          columns: [for (final c in widget.columns) DataColumn(label: Text(c))],
+          columnSpacing: 20,
+          columns: [
+            for (final c in widget.columns) DataColumn(label: Text(c)),
+            if (widget.phoneOf != null) const DataColumn(label: Text('Contact')),
+          ],
           rows: [
             for (final item in _items)
               DataRow(
-                onSelectChanged: (_) => _openAccount(context, item),
-                cells: [for (final cell in widget.cells(item)) DataCell(Text(cell))],
+                onSelectChanged: widget.openItem == null ? null : (_) => widget.openItem!(context, item),
+                cells: [
+                  for (final cell in widget.cells(item)) DataCell(Text(cell)),
+                  if (widget.phoneOf != null)
+                    DataCell(widget.phoneOf!(item) == null ? const Text('-') : ContactButtons(phone: widget.phoneOf!(item)!)),
+                ],
               ),
           ],
         ),
@@ -437,7 +458,9 @@ class _ActiveUsersTabState extends ConsumerState<_ActiveUsersTab> with Automatic
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return _AccountReport(
+    return _AccountReport<InsightAccount>(
+      openItem: _openAccount,
+      phoneOf: (a) => a.phone,
       reloadKey: '$_hours-$_role',
       loader: (page) =>
           ref.read(adminInsightsRepositoryProvider).listActiveUsers(hours: _hours, role: _role, page: page),
@@ -482,7 +505,9 @@ class _NeverCameBackTabState extends ConsumerState<_NeverCameBackTab> with Autom
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return _AccountReport(
+    return _AccountReport<InsightAccount>(
+      openItem: _openAccount,
+      phoneOf: (a) => a.phone,
       reloadKey: '$_minAgeHours-$_role',
       loader: (page) => ref
           .read(adminInsightsRepositoryProvider)
@@ -518,7 +543,9 @@ class _NoAcceptedTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _AccountReport(
+    return _AccountReport<InsightAccount>(
+      openItem: _openAccount,
+      phoneOf: (a) => a.phone,
       reloadKey: 'static',
       loader: (page) => ref.read(adminInsightsRepositoryProvider).listPostersWithoutAccepted(page: page),
       filters: const Text(
@@ -546,7 +573,9 @@ class _CaregiversNotAppliedTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _AccountReport(
+    return _AccountReport<InsightAccount>(
+      openItem: _openAccount,
+      phoneOf: (a) => a.phone,
       reloadKey: 'static',
       loader: (page) => ref.read(adminInsightsRepositoryProvider).listCaregiversNeverApplied(page: page),
       filters: const Text(
@@ -563,6 +592,117 @@ class _CaregiversNotAppliedTab extends ConsumerWidget {
         _ago(a.createdAt),
       ],
       emptyText: 'Every registered caregiver has applied at least once.',
+    );
+  }
+}
+
+/// Opens the account's own detail screen (where Reset PIN lives) — nothing to
+/// open for a number that has no account at all.
+void _openLoginProblem(BuildContext context, LoginProblem problem) {
+  switch (problem.role) {
+    case 'caregiver':
+      if (problem.caregiverProfileId != null) {
+        Navigator.of(context).pushNamed('/caregiver-detail', arguments: problem.caregiverProfileId);
+      }
+      break;
+    case 'individual':
+      Navigator.of(context).pushNamed('/individual-detail', arguments: problem.userId);
+      break;
+    case 'organisation':
+      Navigator.of(context).pushNamed('/organisation-detail', arguments: problem.userId);
+      break;
+  }
+}
+
+class _LoginProblemsTab extends ConsumerStatefulWidget {
+  const _LoginProblemsTab();
+
+  @override
+  ConsumerState<_LoginProblemsTab> createState() => _LoginProblemsTabState();
+}
+
+class _LoginProblemsTabState extends ConsumerState<_LoginProblemsTab> with AutomaticKeepAliveClientMixin {
+  int _days = 7;
+  String _status = 'locked_out';
+
+  @override
+  bool get wantKeepAlive => true;
+
+  String _who(LoginProblem p) {
+    if (!p.hasAccount) return 'No account';
+    return [if (p.displayId != null) p.displayId!, p.fullName ?? ''].where((part) => part.isNotEmpty).join(' · ');
+  }
+
+  /// The reason in plain words, plus — for the one case where it matters —
+  /// what the number actually is ("tried the caregiver login, but this is a
+  /// patient account").
+  String _problem(LoginProblem p) {
+    if (p.lastReason == LoginFailureReason.wrongApp && p.role != null) {
+      final tried = p.lastApp == LoginApp.nursejobs ? 'the caregiver login' : 'the patient/organisation login';
+      return 'Used $tried, but this is a ${_roleLabel(p.role!)} account';
+    }
+    return p.reasonLabel;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _AccountReport<LoginProblem>(
+      reloadKey: '$_days-$_status',
+      loader: (page) =>
+          ref.read(adminInsightsRepositoryProvider).listLoginProblems(days: _days, status: _status, page: page),
+      openItem: _openLoginProblem,
+      phoneOf: (p) => p.phone,
+      filters: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'locked_out', label: Text('Still stuck')),
+                  ButtonSegment(value: 'recovered', label: Text('Got in since')),
+                  ButtonSegment(value: 'all', label: Text('All')),
+                ],
+                selected: {_status},
+                onSelectionChanged: (s) => setState(() => _status = s.first),
+              ),
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 7, label: Text('7 days')),
+                  ButtonSegment(value: 14, label: Text('14 days')),
+                  ButtonSegment(value: 30, label: Text('30 days')),
+                ],
+                selected: {_days},
+                onSelectionChanged: (s) => setState(() => _days = s.first),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'Failed logins only (the PIN that was tried is never stored). A person stays on the list until '
+            'they get in or register. A caregiver\'s normal login is not counted as a failure.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+          ),
+        ],
+      ),
+      columns: const ['Who', 'Problem', 'Attempts', 'First', 'Last', 'Status'],
+      cells: (p) => [
+        _who(p),
+        _problem(p),
+        p.wrongPinAttempts > 0 && p.wrongPinAttempts != p.attempts
+            ? '${p.attempts} (${p.wrongPinAttempts} wrong PIN)'
+            : '${p.attempts}',
+        _stamp(p.firstAttemptAt),
+        '${_ago(p.lastAttemptAt)} (${_stamp(p.lastAttemptAt)})',
+        p.isLockedOut ? 'Still stuck' : 'Got in since',
+      ],
+      emptyText: _status == 'locked_out'
+          ? 'Nobody is stuck. Everyone whose login failed has since got in.'
+          : 'No failed logins in this window.',
     );
   }
 }

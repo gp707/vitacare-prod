@@ -56,6 +56,8 @@ describe('OTP Auth (e2e)', () => {
       `DELETE FROM audit_logs WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '+91700006%')
          OR target_user_id IN (SELECT id FROM users WHERE phone LIKE '+91700006%')`,
     );
+    // Failed logins are recorded for the admin "Login problems" report; clear this suite's so test numbers never show up there.
+    await db.query("DELETE FROM login_attempts WHERE phone LIKE '+91700006%'");
     await db.query("DELETE FROM users WHERE phone LIKE '+91700006%'");
   }
 

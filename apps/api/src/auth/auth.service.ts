@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { AuditAction, Config, LoginApp, OtpPurpose, UserRole, VerificationStatus } from '@vitacare/shared-constants';
+import {
+  AuditAction,
+  Config,
+  LoginApp,
+  LoginFailureReason,
+  OtpPurpose,
+  UserRole,
+  VerificationStatus,
+} from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { UsersRepository, UserRecord } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
@@ -13,6 +21,7 @@ import { OtpAuthSettingsRepository } from '../database/repositories/otp-auth-set
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
+import { LoginAttemptsService } from '../login-attempts/login-attempts.service';
 import { TokenService } from './token.service';
 import { RefreshTokenPayload } from '../common/interfaces/jwt-payload.interface';
 import { RegisterDto } from './dto/register.dto';
@@ -68,6 +77,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
+    private readonly loginAttempts: LoginAttemptsService,
   ) {}
 
   async register(dto: RegisterDto, ipAddress: string | null = null) {
@@ -140,16 +150,31 @@ export class AuthService {
     };
   }
 
-  async loginCode(dto: LoginCodeDto, ipAddress: string | null = null) {
+  async loginCode(dto: LoginCodeDto, ipAddress: string | null = null, userAgent: string | null = null) {
     const roles = CODE_LOGIN_ROLES_BY_APP[dto.app];
     const user = await this.usersRepo.findByPhoneAndRoles(dto.phone, roles);
+    const attempt = { phone: dto.phone, app: dto.app, method: 'code' as const, ipAddress, userAgent };
     if (!user) {
+      await this.recordMissingAccount(attempt);
       throw new AppException('AUTH_002');
     }
     if (!user.is_active) {
+      this.loginAttempts.recordFailure({
+        ...attempt,
+        userId: user.id,
+        userRole: user.role,
+        reason: LoginFailureReason.ACCOUNT_DEACTIVATED,
+      });
       throw new AppException('AUTH_004');
     }
     if (!user.code_hash || !(await bcrypt.compare(dto.code, user.code_hash))) {
+      // Only that it failed is recorded — never the PIN that was tried.
+      this.loginAttempts.recordFailure({
+        ...attempt,
+        userId: user.id,
+        userRole: user.role,
+        reason: LoginFailureReason.WRONG_PIN,
+      });
       throw new AppException('AUTH_008');
     }
 
@@ -164,19 +189,81 @@ export class AuthService {
    *  otp_auth_settings flag — this stays callable even if OTP mode is
    *  later disabled, so an account that registered while it was on (and so
    *  has no PIN) is never locked out. */
-  async loginOtp(dto: LoginOtpDto, ipAddress: string | null = null) {
-    this.verifyPhoneToken(dto.phone_verification_token, dto.phone, dto.app, OtpPurpose.LOGIN);
+  async loginOtp(dto: LoginOtpDto, ipAddress: string | null = null, userAgent: string | null = null) {
+    const attempt = { phone: dto.phone, app: dto.app, method: 'otp' as const, ipAddress, userAgent };
+    try {
+      this.verifyPhoneToken(dto.phone_verification_token, dto.phone, dto.app, OtpPurpose.LOGIN);
+    } catch (err) {
+      this.loginAttempts.recordFailure({
+        ...attempt,
+        userId: null,
+        userRole: null,
+        reason: LoginFailureReason.OTP_INVALID,
+      });
+      throw err;
+    }
 
     const roles = CODE_LOGIN_ROLES_BY_APP[dto.app];
     const user = await this.usersRepo.findByPhoneAndRoles(dto.phone, roles);
     if (!user) {
+      await this.recordMissingAccount(attempt);
       throw new AppException('AUTH_002');
     }
     if (!user.is_active) {
+      this.loginAttempts.recordFailure({
+        ...attempt,
+        userId: user.id,
+        userRole: user.role,
+        reason: LoginFailureReason.ACCOUNT_DEACTIVATED,
+      });
       throw new AppException('AUTH_004');
     }
 
     return this.finishLogin(user, ipAddress, 'otp');
+  }
+
+  /** A login found no account in the bucket it asked for. Usually that is a
+   *  real problem worth recording (a mistyped/unregistered number, or a
+   *  patient trying the caregiver login) — but NOT in one case: JustHeal's
+   *  single login screen tries the patient/organisation bucket first and
+   *  falls back to the caregiver bucket on "no account", so a *caregiver's*
+   *  normal login always produces exactly this miss before succeeding. That
+   *  leg is skipped; the caregiver attempt that follows is judged on its own.
+   *  Never throws — recording must not alter the login's own outcome. */
+  private async recordMissingAccount(attempt: {
+    phone: string;
+    app: string;
+    method: 'code' | 'otp';
+    ipAddress: string | null;
+    userAgent: string | null;
+  }): Promise<void> {
+    try {
+      const caregiver = await this.usersRepo.findByPhoneAndRoles(attempt.phone, [UserRole.CAREGIVER]);
+      if (attempt.app === LoginApp.NURSENOW) {
+        if (caregiver) return; // fallback leg of the unified login — not a failure
+        this.loginAttempts.recordFailure({
+          ...attempt,
+          userId: null,
+          userRole: null,
+          reason: LoginFailureReason.UNKNOWN_ACCOUNT,
+        });
+        return;
+      }
+      // Caregiver (nursejobs) login with no caregiver account: either nothing
+      // is registered on this number, or it belongs to a patient/organisation.
+      const nursenow = await this.usersRepo.findByPhoneAndRoles(attempt.phone, [
+        UserRole.INDIVIDUAL,
+        UserRole.ORGANISATION,
+      ]);
+      this.loginAttempts.recordFailure({
+        ...attempt,
+        userId: nursenow?.id ?? null,
+        userRole: nursenow?.role ?? null,
+        reason: nursenow ? LoginFailureReason.WRONG_APP : LoginFailureReason.UNKNOWN_ACCOUNT,
+      });
+    } catch {
+      // Swallowed on purpose — see above.
+    }
   }
 
   private async finishLogin(user: UserRecord, ipAddress: string | null, method: 'code' | 'otp') {

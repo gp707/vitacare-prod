@@ -74,3 +74,19 @@ export class TopActionsQueryDto {
   @Max(100, { message: 'GEN_005' })
   limit: number = 25;
 }
+
+export class LoginProblemsQueryDto extends PagedInsightsQueryDto {
+  /** Look-back window for failed attempts. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'GEN_005' })
+  @Min(1, { message: 'GEN_005' })
+  @Max(30, { message: 'GEN_005' })
+  days: number = 7;
+
+  /** 'locked_out' (default) = still stuck, i.e. the people worth calling;
+   *  'recovered' = failed but have since got in; 'all' = both. */
+  @IsOptional()
+  @IsIn(['locked_out', 'recovered', 'all'], { message: 'GEN_005' })
+  status: 'locked_out' | 'recovered' | 'all' = 'locked_out';
+}

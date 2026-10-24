@@ -67,6 +67,80 @@ class InsightAccount {
       );
 }
 
+/// One phone number whose login failed — the person to call. [fullName] etc.
+/// are null for a number with no account at all (mistyped or never registered).
+class LoginProblem {
+  final String phone;
+  final int attempts;
+  final int wrongPinAttempts;
+  final DateTime firstAttemptAt;
+  final DateTime lastAttemptAt;
+  final String lastReason;
+  final String lastApp;
+
+  /// 'locked_out' until they get in (or register), then 'recovered'.
+  final String status;
+  final String? userId;
+  final String? fullName;
+  final String? role;
+  final bool? isActive;
+  final int? caregiverNumber;
+  final String? caregiverProfileId;
+  final int? patientNumber;
+  final int? orgNumber;
+  final String? organisationName;
+
+  const LoginProblem({
+    required this.phone,
+    required this.attempts,
+    required this.wrongPinAttempts,
+    required this.firstAttemptAt,
+    required this.lastAttemptAt,
+    required this.lastReason,
+    required this.lastApp,
+    required this.status,
+    this.userId,
+    this.fullName,
+    this.role,
+    this.isActive,
+    this.caregiverNumber,
+    this.caregiverProfileId,
+    this.patientNumber,
+    this.orgNumber,
+    this.organisationName,
+  });
+
+  bool get hasAccount => userId != null;
+  bool get isLockedOut => status == 'locked_out';
+
+  /// `NUR-500` / `PAT-500` / `ORG-500`, whichever applies.
+  String? get displayId =>
+      caregiverDisplayId(caregiverNumber) ?? patientDisplayId(patientNumber) ?? organisationDisplayId(orgNumber);
+
+  /// What an admin can say to the person, in plain words.
+  String get reasonLabel => LoginFailureReason.displayNames[lastReason] ?? lastReason;
+
+  factory LoginProblem.fromJson(Map<String, dynamic> json) => LoginProblem(
+        phone: json['phone'] as String,
+        attempts: json['attempts'] as int,
+        wrongPinAttempts: json['wrong_pin_attempts'] as int,
+        firstAttemptAt: DateTime.parse(json['first_attempt_at'] as String),
+        lastAttemptAt: DateTime.parse(json['last_attempt_at'] as String),
+        lastReason: json['last_reason'] as String,
+        lastApp: json['last_app'] as String,
+        status: json['status'] as String,
+        userId: json['user_id'] as String?,
+        fullName: json['full_name'] as String?,
+        role: json['role'] as String?,
+        isActive: json['is_active'] as bool?,
+        caregiverNumber: json['caregiver_number'] as int?,
+        caregiverProfileId: json['caregiver_profile_id'] as String?,
+        patientNumber: json['patient_number'] as int?,
+        orgNumber: json['org_number'] as int?,
+        organisationName: json['organisation_name'] as String?,
+      );
+}
+
 class InsightsPage<T> {
   final List<T> items;
   final PaginationMeta meta;
@@ -81,6 +155,7 @@ class InsightsSummary {
   final int inactiveSinceRegistration;
   final int postersWithoutAccepted;
   final int caregiversNeverApplied;
+  final int loginProblems;
 
   const InsightsSummary({
     required this.activeUsers24h,
@@ -89,6 +164,7 @@ class InsightsSummary {
     required this.inactiveSinceRegistration,
     required this.postersWithoutAccepted,
     required this.caregiversNeverApplied,
+    this.loginProblems = 0,
   });
 
   factory InsightsSummary.fromJson(Map<String, dynamic> json) => InsightsSummary(
@@ -98,6 +174,7 @@ class InsightsSummary {
         inactiveSinceRegistration: json['inactive_since_registration'] as int,
         postersWithoutAccepted: json['posters_without_accepted'] as int,
         caregiversNeverApplied: json['caregivers_never_applied'] as int,
+        loginProblems: (json['login_problems'] as int?) ?? 0,
       );
 }
 
@@ -174,6 +251,26 @@ class AdminInsightsRepository {
 
   Future<InsightsPage<InsightAccount>> listCaregiversNeverApplied({int page = 1, int limit = 25}) =>
       _listAccounts('/admin/insights/caregivers-never-applied', {'page': page, 'limit': limit});
+
+  /// Phone numbers whose logins failed in the last [days]. [status] is
+  /// 'locked_out' (still stuck — the ones to call), 'recovered' or 'all'.
+  Future<InsightsPage<LoginProblem>> listLoginProblems({
+    int days = 7,
+    String status = 'locked_out',
+    int page = 1,
+    int limit = 25,
+  }) async {
+    try {
+      final res = await _dio.get('/admin/insights/login-problems',
+          queryParameters: {'days': days, 'status': status, 'page': page, 'limit': limit});
+      final items =
+          (res.data['data'] as List).map((item) => LoginProblem.fromJson(item as Map<String, dynamic>)).toList();
+      final meta = PaginationMeta.fromJson(res.data['meta'] as Map<String, dynamic>);
+      return InsightsPage(items: items, meta: meta);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 
   Future<List<TopActionRow>> getTopActions({
     required String kind,

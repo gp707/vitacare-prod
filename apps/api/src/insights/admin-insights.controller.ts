@@ -7,6 +7,7 @@ import { InsightsService } from './insights.service';
 import {
   ActiveUsersQueryDto,
   InactiveSinceRegistrationQueryDto,
+  LoginProblemsQueryDto,
   PagedInsightsQueryDto,
   TopActionsQueryDto,
 } from './dto/insights-query.dto';
@@ -47,6 +48,14 @@ export class AdminInsightsController {
   @Get('caregivers-never-applied')
   listCaregiversNeverApplied(@Query() query: PagedInsightsQueryDto) {
     return this.insightsService.listCaregiversNeverApplied(query);
+  }
+
+  /** People whose logins failed — wrong PIN, no account, wrong login type,
+   *  deactivated, OTP problems — most recent first. Defaults to those still
+   *  locked out (the ones to call). */
+  @Get('login-problems')
+  listLoginProblems(@Query() query: LoginProblemsQueryDto) {
+    return this.insightsService.listLoginProblems(query);
   }
 
   /** Most-used buttons (kind=tap) or screens (kind=screen). */

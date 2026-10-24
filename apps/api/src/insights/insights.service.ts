@@ -3,10 +3,12 @@ import { Cron } from '@nestjs/schedule';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { AppEventInput, AppEventsRepository } from '../database/repositories/app-events.repository';
 import { InsightsRepository } from '../database/repositories/insights.repository';
+import { LoginAttemptsRepository } from '../database/repositories/login-attempts.repository';
 import { RecordEventsDto } from './dto/record-events.dto';
 import {
   ActiveUsersQueryDto,
   InactiveSinceRegistrationQueryDto,
+  LoginProblemsQueryDto,
   PagedInsightsQueryDto,
   TopActionsQueryDto,
 } from './dto/insights-query.dto';
@@ -21,6 +23,11 @@ const EVENT_RETENTION_DAYS = 90;
  *  can't poison "active in the last 24h" or the retention sweep. */
 const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 
+/** Failed-login rows are operational follow-up data (and, for unknown
+ *  numbers, personal data of people who never became users) — see migration
+ *  086. Insights never looks back more than 30 days (LoginProblemsQueryDto). */
+const LOGIN_ATTEMPT_RETENTION_DAYS = 30;
+
 const PAGE_ONE_SINGLE: PagedInsightsQueryDto = { page: 1, limit: 1 };
 
 @Injectable()
@@ -30,6 +37,7 @@ export class InsightsService {
   constructor(
     private readonly appEventsRepo: AppEventsRepository,
     private readonly insightsRepo: InsightsRepository,
+    private readonly loginAttemptsRepo: LoginAttemptsRepository,
   ) {}
 
   /** POST /events. [user] is undefined for an anonymous (pre-login) sender. */
@@ -54,13 +62,14 @@ export class InsightsService {
    *  query its own tab runs, just with a page size of 1 so only `total`
    *  matters. */
   async getSummary() {
-    const [active24, active48, active168, inactive, posters, caregivers] = await Promise.all([
+    const [active24, active48, active168, inactive, posters, caregivers, loginProblems] = await Promise.all([
       this.insightsRepo.listActiveUsers({ ...PAGE_ONE_SINGLE, hours: 24 }),
       this.insightsRepo.listActiveUsers({ ...PAGE_ONE_SINGLE, hours: 48 }),
       this.insightsRepo.listActiveUsers({ ...PAGE_ONE_SINGLE, hours: 168 }),
       this.insightsRepo.listInactiveSinceRegistration({ ...PAGE_ONE_SINGLE, minAgeHours: 24 }),
       this.insightsRepo.listPostersWithoutAccepted(PAGE_ONE_SINGLE),
       this.insightsRepo.listCaregiversNeverApplied(PAGE_ONE_SINGLE),
+      this.insightsRepo.listLoginProblems({ ...PAGE_ONE_SINGLE, days: 7, status: 'locked_out' }),
     ]);
     return {
       active_users_24h: active24.total,
@@ -69,6 +78,7 @@ export class InsightsService {
       inactive_since_registration: inactive.total,
       posters_without_accepted: posters.total,
       caregivers_never_applied: caregivers.total,
+      login_problems: loginProblems.total,
     };
   }
 
@@ -102,6 +112,16 @@ export class InsightsService {
     return this.paged(items, total, query);
   }
 
+  async listLoginProblems(query: LoginProblemsQueryDto) {
+    const { items, total } = await this.insightsRepo.listLoginProblems({
+      page: query.page,
+      limit: query.limit,
+      days: query.days,
+      status: query.status,
+    });
+    return this.paged(items, total, query);
+  }
+
   async getTopActions(query: TopActionsQueryDto) {
     return this.appEventsRepo.topActions({
       kind: query.kind,
@@ -117,8 +137,13 @@ export class InsightsService {
   async purgeExpiredEvents(): Promise<void> {
     const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
     const deleted = await this.appEventsRepo.deleteOlderThan(cutoff);
-    if (deleted === 0) return;
-    this.logger.log(`Purged ${deleted} app_events row(s) older than ${cutoff.toISOString()}`);
+    if (deleted > 0) this.logger.log(`Purged ${deleted} app_events row(s) older than ${cutoff.toISOString()}`);
+
+    const attemptCutoff = new Date(Date.now() - LOGIN_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const deletedAttempts = await this.loginAttemptsRepo.deleteOlderThan(attemptCutoff);
+    if (deletedAttempts > 0) {
+      this.logger.log(`Purged ${deletedAttempts} login_attempts row(s) older than ${attemptCutoff.toISOString()}`);
+    }
   }
 
   private paged<T>(items: T[], total: number, query: PagedInsightsQueryDto) {

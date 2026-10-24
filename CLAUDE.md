@@ -1214,6 +1214,25 @@ that account's own detail screen (same per-role routing as Tickets/Error Logs).
   applicants; a posting nobody applied to is deliberately not listed.
 - **Deploy order:** apply migration 084 (done on the shared DB) → deploy the backend → deploy admin-web →
   ship the app build. The admin screen works (with empty usage tabs) before the app ships.
+- **Login problems tab ("Can't log in", migration 086).** Every *failed* phone login is recorded in
+  `login_attempts` (`phone` as typed, `user_id` when the number has an account, `app`, `method`, `reason`,
+  ip, user agent; **the PIN/OTP tried is never stored**; purged after 30 days; `ON DELETE CASCADE`).
+  Reasons (`LoginFailureReason`, TS + Dart): `wrong_pin`, `unknown_account`, `wrong_app` (a patient/
+  organisation number used on the caregiver login — shown with what the account actually is),
+  `account_deactivated`, `otp_invalid`/`otp_wrong`/`otp_locked` (login OTPs only; a failed *registration*
+  OTP is not a login failure). Recorded by `AuthService.loginCode`/`loginOtp` and `OtpService.verify` through
+  `LoginAttemptsService.recordFailure` — fire-and-forget and swallow-all so recording can never change or
+  delay a login's own result. **The unified login's first leg is deliberately not counted:** JustHeal's one
+  login screen tries the patient/organisation bucket first and falls back to the caregiver bucket on
+  "no account", so a caregiver's normal login always produces one bucket miss before succeeding
+  (`AuthService.recordMissingAccount` skips a `nursenow` miss when a caregiver account exists on that
+  phone; the caregiver attempt that follows is judged on its own). The report
+  (`GET /admin/insights/login-problems`, default `status=locked_out`, window ≤ 30 d) is one row per phone
+  with attempt counts, last reason, and the account behind it if any; **a person is "recovered" once they
+  have any activity or a successful login after their last failure, or — for a number that had no
+  account — registered afterwards**, so the default list is only people still stuck. Every account report
+  in Insights (not just this one) now has **Call/WhatsApp** buttons (`ContactButtons`). Summary card:
+  "Can't log in" (still stuck, last 7 days).
 
 ## Actionable Error Logs (who it hit, what they were doing, follow-up)
 

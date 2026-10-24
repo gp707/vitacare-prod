@@ -11,6 +11,7 @@ import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/insights/data/admin_insights_repository.dart';
 import 'package:admin_web/features/insights/screens/insights_screen.dart';
+import 'package:admin_web/shared/widgets/contact_actions.dart';
 
 InsightAccount _account({
   String userId = 'u1',
@@ -47,6 +48,36 @@ InsightAccount _account({
   );
 }
 
+LoginProblem _problem({
+  String phone = '+919876543210',
+  int attempts = 3,
+  int wrongPinAttempts = 3,
+  String reason = 'wrong_pin',
+  String app = 'nursenow',
+  String status = 'locked_out',
+  String? userId = 'u1',
+  String? fullName = 'Asha Rao',
+  String? role = 'individual',
+  int? patientNumber = 512,
+  Duration lastAgo = const Duration(minutes: 20),
+}) {
+  final now = DateTime.now();
+  return LoginProblem(
+    phone: phone,
+    attempts: attempts,
+    wrongPinAttempts: wrongPinAttempts,
+    firstAttemptAt: now.subtract(lastAgo + const Duration(hours: 1)),
+    lastAttemptAt: now.subtract(lastAgo),
+    lastReason: reason,
+    lastApp: app,
+    status: status,
+    userId: userId,
+    fullName: fullName,
+    role: role,
+    patientNumber: patientNumber,
+  );
+}
+
 InsightsPage<InsightAccount> _page(List<InsightAccount> items) => InsightsPage(
       items: items,
       meta: PaginationMeta(page: 1, limit: 25, total: items.length, totalPages: items.isEmpty ? 0 : 1),
@@ -58,6 +89,7 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
   List<InsightAccount> posters;
   List<InsightAccount> caregivers;
   List<TopActionRow> top;
+  List<LoginProblem> loginProblems;
 
   int? lastActiveHours;
   String? lastActiveRole;
@@ -65,6 +97,8 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
   String? lastTopKind;
   int? lastTopDays;
   String? lastTopFlow;
+  int? lastLoginDays;
+  String? lastLoginStatus;
 
   _FakeInsightsRepository({
     this.active = const [],
@@ -72,6 +106,7 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
     this.posters = const [],
     this.caregivers = const [],
     this.top = const [],
+    this.loginProblems = const [],
   }) : super(Dio());
 
   @override
@@ -82,6 +117,7 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
         inactiveSinceRegistration: 4,
         postersWithoutAccepted: 3,
         caregiversNeverApplied: 5,
+        loginProblems: 2,
       );
 
   @override
@@ -116,6 +152,21 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
       _page(caregivers);
 
   @override
+  Future<InsightsPage<LoginProblem>> listLoginProblems({
+    int days = 7,
+    String status = 'locked_out',
+    int page = 1,
+    int limit = 25,
+  }) async {
+    lastLoginDays = days;
+    lastLoginStatus = status;
+    return InsightsPage(
+      items: loginProblems,
+      meta: PaginationMeta(page: 1, limit: 25, total: loginProblems.length, totalPages: loginProblems.isEmpty ? 0 : 1),
+    );
+  }
+
+  @override
   Future<List<TopActionRow>> getTopActions({
     required String kind,
     required int days,
@@ -129,12 +180,21 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
   }
 }
 
+final launched = <Uri>[];
+
 Future<List<String>> _pump(WidgetTester tester, _FakeInsightsRepository repo) async {
-  await tester.binding.setSurfaceSize(const Size(1800, 1000));
+  launched.clear();
+  await tester.binding.setSurfaceSize(const Size(2400, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
   final pushed = <String>[];
+  final originalLauncher = uriLauncher;
+  uriLauncher = (uri) async {
+    launched.add(uri);
+    return true;
+  };
+  addTearDown(() => uriLauncher = originalLauncher);
 
   await tester.pumpWidget(
     ProviderScope(
@@ -168,7 +228,7 @@ void main() {
     await _pump(tester, _FakeInsightsRepository());
 
     expect(find.text('Insights'), findsWidgets);
-    for (final count in ['7', '11', '19', '4', '3', '5']) {
+    for (final count in ['7', '11', '19', '4', '3', '5', '2']) {
       expect(find.text(count), findsOneWidget, reason: 'summary card showing $count');
     }
   });
@@ -325,6 +385,119 @@ void main() {
     expect(find.text('NUR-500 · Idle Nurse'), findsOneWidget);
     expect(find.text('available'), findsOneWidget);
     expect(find.text('12 d ago'), findsOneWidget);
+  });
+
+  testWidgets('every account report has Call and WhatsApp buttons for the person\'s phone', (tester) async {
+    final repo = _FakeInsightsRepository(active: [_account(phone: '+919111111111')]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byTooltip('Call +919111111111'));
+    await tester.tap(find.byTooltip('WhatsApp +919111111111'));
+    await tester.pumpAndSettle();
+
+    expect(launched.map((u) => u.toString()), ['tel:+919111111111', 'https://wa.me/919111111111']);
+  });
+
+  testWidgets('Login problems: lists who is stuck, why, how many tries, with the Still-stuck filter by default', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [
+      _problem(),
+      _problem(
+        phone: '+919000000009',
+        attempts: 1,
+        wrongPinAttempts: 0,
+        reason: 'unknown_account',
+        userId: null,
+        fullName: null,
+        role: null,
+        patientNumber: null,
+      ),
+    ]);
+    await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+
+    expect(repo.lastLoginDays, 7);
+    expect(repo.lastLoginStatus, 'locked_out');
+    expect(find.text('PAT-512 · Asha Rao'), findsOneWidget);
+    expect(find.text('Wrong PIN'), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
+    expect(find.text('No account'), findsOneWidget);
+    expect(find.text('No account with this number'), findsOneWidget);
+    expect(find.text('Still stuck'), findsWidgets);
+    expect(find.textContaining('20 min ago'), findsWidgets);
+    expect(find.textContaining('PIN that was tried is never stored'), findsOneWidget);
+  });
+
+  testWidgets('Login problems: a person with no account can still be called, and an account opens its detail screen', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [
+      _problem(),
+      _problem(phone: '+919000000009', reason: 'unknown_account', userId: null, fullName: null, role: null, patientNumber: null),
+    ]);
+    final pushed = await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+
+    await tester.tap(find.byTooltip('Call +919000000009'));
+    await tester.pumpAndSettle();
+    expect(launched.single.toString(), 'tel:+919000000009');
+
+    await tester.tap(find.text('PAT-512 · Asha Rao'));
+    await tester.pumpAndSettle();
+    expect(pushed.last, '/individual-detail:u1');
+  });
+
+  testWidgets('Login problems: explains a wrong-login-type attempt in plain words', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [
+      _problem(reason: 'wrong_app', app: 'nursejobs', attempts: 2, wrongPinAttempts: 0),
+    ]);
+    await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+    expect(find.text('Used the caregiver login, but this is a Patient/Family account'), findsOneWidget);
+  });
+
+  testWidgets('Login problems: a mix of wrong PINs and other failures shows the PIN count, and recovered rows say so', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [
+      _problem(attempts: 5, wrongPinAttempts: 3, status: 'recovered'),
+    ]);
+    await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+    expect(find.text('5 (3 wrong PIN)'), findsOneWidget);
+    expect(find.text('Got in since'), findsWidgets);
+  });
+
+  testWidgets('Login problems: status and window filters reload the list', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [_problem()]);
+    await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+
+    await tester.tap(find.text('Got in since'));
+    await tester.pumpAndSettle();
+    expect(repo.lastLoginStatus, 'recovered');
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    expect(repo.lastLoginStatus, 'all');
+
+    await tester.tap(find.text('30 days'));
+    await tester.pumpAndSettle();
+    expect(repo.lastLoginDays, 30);
+  });
+
+  testWidgets('Login problems: friendly empty states', (tester) async {
+    final repo = _FakeInsightsRepository();
+    await _pump(tester, repo);
+    await _openTab(tester, 'Login problems');
+    expect(find.text('Nobody is stuck. Everyone whose login failed has since got in.'), findsOneWidget);
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    expect(find.text('No failed logins in this window.'), findsOneWidget);
+  });
+
+  testWidgets('clicking the "Can\'t log in" card jumps to the Login problems tab', (tester) async {
+    final repo = _FakeInsightsRepository(loginProblems: [_problem()]);
+    await _pump(tester, repo);
+    await tester.tap(find.text("Can't log in"));
+    await tester.pumpAndSettle();
+    expect(find.text('Wrong PIN'), findsOneWidget);
   });
 
   testWidgets('clicking a summary card jumps to its tab', (tester) async {

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterIndividualDto } from './dto/register-individual.dto';
@@ -36,14 +36,14 @@ export class AuthController {
 
   @Post('login/code')
   @HttpCode(HttpStatus.OK)
-  loginCode(@Body() dto: LoginCodeDto, @ClientIp() ip: string | null) {
-    return this.authService.loginCode(dto, ip);
+  loginCode(@Body() dto: LoginCodeDto, @ClientIp() ip: string | null, @Headers('user-agent') userAgent?: string) {
+    return this.authService.loginCode(dto, ip, userAgent?.slice(0, 300) ?? null);
   }
 
   @Post('login/otp')
   @HttpCode(HttpStatus.OK)
-  loginOtp(@Body() dto: LoginOtpDto, @ClientIp() ip: string | null) {
-    return this.authService.loginOtp(dto, ip);
+  loginOtp(@Body() dto: LoginOtpDto, @ClientIp() ip: string | null, @Headers('user-agent') userAgent?: string) {
+    return this.authService.loginOtp(dto, ip, userAgent?.slice(0, 300) ?? null);
   }
 
   @Post('login/email')
