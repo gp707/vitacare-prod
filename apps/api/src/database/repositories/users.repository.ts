@@ -160,7 +160,7 @@ export class UsersRepository {
 
   async listAdmins(): Promise<UserRecord[]> {
     const result = await this.db.query<UserRecord>(
-      `SELECT * FROM users WHERE role IN ('admin', 'super_admin') ORDER BY created_at DESC`,
+      `SELECT * FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL ORDER BY created_at DESC`,
     );
     return result.rows;
   }
@@ -200,6 +200,15 @@ export class UsersRepository {
        WHERE id = $1`,
       [userId, tombstonePhone],
     );
+  }
+
+  /** Admin-initiated permanent delete of an admin account. Same anonymize-
+   *  in-place approach as self-service account deletion (audit_logs,
+   *  admin notes etc. reference users.id, so the row itself must stay), plus
+   *  clearing password_hash, which only admin accounts carry. */
+  async anonymizeAdmin(userId: string): Promise<void> {
+    await this.anonymizeAndDeactivate(userId);
+    await this.db.query('UPDATE users SET password_hash = NULL WHERE id = $1', [userId]);
   }
 
   async setActive(userId: string, isActive: boolean): Promise<void> {

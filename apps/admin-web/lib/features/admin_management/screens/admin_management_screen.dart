@@ -4,6 +4,8 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../auth/state/session_notifier.dart';
+import '../../auth/state/session_state.dart';
 import '../data/admin_users_repository.dart';
 
 class AdminManagementScreen extends ConsumerStatefulWidget {
@@ -159,6 +161,39 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
     }
   }
 
+  Future<void> _confirmDelete(AdminUser admin) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete admin?'),
+        content: Text(
+            '${admin.fullName} (${admin.email}) will be permanently removed and can no longer log in. '
+            'Their past actions stay in the audit log. This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(adminUsersRepositoryProvider).delete(admin.userId);
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.message), backgroundColor: AppColors.error));
+      }
+    }
+  }
+
   Future<void> _activate(AdminUser admin) async {
     try {
       await ref.read(adminUsersRepositoryProvider).activate(admin.userId);
@@ -258,14 +293,19 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
       separatorBuilder: (context, index) => const Divider(),
       itemBuilder: (context, index) {
         final admin = _admins[index];
+        final session = ref.watch(sessionProvider);
+        final isSelf =
+            session is AdminSessionAuthenticated && session.userId == admin.userId;
         return ListTile(
           title: Text(admin.fullName),
           subtitle: Text('${admin.email} · ${admin.phone} · ${admin.role}'),
-          trailing: admin.role == 'super_admin'
-              ? const Chip(label: Text('Super Admin'))
+          trailing: isSelf
+              ? const Chip(label: Text('You'))
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (admin.role == 'super_admin')
+                      const Chip(label: Text('Super Admin')),
                     Chip(
                       label: Text(admin.isActive ? 'Active' : 'Deactivated'),
                       backgroundColor: admin.isActive
@@ -273,11 +313,12 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                           : AppColors.border,
                     ),
                     if (admin.isActive) ...[
-                      IconButton(
-                        onPressed: () => _confirmMakeSuperAdmin(admin),
-                        icon: const Icon(Icons.upgrade),
-                        tooltip: 'Make Super Admin',
-                      ),
+                      if (admin.role != 'super_admin')
+                        IconButton(
+                          onPressed: () => _confirmMakeSuperAdmin(admin),
+                          icon: const Icon(Icons.upgrade),
+                          tooltip: 'Make Super Admin',
+                        ),
                       IconButton(
                         onPressed: () => _confirmDeactivate(admin),
                         icon: const Icon(Icons.block, color: AppColors.error),
@@ -290,6 +331,12 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                             color: AppColors.success),
                         tooltip: 'Activate',
                       ),
+                    IconButton(
+                      onPressed: () => _confirmDelete(admin),
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppColors.error),
+                      tooltip: 'Delete',
+                    ),
                   ],
                 ),
         );

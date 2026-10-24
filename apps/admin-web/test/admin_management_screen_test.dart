@@ -58,6 +58,14 @@ class _FakeAdminUsersRepository extends AdminUsersRepository {
         .toList();
   }
 
+  String? deletedUserId;
+
+  @override
+  Future<void> delete(String userId) async {
+    deletedUserId = userId;
+    admins = admins.where((a) => a.userId != userId).toList();
+  }
+
   @override
   Future<void> deactivate(String userId) async {
     admins = admins
@@ -92,7 +100,7 @@ Future<void> _pump(WidgetTester tester, _FakeAdminUsersRepository repo) async {
 
 void main() {
   testWidgets(
-      'a super_admin row shows only a chip, no promote/deactivate actions',
+      'another super_admin row can be deactivated or deleted but not promoted',
       (tester) async {
     final repo = _FakeAdminUsersRepository(
         [_admin(role: 'super_admin', fullName: 'Existing Super Admin')]);
@@ -100,7 +108,46 @@ void main() {
 
     expect(find.text('Super Admin'), findsOneWidget);
     expect(find.byTooltip('Make Super Admin'), findsNothing);
+    expect(find.byTooltip('Deactivate'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsOneWidget);
+  });
+
+  testWidgets('your own row has no deactivate or delete actions',
+      (tester) async {
+    final repo = _FakeAdminUsersRepository(
+        [_admin(userId: 'super-1', role: 'super_admin')]);
+    await _pump(tester, repo);
+
+    expect(find.text('You'), findsOneWidget);
     expect(find.byTooltip('Deactivate'), findsNothing);
+    expect(find.byTooltip('Delete'), findsNothing);
+  });
+
+  testWidgets('tapping Delete and confirming deletes the admin and removes the row',
+      (tester) async {
+    final repo = _FakeAdminUsersRepository([_admin()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete admin?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(repo.deletedUserId, 'admin-1');
+    expect(find.text('Regular Admin'), findsNothing);
+  });
+
+  testWidgets('canceling the Delete dialog does not delete', (tester) async {
+    final repo = _FakeAdminUsersRepository([_admin()]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.deletedUserId, isNull);
   });
 
   testWidgets('shows the admin\'s phone number in the row', (tester) async {

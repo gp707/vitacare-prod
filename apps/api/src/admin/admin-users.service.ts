@@ -88,7 +88,9 @@ export class AdminUsersService {
       throw new AppException('ADMIN_004');
     }
     if (targetId === currentUserId) throw new AppException('ADMIN_005');
-    if (target.role === UserRole.SUPER_ADMIN) throw new AppException('ADMIN_006');
+    if (target.role === UserRole.SUPER_ADMIN && target.is_active) {
+      await this.assertNotLastActiveSuperAdmin();
+    }
 
     await this.usersRepo.setActive(targetId, false);
 
@@ -104,6 +106,47 @@ export class AdminUsersService {
     });
 
     return { message: 'Admin deactivated' };
+  }
+
+  /** Permanently removes an admin (any role, super admins included) — the
+   *  account is anonymized and can no longer log in, and disappears from the
+   *  list; its audit trail stays. Never your own account, never the last
+   *  active super admin. */
+  async deleteAdmin(targetId: string, currentUserId: string, ipAddress: string | null = null) {
+    const target = await this.usersRepo.findById(targetId);
+    if (
+      !target ||
+      target.deleted_at ||
+      (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)
+    ) {
+      throw new AppException('ADMIN_004');
+    }
+    if (targetId === currentUserId) throw new AppException('ADMIN_015');
+    if (target.role === UserRole.SUPER_ADMIN && target.is_active) {
+      await this.assertNotLastActiveSuperAdmin();
+    }
+
+    await this.usersRepo.anonymizeAdmin(targetId);
+
+    // Recorded with the existing admin_deactivated action (the audit_logs
+    // action CHECK would need widening for a dedicated one); `deleted: true`
+    // distinguishes it from a plain deactivation.
+    await this.auditService.log({
+      userId: currentUserId,
+      targetUserId: targetId,
+      action: AuditAction.ADMIN_DEACTIVATED,
+      entityType: 'users',
+      entityId: targetId,
+      beforeValue: { full_name: target.full_name, email: target.email, role: target.role },
+      afterValue: { is_active: false, deleted: true },
+      ipAddress,
+    });
+
+    return { message: 'Admin deleted' };
+  }
+
+  private async assertNotLastActiveSuperAdmin(): Promise<void> {
+    if ((await this.usersRepo.countSuperAdmins()) <= 1) throw new AppException('ADMIN_014');
   }
 
   async activateAdmin(targetId: string, currentUserId: string, ipAddress: string | null = null) {

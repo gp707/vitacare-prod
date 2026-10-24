@@ -226,6 +226,14 @@ class AdminOrganisationRequirementsRepository {
         employmentType: requirement.employmentType,
       );
 
+  Future<void> moveToPendingReview(String id) async {
+    try {
+      await _dio.patch('/admin/organisation-requirements/$id/pending-review');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> remind(String id) async {
     try {
       await _dio.post('/admin/organisation-requirements/$id/remind');

@@ -25,6 +25,7 @@ describe('AdminUsersService', () => {
       create: jest.fn(),
       updateAdmin: jest.fn(),
       setActive: jest.fn(),
+      anonymizeAdmin: jest.fn(),
       updateRole: jest.fn(),
       countSuperAdmins: jest.fn(),
     };
@@ -134,11 +135,19 @@ describe('AdminUsersService', () => {
       });
     });
 
-    it('throws ADMIN_006 when target is a super_admin', async () => {
+    it('throws ADMIN_014 when target is the last active super_admin', async () => {
       usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.SUPER_ADMIN });
+      usersRepo.countSuperAdmins.mockResolvedValue(1);
       await expect(service.deactivateAdmin('admin-1', 'other-admin')).rejects.toMatchObject({
-        code: 'ADMIN_006',
+        code: 'ADMIN_014',
       });
+    });
+
+    it('deactivates a super_admin when another active one remains', async () => {
+      usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.SUPER_ADMIN });
+      usersRepo.countSuperAdmins.mockResolvedValue(2);
+      await service.deactivateAdmin('admin-1', 'other-admin');
+      expect(usersRepo.setActive).toHaveBeenCalledWith('admin-1', false);
     });
 
     it('deactivates a regular admin', async () => {
@@ -151,6 +160,49 @@ describe('AdminUsersService', () => {
           userId: 'other-admin',
           targetUserId: 'admin-1',
           action: 'admin_deactivated',
+        }),
+      );
+    });
+  });
+
+  describe('deleteAdmin', () => {
+    it('throws ADMIN_004 when the target does not exist or is not an admin', async () => {
+      usersRepo.findById.mockResolvedValue(null);
+      await expect(service.deleteAdmin('missing', 'admin-1')).rejects.toMatchObject({
+        code: 'ADMIN_004',
+      });
+      usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.CAREGIVER });
+      await expect(service.deleteAdmin('admin-1', 'other-admin')).rejects.toMatchObject({
+        code: 'ADMIN_004',
+      });
+    });
+
+    it('throws ADMIN_015 when deleting yourself', async () => {
+      usersRepo.findById.mockResolvedValue(adminUser);
+      await expect(service.deleteAdmin('admin-1', 'admin-1')).rejects.toMatchObject({
+        code: 'ADMIN_015',
+      });
+    });
+
+    it('throws ADMIN_014 for the last active super_admin', async () => {
+      usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.SUPER_ADMIN });
+      usersRepo.countSuperAdmins.mockResolvedValue(1);
+      await expect(service.deleteAdmin('admin-1', 'other-admin')).rejects.toMatchObject({
+        code: 'ADMIN_014',
+      });
+      expect(usersRepo.anonymizeAdmin).not.toHaveBeenCalled();
+    });
+
+    it('anonymizes the admin and audit-logs it', async () => {
+      usersRepo.findById.mockResolvedValue(adminUser);
+      const result = await service.deleteAdmin('admin-1', 'other-admin');
+      expect(usersRepo.anonymizeAdmin).toHaveBeenCalledWith('admin-1');
+      expect(result).toEqual({ message: 'Admin deleted' });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'other-admin',
+          targetUserId: 'admin-1',
+          afterValue: { is_active: false, deleted: true },
         }),
       );
     });

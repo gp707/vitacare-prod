@@ -561,6 +561,19 @@ export class JobsRepository {
     await runner.query(`UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1`, [id]);
   }
 
+  /** Admin sends any job back to admin review — hidden from caregivers until
+   *  it is approved again. Clears the cancel/reject markers so the poster's
+   *  own view doesn't keep showing a stale "cancelled"/"rejected" state;
+   *  applications are left untouched. */
+  async moveToPendingReview(id: string): Promise<void> {
+    await this.db.query(
+      `UPDATE jobs
+       SET status = 'pending_review', cancelled_at = NULL, rejection_reason = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [id],
+    );
+  }
+
   /** Admin declines a pending_review individual-posted job — the
    *  requirement never goes live. Distinct from close(): stores why, so
    *  the individual can see the reason. */

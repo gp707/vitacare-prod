@@ -315,6 +315,17 @@ export class OrganisationRequirementsRepository {
     return result.rows[0];
   }
 
+  /** Admin sends any requirement back to admin review — see
+   *  JobsRepository.moveToPendingReview. */
+  async moveToPendingReview(id: string): Promise<void> {
+    await this.db.query(
+      `UPDATE organisation_requirements
+       SET status = 'pending_review', cancelled_at = NULL, rejection_reason = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [id],
+    );
+  }
+
   async reject(id: string, reason: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     await runner.query(

@@ -44,6 +44,16 @@ export class AdminUsersController {
     return this.adminUsersService.deactivateAdmin(id, user.sub, ip);
   }
 
+  @Delete(':id/permanent')
+  @HttpCode(HttpStatus.OK)
+  deleteAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.adminUsersService.deleteAdmin(id, user.sub, ip);
+  }
+
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
   activateAdmin(

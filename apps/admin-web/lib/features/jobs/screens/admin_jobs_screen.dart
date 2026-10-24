@@ -394,6 +394,39 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// goes live as-is, no edit required. The same legitimacy-review
   /// activation saving an unchanged edit from pending_review already
   /// performs, just a direct one-click action.
+  /// Shared by job and organisation-requirement rows: confirm, run [action],
+  /// refresh. Sending a live job back to review takes it off caregivers'
+  /// Jobs list immediately, hence the confirmation.
+  Future<void> _moveToPendingReview(Future<void> Function() action) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Move to Pending Review'),
+        content: const Text(
+          'This will take it off caregivers\' Jobs list until it is approved again. Existing applications are kept. Continue?',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Move')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await action();
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   Future<void> _approve(JobModel job) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1066,6 +1099,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onRemind: job.status == JobStatus.active
                                 ? () => _remind(job)
                                 : null,
+                            onMovePendingReview:
+                                job.status == JobStatus.pendingReview
+                                    ? null
+                                    : () => _moveToPendingReview(
+                                        () => ref
+                                            .read(adminJobsRepositoryProvider)
+                                            .moveToPendingReview(job.id)),
                             onApprove: job.status == JobStatus.pendingReview
                                 ? () => _approve(job)
                                 : null,
@@ -1090,6 +1130,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onRemind: requirement.status == JobStatus.active
                                 ? () => _remindRequirement(requirement)
                                 : null,
+                            onMovePendingReview:
+                                requirement.status == JobStatus.pendingReview
+                                    ? null
+                                    : () => _moveToPendingReview(() => ref
+                                        .read(
+                                            adminOrganisationRequirementsRepositoryProvider)
+                                        .moveToPendingReview(requirement.id)),
                             onViewApplicants: () =>
                                 _viewRequirementApplicants(requirement),
                           ),
@@ -1133,6 +1180,7 @@ class _JobRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onClose;
   final VoidCallback? onRemind;
+  final VoidCallback? onMovePendingReview;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
   final VoidCallback onViewApplications;
@@ -1143,6 +1191,7 @@ class _JobRow extends StatelessWidget {
     required this.onTap,
     required this.onClose,
     required this.onRemind,
+    required this.onMovePendingReview,
     required this.onApprove,
     required this.onReject,
     required this.onViewApplications,
@@ -1259,6 +1308,12 @@ class _JobRow extends StatelessWidget {
             icon: const Icon(Icons.lock_outline, size: 16),
             label: const Text('Close'),
           ),
+        if (onMovePendingReview != null)
+          TextButton.icon(
+            onPressed: onMovePendingReview,
+            icon: const Icon(Icons.undo, size: 16),
+            label: const Text('Move to Pending Review'),
+          ),
         if (onApprove != null)
           TextButton.icon(
             onPressed: onApprove,
@@ -1302,7 +1357,14 @@ class _JobRow extends StatelessWidget {
                   ],
                 )
               : Row(
-                  children: [Expanded(child: content), actions],
+                  children: [
+                    Expanded(child: content),
+                    // Capped so the (now wider) button set wraps onto a
+                    // second line instead of overflowing the row.
+                    ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: actions),
+                  ],
                 ),
         ),
       ),

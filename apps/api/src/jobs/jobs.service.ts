@@ -321,6 +321,28 @@ export class JobsService {
     return { message: 'Requirement approved', status: job.status };
   }
 
+  /** Admin sends any job — admin-, patient- or otherwise posted, in any
+   *  status — back to pending_review. JOB_021 if it already is. */
+  async moveToPendingReview(adminId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing) throw new AppException('GEN_002');
+    if (existing.status === JobStatus.PENDING_REVIEW) throw new AppException('JOB_021');
+
+    await this.jobsRepo.moveToPendingReview(jobId);
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: existing.status },
+      afterValue: { status: JobStatus.PENDING_REVIEW },
+      ipAddress,
+    });
+
+    return { message: 'Moved to pending review', status: JobStatus.PENDING_REVIEW };
+  }
+
   /** Admin declines a pending_review individual-posted job — it never goes
    *  live. Only valid from pending_review; the admin-web UI shouldn't
    *  offer this once a job is already active/closed, but it's guarded

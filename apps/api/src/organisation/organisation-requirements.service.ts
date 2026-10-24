@@ -548,6 +548,27 @@ export class OrganisationRequirementsService {
     return { message: 'Reminder sent' };
   }
 
+  /** Admin sends any requirement, in any status, back to pending_review. */
+  async moveToPendingReview(adminId: string, id: string, ipAddress: string | null) {
+    const existing = await this.requirementsRepo.findById(id);
+    if (!existing) throw new AppException('GEN_002');
+    if (existing.status === JobStatus.PENDING_REVIEW) throw new AppException('JOB_021');
+
+    await this.requirementsRepo.moveToPendingReview(id);
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.ORG_REQUIREMENT_UPDATED,
+      entityType: 'organisation_requirements',
+      entityId: id,
+      beforeValue: { status: existing.status },
+      afterValue: { status: JobStatus.PENDING_REVIEW },
+      ipAddress,
+    });
+
+    return { message: 'Moved to pending review', status: JobStatus.PENDING_REVIEW };
+  }
+
   async adminEditRequirement(
     adminId: string,
     id: string,

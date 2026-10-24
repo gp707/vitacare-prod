@@ -56,6 +56,7 @@ describe('JobsService', () => {
       create: jest.fn().mockResolvedValue(job),
       update: jest.fn().mockResolvedValue(job),
       findById: jest.fn(),
+      moveToPendingReview: jest.fn(),
       listForAdmin: jest.fn(),
       listPosters: jest.fn(),
       listActiveForCaregiver: jest.fn(),
@@ -326,6 +327,39 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
+      );
+    });
+  });
+
+  describe('moveToPendingReview', () => {
+    it('throws GEN_002 when the job does not exist', async () => {
+      jobsRepo.findById.mockResolvedValue(null);
+      await expect(service.moveToPendingReview('admin-1', 'missing', null)).rejects.toMatchObject({
+        code: 'GEN_002',
+      });
+    });
+
+    it('throws JOB_021 when it is already pending_review', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'pending_review' });
+      await expect(service.moveToPendingReview('admin-1', 'job-1', null)).rejects.toMatchObject({
+        code: 'JOB_021',
+      });
+    });
+
+    it.each(['active', 'closed'])('moves a %s job back to pending_review and audit-logs it', async (status) => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status });
+
+      const result = await service.moveToPendingReview('admin-1', 'job-1', null);
+
+      expect(jobsRepo.moveToPendingReview).toHaveBeenCalledWith('job-1');
+      expect(result).toEqual({ message: 'Moved to pending review', status: 'pending_review' });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          entityId: 'job-1',
+          beforeValue: { status },
+          afterValue: { status: 'pending_review' },
+        }),
       );
     });
   });

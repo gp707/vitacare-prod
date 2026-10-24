@@ -63,6 +63,16 @@ export class AdminJobsController {
     return this.jobsService.approveJob(user.sub, id, ip);
   }
 
+  @Patch(':id/pending-review')
+  @HttpCode(HttpStatus.OK)
+  moveToPendingReview(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.jobsService.moveToPendingReview(user.sub, id, ip);
+  }
+
   @Patch(':id/reject')
   @HttpCode(HttpStatus.OK)
   reject(

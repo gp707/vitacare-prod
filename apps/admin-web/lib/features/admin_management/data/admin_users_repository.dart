@@ -73,6 +73,15 @@ class AdminUsersRepository {
     }
   }
 
+  /// Permanent: the account is anonymized server-side and drops off the list.
+  Future<void> delete(String userId) async {
+    try {
+      await _dio.delete('/admin/users/$userId/permanent');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> activate(String userId) async {
     try {
       await _dio.patch('/admin/users/$userId/activate');

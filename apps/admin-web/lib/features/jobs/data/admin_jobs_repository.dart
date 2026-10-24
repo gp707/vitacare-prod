@@ -357,6 +357,16 @@ class AdminJobsRepository {
     }
   }
 
+  /// Valid from any status except pending_review itself — hides the job from
+  /// caregivers until it is approved again.
+  Future<void> moveToPendingReview(String jobId) async {
+    try {
+      await _dio.patch('/admin/jobs/$jobId/pending-review');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Only valid from pending_review — declines a NurseNow individual's
   /// requirement, which never goes live. [reason] is shown to the
   /// individual on their own requirement view.

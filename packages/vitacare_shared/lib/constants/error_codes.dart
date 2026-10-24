@@ -52,6 +52,8 @@ class ErrorCodes {
     'ADMIN_011': 'No pending edits to acknowledge',
     'ADMIN_012': 'Cannot change your own role',
     'ADMIN_013': 'Cannot demote the last super admin',
+    'ADMIN_014': 'Cannot deactivate or delete the last active super admin',
+    'ADMIN_015': 'Cannot delete your own account',
 
     // Jobs
     'JOB_001': 'Cannot apply to jobs until your profile is verified',
@@ -72,6 +74,7 @@ class ErrorCodes {
     'JOB_018': 'Too many items selected for bulk delete — narrow your search first',
     'JOB_019': 'Only a pending-review requirement can be approved',
     'JOB_020': 'Invalid close reason value',
+    'JOB_021': 'Already pending review',
     'PUSH_001': 'This notification has already been sent, failed, or cancelled',
     'TICKET_001': 'This ticket has already been resolved',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',

@@ -69,6 +69,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   ADMIN_011: { status: 400, message: 'No pending edits to acknowledge' },
   ADMIN_012: { status: 400, message: 'Cannot change your own role' },
   ADMIN_013: { status: 400, message: 'Cannot demote the last super admin' },
+  ADMIN_014: { status: 400, message: 'Cannot deactivate or delete the last active super admin' },
+  ADMIN_015: { status: 400, message: 'Cannot delete your own account' },
 
   // Job errors
   JOB_001: { status: 403, message: 'Cannot apply to jobs until your profile is verified' },
@@ -89,6 +91,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_018: { status: 400, message: 'Too many items selected for bulk delete — narrow your search first' },
   JOB_019: { status: 400, message: 'Only a pending-review requirement can be approved' },
   JOB_020: { status: 400, message: 'Invalid close reason value' },
+  JOB_021: { status: 400, message: 'Already pending review' },
 
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },
