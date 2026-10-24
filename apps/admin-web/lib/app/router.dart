@@ -54,6 +54,32 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+  // Bookmarkable detail URLs: /jobs/<id> and /requirements/<id> open the
+  // Jobs screen with that item's detail dialog already showing. The screen's
+  // own route is still named '/jobs' so closing the dialog leaves the URL at
+  // the list.
+  final name = settings.name ?? '';
+  if (name.startsWith('/jobs/') && name.length > '/jobs/'.length) {
+    final id = name.substring('/jobs/'.length);
+    return MaterialPageRoute(
+      settings: const RouteSettings(name: '/jobs'),
+      builder: (context) => AdminJobsScreen(openJobId: id),
+    );
+  }
+  if (name.startsWith('/requirements/') && name.length > '/requirements/'.length) {
+    final id = name.substring('/requirements/'.length);
+    return MaterialPageRoute(
+      settings: const RouteSettings(name: '/jobs'),
+      builder: (context) => AdminJobsScreen(openRequirementId: id),
+    );
+  }
+  if (name.startsWith('/caregivers/') && name.length > '/caregivers/'.length) {
+    final id = name.substring('/caregivers/'.length);
+    return MaterialPageRoute(
+      settings: settings,
+      builder: (context) => CaregiverDetailScreen(profileId: id),
+    );
+  }
   switch (settings.name) {
     case '/jobs':
       return MaterialPageRoute(
@@ -66,9 +92,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
             CaregiverListScreen(initialStatus: settings.arguments as String?),
       );
     case '/caregiver-detail':
+      // Existing callers push this name with the profile id as an argument;
+      // naming the route /caregivers/<id> is what gives the page its own
+      // bookmarkable URL (also handled directly above for a pasted link).
+      final profileId = settings.arguments as String;
       return MaterialPageRoute(
-        builder: (context) =>
-            CaregiverDetailScreen(profileId: settings.arguments as String),
+        settings: RouteSettings(name: '/caregivers/$profileId', arguments: profileId),
+        builder: (context) => CaregiverDetailScreen(profileId: profileId),
       );
     case '/audit-logs':
       final args = settings.arguments;

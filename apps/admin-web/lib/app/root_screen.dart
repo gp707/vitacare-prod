@@ -40,6 +40,12 @@ const _restorableRoutes = {
   '/insights',
 };
 
+/// `/jobs/<id>`, `/requirements/<id>` and `/caregivers/<id>` — bookmarkable detail URLs whose
+/// id travels in the path itself, so unlike the argument-only detail routes
+/// above they can be restored from a bare URL.
+bool _isDetailDeepLink(String route) =>
+    RegExp(r'^/(jobs|requirements|caregivers)/[^/]+$').hasMatch(route);
+
 /// Checks for a stored session and redirects to /login, or back to
 /// whatever page the admin was on before a refresh (falling back to
 /// /dashboard if that page isn't safely restorable — see
@@ -73,7 +79,9 @@ class _RootScreenState extends ConsumerState<RootScreen> {
         ref.read(sidebarBadgeCountsProvider.notifier).load();
         final restoreRoute = widget.initialDeepLinkRoute;
         final target =
-            restoreRoute != null && _restorableRoutes.contains(restoreRoute)
+            restoreRoute != null &&
+                    (_restorableRoutes.contains(restoreRoute) ||
+                        _isDetailDeepLink(restoreRoute))
                 ? restoreRoute
                 : '/dashboard';
         Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);

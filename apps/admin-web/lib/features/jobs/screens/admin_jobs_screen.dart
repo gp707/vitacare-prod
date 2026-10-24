@@ -30,7 +30,18 @@ import '../widgets/job_read_only_detail_dialog.dart';
 class AdminJobsScreen extends ConsumerStatefulWidget {
   final JobsScreenInitialFilter? initialFilter;
 
-  const AdminJobsScreen({super.key, this.initialFilter});
+  /// Set when the page was reached via a bookmarkable `/jobs/<id>` or
+  /// `/requirements/<id>` URL — the matching read-only detail dialog opens
+  /// once the screen is up.
+  final String? openJobId;
+  final String? openRequirementId;
+
+  const AdminJobsScreen({
+    super.key,
+    this.initialFilter,
+    this.openJobId,
+    this.openRequirementId,
+  });
 
   @override
   ConsumerState<AdminJobsScreen> createState() => _AdminJobsScreenState();
@@ -172,6 +183,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load();
       _loadPosters();
+      final jobId = widget.openJobId;
+      final requirementId = widget.openRequirementId;
+      if (jobId != null) {
+        _openDetailDialog(jobId);
+      } else if (requirementId != null) {
+        _viewRequirementDetailById(requirementId);
+      }
     });
   }
 
@@ -319,18 +337,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   /// Opened by tapping a job row — full detail, read-only, with an Edit
   /// button handing off to the existing _openEditDialog flow.
-  Future<void> _openDetailDialog(JobModel job) async {
+  Future<void> _openDetailDialog(String jobId) async {
     try {
       final (fullJob, _) =
-          await ref.read(adminJobsRepositoryProvider).getDetail(job.id);
+          await ref.read(adminJobsRepositoryProvider).getDetail(jobId);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
+        // A named route is what puts the job's own bookmarkable URL in the
+        // browser's address bar while the dialog is open.
+        routeSettings: RouteSettings(name: '/jobs/$jobId'),
         builder: (dialogContext) => JobReadOnlyDetailDialog(
           job: fullJob,
           onEdit: () {
             Navigator.of(dialogContext).pop();
-            _openEditDialog(job);
+            _openEditDialog(fullJob);
           },
         ),
       );
@@ -606,10 +627,25 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   /// Row tap opens the full detail read-only; its own Edit button (always
   /// offered, any status) hands off to _editRequirement.
+  Future<void> _viewRequirementDetailById(String id) async {
+    try {
+      final (requirement, _) = await ref
+          .read(adminOrganisationRequirementsRepositoryProvider)
+          .getDetail(id);
+      if (mounted) await _viewRequirementDetail(requirement);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   Future<void> _viewRequirementDetail(
       AdminOrganisationRequirement requirement) async {
     await showDialog<void>(
       context: context,
+      routeSettings: RouteSettings(name: '/requirements/${requirement.id}'),
       builder: (dialogContext) => RequirementReadOnlyDialog(
         requirement: requirement,
         onEdit: () {
@@ -1023,7 +1059,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                       final row = switch (entry) {
                         _JobEntry(:final job) => _JobRow(
                             job: job,
-                            onTap: () => _openDetailDialog(job),
+                            onTap: () => _openDetailDialog(job.id),
                             onClose: job.status == JobStatus.active
                                 ? () => _close(job)
                                 : null,
