@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/providers.dart';
 import '../../../core/duty_requirements/duty_requirements_repository.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// A small ⓘ info button placed next to the "Hours Care Needed" dropdown on
 /// nursenow-app's Individual Post/Edit Requirement forms — tapping it shows
@@ -34,13 +35,16 @@ class DutyRequirementsInfoButton extends ConsumerWidget {
           : 'What to arrange for the nurse',
       onPressed: selected == null
           ? null
-          : () => showDialog(
+          : () {
+              Analytics.tapHere('duty_requirements_info');
+              showDialog(
                 context: context,
                 builder: (_) => DutyRequirementsDialog(
                   dutyType: selected,
                   repository: ref.read(dutyRequirementsRepositoryProvider),
                 ),
-              ),
+              );
+            },
     );
   }
 }

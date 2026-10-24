@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/network/api_exception.dart';
 import '../core/providers.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// "Delete My Account" on the shared Profile screen — irreversible, so
 /// this re-collects the PIN as a re-auth step before calling whichever of
@@ -29,6 +30,7 @@ Future<bool> showDeleteAccountDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (dialogContext, setState) {
         Future<void> submit() async {
+          Analytics.tapHere('delete_account_confirm');
           final code = codeController.text.trim();
           if (code.length != 4) {
             setState(() => errorMessage = 'Enter your 4-digit PIN');

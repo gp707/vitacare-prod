@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/text_scale/text_scale_provider.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Quick-tap accessibility control — shown in every main screen's AppBar
 /// alongside RateCardButton/WhatsAppHelpButton, same placement convention.
@@ -26,7 +27,10 @@ class TextZoomButton extends ConsumerWidget {
       child: Tooltip(
         message: 'Text Size',
         child: ElevatedButton(
-          onPressed: () => ref.read(textScaleProvider.notifier).cycleNext(),
+          onPressed: () {
+            Analytics.tapHere('text_size');
+            ref.read(textScaleProvider.notifier).cycleNext();
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,

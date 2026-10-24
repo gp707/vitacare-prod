@@ -8,6 +8,7 @@ import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/special_skills_char_limit_note.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Edits the org-owned fields of the org's own requirement — every field
 /// there is, since admin owns none of them (approval is a pure
@@ -98,6 +99,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   }
 
   Future<void> _handleSubmitPressed() async {
+    Analytics.tap('organisation', 'edit_requirement', 'save_changes');
     if (_saving) return;
     if (!_canSubmit) {
       setState(() => _showValidationErrors = true);

@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/providers.dart';
 import '../core/rate_card/rate_card_repository.dart';
 import 'scope_of_work_button.dart' show tierIcon;
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Persistent salary-guidance entry point — shown in every main screen's
 /// AppBar for an Individual (patient/family) session, same placement
@@ -31,10 +32,13 @@ class RateCardButton extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ElevatedButton(
-        onPressed: () => showDialog(
-          context: context,
-          builder: (_) => _RateCardDialog(repository: ref.read(rateCardRepositoryProvider)),
-        ),
+        onPressed: () {
+          Analytics.tapHere('rate_card');
+          showDialog(
+            context: context,
+            builder: (_) => _RateCardDialog(repository: ref.read(rateCardRepositoryProvider)),
+          );
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.success,
           foregroundColor: Colors.white,

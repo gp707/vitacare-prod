@@ -14,6 +14,7 @@ export interface UserRecord {
   is_active: boolean;
   fcm_token: string | null;
   deleted_at: Date | null;
+  last_seen_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -29,6 +30,14 @@ export interface CreateUserInput {
 @Injectable()
 export class UsersRepository {
   constructor(private readonly db: DatabaseService) {}
+
+  /** Stamps "this account just made an authenticated request" — see
+   *  migration 084 and JwtAuthGuard.touchLastSeen (which throttles calls to
+   *  this, so it isn't a write per request). Deliberately leaves
+   *  updated_at alone: being active is not a profile edit. */
+  async touchLastSeen(userId: string): Promise<void> {
+    await this.db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
+  }
 
   /** Phone is unique per app bucket, not globally (see migration 045) —
    *  caregiver ("NurseJobs"), individual+organisation ("NurseNow"), and

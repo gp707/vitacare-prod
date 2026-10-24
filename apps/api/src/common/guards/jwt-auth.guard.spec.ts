@@ -13,11 +13,11 @@ function makeContext(headers: Record<string, string>): ExecutionContext {
 describe('JwtAuthGuard', () => {
   const secret = 'test-secret';
   const configService = { getOrThrow: () => secret } as any;
-  let usersRepo: { findById: jest.Mock };
+  let usersRepo: { findById: jest.Mock; touchLastSeen: jest.Mock };
   let guard: JwtAuthGuard;
 
   beforeEach(() => {
-    usersRepo = { findById: jest.fn() };
+    usersRepo = { findById: jest.fn(), touchLastSeen: jest.fn().mockResolvedValue(undefined) };
     guard = new JwtAuthGuard(configService, usersRepo as any);
   });
 
@@ -133,6 +133,50 @@ describe('JwtAuthGuard', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+  });
+
+  describe('last-seen tracking (Insights)', () => {
+    const makeCtx = (token: string) => {
+      const request: any = { headers: { authorization: `Bearer ${token}` } };
+      return { switchToHttp: () => ({ getRequest: () => request }) } as unknown as ExecutionContext;
+    };
+    const tokenFor = (sub: string) => jwt.sign({ sub, role: 'caregiver', phone: '+919876543210' }, secret, { expiresIn: 3600 });
+
+    it('stamps last_seen_at on an authenticated request', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'u1', is_active: true });
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      expect(usersRepo.touchLastSeen).toHaveBeenCalledWith('u1');
+    });
+
+    it('does not stamp again for the same user inside the throttle window', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'u1', is_active: true });
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      expect(usersRepo.touchLastSeen).toHaveBeenCalledTimes(1);
+    });
+
+    it('stamps each distinct user independently', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'x', is_active: true });
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      await guard.canActivate(makeCtx(tokenFor('u2')));
+      expect(usersRepo.touchLastSeen).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not stamp a request that is rejected (deleted/deactivated account)', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'u1', is_active: false });
+      await expect(guard.canActivate(makeCtx(tokenFor('u1')))).rejects.toMatchObject({ code: 'AUTH_004' });
+      expect(usersRepo.touchLastSeen).not.toHaveBeenCalled();
+    });
+
+    it('never fails the request when the stamp itself fails, and retries on the next request', async () => {
+      usersRepo.findById.mockResolvedValue({ id: 'u1', is_active: true });
+      usersRepo.touchLastSeen.mockRejectedValueOnce(new Error('db down'));
+      await expect(guard.canActivate(makeCtx(tokenFor('u1')))).resolves.toBe(true);
+      await new Promise((resolve) => setImmediate(resolve));
+      await guard.canActivate(makeCtx(tokenFor('u1')));
+      expect(usersRepo.touchLastSeen).toHaveBeenCalledTimes(2);
     });
   });
 });

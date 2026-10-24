@@ -37,6 +37,8 @@ import { CaregiverMessagesRepository } from './repositories/caregiver-messages.r
 import { AuditLogRetentionRepository } from './repositories/audit-log-retention.repository';
 import { ErrorLogsRepository } from './repositories/error-logs.repository';
 import { RequestStatsRepository } from './repositories/request-stats.repository';
+import { AppEventsRepository } from './repositories/app-events.repository';
+import { InsightsRepository } from './repositories/insights.repository';
 
 const repositories = [
   UsersRepository,
@@ -76,6 +78,8 @@ const repositories = [
   AuditLogRetentionRepository,
   ErrorLogsRepository,
   RequestStatsRepository,
+  AppEventsRepository,
+  InsightsRepository,
 ];
 
 @Global()

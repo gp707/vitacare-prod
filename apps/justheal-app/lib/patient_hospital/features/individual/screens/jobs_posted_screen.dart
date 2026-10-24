@@ -14,6 +14,7 @@ import '../data/individual_repository.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
 // with every real language: picking a real language drops this, picking
@@ -99,6 +100,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   }
 
   Future<void> _accept(String jobId, String applicationId) async {
+    Analytics.tap('individual', 'requirement_posted', 'accept_candidate');
     setState(() => _decidingApplicationId.add(applicationId));
     try {
       await ref.read(individualRepositoryProvider).decideApplication(
@@ -117,6 +119,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// dialog's Confirm button stays disabled until something is typed, so
   /// there's no way to submit a reject without one.
   Future<void> _rejectWithReason(String jobId, String applicationId) async {
+    Analytics.tap('individual', 'requirement_posted', 'reject_candidate');
     final controller = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
@@ -167,6 +170,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// The single candidate currently under review, per the forced
   /// one-at-a-time flow — see _ApplicantsSection.
   void _viewProfile(String jobId, String applicationId) {
+    Analytics.tap('individual', 'requirement_posted', 'view_candidate_profile');
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CaregiverProfileViewScreen(
@@ -185,6 +189,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// irreversible and, when candidates are involved, notifies them by
   /// rejecting their application.
   Future<void> _cancelRequirement(JobModel requirement) async {
+    Analytics.tap('individual', 'requirement_posted', 'cancel_requirement');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -224,6 +229,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// dialog needed (unlike cancel, this isn't destructive), matching
   /// Organisation's own "Unhide and Make it Live" action.
   Future<void> _reactivateRequirement(JobModel requirement) async {
+    Analytics.tap('individual', 'requirement_posted', 'make_active_again');
     try {
       await ref
           .read(individualRepositoryProvider)
@@ -864,6 +870,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   }
 
   Future<void> _save() async {
+    Analytics.tap('individual', 'requirement_posted', 'save_requirement_edit');
     setState(() {
       _saving = true;
       _error = null;

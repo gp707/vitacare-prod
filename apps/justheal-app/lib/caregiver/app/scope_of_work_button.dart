@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/providers.dart';
 import '../core/scope_of_work/scope_of_work_repository.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Per-job entry point (not an AppBar action like RateCardButton/
 /// WhatsAppHelpButton — this lives inline on a job card, since which tier
@@ -21,13 +22,16 @@ class ScopeOfWorkButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tier = deriveCareTier(careReceiver);
     return OutlinedButton.icon(
-      onPressed: () => showDialog(
-        context: context,
-        builder: (_) => ScopeOfWorkDialog(
-          tier: tier,
-          repository: ref.read(scopeOfWorkRepositoryProvider),
-        ),
-      ),
+      onPressed: () {
+        Analytics.tapHere('scope_of_work');
+        showDialog(
+          context: context,
+          builder: (_) => ScopeOfWorkDialog(
+            tier: tier,
+            repository: ref.read(scopeOfWorkRepositoryProvider),
+          ),
+        );
+      },
       icon: const Icon(Icons.checklist, size: 16),
       label: const Text('Scope of Work'),
       style: OutlinedButton.styleFrom(

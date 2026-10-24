@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
+import '../../analytics/analytics.dart';
+import '../core/providers.dart';
+
 import '../core/connectivity/connectivity_banner.dart';
 import '../core/navigation/navigator_key.dart';
 import '../features/auth/state/session_notifier.dart';
 import '../features/auth/state/session_state.dart';
 import 'package:nursenow_app/caregiver/app/app.dart' show CaregiverSessionWatcher;
+import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
 import 'pinch_to_zoom_wrapper.dart';
 import 'router.dart';
 
@@ -38,7 +42,58 @@ class SessionWatcher extends ConsumerWidget {
   }
 }
 
+/// Which part of the app a route belongs to, for usage analytics. Caregiver
+/// routes are namespaced (`/caregiver/...`); the host's own shared routes
+/// (`/profile`) belong to the individual or organisation flow depending on
+/// who is logged in.
+String analyticsFlowForRoute(String name, {String? role}) {
+  if (name.startsWith('/caregiver')) return Analytics.caregiverFlow;
+  if (name == '/' || name == '/login' || name == '/register') return 'auth';
+  if (name.startsWith('/org-')) return 'organisation';
+  if (role == 'organisation') return 'organisation';
+  if (role == 'individual') return 'individual';
+  return 'auth';
+}
+
+String _flowForRoute(String name) {
+  String? role;
+  final context = navigatorKey.currentContext;
+  if (context != null) {
+    final session = ProviderScope.containerOf(context, listen: false).read(sessionProvider);
+    if (session is SessionAuthenticated) role = session.role;
+  }
+  return analyticsFlowForRoute(name, role: role);
+}
+
+/// Starts usage analytics once, wiring each flow's own API client (so an
+/// event is attributed to whichever session — individual/organisation or
+/// caregiver — it came from). Renders nothing itself.
+class AnalyticsBootstrap extends ConsumerStatefulWidget {
+  final Widget child;
+
+  const AnalyticsBootstrap({super.key, required this.child});
+
+  @override
+  ConsumerState<AnalyticsBootstrap> createState() => _AnalyticsBootstrapState();
+}
+
+class _AnalyticsBootstrapState extends ConsumerState<AnalyticsBootstrap> {
+  @override
+  void initState() {
+    super.initState();
+    Analytics.initWithDio(
+      hostDio: ref.read(apiClientProvider).dio,
+      caregiverDio: ref.read(caregiver.apiClientProvider).dio,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class NurseNowApp extends StatelessWidget {
+  static final _analyticsObserver = AnalyticsNavigatorObserver(flowFor: _flowForRoute);
+
   /// The route the browser's URL/hash actually pointed at when the page
   /// loaded (captured in main() before runApp) — threaded down to
   /// SplashScreen so a web page refresh can restore the page the account
@@ -63,15 +118,18 @@ class NurseNowApp extends StatelessWidget {
         fontFamily: AppTypography.fontFamily,
       ),
       navigatorKey: navigatorKey,
+      navigatorObservers: [_analyticsObserver],
       initialRoute: '/',
       routes: buildRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
       // Both session watchers are independent — each only listens to its
       // own flow's sessionProvider (this app's own Individual/Organisation
       // session vs. the ported caregiver flow's own session) and redirects
       // only when its own flow logs out, never the other's.
-      builder: (context, child) => SessionWatcher(
-        child: CaregiverSessionWatcher(
-          child: ConnectivityBanner(child: PinchToZoomWrapper(child: child!)),
+      builder: (context, child) => AnalyticsBootstrap(
+        child: SessionWatcher(
+          child: CaregiverSessionWatcher(
+            child: ConnectivityBanner(child: PinchToZoomWrapper(child: child!)),
+          ),
         ),
       ),
     );

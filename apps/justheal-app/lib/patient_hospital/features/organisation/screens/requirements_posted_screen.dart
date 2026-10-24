@@ -14,6 +14,7 @@ import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import 'post_organisation_requirement_screen.dart';
 import 'edit_organisation_requirement_screen.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// An organisation's full requirement history — unlike Individual, there is
 /// no one-live-at-a-time limit, so "Post a Requirement" is always
@@ -81,6 +82,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   }
 
   Future<void> _accept(String requirementId, String applicationId) async {
+    Analytics.tap('organisation', 'requirements_posted', 'accept_candidate');
     setState(() => _decidingApplicationId.add(applicationId));
     try {
       await ref.read(organisationRepositoryProvider).decideApplication(requirementId, applicationId, 'accepted');
@@ -97,6 +99,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// there's no way to submit a reject without one. Used both for declining
   /// an undecided candidate and for undoing a prior acceptance.
   Future<void> _rejectWithReason(String requirementId, String applicationId) async {
+    Analytics.tap('organisation', 'requirements_posted', 'reject_candidate');
     final controller = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
@@ -141,6 +144,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// is a free list — any applicant's profile can be viewed, not just one
   /// at a time.
   void _viewProfile(String requirementId, String applicationId) {
+    Analytics.tap('organisation', 'requirements_posted', 'view_candidate_profile');
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CaregiverProfileViewScreen(
@@ -152,6 +156,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   }
 
   Future<void> _postRequirement() async {
+    Analytics.tap('organisation', 'requirements_posted', 'post_requirement');
     final posted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const PostOrganisationRequirementScreen()),
     );
@@ -162,6 +167,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// active/closed) — only gated on there being no active application, same
   /// as Individual's own EditRequirementScreen entry point.
   Future<void> _editRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('organisation', 'requirements_posted', 'edit_requirement');
     final edited = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditOrganisationRequirementScreen(requirement: requirement)),
     );
@@ -175,6 +181,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// stays exactly as they were: still visible, still contactable, and can
   /// still be accepted or rejected afterward.
   Future<void> _cancelRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('organisation', 'requirements_posted', 'hide_requirement');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -209,6 +216,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// vetted the content and cancelling never meant more than "stop taking
   /// new applications for now".
   Future<void> _reactivateRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('organisation', 'requirements_posted', 'unhide_requirement');
     try {
       await ref.read(organisationRepositoryProvider).reactivateRequirement(requirement.id);
       await _load();
@@ -221,6 +229,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   /// Individual, there is no one-live-limit to gate this on, so it's always
   /// offered.
   Future<void> _postSimilarRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('organisation', 'requirements_posted', 'post_similar_requirement');
     final posted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => PostOrganisationRequirementScreen(cloneFrom: requirement)),
     );

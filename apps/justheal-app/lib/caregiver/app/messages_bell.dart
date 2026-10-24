@@ -8,6 +8,7 @@ import '../features/jobs/data/caregiver_messages_logic.dart';
 import 'rate_card_button.dart';
 import 'text_zoom_button.dart';
 import 'whatsapp_help_button.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Text Size + Rate Card + Help sit flush right, immediately next to the
 /// bell (no longer centered in the AppBar — that was an earlier iteration,
@@ -139,6 +140,7 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
   }
 
   void _openOverlay() {
+    Analytics.tapHere('messages_bell');
     final messages = _messages;
     final error = _error;
     // Mutated in place as rows are tapped — a local snapshot (not re-read

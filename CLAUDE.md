@@ -1169,6 +1169,52 @@ as the selection UI rather than building a new one.
   editable after composing. This screen is read/cancel-only — composing a new notification only
   ever happens via `RecipientCartBar` from one of the three list screens, never from here.
 
+## Admin Insights (activity, usage, drop-off)
+
+admin-web's **Insights** screen (`/insights`, sidebar item right after Error Logs, any admin) answers
+"who is using the app and where do people drop off": summary cards plus five tabs — **Active users**
+(name/phone/display id/last active, windows 24 h / 48 h / 7 d, optional role filter), **Most used
+buttons** (also screens; Today / 7 d / 30 d, optional flow filter), **Never came back** (registered
+≥ 24/48/168 h ago and not seen since), **No candidate accepted** (patients/families and
+organisations whose postings received applicants but none was ever accepted), and **Caregivers not
+applied** (registered, never applied to a job or organisation requirement). Every account row opens
+that account's own detail screen (same per-role routing as Tickets/Error Logs).
+
+- **Two new data sources, migration 084** (purely additive, safe to apply before the backend deploy):
+  `users.last_seen_at` and an `app_events` table. **Why `last_seen_at` exists:** caregiver/individual/
+  organisation tokens never expire, so a user who logged in once and uses the app daily never produces
+  another `login` audit row — audit logs can't answer "who was active in the last 24 h". `JwtAuthGuard`
+  stamps it fire-and-forget, throttled to once per 5 min per user (`touchLastSeen`; a failed stamp never
+  fails the request and is retried on the next one). It was **backfilled from each user's latest audit
+  row, falling back to `created_at`**, so "Never came back" is meaningful from day one — but an account
+  that uses the app without ever triggering an audited action looks idle until its next request after
+  the backend deploy. "Never came back" = `last_seen_at <= created_at + 10 min`.
+- **Button/screen telemetry.** `POST /events` (`EventsController`, `OptionalJwtAuthGuard`: works before
+  login too, so the login/registration funnel is visible; a bad/missing token is anonymous, never an
+  error) takes up to 25 events `{kind: 'screen'|'tap', flow, screen, action?, occurred_at?}` with strictly
+  pattern-validated identifiers (nothing a user typed can ride along). Device timestamps are clamped to
+  "last 24 h, never future" by `InsightsService`. Rows older than 90 days are purged daily (3:30 AM IST).
+  `app_events.user_id` is `ON DELETE CASCADE`.
+- **App side** (`lib/analytics/analytics.dart`, one facade for both trees): `Analytics.tap(flow, screen,
+  action)` for screen-specific buttons, `Analytics.tapHere(action)` for widgets shared across screens
+  (Rate Card, Help, A+, messages bell, Scope of Work, logout, Forgot PIN…) which are attributed to the
+  current location kept by `AnalyticsNavigatorObserver`. Events are buffered and sent every 15 s, when 25
+  accumulate, and on app pause; bounded to 200 per channel (oldest dropped while offline); every failure
+  swallowed; **a complete no-op until `Analytics.init`** (so no widget test needs setup). There are **two
+  channels** because the merged binary has two independent sessions — `flow == 'caregiver'` goes through
+  the caregiver tree's own API client/token, everything else through the host's. Flows: `auth`,
+  `individual`, `organisation`, `caregiver` (`analyticsFlowForRoute` in `patient_hospital/app/app.dart`;
+  the shared `/profile` route follows the logged-in role). The observer counts only named **`PageRoute`s**
+  (opening/closing a dropdown, dialog or bottom sheet is not a screen view) and de-duplicates the same
+  screen within 2 s (the splash screen and `SessionWatcher` can both redirect to `/login`). Unnamed pushed
+  screens aren't reported as screens; their buttons still report taps.
+- **Known limits.** Activity/button numbers only exist from the first release that ships the tracker —
+  older app builds report nothing (a 404/old backend is swallowed, verified). Pre-login taps have no
+  countable people, so the report shows a dash. "No candidate accepted" lists posters who *received*
+  applicants; a posting nobody applied to is deliberately not listed.
+- **Deploy order:** apply migration 084 (done on the shared DB) → deploy the backend → deploy admin-web →
+  ship the app build. The admin screen works (with empty usage tabs) before the app ships.
+
 ## Support Tickets ("Forgot PIN")
 
 There's no OTP/email PIN reset (see "No OTP" above — phone login has no OTP, and this doesn't

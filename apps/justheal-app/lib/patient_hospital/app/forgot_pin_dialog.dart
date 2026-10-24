@@ -5,6 +5,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../core/network/api_exception.dart';
 import '../core/providers.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// "Forgot PIN?" on the login screen — there's no OTP/email PIN reset, so
 /// this creates a support ticket instead (CLAUDE.md's Support Tickets
@@ -28,6 +29,7 @@ Future<void> showForgotPinDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (dialogContext, setState) {
         Future<void> submit() async {
+          Analytics.tapHere('forgot_pin_create_ticket');
           final digitsOnly = phoneController.text.trim();
           if (!Validators.isValidPhone('+91$digitsOnly')) {
             setState(() => errorMessage = 'Enter a valid 10-digit mobile number');

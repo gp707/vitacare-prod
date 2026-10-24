@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Persistent "reach out for help" entry point — shown on every screen (see
 /// each screen's AppBar `actions`/LoginScreen's own placement, since it has
@@ -40,6 +41,7 @@ class WhatsAppHelpButton extends StatelessWidget {
   });
 
   Future<void> _open(BuildContext context) async {
+    Analytics.tapHere('help_whatsapp');
     final uri = Uri.parse('https://wa.me/$phoneNumber');
     bool launched;
     try {

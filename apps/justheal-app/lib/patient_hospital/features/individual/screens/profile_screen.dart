@@ -9,6 +9,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Identity + self-service account settings — shared by both Individual and
 /// Organisation accounts (branches internally on `session.isOrganisation`
@@ -97,12 +98,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    Analytics.tapHere('logout');
     final navigator = Navigator.of(context);
     await ref.read(sessionProvider.notifier).logout();
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   Future<void> _deleteAccount(bool isOrganisation) async {
+    Analytics.tapHere('delete_account');
     final deleted = await showDeleteAccountDialog(context, ref,
         isOrganisation: isOrganisation);
     if (!deleted || !mounted) return;
@@ -620,6 +623,7 @@ class _InlinePinFieldState extends State<_InlinePinField> {
   }
 
   Future<void> _save() async {
+    Analytics.tapHere('save_profile_edit');
     final code = _controller.text.trim();
     if (!Validators.isValidCode(code)) {
       setState(() => _error = 'PIN must be exactly 4 digits');

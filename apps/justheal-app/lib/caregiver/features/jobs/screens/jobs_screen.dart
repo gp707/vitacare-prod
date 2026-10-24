@@ -8,6 +8,7 @@ import '../../../app/messages_bell.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/job_detail_card.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Sentinel category value for a plain admin/individual-posted job (the
 /// `jobs` table) — distinct from every `OrganisationType` value, which
@@ -79,6 +80,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 
   Future<bool> _applyToJob(JobModel job, String status) async {
+    Analytics.tap('caregiver', 'jobs', status == JobApplicationStatus.applied ? 'apply' : 'reject_or_withdraw');
     setState(() => _applyingId.add(job.id));
     try {
       await ref.read(jobsRepositoryProvider).applyToJob(job.id, status);
@@ -93,6 +95,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 
   Future<bool> _applyToRequirement(OrganisationRequirementModel requirement, String status) async {
+    Analytics.tap('caregiver', 'jobs', status == JobApplicationStatus.applied ? 'apply_requirement' : 'reject_or_withdraw_requirement');
     setState(() => _applyingId.add(requirement.id));
     try {
       await ref.read(organisationOpeningsRepositoryProvider).apply(requirement.id, status);

@@ -14,6 +14,7 @@ import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 import '../widgets/job_progress_stepper.dart';
 import '../widgets/job_status_chip.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// "My Jobs" — every job/requirement this caregiver has ever gone for,
 /// split into 3 sub-tabs matching the stage of that application: Applied
@@ -132,6 +133,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   /// post-apply self-declines are called "Reject"/"Rejected" now, so the
   /// Past tab's tag and filter chip name match exactly.
   Future<void> _rejectJob(JobModel job) async {
+    Analytics.tap('caregiver', 'my_jobs', 'reject_job');
     if (!await _confirmReject(jobDisplayId(job))) return;
     setState(() => _busyId.add(job.id));
     try {
@@ -145,6 +147,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   }
 
   Future<void> _rejectRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('caregiver', 'my_jobs', 'reject_requirement');
     if (!await _confirmReject(organisationJobDisplayId(requirement))) return;
     setState(() => _busyId.add(requirement.id));
     try {
@@ -222,6 +225,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
   /// completed). Labeled "Close", not "Reject" — the resulting status is
   /// 'completed' (work done).
   Future<void> _completeJob(JobModel job) async {
+    Analytics.tap('caregiver', 'my_jobs', 'close_job');
     final reason = await _showCloseReasonDialog(
       title: 'Close this job?',
       message:
@@ -255,6 +259,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
 
   /// Same as [_completeJob], for an organisation requirement.
   Future<void> _completeRequirement(OrganisationRequirementModel requirement) async {
+    Analytics.tap('caregiver', 'my_jobs', 'close_requirement');
     final reason = await _showCloseReasonDialog(
       title: 'Close this requirement?',
       message:

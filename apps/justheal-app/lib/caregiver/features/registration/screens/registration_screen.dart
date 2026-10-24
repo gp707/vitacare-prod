@@ -15,6 +15,7 @@ import '../../../core/providers.dart';
 import '../../../core/utils/image_compression.dart';
 import '../../../core/utils/upload_size_limit.dart';
 import '../../profile/data/profile_repository.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 // /preview, not /edit — a plain public read-only viewer that never prompts
 // for a Google account, unlike /edit which routes through the Docs editor
@@ -247,6 +248,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickAadhaar() async {
+    Analytics.tap('caregiver', 'registration', 'upload_aadhaar');
     final result = await FilePickerPlatform.instance.pickFiles();
     if (result.isEmpty) return;
     final picked = result.single;
@@ -266,6 +268,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickQualificationDoc() async {
+    Analytics.tap('caregiver', 'registration', 'upload_qualification');
     final result = await FilePickerPlatform.instance.pickFiles();
     if (result.isEmpty) return;
     final picked = result.single;
@@ -280,6 +283,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _pickOtherDoc() async {
+    Analytics.tap('caregiver', 'registration', 'upload_other_document');
     final result = await FilePickerPlatform.instance.pickFiles();
     if (result.isEmpty) return;
     final picked = result.single;
@@ -293,6 +297,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _openTerms() async {
+    Analytics.tap('caregiver', 'registration', 'open_terms');
     final uri = Uri.parse(_termsUrl);
     final launcher = widget.launcher;
     if (launcher != null) {
@@ -313,6 +318,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// With something missing, it flags every missing mandatory field red and
   /// jumps straight to the first one instead of submitting.
   Future<void> _handleSubmitPressed() async {
+    Analytics.tap('caregiver', 'registration', 'register');
     if (_loading) return;
     if (!_canSubmit) {
       setState(() => _showValidationErrors = true);

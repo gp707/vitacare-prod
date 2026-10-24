@@ -8,6 +8,7 @@ import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/special_skills_char_limit_note.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// The "exclusive" org posting form — this is the whole form. No About
 /// Patient section, no city/area/duty_type (every requirement inherits the
@@ -106,6 +107,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   }
 
   Future<void> _handleSubmitPressed() async {
+    Analytics.tap('organisation', 'post_requirement', 'submit_for_review');
     if (_saving) return;
     if (!_canSubmit) {
       setState(() => _showValidationErrors = true);

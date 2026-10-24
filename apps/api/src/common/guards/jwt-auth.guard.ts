@@ -25,9 +25,16 @@ interface CachedUserState {
 // every single request.
 const CACHE_TTL_MS = 30_000;
 
+// Minimum gap between `users.last_seen_at` writes for one account — the
+// Insights "active in the last 24h" report only needs minute-level
+// resolution, and this guard runs on every authenticated request, so an
+// unthrottled stamp would be a DB write per request.
+const LAST_SEEN_THROTTLE_MS = 5 * 60_000;
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly userStateCache = new Map<string, CachedUserState>();
+  private readonly lastSeenWrittenAt = new Map<string, number>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -66,8 +73,22 @@ export class JwtAuthGuard implements CanActivate {
       throw new AppException('AUTH_004');
     }
 
+    this.touchLastSeen(payload.sub);
+
     request.user = payload;
     return true;
+  }
+
+  /** Fire-and-forget, throttled per user — a failed/slow activity stamp must
+   *  never delay or fail the request that triggered it. */
+  private touchLastSeen(userId: string): void {
+    const last = this.lastSeenWrittenAt.get(userId);
+    if (last !== undefined && Date.now() - last < LAST_SEEN_THROTTLE_MS) return;
+    this.lastSeenWrittenAt.set(userId, Date.now());
+    void Promise.resolve(this.usersRepo.touchLastSeen(userId)).catch(() => {
+      // Retry on the next request instead of waiting out the throttle window.
+      this.lastSeenWrittenAt.delete(userId);
+    });
   }
 
   private async getUserState(userId: string): Promise<CachedUserState> {

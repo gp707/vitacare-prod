@@ -8,6 +8,7 @@ import '../features/individual/data/requirement_messages.dart';
 import 'rate_card_button.dart';
 import 'text_zoom_button.dart';
 import 'whatsapp_help_button.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Replaces the old dedicated Messages tab/screen: Text Size + Rate Card +
 /// Help sit flush right, immediately next to the bell (no longer centered
@@ -144,6 +145,7 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
   }
 
   void _openOverlay() {
+    Analytics.tapHere('messages_bell');
     final messages = _messages;
     final error = _error;
     // Mutated in place as rows are tapped — a local snapshot (not re-read

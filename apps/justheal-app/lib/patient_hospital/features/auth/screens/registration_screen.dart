@@ -16,6 +16,7 @@ import '../../individual/widgets/duty_requirements_button.dart';
 import '../../individual/widgets/section_box.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 // organisation_profiles.city accepts the existing 7 cities plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the
@@ -360,6 +361,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// themselves. Call after any change to _careDuration/_toiletAssistance/
   /// _feedingType/_medicalConditions.
   void _refreshSuggestedSalary() {
+    Analytics.tap('auth', 'registration', 'open_terms');
     if (_careDuration == null) return;
     final tier = deriveCareTier(_careReceiverForTierDerivation);
     final frequency = frequencyForCareDuration(_careDuration!);
@@ -480,6 +482,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// With something missing, it flags every missing mandatory field red and
   /// jumps straight to the first one instead of submitting.
   Future<void> _handleSubmitPressed() async {
+    Analytics.tap('auth', 'registration', _isOrganisation ? 'register_organisation' : 'post_requirement');
     if (_loading) return;
     if (!_canSubmit) {
       setState(() => _showValidationErrors = true);

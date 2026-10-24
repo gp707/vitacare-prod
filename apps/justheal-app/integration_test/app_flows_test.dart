@@ -62,7 +62,10 @@ Future<void> _launchFresh(WidgetTester tester) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
   app.main();
-  await _waitFor(tester, find.text('Log in'), reason: 'login screen after cold launch');
+  // A cold launch on a loaded emulator can take minutes (Firebase init, JIT
+  // warm-up), so this one wait is deliberately far more patient than the rest.
+  await _waitFor(tester, find.text('Log in'),
+      timeout: const Duration(seconds: 300), reason: 'login screen after cold launch');
 }
 
 /// Real device: entering text opens the soft keyboard, which covers the
@@ -187,7 +190,9 @@ Future<void> _deleteAccount(WidgetTester tester) async {
   await tester.enterText(find.widgetWithText(TextField, 'Current 4-digit PIN'), '0000');
   await _dismissKeyboard(tester);
   await tester.tap(find.text('Delete Forever'));
-  await _pumpFor(tester, const Duration(seconds: 4));
+  // Wait for the server's rejection (slow devices can take a while) rather
+  // than a fixed delay: the dialog shows a spinner while the request runs.
+  await _waitFor(tester, find.text('Invalid code'), reason: 'wrong-PIN error in the delete dialog');
   expect(find.text('Delete Forever'), findsOneWidget, reason: 'wrong PIN must not delete the account');
 
   // The field lost focus when the keyboard was dismissed; re-focus it first

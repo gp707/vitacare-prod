@@ -37,6 +37,7 @@ const _restorableRoutes = {
   '/push-notifications',
   '/tickets',
   '/error-logs',
+  '/insights',
 };
 
 /// Checks for a stored session and redirects to /login, or back to

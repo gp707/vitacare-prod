@@ -16,6 +16,7 @@ import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_r
 import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart' as caregiver_auth;
 import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
 import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Colors from this screen's redesign spec that don't already match
 /// vitacare_ui's shared AppColors palette (that palette is shared across
@@ -73,7 +74,10 @@ class _RegisterOptionRow extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            Analytics.tap('auth', 'login', 'register_as_${title.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}');
+            onTap();
+          },
           borderRadius: BorderRadius.circular(12),
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
@@ -162,6 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submitPin() async {
+    Analytics.tap('auth', 'login', 'log_in');
     if (!Validators.isValidPhone(_phone)) {
       setState(() => _errorMessage = 'Enter a valid 10-digit mobile number');
       return;
@@ -208,6 +213,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _sendOtp() async {
+    Analytics.tap('auth', 'login', 'send_otp');
     if (!Validators.isValidPhone(_phone)) {
       setState(() => _errorMessage = 'Enter a valid 10-digit mobile number');
       return;
@@ -228,6 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _verifyAndLogin() async {
+    Analytics.tap('auth', 'login', 'verify_otp');
     if (!Validators.isValidOtp(_otpController.text.trim())) {
       setState(() => _errorMessage = 'Enter the 6-digit code');
       return;
@@ -493,7 +500,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       Align(
         alignment: Alignment.centerRight,
         child: TextButton(
-          onPressed: () => showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim()),
+          onPressed: () {
+            Analytics.tap('auth', 'login', 'forgot_pin');
+            showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim());
+          },
           child: const Text('Forgot PIN?'),
         ),
       ),

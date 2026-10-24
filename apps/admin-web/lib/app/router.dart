@@ -18,6 +18,7 @@ import '../features/caregiver_messages/screens/caregiver_messages_screen.dart';
 import '../features/push_notifications/screens/push_notifications_screen.dart';
 import '../features/tickets/screens/tickets_screen.dart';
 import '../features/error_logs/screens/error_logs_screen.dart';
+import '../features/insights/screens/insights_screen.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
 /// /caregivers accepts an optional status filter, /jobs an optional
@@ -48,6 +49,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/push-notifications': (context) => const PushNotificationsScreen(),
     '/tickets': (context) => const TicketsScreen(),
     '/error-logs': (context) => const ErrorLogsScreen(),
+    '/insights': (context) => const InsightsScreen(),
   };
 }
 

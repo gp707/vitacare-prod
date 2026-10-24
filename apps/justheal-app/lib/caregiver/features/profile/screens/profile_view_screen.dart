@@ -13,6 +13,7 @@ import '../status_message.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/messages_bell.dart';
 import '../../../app/delete_account_dialog.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 const _reReviewStatuses = [
   VerificationStatus.available,
@@ -176,6 +177,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<void> _pickAndUploadSelfie() async {
+    Analytics.tap('caregiver', 'profile', 'upload_selfie');
     final picker = ImagePicker();
     // maxWidth/maxHeight cap the resolution the camera plugin itself
     // downsamples to — a profile/identity photo never needs full camera
@@ -210,6 +212,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<void> _pickAndUploadDocument(String documentType) async {
+    Analytics.tap('caregiver', 'profile', 'upload_document');
     final result = await FilePickerPlatform.instance.pickFiles();
     if (result.isEmpty) return;
     final picked = result.single;
@@ -252,6 +255,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<void> _logout() async {
+    Analytics.tap('caregiver', 'profile', 'logout');
     final navigator = Navigator.of(context);
     await ref.read(sessionProvider.notifier).logout();
     // JustHeal's own unified login, not the ported NurseJobs-only screen —
@@ -261,6 +265,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Future<void> _deleteAccount() async {
+    Analytics.tap('caregiver', 'profile', 'delete_account');
     final deleted = await showDeleteAccountDialog(context, ref);
     if (!deleted || !mounted) return;
     final navigator = Navigator.of(context);
@@ -902,6 +907,7 @@ class _EditablePinFieldState extends State<_EditablePinField> {
       });
 
   Future<void> _save() async {
+    Analytics.tap('caregiver', 'profile', 'save_profile_edit');
     final code = _controller.text.trim();
     setState(() {
       _saving = true;

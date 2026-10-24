@@ -9,6 +9,7 @@ import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 import '../../../app/route_for_status.dart';
 import '../../../app/forgot_pin_dialog.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Every caregiver sets their 4-digit code at registration (SPEC.md 3.1
 /// Stage 1), so login always requires phone + code — there's no more
@@ -64,6 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submitPin() async {
+    Analytics.tap('caregiver', 'login', 'log_in');
     if (!Validators.isValidPhone(_phone)) {
       setState(() => _errorMessage = 'Enter a valid 10-digit mobile number');
       return;
@@ -90,6 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _sendOtp() async {
+    Analytics.tap('caregiver', 'login', 'send_otp');
     if (!Validators.isValidPhone(_phone)) {
       setState(() => _errorMessage = 'Enter a valid 10-digit mobile number');
       return;
@@ -110,6 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _verifyAndLogin() async {
+    Analytics.tap('caregiver', 'login', 'verify_otp');
     if (!Validators.isValidOtp(_otpController.text.trim())) {
       setState(() => _errorMessage = 'Enter the 6-digit code');
       return;
@@ -254,7 +258,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       Align(
         alignment: Alignment.centerRight,
         child: TextButton(
-          onPressed: () => showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim()),
+          onPressed: () {
+            Analytics.tap('caregiver', 'login', 'forgot_pin');
+            showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim());
+          },
           child: const Text('Forgot PIN?'),
         ),
       ),
