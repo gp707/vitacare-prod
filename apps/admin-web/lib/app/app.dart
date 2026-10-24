@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'router.dart';
+import 'url_route_observer.dart';
 
 class AdminWebApp extends StatelessWidget {
   /// The route the browser's URL/hash actually pointed at when the page
@@ -31,6 +32,7 @@ class AdminWebApp extends StatelessWidget {
       initialRoute: '/',
       routes: buildRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
       onGenerateRoute: onGenerateRoute,
+      navigatorObservers: [UrlRouteObserver()],
     );
   }
 }

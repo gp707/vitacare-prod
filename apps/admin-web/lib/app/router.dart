@@ -35,11 +35,16 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/dashboard': (context) => const DashboardScreen(),
     '/admins': (context) => const AdminManagementScreen(),
     '/settings': (context) => const SettingsScreen(),
-    '/settings/rate-card': (context) => const SettingsScreen(initialTabIndex: 1),
-    '/settings/scope-of-work': (context) => const SettingsScreen(initialTabIndex: 2),
-    '/settings/duty-requirements': (context) => const SettingsScreen(initialTabIndex: 3),
-    '/settings/app-versions': (context) => const SettingsScreen(initialTabIndex: 4),
-    '/settings/maintenance': (context) => const SettingsScreen(initialTabIndex: 5),
+    '/settings/rate-card': (context) =>
+        const SettingsScreen(initialTabIndex: 1),
+    '/settings/scope-of-work': (context) =>
+        const SettingsScreen(initialTabIndex: 2),
+    '/settings/duty-requirements': (context) =>
+        const SettingsScreen(initialTabIndex: 3),
+    '/settings/app-versions': (context) =>
+        const SettingsScreen(initialTabIndex: 4),
+    '/settings/maintenance': (context) =>
+        const SettingsScreen(initialTabIndex: 5),
     '/settings/login': (context) => const SettingsScreen(initialTabIndex: 6),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
@@ -66,7 +71,8 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       builder: (context) => AdminJobsScreen(openJobId: id),
     );
   }
-  if (name.startsWith('/requirements/') && name.length > '/requirements/'.length) {
+  if (name.startsWith('/requirements/') &&
+      name.length > '/requirements/'.length) {
     final id = name.substring('/requirements/'.length);
     return MaterialPageRoute(
       settings: const RouteSettings(name: '/jobs'),
@@ -80,14 +86,16 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       builder: (context) => CaregiverDetailScreen(profileId: id),
     );
   }
-  if (name.startsWith('/patients-family/') && name.length > '/patients-family/'.length) {
+  if (name.startsWith('/patients-family/') &&
+      name.length > '/patients-family/'.length) {
     final id = name.substring('/patients-family/'.length);
     return MaterialPageRoute(
       settings: settings,
       builder: (context) => IndividualDetailScreen(userId: id),
     );
   }
-  if (name.startsWith('/rehab-hospitals/') && name.length > '/rehab-hospitals/'.length) {
+  if (name.startsWith('/rehab-hospitals/') &&
+      name.length > '/rehab-hospitals/'.length) {
     final id = name.substring('/rehab-hospitals/'.length);
     return MaterialPageRoute(
       settings: settings,
@@ -97,11 +105,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   switch (settings.name) {
     case '/jobs':
       return MaterialPageRoute(
+        settings: settings,
         builder: (context) => AdminJobsScreen(
             initialFilter: settings.arguments as JobsScreenInitialFilter?),
       );
     case '/caregivers':
       return MaterialPageRoute(
+        settings: settings,
         builder: (context) =>
             CaregiverListScreen(initialStatus: settings.arguments as String?),
       );
@@ -111,12 +121,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       // bookmarkable URL (also handled directly above for a pasted link).
       final profileId = settings.arguments as String;
       return MaterialPageRoute(
-        settings: RouteSettings(name: '/caregivers/$profileId', arguments: profileId),
+        settings:
+            RouteSettings(name: '/caregivers/$profileId', arguments: profileId),
         builder: (context) => CaregiverDetailScreen(profileId: profileId),
       );
     case '/audit-logs':
       final args = settings.arguments;
       return MaterialPageRoute(
+        settings: settings,
         builder: (context) => args is AuditLogsRouteArgs
             ? AuditLogsScreen(
                 initialTargetUserId: args.targetUserId,
@@ -128,13 +140,16 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     case '/individual-detail':
       final individualId = settings.arguments as String;
       return MaterialPageRoute(
-        settings: RouteSettings(name: '/patients-family/$individualId', arguments: individualId),
+        settings: RouteSettings(
+            name: '/patients-family/$individualId', arguments: individualId),
         builder: (context) => IndividualDetailScreen(userId: individualId),
       );
     case '/organisation-detail':
       final organisationId = settings.arguments as String;
       return MaterialPageRoute(
-        settings: RouteSettings(name: '/rehab-hospitals/$organisationId', arguments: organisationId),
+        settings: RouteSettings(
+            name: '/rehab-hospitals/$organisationId',
+            arguments: organisationId),
         builder: (context) => OrganisationDetailScreen(userId: organisationId),
       );
     default:

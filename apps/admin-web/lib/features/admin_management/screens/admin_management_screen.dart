@@ -89,6 +89,23 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                 child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
+                // The API rejects these with a bare "Invalid request body", so
+                // say which field is wrong before ever sending.
+                final phoneDigits = phoneController.text.trim();
+                final String? clientError =
+                    nameController.text.trim().isEmpty
+                        ? 'Enter the full name.'
+                        : !emailController.text.contains('@')
+                            ? 'Enter a valid email address.'
+                            : !RegExp(r'^[6-9]\d{9}$').hasMatch(phoneDigits)
+                                ? 'Phone must be a 10-digit Indian mobile number (no spaces).'
+                                : passwordController.text.length < 6
+                                    ? 'Password must be at least 6 characters.'
+                                    : null;
+                if (clientError != null) {
+                  setDialogState(() => dialogError = clientError);
+                  return;
+                }
                 try {
                   await ref.read(adminUsersRepositoryProvider).create(
                         email: emailController.text.trim(),
