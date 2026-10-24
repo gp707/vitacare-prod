@@ -536,6 +536,24 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     }
   }
 
+  Future<void> _remindRequirement(
+      AdminOrganisationRequirement requirement) async {
+    try {
+      await ref
+          .read(adminOrganisationRequirementsRepositoryProvider)
+          .remind(requirement.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Reminder sent')));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   /// Only offered for a pending_review requirement — declines it with a
   /// reason, which the organisation sees on their own requirement view. It
   /// never goes live.
@@ -1033,6 +1051,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                 requirement.status == JobStatus.pendingReview
                                     ? () => _rejectRequirement(requirement)
                                     : null,
+                            onRemind: requirement.status == JobStatus.active
+                                ? () => _remindRequirement(requirement)
+                                : null,
                             onViewApplicants: () =>
                                 _viewRequirementApplicants(requirement),
                           ),

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -39,6 +39,12 @@ export class AdminOrganisationRequirementsController {
     @ClientIp() ip: string | null,
   ) {
     return this.requirementsService.adminEditRequirement(user.sub, id, dto, ip);
+  }
+
+  @Post(':id/remind')
+  @HttpCode(HttpStatus.OK)
+  remind(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
+    return this.requirementsService.sendReminder(user.sub, id, ip);
   }
 
   @Patch(':id/reject')

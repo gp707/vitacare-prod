@@ -37,6 +37,9 @@ class RequirementRow extends StatelessWidget {
   /// Only supplied for a pending_review requirement — declines it, same as
   /// admin-posted jobs' own Reject action.
   final VoidCallback? onReject;
+  /// Only supplied for an active requirement — re-pushes it to caregivers,
+  /// same as admin-posted jobs' own Remind button.
+  final VoidCallback? onRemind;
   final VoidCallback onViewApplicants;
 
   const RequirementRow({
@@ -46,6 +49,7 @@ class RequirementRow extends StatelessWidget {
     required this.onEdit,
     required this.onApprove,
     required this.onReject,
+    required this.onRemind,
     required this.onViewApplicants,
   });
 
@@ -124,6 +128,12 @@ class RequirementRow extends StatelessWidget {
                       onPressed: onViewApplicants,
                       child: const Text('Applicants')),
                   TextButton(onPressed: onEdit, child: const Text('Edit')),
+                  if (onRemind != null)
+                    TextButton.icon(
+                      onPressed: onRemind,
+                      icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                      label: const Text('Remind'),
+                    ),
                   if (onApprove != null)
                     TextButton.icon(
                       onPressed: onApprove,

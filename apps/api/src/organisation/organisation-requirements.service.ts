@@ -521,6 +521,33 @@ export class OrganisationRequirementsService {
    *  re-broadcast. Unlike the org's own editRequirement, this is NOT
    *  blocked by an existing application (JOB_014) — admin may need to fix
    *  a field after caregivers have already applied. */
+  /** Re-broadcasts a push for a live requirement — the organisation-side
+   *  twin of JobsService.sendReminder. JOB_005 if it isn't active. */
+  async sendReminder(adminId: string, id: string, ipAddress: string | null) {
+    const requirement = await this.requirementsRepo.findById(id);
+    if (!requirement) throw new AppException('GEN_002');
+    if (requirement.status !== JobStatus.ACTIVE) throw new AppException('JOB_005');
+
+    const profile = await this.organisationProfilesRepo.findByUserId(requirement.posted_by);
+    const where = profile ? `${profile.area}, ${profile.city}` : 'your area';
+
+    await this.fcmService.sendToAllCaregivers(
+      'Reminder: Organisation Opening',
+      `A hospital/rehab in ${where} is looking for a caregiver | APPLY NOW BEFORE IT'S FILLED`,
+    );
+
+    await this.auditService.log({
+      userId: adminId,
+      action: AuditAction.JOB_REMINDER_SENT,
+      entityType: 'organisation_requirements',
+      entityId: id,
+      afterValue: { type_of_nurse: requirement.type_of_nurse },
+      ipAddress,
+    });
+
+    return { message: 'Reminder sent' };
+  }
+
   async adminEditRequirement(
     adminId: string,
     id: string,
