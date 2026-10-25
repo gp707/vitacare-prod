@@ -43,3 +43,34 @@ class ContactButtons extends StatelessWidget {
     );
   }
 }
+
+/// A phone number with its Call/WhatsApp buttons beside it — what list
+/// screens put in their existing Phone column/line, so reaching a person is
+/// one click from the list instead of a trip into their detail screen.
+/// [label], when set (the mobile card layout), prefixes it like
+/// `VitaListCard.kv` does.
+class PhoneWithContact extends StatelessWidget {
+  final String phone;
+  final String? label;
+
+  const PhoneWithContact({super.key, required this.phone, this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrap, not Row: on a narrow phone-width card the buttons drop to the
+    // next line instead of overflowing.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (label != null)
+          Text('$label: ',
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: AppTypography.small)),
+        Text(phone, style: label != null ? const TextStyle(fontSize: AppTypography.small) : null),
+        ContactButtons(phone: phone),
+      ],
+    );
+  }
+}

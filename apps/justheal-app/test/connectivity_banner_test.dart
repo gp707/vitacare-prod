@@ -41,7 +41,9 @@ void main() {
     expect(find.text('Registration Form'), findsOneWidget);
   });
 
-  testWidgets('shows the banner immediately when the interface itself reports no connection', (tester) async {
+  testWidgets(
+      'an interface report of no connection alone never shows the banner when the backend is reachable — '
+      'cold-start false "offline" flash', (tester) async {
     await _pump(
       tester,
       initialConnectivity: () async => [ConnectivityResult.none],
@@ -49,7 +51,38 @@ void main() {
       checkReachable: () async => true,
     );
 
+    expect(find.byType(VitaOfflineBanner), findsNothing);
+  });
+
+  testWidgets('shows the banner when the interface reports no connection and the probe also fails', (tester) async {
+    await _pump(
+      tester,
+      initialConnectivity: () async => [ConnectivityResult.none],
+      connectivityStream: const Stream.empty(),
+      checkReachable: () async => false,
+    );
+
     expect(find.byType(VitaOfflineBanner), findsOneWidget);
+  });
+
+  testWidgets('assumed online until the first probe finishes — no banner while it is still pending', (tester) async {
+    final probe = Completer<bool>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ConnectivityBanner(
+          initialConnectivity: () async => [ConnectivityResult.none],
+          connectivityStream: const Stream.empty(),
+          checkReachable: () => probe.future,
+          child: const Scaffold(body: Text('Registration Form')),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(VitaOfflineBanner), findsNothing);
+
+    probe.complete(true);
+    await tester.pump(const Duration(milliseconds: 900));
   });
 
   testWidgets(

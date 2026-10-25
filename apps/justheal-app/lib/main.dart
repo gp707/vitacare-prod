@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'about/about_dialog.dart';
 import 'patient_hospital/app/app.dart';
 import 'patient_hospital/core/providers.dart';
 import 'patient_hospital/core/storage/local_storage.dart';
@@ -11,6 +12,7 @@ import 'caregiver/core/storage/local_storage.dart' as caregiver_storage;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerAboutOnLogoTap();
 
   // Edge-to-edge: transparent system bars with legible icons, no contrast
   // scrim, so the 3-button/gesture nav bar doesn't paint a dark slab under

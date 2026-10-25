@@ -11,6 +11,7 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/caregivers/data/admin_caregiver_models.dart';
 import 'package:admin_web/features/caregivers/data/admin_caregivers_repository.dart';
 import 'package:admin_web/features/caregivers/screens/caregiver_list_screen.dart';
+import 'package:admin_web/shared/widgets/contact_actions.dart';
 
 AdminCaregiverListItem _item({
   String userId = 'u1',
@@ -84,6 +85,27 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('the Phone column has one-click Call and WhatsApp buttons', (tester) async {
+    final launched = <Uri>[];
+    final original = uriLauncher;
+    uriLauncher = (uri) async {
+      launched.add(uri);
+      return true;
+    };
+    addTearDown(() => uriLauncher = original);
+
+    await _pump(tester, _FakeAdminCaregiversRepository([_item()]));
+    expect(find.text('+919876543210'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Call +919876543210'));
+    await tester.tap(find.byTooltip('WhatsApp +919876543210'));
+
+    expect(launched, [
+      Uri(scheme: 'tel', path: '+919876543210'),
+      Uri.parse('https://wa.me/919876543210'),
+    ]);
+  });
+
   testWidgets('at desktop width, lists caregivers in a DataTable',
       (tester) async {
     await _pump(tester, _FakeAdminCaregiversRepository([_item()]));

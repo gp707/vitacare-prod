@@ -57,11 +57,10 @@ Future<bool> _defaultReachabilityProbe() async {
 /// prompted this: an emulator whose Wi-Fi adapter was up but could resolve
 /// no hostname at all, including google.com). So on top of the existing
 /// interface-level listener (instant, for the obvious "no network at all"
-/// case), this also runs [_defaultReachabilityProbe] on a short timer, and
-/// shows the banner if either check fails. The interface listener can only
-/// ever turn the banner ON early; clearing it always goes through a fresh
-/// reachability probe, never just "Wi-Fi reconnected," since the interface
-/// coming back up doesn't mean DNS/the backend is actually reachable yet.
+/// case), this also runs [_defaultReachabilityProbe] on a short timer. The
+/// app is assumed online until that probe (retried a few times) actually
+/// fails; an interface change only triggers an immediate re-probe, it never
+/// shows or clears the banner by itself.
 class ConnectivityBanner extends StatefulWidget {
   final Widget child;
 
@@ -87,8 +86,9 @@ class ConnectivityBanner extends StatefulWidget {
 }
 
 class _ConnectivityBannerState extends State<ConnectivityBanner> {
+  // Assumed online until a real reachability probe says otherwise — the
+  // banner is never shown on a guess.
   bool _offline = false;
-  bool _interfaceDown = false;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Timer? _probeTimer;
 
@@ -103,17 +103,15 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
     _probeTimer = Timer.periodic(widget.probeInterval, (_) => _probeReachability());
   }
 
+  // Any interface change — up or down — just triggers a probe right away
+  // instead of waiting for the next periodic tick. The interface report
+  // itself never shows the banner: right after a cold start the plugin can
+  // briefly report "no network" on a perfectly good connection, which used
+  // to flash "You're offline" until the next probe cleared it. Only the
+  // probe, which tests the real path to our backend, decides.
   void _onInterfaceResult(List<ConnectivityResult> results) {
     if (!mounted) return;
-    final interfaceDown = results.every((r) => r == ConnectivityResult.none);
-    setState(() {
-      _interfaceDown = interfaceDown;
-      if (interfaceDown) _offline = true;
-    });
-    // The interface just came back — re-probe immediately rather than
-    // waiting for the next periodic tick, so a real reconnection clears
-    // the banner promptly.
-    if (!interfaceDown) _probeReachability();
+    _probeReachability();
   }
 
   // The very first probe after a cold app launch is exactly the scenario
@@ -144,7 +142,7 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
   Future<void> _probeReachability() async {
     final reachable = await _reachableWithRetries();
     if (!mounted) return;
-    setState(() => _offline = _interfaceDown || !reachable);
+    setState(() => _offline = !reachable);
   }
 
   @override

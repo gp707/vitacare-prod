@@ -1420,9 +1420,10 @@ only after they hit a confusing dead end.
   an error) and tapping "Post Requirement"/"Register" failed with a raw connection error, with no
   up-front warning that the device had no real internet access at all.
 - **Fix: a real reachability probe runs alongside the interface listener, not instead of it.**
-  `ConnectivityBanner`'s interface listener still fires instantly for the obvious "no network at
-  all" case (and can only ever turn the banner ON early — never clears it by itself). On top of
-  that, `_defaultReachabilityProbe()` makes a cheap request to the API's own public
+  `ConnectivityBanner` assumes the app is online until a probe fails — the interface listener no
+  longer shows the banner by itself (right after a cold start `connectivity_plus` can briefly
+  report "no network" on a good connection, which used to flash a false "You're offline"); an
+  interface change just triggers an immediate re-probe. `_defaultReachabilityProbe()` makes a cheap request to the API's own public
   `GET /rate-card` endpoint (the same one every registration/Jobs screen already fetches) —
   `validateStatus: (_) => true` means ANY HTTP response, even an error status, counts as
   "reachable" (we only care whether the network path to our backend works, not what it says

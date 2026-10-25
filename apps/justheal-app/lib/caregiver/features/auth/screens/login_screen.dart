@@ -176,9 +176,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
-                child: Image.asset(
-                  'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
-                  width: 120,
+                child: VitaLogoTap(
+                  child: Image.asset(
+                    'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
+                    width: 120,
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

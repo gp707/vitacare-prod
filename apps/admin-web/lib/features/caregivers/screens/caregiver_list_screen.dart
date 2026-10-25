@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../../../shared/widgets/recipient_cart_bar.dart';
 import '../../../shared/state/recipient_selection_cart.dart';
@@ -285,7 +286,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             fields: [
               VitaListCard.kv(
                   'ID', caregiverDisplayId(item.caregiverNumber) ?? '-'),
-              VitaListCard.kv('Phone', item.phone),
+              PhoneWithContact(label: 'Phone', phone: item.phone),
               VitaListCard.kv('Gender', item.gender),
               VitaListCard.kv('Age', '${item.age}'),
               VitaListCard.kv(
@@ -346,7 +347,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                     DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-'),
                         onTap: () => _openDetail(item)),
                     DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
-                    DataCell(Text(item.phone), onTap: () => _openDetail(item)),
+                    DataCell(PhoneWithContact(phone: item.phone)),
                     DataCell(Text(item.gender), onTap: () => _openDetail(item)),
                     DataCell(Text('${item.age}'), onTap: () => _openDetail(item)),
                     DataCell(

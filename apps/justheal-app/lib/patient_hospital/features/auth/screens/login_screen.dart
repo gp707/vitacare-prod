@@ -330,9 +330,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               Stack(
                 children: [
-                  Image.asset(
-                    'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
-                    width: 56,
+                  VitaLogoTap(
+                    child: Image.asset(
+                      'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
+                      width: 56,
+                    ),
                   ),
                   const Positioned(
                     top: 0,

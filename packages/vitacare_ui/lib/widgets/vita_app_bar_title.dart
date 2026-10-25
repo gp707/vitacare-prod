@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import 'vita_brand_actions.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -14,6 +18,8 @@ class _TripleTapCounter {
   DateTime? _lastTapAt;
 
   _TripleTapCounter(this.window);
+
+  int get tapCount => _tapCount;
 
   /// Returns true exactly once, the moment a triple-tap completes.
   bool registerTap() {
@@ -53,8 +59,35 @@ class _BrandIcon extends StatefulWidget {
 class _BrandIconState extends State<_BrandIcon> {
   late final _counter = _TripleTapCounter(widget.tripleTapWindow);
 
+  // How long a lone tap waits for a second one before it counts as a plain
+  // single tap. A single tap opens the About dialog, but that dialog would
+  // swallow the 2nd/3rd taps of the hidden triple-tap logout — so the dialog
+  // only opens once it's clear no further tap is coming.
+  static const _singleTapDelay = Duration(milliseconds: 400);
+  Timer? _singleTapTimer;
+
+  @override
+  void dispose() {
+    _singleTapTimer?.cancel();
+    super.dispose();
+  }
+
   void _handleTap() {
-    if (_counter.registerTap()) widget.onTripleTap?.call();
+    _singleTapTimer?.cancel();
+    final tripled = _counter.registerTap();
+    if (tripled) {
+      widget.onTripleTap?.call();
+      return;
+    }
+    final onLogoTap = VitaBrandActions.onLogoTap;
+    if (onLogoTap == null) return;
+    final tapContext = context;
+    _singleTapTimer = Timer(_singleTapDelay, () {
+      // Only a lone tap opens About — if a 2nd tap landed (even without a
+      // 3rd), do nothing rather than guess.
+      if (!mounted || _counter.tapCount != 1) return;
+      onLogoTap(tapContext);
+    });
   }
 
   // A glyph's cap-height reads smaller than its declared font size, so a
@@ -77,7 +110,7 @@ class _BrandIconState extends State<_BrandIcon> {
       width: logoSize,
       height: logoSize,
     );
-    return widget.onTripleTap == null
+    return widget.onTripleTap == null && VitaBrandActions.onLogoTap == null
         ? logo
         : GestureDetector(
             // A stable, type-independent key — VitaAppBar's own subtree
