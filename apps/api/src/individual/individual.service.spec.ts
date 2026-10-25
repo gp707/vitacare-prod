@@ -70,7 +70,7 @@ describe('IndividualService', () => {
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
-    caregiverProfilesRepo = { markAvailable: jest.fn() };
+    caregiverProfilesRepo = { markAvailable: jest.fn(), releaseIfNoAcceptedWork: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
 
     service = new IndividualService(
@@ -669,13 +669,19 @@ describe('IndividualService', () => {
       expect(usersRepo.anonymizeAndDeactivate).not.toHaveBeenCalled();
     });
 
-    it('anonymizes the account and audit-logs the deletion', async () => {
+    it('deletes the posted requirement, releases its accepted caregiver, anonymizes the account and audit-logs it', async () => {
       individualProfilesRepo.findByUserId.mockResolvedValue({ id: 'ip-1' });
       usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
 
+      const client = {};
+      db.withTransaction.mockImplementation(async (fn: any) => fn(client));
+      jobsRepo.deleteAllByPostedBy = jest.fn().mockResolvedValue({ deleted: 1, acceptedProfileIds: ['cp-1'] });
+
       const result = await service.deleteAccount('user-1', { code: '1234' } as any, '127.0.0.1');
 
-      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1');
+      expect(jobsRepo.deleteAllByPostedBy).toHaveBeenCalledWith('user-1', client);
+      expect(caregiverProfilesRepo.releaseIfNoAcceptedWork).toHaveBeenCalledWith(['cp-1'], client);
+      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1', client);
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', action: 'account_deleted', entityType: 'individual_profiles', entityId: 'ip-1' }),
       );

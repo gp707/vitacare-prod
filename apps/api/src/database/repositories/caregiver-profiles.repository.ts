@@ -211,6 +211,21 @@ export class CaregiverProfilesRepository {
     );
   }
 
+  /** After a poster's account (and its jobs) is deleted: puts caregivers
+   *  that were `assigned` back to `available` unless they still hold an
+   *  accepted job or organisation requirement elsewhere. */
+  async releaseIfNoAcceptedWork(profileIds: string[], client?: PoolClient): Promise<void> {
+    if (profileIds.length === 0) return;
+    const runner: QueryRunner = client ?? this.db;
+    await runner.query(
+      `UPDATE caregiver_profiles cp SET verification_status = 'available', updated_at = NOW()
+       WHERE cp.id = ANY($1::uuid[]) AND cp.verification_status = 'assigned'
+         AND NOT EXISTS (SELECT 1 FROM job_applications WHERE profile_id = cp.id AND status = 'accepted')
+         AND NOT EXISTS (SELECT 1 FROM organisation_requirement_applications WHERE profile_id = cp.id AND status = 'accepted')`,
+      [profileIds],
+    );
+  }
+
   async setSelfieUrl(profileId: string, path: string): Promise<void> {
     await this.db.query(
       'UPDATE caregiver_profiles SET selfie_photo_url = $2, updated_at = NOW() WHERE id = $1',

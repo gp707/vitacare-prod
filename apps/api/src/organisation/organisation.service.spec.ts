@@ -6,6 +6,9 @@ describe('OrganisationService', () => {
   let organisationProfilesRepo: any;
   let usersRepo: any;
   let auditService: any;
+  let db: any;
+  let requirementsRepo: any;
+  let caregiverProfilesRepo: any;
 
   beforeEach(() => {
     organisationProfilesRepo = { findByUserId: jest.fn(), update: jest.fn(), anonymizeContactPerson: jest.fn() };
@@ -19,7 +22,17 @@ describe('OrganisationService', () => {
       anonymizeAndDeactivate: jest.fn(),
     };
     auditService = { log: jest.fn() };
-    service = new OrganisationService(organisationProfilesRepo, usersRepo, auditService);
+    db = { withTransaction: jest.fn(async (fn: any) => fn('client')) };
+    requirementsRepo = { deleteAllByPostedBy: jest.fn().mockResolvedValue({ deleted: 0, acceptedProfileIds: [] }) };
+    caregiverProfilesRepo = { releaseIfNoAcceptedWork: jest.fn() };
+    service = new OrganisationService(
+      organisationProfilesRepo,
+      usersRepo,
+      auditService,
+      db,
+      requirementsRepo,
+      caregiverProfilesRepo,
+    );
   });
 
   describe('getMe', () => {
@@ -253,12 +266,25 @@ describe('OrganisationService', () => {
 
       const result = await service.deleteAccount('user-1', { code: '1234' } as any, '127.0.0.1');
 
-      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1');
-      expect(organisationProfilesRepo.anonymizeContactPerson).toHaveBeenCalledWith('op-1');
+      expect(requirementsRepo.deleteAllByPostedBy).toHaveBeenCalledWith('user-1', 'client');
+      expect(usersRepo.anonymizeAndDeactivate).toHaveBeenCalledWith('user-1', 'client');
+      expect(organisationProfilesRepo.anonymizeContactPerson).toHaveBeenCalledWith('op-1', 'client');
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', action: 'account_deleted', entityType: 'organisation_profiles', entityId: 'op-1' }),
       );
       expect(result).toEqual({ message: 'Account deleted' });
+    });
+  });
+
+  describe('deleteAccount — posted requirements', () => {
+    it('deletes the posted requirements and releases caregivers who were accepted on them', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ id: 'op-1' });
+      usersRepo.findById.mockResolvedValue({ code_hash: await bcrypt.hash('1234', 10) });
+      requirementsRepo.deleteAllByPostedBy.mockResolvedValue({ deleted: 2, acceptedProfileIds: ['cp-1'] });
+
+      await service.deleteAccount('user-1', { code: '1234' } as any, null);
+
+      expect(caregiverProfilesRepo.releaseIfNoAcceptedWork).toHaveBeenCalledWith(['cp-1'], 'client');
     });
   });
 

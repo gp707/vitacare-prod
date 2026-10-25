@@ -1368,8 +1368,16 @@ only re-auth step anywhere in this product's self-service flows), since it's irr
   `OrganisationProfilesRepository.anonymizeContactPerson` (the contact person is an individual,
   so their name is anonymized same as `users.full_name`) — `organisation_name`/
   `organisation_type`/`city`/`area` describe the business entity itself, not a person, and are
-  left intact as a business record. `IndividualService.deleteAccount` has nothing extra to
-  anonymize — `individual_profiles` carries no PII beyond what's already on `users`.
+  left intact as a business record. `individual_profiles` carries no PII beyond what's already on `users`.
+  **Both `IndividualService.deleteAccount` and `OrganisationService.deleteAccount` also permanently
+  delete the requirements the account posted**, in the same `withTransaction` as the anonymize:
+  `JobsRepository.deleteAllByPostedBy` (jobs + their `care_receivers` — the patient's name and
+  medical details — with applications/admin-notes cascading) and
+  `OrganisationRequirementsRepository.deleteAllByPostedBy`. Both return the caregiver profile ids
+  that held an `accepted` application, and `CaregiverProfilesRepository.releaseIfNoAcceptedWork`
+  puts those back from `assigned` to `available` unless they still hold another accepted
+  job/requirement. A hard delete of *content the account posted* (every FK to
+  jobs/requirements/care_receivers cascades); the `users` row itself stays anonymized.
 - **Backend**: `DELETE /caregiver/account` / `/individual/account` / `/organisation/account`,
   each role's own controller, all taking the same `DeleteAccountDto { code }` (in
   `caregiver/dto/`, reused by individual/organisation same as `UpdatePhoneDto`/`UpdateCodeDto`).

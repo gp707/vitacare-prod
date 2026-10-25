@@ -448,11 +448,13 @@ export class IndividualService {
     return { message: 'Login code updated' };
   }
 
-  /** Self-service account deletion. Simpler than the caregiver equivalent
-   *  — no documents, no verification pipeline — so this is just the PIN
-   *  re-check plus UsersRepository.anonymizeAndDeactivate (see its own doc
-   *  comment for why this anonymizes in place rather than deleting the
-   *  row). */
+  /** Self-service account deletion: PIN re-check, then — in one
+   *  transaction — permanently deletes the requirement(s) this account
+   *  posted (jobs + care_receivers, i.e. the patient's name and medical
+   *  details, plus their applications) and anonymizes the users row (see
+   *  UsersRepository.anonymizeAndDeactivate for why that anonymizes in place
+   *  rather than deleting). A caregiver who was accepted on the deleted
+   *  requirement is released back to `available`. */
   async deleteAccount(userId: string, dto: DeleteAccountDto, ipAddress: string | null = null) {
     const profile = await this.individualProfilesRepo.findByUserId(userId);
     if (!profile) throw new AppException('GEN_002');
@@ -461,7 +463,11 @@ export class IndividualService {
       throw new AppException('AUTH_008');
     }
 
-    await this.usersRepo.anonymizeAndDeactivate(userId);
+    await this.db.withTransaction(async (client) => {
+      const { acceptedProfileIds } = await this.jobsRepo.deleteAllByPostedBy(userId, client);
+      await this.caregiverProfilesRepo.releaseIfNoAcceptedWork(acceptedProfileIds, client);
+      await this.usersRepo.anonymizeAndDeactivate(userId, client);
+    });
 
     await this.auditService.log({
       userId,

@@ -3,6 +3,9 @@ import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { OrganisationProfilesRepository } from '../database/repositories/organisation-profiles.repository';
+import { DatabaseService } from '../database/database.service';
+import { OrganisationRequirementsRepository } from '../database/repositories/organisation-requirements.repository';
+import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
@@ -22,6 +25,9 @@ export class OrganisationService {
     private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly usersRepo: UsersRepository,
     private readonly auditService: AuditService,
+    private readonly db: DatabaseService,
+    private readonly requirementsRepo: OrganisationRequirementsRepository,
+    private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
   ) {}
 
   async getMe(userId: string) {
@@ -142,9 +148,12 @@ export class OrganisationService {
     return { message: 'Login code updated' };
   }
 
-  /** Self-service account deletion. The contact person's own name is
-   *  anonymized alongside the users row; organisation_name/type/city/area
-   *  describe the business entity itself and are left intact (see
+  /** Self-service account deletion. In one transaction: permanently deletes
+   *  every requirement the organisation posted (applications cascade),
+   *  releases caregivers who were accepted on them back to `available`, and
+   *  anonymizes the users row plus the contact person's name.
+   *  organisation_name/type/city/area describe the business entity itself
+   *  and are left intact (see
    *  OrganisationProfilesRepository.anonymizeContactPerson). */
   async deleteAccount(userId: string, dto: DeleteAccountDto, ipAddress: string | null = null) {
     const profile = await this.organisationProfilesRepo.findByUserId(userId);
@@ -154,8 +163,12 @@ export class OrganisationService {
       throw new AppException('AUTH_008');
     }
 
-    await this.usersRepo.anonymizeAndDeactivate(userId);
-    await this.organisationProfilesRepo.anonymizeContactPerson(profile.id);
+    await this.db.withTransaction(async (client) => {
+      const { acceptedProfileIds } = await this.requirementsRepo.deleteAllByPostedBy(userId, client);
+      await this.caregiverProfilesRepo.releaseIfNoAcceptedWork(acceptedProfileIds, client);
+      await this.usersRepo.anonymizeAndDeactivate(userId, client);
+      await this.organisationProfilesRepo.anonymizeContactPerson(profile.id, client);
+    });
 
     await this.auditService.log({
       userId,

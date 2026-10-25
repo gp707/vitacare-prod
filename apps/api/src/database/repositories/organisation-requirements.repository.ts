@@ -373,4 +373,23 @@ export class OrganisationRequirementsRepository {
     );
     return result.rows;
   }
+
+  /** Account deletion: permanently removes every requirement [userId]
+   *  posted; applications cascade. Returns the caregiver profile ids that
+   *  held an `accepted` application, captured before the delete, so the
+   *  caller can release them from `assigned`. */
+  async deleteAllByPostedBy(
+    userId: string,
+    client: PoolClient,
+  ): Promise<{ deleted: number; acceptedProfileIds: string[] }> {
+    const accepted = await client.query<{ profile_id: string }>(
+      `SELECT DISTINCT a.profile_id
+       FROM organisation_requirement_applications a
+       JOIN organisation_requirements r ON r.id = a.requirement_id
+       WHERE r.posted_by = $1 AND a.status = 'accepted'`,
+      [userId],
+    );
+    const result = await client.query('DELETE FROM organisation_requirements WHERE posted_by = $1', [userId]);
+    return { deleted: result.rowCount ?? 0, acceptedProfileIds: accepted.rows.map((r) => r.profile_id) };
+  }
 }

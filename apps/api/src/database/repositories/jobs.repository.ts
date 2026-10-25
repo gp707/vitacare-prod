@@ -402,6 +402,34 @@ export class JobsRepository {
     return result.rows;
   }
 
+  /** Account deletion: permanently removes every job [userId] posted, with
+   *  its care_receiver (patient name / medical details) and — via ON DELETE
+   *  CASCADE — its applications and admin notes. Same shape as bulkDelete,
+   *  keyed by poster. Returns the caregiver profile ids that held an
+   *  `accepted` application on one of these jobs, captured before the
+   *  delete, so the caller can release them from `assigned`. */
+  async deleteAllByPostedBy(
+    userId: string,
+    client: PoolClient,
+  ): Promise<{ deleted: number; acceptedProfileIds: string[] }> {
+    const accepted = await client.query<{ profile_id: string }>(
+      `SELECT DISTINCT ja.profile_id
+       FROM job_applications ja JOIN jobs j ON j.id = ja.job_id
+       WHERE j.posted_by = $1 AND ja.status = 'accepted'`,
+      [userId],
+    );
+    const result = await client.query(
+      `WITH deleted_jobs AS (
+         DELETE FROM jobs WHERE posted_by = $1 RETURNING id, care_receiver_id
+       ), deleted_care_receivers AS (
+         DELETE FROM care_receivers WHERE id IN (SELECT care_receiver_id FROM deleted_jobs)
+       )
+       SELECT id FROM deleted_jobs`,
+      [userId],
+    );
+    return { deleted: result.rowCount ?? 0, acceptedProfileIds: accepted.rows.map((r) => r.profile_id) };
+  }
+
   /** Active jobs only, with the caregiver's own application status (if any)
    *  and the full care_receiver joined in — lets the caregiver-app show
    *  "already applied" state and the About Patient / About Patient
