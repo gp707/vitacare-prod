@@ -17,7 +17,7 @@ export class AppEventDto {
   flow!: string;
 
   /** Route name or screen identifier, e.g. '/org-home', 'login'. */
-  @Matches(/^[A-Za-z0-9_\/.:-]{1,60}$/, { message: 'GEN_005' })
+  @Matches(/^[A-Za-z0-9_/.:-]{1,60}$/, { message: 'GEN_005' })
   screen!: string;
 
   /** Button identifier, e.g. 'post_requirement'. Absent for screen views. */
