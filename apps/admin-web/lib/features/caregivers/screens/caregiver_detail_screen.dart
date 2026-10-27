@@ -1,3 +1,4 @@
+import '../../../shared/state/sidebar_badge_counts_notifier.dart';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -108,6 +109,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       await ref.read(adminCaregiversRepositoryProvider).updateStatus(
           widget.profileId, status,
           rejectionMessage: rejectionMessage);
+      // The sidebar's pending-caregivers badge is loaded once at app start;
+      // without this it keeps counting a just-approved/rejected caregiver.
+      ref.read(sidebarBadgeCountsProvider.notifier).load();
       await _load();
     } on ApiException catch (e) {
       if (mounted) _showSnackBar(e.message, isError: true);
@@ -207,7 +211,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   /// backend's own less specific error.
   bool _rejectIfTooLarge(int sizeBytes) {
     if (sizeBytes <= Validation.fileMaxSizeBytes) return false;
-    _showSnackBar('That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.',
+    _showSnackBar(
+        'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.',
         isError: true);
     return true;
   }
@@ -335,7 +340,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     children: [
                       Text(detail.fullName,
                           style: const TextStyle(
-                              fontSize: AppTypography.heading, fontWeight: FontWeight.bold)),
+                              fontSize: AppTypography.heading,
+                              fontWeight: FontWeight.bold)),
                       if (caregiverDisplayId(detail.caregiverNumber) != null)
                         Text(caregiverDisplayId(detail.caregiverNumber)!,
                             style: const TextStyle(
@@ -395,14 +401,18 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       if (action == 'rejected') {
         buttons.add(OutlinedButton.icon(
           onPressed: _actionInFlight ? null : _showRejectDialog,
-          style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error)),
+          style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: const BorderSide(color: AppColors.error)),
           icon: const Icon(Icons.close, size: 16),
           label: const Text('Reject'),
         ));
       } else if (action == 'available') {
         buttons.add(ElevatedButton.icon(
           onPressed: _actionInFlight ? null : () => _updateStatus('available'),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white),
           icon: const Icon(Icons.check, size: 16),
           label: const Text('Approve'),
         ));
@@ -417,10 +427,13 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Future<void> _resetPin(AdminCaregiverDetail detail) async {
-    final newCode = await showResetPinDialog(context, accountLabel: detail.fullName);
+    final newCode =
+        await showResetPinDialog(context, accountLabel: detail.fullName);
     if (newCode == null) return;
     try {
-      await ref.read(adminCaregiversRepositoryProvider).resetCode(widget.profileId, newCode);
+      await ref
+          .read(adminCaregiversRepositoryProvider)
+          .resetCode(widget.profileId, newCode);
       if (mounted) _showSnackBar('PIN reset');
     } on ApiException catch (e) {
       if (mounted) _showSnackBar(e.message, isError: true);
@@ -445,9 +458,13 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.admin_panel_settings, size: 16, color: AppColors.primaryDark),
+              Icon(Icons.admin_panel_settings,
+                  size: 16, color: AppColors.primaryDark),
               SizedBox(width: 4),
-              Text('Admin Override:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
+              Text('Admin Override:',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: AppTypography.small)),
             ],
           ),
           DropdownButton<String>(
@@ -588,7 +605,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           controller: _phoneController,
           decoration: const InputDecoration(
             labelText: 'Phone',
-            helperText: 'Same account, same profile/jobs — this only changes the login number.',
+            helperText:
+                'Same account, same profile/jobs — this only changes the login number.',
             border: OutlineInputBorder(),
           ),
         ),
@@ -689,7 +707,9 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(
               'Each file must be under ${Validation.fileMaxSizeMb}MB',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: AppTypography.small),
             ),
           ),
           _documentRow('Selfie', detail.selfiePhotoUrl,
@@ -818,7 +838,8 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             maxLines: 4,
             decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.notes),
-                labelText: 'Internal Notes', border: OutlineInputBorder()),
+                labelText: 'Internal Notes',
+                border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(
@@ -874,12 +895,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             children: [
               Row(
                 children: [
-                  Text(entry.action, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(entry.action,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     entry.createdAt.replaceFirst('T', ' ').split('.').first,
                     style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: AppTypography.small),
+                        color: AppColors.textSecondary,
+                        fontSize: AppTypography.small),
                   ),
                 ],
               ),
@@ -938,10 +961,12 @@ class _DocumentHistoryDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_DocumentHistoryDialog> createState() => _DocumentHistoryDialogState();
+  ConsumerState<_DocumentHistoryDialog> createState() =>
+      _DocumentHistoryDialogState();
 }
 
-class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> {
+class _DocumentHistoryDialogState
+    extends ConsumerState<_DocumentHistoryDialog> {
   late Future<List<CaregiverDocumentVersion>> _future;
   String? _deletingId;
 
@@ -952,7 +977,9 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
   }
 
   void _load() {
-    _future = ref.read(adminCaregiversRepositoryProvider).getDocumentHistory(widget.profileId);
+    _future = ref
+        .read(adminCaregiversRepositoryProvider)
+        .getDocumentHistory(widget.profileId);
   }
 
   Future<void> _deleteVersion(CaregiverDocumentVersion version) async {
@@ -964,7 +991,9 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
           'This permanently removes the file from storage. This cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -977,11 +1006,14 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
 
     setState(() => _deletingId = version.id);
     try {
-      await ref.read(adminCaregiversRepositoryProvider).deleteDocumentVersion(widget.profileId, version.id);
+      await ref
+          .read(adminCaregiversRepositoryProvider)
+          .deleteDocumentVersion(widget.profileId, version.id);
       if (mounted) setState(_load);
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
       if (mounted) setState(() => _deletingId = null);
@@ -991,22 +1023,28 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
-    final isSuperAdmin = session is AdminSessionAuthenticated && session.isSuperAdmin;
+    final isSuperAdmin =
+        session is AdminSessionAuthenticated && session.isSuperAdmin;
 
     return FutureBuilder<List<CaregiverDocumentVersion>>(
       future: _future,
       builder: (context, snapshot) {
         Widget content;
         if (snapshot.connectionState == ConnectionState.waiting) {
-          content = const SizedBox(height: 80, child: Center(child: VitaLoadingIndicator()));
+          content = const SizedBox(
+              height: 80, child: Center(child: VitaLoadingIndicator()));
         } else if (snapshot.hasError) {
           content = Text(
-            snapshot.error is ApiException ? (snapshot.error as ApiException).message : 'Failed to load history',
+            snapshot.error is ApiException
+                ? (snapshot.error as ApiException).message
+                : 'Failed to load history',
             style: const TextStyle(color: AppColors.error),
           );
         } else {
           final versions = snapshot.data!
-              .where((v) => v.documentType == widget.documentType && v.slotIndex == widget.slotIndex)
+              .where((v) =>
+                  v.documentType == widget.documentType &&
+                  v.slotIndex == widget.slotIndex)
               .toList();
           content = versions.isEmpty
               ? const Text('No history recorded for this document.')
@@ -1023,19 +1061,24 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(v.createdAt.replaceFirst('T', ' ').split('.').first),
+                                  Text(v.createdAt
+                                      .replaceFirst('T', ' ')
+                                      .split('.')
+                                      .first),
                                   Text(
                                     v.uploadedByRole == 'admin'
                                         ? 'Uploaded by admin${v.uploadedByName != null ? ' — ${v.uploadedByName}' : ''}'
                                         : 'Uploaded by caregiver',
                                     style: const TextStyle(
-                                        color: AppColors.textSecondary, fontSize: AppTypography.small),
+                                        color: AppColors.textSecondary,
+                                        fontSize: AppTypography.small),
                                   ),
                                 ],
                               ),
                             ),
                             TextButton.icon(
-                              onPressed: () => launchUrl(Uri.parse(v.signedUrl), webOnlyWindowName: '_blank'),
+                              onPressed: () => launchUrl(Uri.parse(v.signedUrl),
+                                  webOnlyWindowName: '_blank'),
                               icon: const Icon(Icons.open_in_new, size: 16),
                               label: const Text('View'),
                             ),
@@ -1047,10 +1090,13 @@ class _DocumentHistoryDialogState extends ConsumerState<_DocumentHistoryDialog> 
                             if (isSuperAdmin)
                               _deletingId == v.id
                                   ? const SizedBox(
-                                      height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+                                      height: 20,
+                                      width: 20,
+                                      child: VitaLoadingIndicator(size: 20))
                                   : IconButton(
                                       onPressed: () => _deleteVersion(v),
-                                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18, color: AppColors.error),
                                       tooltip: 'Delete this version',
                                     ),
                           ],

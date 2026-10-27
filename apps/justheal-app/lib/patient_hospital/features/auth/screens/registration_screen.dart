@@ -256,7 +256,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
     setState(() => _sendingOtp = true);
     try {
-      await ref.read(authRepositoryProvider).sendOtp(phone: _phone, purpose: OtpPurpose.register);
+      await ref
+          .read(authRepositoryProvider)
+          .sendOtp(phone: _phone, purpose: OtpPurpose.register);
       if (mounted) setState(() => _otpSent = true);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -289,10 +291,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   bool get _isPhoneValid => Validators.isValidPhone(_phone);
-  bool get _isCodeValid => _otpMode ? _verificationToken != null : Validators.isValidCode(_codeController.text.trim());
+  bool get _isCodeValid => _otpMode
+      ? _verificationToken != null
+      : Validators.isValidCode(_codeController.text.trim());
   bool get _isTermsValid => _termsAccepted;
 
-  String get _termsUrl => _isOrganisation ? _organisationTermsUrl : _individualTermsUrl;
+  String get _termsUrl =>
+      _isOrganisation ? _organisationTermsUrl : _individualTermsUrl;
 
   // inAppBrowserView, not externalApplication — a docs.google.com link
   // under externalApplication gets claimed by the Google Docs/Drive app
@@ -301,41 +306,57 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   // account before showing anything at all, regardless of /edit vs
   // /preview. inAppBrowserView opens it in an embedded Chrome Custom Tab
   // instead, bypassing that claim entirely.
-  Future<void> _openTerms() => launchUrl(Uri.parse(_termsUrl), mode: LaunchMode.inAppBrowserView);
+  Future<void> _openTerms() =>
+      launchUrl(Uri.parse(_termsUrl), mode: LaunchMode.inAppBrowserView);
 
   // --- Organisation-only validity ---
-  bool get _isFullNameValid => !_isOrganisation || Validators.isValidName(_fullNameController.text.trim());
-  bool get _isOrganisationNameValid => !_isOrganisation || _organisationNameController.text.trim().isNotEmpty;
-  bool get _isOrganisationTypeValid => !_isOrganisation || _organisationType != null;
-  bool get _isOrganisationCityValid => !_isOrganisation || _organisationCity != null;
+  bool get _isFullNameValid =>
+      !_isOrganisation ||
+      Validators.isValidName(_fullNameController.text.trim());
+  bool get _isOrganisationNameValid =>
+      !_isOrganisation || _organisationNameController.text.trim().isNotEmpty;
+  bool get _isOrganisationTypeValid =>
+      !_isOrganisation || _organisationType != null;
+  bool get _isOrganisationCityValid =>
+      !_isOrganisation || _organisationCity != null;
 
   // --- Individual-only validity (the merged-in requirement form) ---
   int? get _age => int.tryParse(_ageController.text.trim());
   int? get _weightKg => int.tryParse(_weightController.text.trim());
 
-  bool get _isPatientNameValid => _isOrganisation || Validators.isValidName(_patientNameController.text.trim());
-  bool get _isAgeValid => _isOrganisation || (_age != null && _age! >= 1 && _age! <= 120);
+  bool get _isPatientNameValid =>
+      _isOrganisation ||
+      Validators.isValidName(_patientNameController.text.trim());
+  bool get _isAgeValid =>
+      _isOrganisation || (_age != null && _age! >= 1 && _age! <= 120);
   bool get _isGenderValid => _isOrganisation || _gender != null;
-  bool get _isWeightValid => _isOrganisation || (_weightKg != null && _weightKg! >= 1 && _weightKg! <= 300);
+  bool get _isWeightValid =>
+      _isOrganisation ||
+      (_weightKg != null && _weightKg! >= 1 && _weightKg! <= 300);
   bool get _isCityValid => _isOrganisation || _city != null;
-  bool get _isAreaValid => _isOrganisation || _areaController.text.trim().isNotEmpty;
+  bool get _isAreaValid =>
+      _isOrganisation || _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _isOrganisation || _dutyType != null;
   bool get _isStartDateValid => _isOrganisation || _startDate != null;
   bool get _isCareDurationValid => _isOrganisation || _careDuration != null;
-  bool get _isToiletAssistanceValid => _isOrganisation || _toiletAssistance.isNotEmpty;
+  bool get _isToiletAssistanceValid =>
+      _isOrganisation || _toiletAssistance.isNotEmpty;
   bool get _isFeedingTypeValid => _isOrganisation || _feedingType != null;
-  bool get _isSalaryValid => _isOrganisation || _salaryController.text.trim().isNotEmpty;
+  bool get _isSalaryValid =>
+      _isOrganisation || _salaryController.text.trim().isNotEmpty;
 
   // "None" reads/writes as _noneFeedingType/_noneToiletAssistance on the
   // dropdowns themselves (so the field's own selected-value matching stays
   // simple), but is never the value actually sent to deriveCareTier() or
   // the backend — both read through these getters instead of the raw
   // fields.
-  String get _effectiveFeedingType =>
-      _feedingType == _noneFeedingType ? FeedingType.oralFeeding : (_feedingType ?? FeedingType.oralFeeding);
-  List<String> get _effectiveToiletAssistance => _toiletAssistance.contains(_noneToiletAssistance)
-      ? const [ToiletAssistance.independent]
-      : _toiletAssistance;
+  String get _effectiveFeedingType => _feedingType == _noneFeedingType
+      ? FeedingType.oralFeeding
+      : (_feedingType ?? FeedingType.oralFeeding);
+  List<String> get _effectiveToiletAssistance =>
+      _toiletAssistance.contains(_noneToiletAssistance)
+          ? const [ToiletAssistance.independent]
+          : _toiletAssistance;
 
   /// Rebuilds a [CareReceiverModel] from whatever's currently selected on
   /// this form, for [deriveCareTier] — vitals aren't collected on this form
@@ -347,8 +368,11 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
         feedingType: _effectiveFeedingType,
-        hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
-        medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? const [] : _medicalConditions,
+        hasMedicalCondition:
+            !_medicalConditions.contains(_noneMedicalCondition),
+        medicalConditions: _medicalConditions.contains(_noneMedicalCondition)
+            ? const []
+            : _medicalConditions,
         toiletAssistance: _effectiveToiletAssistance,
         requiresVitalMonitoring: false,
         vitalMonitoringTypes: const [],
@@ -367,7 +391,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final frequency = frequencyForCareDuration(_careDuration!);
     final suggestion = suggestedRate(_rateCards, tier, frequency);
     if (suggestion == null) return;
-    if (_salaryController.text.isEmpty || _salaryController.text == _lastAutoSuggestedSalary) {
+    if (_salaryController.text.isEmpty ||
+        _salaryController.text == _lastAutoSuggestedSalary) {
       _salaryController.text = suggestion;
       _lastAutoSuggestedSalary = suggestion;
     }
@@ -375,20 +400,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   /// Few Days/Few Weeks price off the daily Rate Card, Few Months/Long Term
   /// off the monthly one — see [frequencyForCareDuration].
-  String? get _derivedFrequencyOfCare => _careDuration == null ? null : frequencyForCareDuration(_careDuration!);
+  String? get _derivedFrequencyOfCare =>
+      _careDuration == null ? null : frequencyForCareDuration(_careDuration!);
 
   /// Purely advisory, never blocks submission — a male patient requesting
   /// a female caregiver is a much harder match to fill than any other
   /// combination, so we say so up front rather than letting the family
   /// find out only after posting.
-  bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
+  bool get _showGenderMismatchWarning =>
+      _gender == Gender.male && _preferredGender == Gender.female;
 
   /// Purely advisory, never blocks submission — many nurses decline
   /// short-term (few days/weeks) assignments, so the family is warned up
   /// front that they may get fewer or no applicants, with a suggestion to
   /// edit to a longer duration later if that happens.
   bool get _showShortTermDurationWarning =>
-      _careDuration == CareDuration.fewDays || _careDuration == CareDuration.fewWeeks;
+      _careDuration == CareDuration.fewDays ||
+      _careDuration == CareDuration.fewWeeks;
 
   bool get _canSubmit =>
       !_loading &&
@@ -418,15 +446,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         _MandatoryField(_phoneKey, _isPhoneValid, focusNode: _phoneFocusNode),
         _MandatoryField(_codeKey, _isCodeValid, focusNode: _codeFocusNode),
         if (_isOrganisation) ...[
-          _MandatoryField(_fullNameKey, _isFullNameValid, focusNode: _fullNameFocusNode),
-          _MandatoryField(_organisationNameKey, _isOrganisationNameValid, focusNode: _organisationNameFocusNode),
+          _MandatoryField(_fullNameKey, _isFullNameValid,
+              focusNode: _fullNameFocusNode),
+          _MandatoryField(_organisationNameKey, _isOrganisationNameValid,
+              focusNode: _organisationNameFocusNode),
           _MandatoryField(_organisationTypeKey, _isOrganisationTypeValid),
           _MandatoryField(_organisationCityKey, _isOrganisationCityValid),
         ] else ...[
-          _MandatoryField(_patientNameKey, _isPatientNameValid, focusNode: _patientNameFocusNode),
+          _MandatoryField(_patientNameKey, _isPatientNameValid,
+              focusNode: _patientNameFocusNode),
           _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
           _MandatoryField(_genderKey, _isGenderValid),
-          _MandatoryField(_weightKey, _isWeightValid, focusNode: _weightFocusNode),
+          _MandatoryField(_weightKey, _isWeightValid,
+              focusNode: _weightFocusNode),
           _MandatoryField(_cityKey, _isCityValid),
           _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
           _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
@@ -482,7 +514,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// With something missing, it flags every missing mandatory field red and
   /// jumps straight to the first one instead of submitting.
   Future<void> _handleSubmitPressed() async {
-    Analytics.tap('auth', 'registration', _isOrganisation ? 'register_organisation' : 'post_requirement');
+    Analytics.tap('auth', 'registration',
+        _isOrganisation ? 'register_organisation' : 'post_requirement');
     if (_loading) return;
     if (!_canSubmit) {
       setState(() => _showValidationErrors = true);
@@ -538,10 +571,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           contactPersonName: _fullNameController.text.trim(),
           organisationType: _organisationType!,
           city: _organisationCity!,
-          area: _organisationAreaController.text.trim().isEmpty ? null : _organisationAreaController.text.trim(),
+          area: _organisationAreaController.text.trim().isEmpty
+              ? null
+              : _organisationAreaController.text.trim(),
           termsAccepted: _termsAccepted,
         );
-        await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+        await localStorage.saveTokens(
+            accessToken: result.accessToken, refreshToken: result.refreshToken);
         await ref.read(sessionProvider.notifier).loadSession();
       } else {
         // Register first — unless a prior submit already created the
@@ -558,7 +594,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             code: _otpMode ? null : _codeController.text.trim(),
             phoneVerificationToken: _otpMode ? _verificationToken : null,
           );
-          await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+          await localStorage.saveTokens(
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken);
           await ref.read(sessionProvider.notifier).loadSession();
         }
         await ref.read(individualRepositoryProvider).createRequirement(
@@ -568,11 +606,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 gender: _gender!,
                 weightKg: _weightKg!,
                 feedingType: _effectiveFeedingType,
-                hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
-                medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? null : _medicalConditions,
-                medicalConditionOther: _medicalConditionOtherController.text.trim(),
-                toiletAssistance: _effectiveToiletAssistance.isEmpty ? null : _effectiveToiletAssistance,
-                toiletAssistanceOther: _toiletAssistanceOtherController.text.trim(),
+                hasMedicalCondition:
+                    !_medicalConditions.contains(_noneMedicalCondition),
+                medicalConditions:
+                    _medicalConditions.contains(_noneMedicalCondition)
+                        ? null
+                        : _medicalConditions,
+                medicalConditionOther:
+                    _medicalConditionOtherController.text.trim(),
+                toiletAssistance: _effectiveToiletAssistance.isEmpty
+                    ? null
+                    : _effectiveToiletAssistance,
+                toiletAssistanceOther:
+                    _toiletAssistanceOtherController.text.trim(),
               ),
               city: _city!,
               area: _areaController.text.trim(),
@@ -580,7 +626,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               startDate:
                   '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
               careDuration: _careDuration!,
-              languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
+              languages:
+                  _languages.contains(_noPreferenceLanguage) ? [] : _languages,
               preferredGender: _preferredGender,
               preferredReligion: _preferredReligion,
               frequencyOfCare: _derivedFrequencyOfCare!,
@@ -591,7 +638,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       if (!mounted) return;
       final session = ref.read(sessionProvider);
       if (session is SessionAuthenticated) {
-        Navigator.of(context).pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
       } else if (session is SessionLoadError) {
         // Registration/login itself already succeeded (tokens were saved)
         // — this is loadSession's own post-auth profile fetch failing
@@ -604,7 +652,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         // invalid path ran (AUTH_004/AUTH_005) right after a registration
         // that just issued that very token — should never happen, but
         // show something rather than nothing if it somehow does.
-        setState(() => _errorMessage = 'Something went wrong. Please try again.');
+        setState(
+            () => _errorMessage = 'Something went wrong. Please try again.');
       }
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -615,89 +664,113 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final formContent = ListView(
+    // SingleChildScrollView + Column, not a lazy ListView: a ListView only builds
+    // on-screen children, so ensureVisible found no context for off-screen fields.
+    final formContent = SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      children: [
-        Text(
-          _isOrganisation ? 'Hospital/Clinic/Rehab/Agency Registration Form' : "Patient/Patient's Family Registration Form",
-          style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        TextField(
-          key: _phoneKey,
-          controller: _phoneController,
-          focusNode: _phoneFocusNode,
-          keyboardType: TextInputType.phone,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            prefixText: '+91 ',
-            labelText: 'Phone number (Mandatory)',
-            border: const OutlineInputBorder(),
-            errorText: _showValidationErrors && !_isPhoneValid ? 'Enter a valid 10-digit mobile number' : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _isOrganisation
+                ? 'Hospital/Clinic/Rehab/Agency Registration Form'
+                : "Patient/Patient's Family Registration Form",
+            style: const TextStyle(
+                fontSize: AppTypography.title,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary),
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (_otpMode) _buildOtpVerificationBlock() else _buildPinField(),
-        if (_isOrganisation) ..._buildOrganisationFields() else ..._buildIndividualFields(),
-        const SizedBox(height: AppSpacing.lg),
-        KeyedSubtree(
-          key: _termsKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CheckboxListTile(
-                key: const Key('termsCheckbox'),
-                value: _termsAccepted,
-                onChanged: (value) => setState(() => _termsAccepted = value ?? false),
-                title: RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      fontSize: AppTypography.body,
-                      color: _showValidationErrors && !_isTermsValid ? AppColors.error : AppColors.textPrimary,
-                    ),
-                    children: [
-                      const TextSpan(text: 'I accept the '),
-                      TextSpan(
-                        text: 'Terms & Conditions',
-                        style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline),
-                        recognizer: TapGestureRecognizer()..onTap = _openTerms,
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            key: _phoneKey,
+            controller: _phoneController,
+            focusNode: _phoneFocusNode,
+            keyboardType: TextInputType.phone,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixText: '+91 ',
+              labelText: 'Phone number (Mandatory)',
+              border: const OutlineInputBorder(),
+              errorText: _showValidationErrors && !_isPhoneValid
+                  ? 'Enter a valid 10-digit mobile number'
+                  : null,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (_otpMode) _buildOtpVerificationBlock() else _buildPinField(),
+          if (_isOrganisation)
+            ..._buildOrganisationFields()
+          else
+            ..._buildIndividualFields(),
+          const SizedBox(height: AppSpacing.lg),
+          KeyedSubtree(
+            key: _termsKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  key: const Key('termsCheckbox'),
+                  value: _termsAccepted,
+                  onChanged: (value) =>
+                      setState(() => _termsAccepted = value ?? false),
+                  title: RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: AppTypography.body,
+                        color: _showValidationErrors && !_isTermsValid
+                            ? AppColors.error
+                            : AppColors.textPrimary,
                       ),
-                      const TextSpan(text: ' (mandatory)'),
-                    ],
+                      children: [
+                        const TextSpan(text: 'I accept the '),
+                        TextSpan(
+                          text: 'Terms & Conditions',
+                          style: const TextStyle(
+                              color: AppColors.primary,
+                              decoration: TextDecoration.underline),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = _openTerms,
+                        ),
+                        const TextSpan(text: ' (mandatory)'),
+                      ],
+                    ),
                   ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
                 ),
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
-              ),
-              if (_showValidationErrors && !_isTermsValid)
-                const Padding(
-                  padding: EdgeInsets.only(left: 12),
-                  child: Text(
-                    'You must accept the Terms & Conditions to continue',
-                    style: TextStyle(color: AppColors.error, fontSize: AppTypography.small),
+                if (_showValidationErrors && !_isTermsValid)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 12),
+                    child: Text(
+                      'You must accept the Terms & Conditions to continue',
+                      style: TextStyle(
+                          color: AppColors.error,
+                          fontSize: AppTypography.small),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        if (_errorMessage != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_errorMessage!,
+                style: const TextStyle(color: AppColors.error)),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          ElevatedButton(
+            onPressed: _loading ? null : _handleSubmitPressed,
+            child: _loading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : Text(_isOrganisation ? 'Register' : 'Post Requirement'),
+          ),
         ],
-        const SizedBox(height: AppSpacing.md),
-        ElevatedButton(
-          onPressed: _loading ? null : _handleSubmitPressed,
-          child: _loading
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Text(_isOrganisation ? 'Register' : 'Post Requirement'),
-        ),
-      ],
+      ),
     );
-
     return Scaffold(
       appBar: VitaAppBar(
         title: 'Register',
@@ -730,11 +803,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           decoration: InputDecoration(
             labelText: 'Contact person name (Mandatory)',
             border: const OutlineInputBorder(),
-            errorText: _showValidationErrors && !_isFullNameValid ? 'Enter a name (letters and spaces only)' : null,
+            errorText: _showValidationErrors && !_isFullNameValid
+                ? 'Enter a name (letters and spaces only)'
+                : null,
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Text('Organisation Details', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
+        const Text('Organisation Details',
+            style: TextStyle(
+                fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
         const SizedBox(height: AppSpacing.sm),
         TextField(
           key: _organisationNameKey,
@@ -744,7 +821,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           decoration: InputDecoration(
             labelText: 'Organisation name (Mandatory)',
             border: const OutlineInputBorder(),
-            errorText: _showValidationErrors && !_isOrganisationNameValid ? 'Organisation name is required' : null,
+            errorText: _showValidationErrors && !_isOrganisationNameValid
+                ? 'Organisation name is required'
+                : null,
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -755,10 +834,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           decoration: InputDecoration(
             labelText: 'Type of organisation (Mandatory)',
             border: const OutlineInputBorder(),
-            errorText: _showValidationErrors && !_isOrganisationTypeValid ? 'Select a type of organisation' : null,
+            errorText: _showValidationErrors && !_isOrganisationTypeValid
+                ? 'Select a type of organisation'
+                : null,
           ),
           items: OrganisationType.all
-              .map((t) => DropdownMenuItem(value: t, child: Text(OrganisationType.displayNames[t] ?? t)))
+              .map((t) => DropdownMenuItem(
+                  value: t, child: Text(OrganisationType.displayNames[t] ?? t)))
               .toList(),
           onChanged: (value) => setState(() => _organisationType = value),
         ),
@@ -770,11 +852,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           decoration: InputDecoration(
             labelText: 'City (Mandatory)',
             border: const OutlineInputBorder(),
-            errorText: _showValidationErrors && !_isOrganisationCityValid ? 'Please select a city' : null,
+            errorText: _showValidationErrors && !_isOrganisationCityValid
+                ? 'Please select a city'
+                : null,
           ),
           items: [
-            ...City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))),
-            const DropdownMenuItem(value: _organisationCityOthers, child: Text('Others')),
+            ...City.all.map((c) => DropdownMenuItem(
+                value: c, child: Text(City.displayNames[c] ?? c))),
+            const DropdownMenuItem(
+                value: _organisationCityOthers, child: Text('Others')),
           ],
           onChanged: (value) => setState(() => _organisationCity = value),
         ),
@@ -819,7 +905,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.cake),
                 labelText: "Patient's Age (Mandatory)",
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isAgeValid ? 'Age is required (1-120)' : null,
+                errorText: _showValidationErrors && !_isAgeValid
+                    ? 'Age is required (1-120)'
+                    : null,
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -832,9 +920,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.wc),
                 labelText: "Patient's Gender (Mandatory)",
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isGenderValid ? 'Please select a gender' : null,
+                errorText: _showValidationErrors && !_isGenderValid
+                    ? 'Please select a gender'
+                    : null,
               ),
-              items: Gender.all.map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g)))).toList(),
+              items: Gender.all
+                  .map((g) =>
+                      DropdownMenuItem(value: g, child: Text(_capitalize(g))))
+                  .toList(),
               onChanged: (value) => setState(() => _gender = value),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -847,7 +940,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.monitor_weight_outlined),
                 labelText: "Patient's Weight (kg) (Mandatory)",
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isWeightValid ? 'Weight is required (1-300 kg)' : null,
+                errorText: _showValidationErrors && !_isWeightValid
+                    ? 'Weight is required (1-300 kg)'
+                    : null,
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -860,9 +955,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.location_city),
                 labelText: 'City (Mandatory)',
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isCityValid ? 'Please select a city' : null,
+                errorText: _showValidationErrors && !_isCityValid
+                    ? 'Please select a city'
+                    : null,
               ),
-              items: City.all.map((c) => DropdownMenuItem(value: c, child: Text(City.displayNames[c] ?? c))).toList(),
+              items: City.all
+                  .map((c) => DropdownMenuItem(
+                      value: c, child: Text(City.displayNames[c] ?? c)))
+                  .toList(),
               onChanged: (value) => setState(() => _city = value),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -874,7 +974,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.location_on),
                 labelText: 'Area (Mandatory)',
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isAreaValid ? 'Area is required' : null,
+                errorText: _showValidationErrors && !_isAreaValid
+                    ? 'Area is required'
+                    : null,
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -882,15 +984,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             const SizedBox(height: AppSpacing.md),
             const Row(
               children: [
-                Icon(Icons.medical_information, size: 18, color: AppColors.primaryDark),
+                Icon(Icons.medical_information,
+                    size: 18, color: AppColors.primaryDark),
                 SizedBox(width: AppSpacing.xs),
-                Flexible(child: Text('Medical Condition (Mandatory)', style: SectionBox.fieldGroupLabelStyle)),
+                Flexible(
+                    child: Text('Medical Condition (Mandatory)',
+                        style: SectionBox.fieldGroupLabelStyle)),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
             VitaMultiSelectChips(
               options: [_noneMedicalCondition, ...MedicalCondition.all],
-              labels: {_noneMedicalCondition: _noneMedicalConditionLabel, ...MedicalCondition.displayNames},
+              labels: {
+                _noneMedicalCondition: _noneMedicalConditionLabel,
+                ...MedicalCondition.displayNames
+              },
               selected: _medicalConditions,
               onChanged: (next) => setState(() {
                 _applyMedicalConditionSelection(next);
@@ -926,10 +1034,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       prefixIcon: const Icon(Icons.access_time),
                       labelText: 'Hours Care Needed (Mandatory)',
                       border: const OutlineInputBorder(),
-                      errorText: _showValidationErrors && !_isDutyTypeValid ? 'Please select duty hours' : null,
+                      errorText: _showValidationErrors && !_isDutyTypeValid
+                          ? 'Please select duty hours'
+                          : null,
                     ),
                     items: DutyType.all
-                        .map((d) => DropdownMenuItem(value: d, child: Text(DutyType.displayNames[d] ?? d)))
+                        .map((d) => DropdownMenuItem(
+                            value: d,
+                            child: Text(DutyType.displayNames[d] ?? d)))
                         .toList(),
                     onChanged: (value) => setState(() => _dutyType = value),
                   ),
@@ -948,14 +1060,18 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       Icon(
                         Icons.calendar_today,
                         size: 16,
-                        color: _showValidationErrors && !_isStartDateValid ? AppColors.error : AppColors.primaryDark,
+                        color: _showValidationErrors && !_isStartDateValid
+                            ? AppColors.error
+                            : AppColors.primaryDark,
                       ),
                       const SizedBox(width: AppSpacing.xs),
                       Flexible(
                         child: Text(
                           'Preferred Start Date (Mandatory)',
                           style: SectionBox.fieldGroupLabelStyle.copyWith(
-                            color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
+                            color: _showValidationErrors && !_isStartDateValid
+                                ? AppColors.error
+                                : null,
                           ),
                         ),
                       ),
@@ -975,7 +1091,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
                       child: Text('Select a preferred start date',
-                          style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+                          style: TextStyle(
+                              color: AppColors.error,
+                              fontSize: AppTypography.small)),
                     ),
                 ],
               ),
@@ -989,10 +1107,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.timelapse),
                 labelText: 'How long you need the care for? (Mandatory)',
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isCareDurationValid ? 'Please select how long care is needed' : null,
+                errorText: _showValidationErrors && !_isCareDurationValid
+                    ? 'Please select how long care is needed'
+                    : null,
               ),
               items: CareDuration.all
-                  .map((d) => DropdownMenuItem(value: d, child: Text(CareDuration.displayNames[d] ?? d)))
+                  .map((d) => DropdownMenuItem(
+                      value: d, child: Text(CareDuration.displayNames[d] ?? d)))
                   .toList(),
               onChanged: (value) => setState(() {
                 _careDuration = value;
@@ -1011,7 +1132,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                    Icon(Icons.warning_amber,
+                        color: AppColors.warning, size: 20),
                     SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Column(
@@ -1019,7 +1141,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         children: [
                           Text(
                             'Short-term requirement',
-                            style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 4),
                           Text(
@@ -1040,17 +1164,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             DropdownButtonFormField<String>(
               key: _toiletAssistanceKey,
               isExpanded: true,
-              initialValue: _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
+              initialValue:
+                  _toiletAssistance.isEmpty ? null : _toiletAssistance.first,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.wash),
                 labelText: 'Toilet Assistance (Mandatory)',
                 border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
+                errorText: _showValidationErrors && !_isToiletAssistanceValid
+                    ? 'Please select toilet assistance'
+                    : null,
               ),
               items: [
-                const DropdownMenuItem(value: _noneToiletAssistance, child: Text(_noneToiletAssistanceLabel)),
-                ...ToiletAssistance.all
-                    .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t))),
+                const DropdownMenuItem(
+                    value: _noneToiletAssistance,
+                    child: Text(_noneToiletAssistanceLabel)),
+                ...ToiletAssistance.all.map((t) => DropdownMenuItem(
+                    value: t,
+                    child: Text(ToiletAssistance.displayNames[t] ?? t))),
               ],
               onChanged: (value) => setState(() {
                 _toiletAssistance
@@ -1078,12 +1208,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 prefixIcon: const Icon(Icons.restaurant),
                 labelText: 'Feeding/Medicine Assistance (Mandatory)',
                 border: const OutlineInputBorder(),
-                errorText:
-                    _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
+                errorText: _showValidationErrors && !_isFeedingTypeValid
+                    ? 'Please select feeding/medicine assistance'
+                    : null,
               ),
               items: [
-                const DropdownMenuItem(value: _noneFeedingType, child: Text(_noneFeedingTypeLabel)),
-                ...FeedingType.all.map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f))),
+                const DropdownMenuItem(
+                    value: _noneFeedingType,
+                    child: Text(_noneFeedingTypeLabel)),
+                ...FeedingType.all.map((f) => DropdownMenuItem(
+                    value: f, child: Text(FeedingType.displayNames[f] ?? f))),
               ],
               onChanged: (value) => setState(() {
                 _feedingType = value;
@@ -1095,7 +1229,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               isExpanded: true,
               initialValue: _preferredGender,
               decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.people_outline), labelText: 'Preferred Caregiver Gender', border: OutlineInputBorder()),
+                  prefixIcon: Icon(Icons.people_outline),
+                  labelText: 'Preferred Caregiver Gender',
+                  border: OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(value: null, child: Text('No preference')),
                 DropdownMenuItem(value: Gender.male, child: Text('Male')),
@@ -1114,7 +1250,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                    Icon(Icons.warning_amber,
+                        color: AppColors.warning, size: 20),
                     SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
@@ -1143,7 +1280,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       decoration: InputDecoration(
         labelText: 'Create a 4-digit PIN (Mandatory)',
         border: const OutlineInputBorder(),
-        errorText: _showValidationErrors && !_isCodeValid ? 'Enter a 4-digit PIN' : null,
+        errorText: _showValidationErrors && !_isCodeValid
+            ? 'Enter a 4-digit PIN'
+            : null,
       ),
     );
   }
@@ -1162,7 +1301,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             'Verify Phone Number (Mandatory)',
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: _showValidationErrors && !_isCodeValid ? AppColors.error : null,
+              color: _showValidationErrors && !_isCodeValid
+                  ? AppColors.error
+                  : null,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -1171,7 +1312,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               children: [
                 Icon(Icons.check_circle, color: AppColors.success),
                 SizedBox(width: AppSpacing.sm),
-                Flexible(child: Text('Phone number verified', overflow: TextOverflow.ellipsis)),
+                Flexible(
+                    child: Text('Phone number verified',
+                        overflow: TextOverflow.ellipsis)),
               ],
             )
           else if (!_otpSent)
@@ -1190,7 +1333,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               controller: _otpController,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: '6-digit OTP', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: '6-digit OTP', border: OutlineInputBorder()),
             ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
@@ -1204,7 +1348,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Verify'),
                 ),
@@ -1218,7 +1363,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           if (_showValidationErrors && !_isCodeValid)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Text('Verify your phone number to continue', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text('Verify your phone number to continue',
+                  style: TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),
@@ -1237,10 +1384,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// Toilet Assistance, and Feeding/Medicine Assistance are all filled in —
   /// a placeholder hint fills the bar until then.
   Widget _buildSalaryBar() {
-    final ready = _isCareDurationValid && _isToiletAssistanceValid && _isFeedingTypeValid;
+    final ready =
+        _isCareDurationValid && _isToiletAssistanceValid && _isFeedingTypeValid;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
       decoration: BoxDecoration(
         color: Colors.amber,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
@@ -1256,7 +1405,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           ? const Text(
               'Salary will appear here once how long you need the care for, Toilet '
               'Assistance, and Feeding/Medicine Assistance are filled in.',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: AppTypography.small,
+                  fontWeight: FontWeight.w500),
             )
           : Column(
               mainAxisSize: MainAxisSize.min,
@@ -1266,7 +1418,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   'This is just a guidance, you must discuss it directly '
                   'with caregivers. Fees are paid directly to the '
                   'Nurse/Caregivers.',
-                  style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.caption, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: AppTypography.caption,
+                      fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 // Read-only — bold standout text, never user-typed.
@@ -1288,19 +1443,27 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       Text(
                         'Salary (₹/${_derivedFrequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month'}) — Guidance only',
                         style: const TextStyle(
-                            fontSize: AppTypography.small, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                            fontSize: AppTypography.small,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _salaryController.text.isEmpty ? '—' : _salaryController.text,
+                        _salaryController.text.isEmpty
+                            ? '—'
+                            : _salaryController.text,
                         style: const TextStyle(
-                            fontSize: AppTypography.heading, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            fontSize: AppTypography.heading,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
                       ),
                       if (_showValidationErrors && !_isSalaryValid) ...[
                         const SizedBox(height: 2),
                         const Text(
                           'Salary is required',
-                          style: TextStyle(color: AppColors.error, fontSize: AppTypography.caption),
+                          style: TextStyle(
+                              color: AppColors.error,
+                              fontSize: AppTypography.caption),
                         ),
                       ],
                     ],
@@ -1325,7 +1488,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       children: [
         const Text(
           'Based on the requirements you entered, this appears to be a ',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small),
+          style: TextStyle(
+              color: AppColors.textPrimary, fontSize: AppTypography.small),
         ),
         GestureDetector(
           onTap: () => showDialog(
@@ -1345,10 +1509,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ),
           ),
         ),
-        const Text('.', style: TextStyle(color: AppColors.textPrimary, fontSize: AppTypography.small)),
+        const Text('.',
+            style: TextStyle(
+                color: AppColors.textPrimary, fontSize: AppTypography.small)),
       ],
     );
   }
 }
 
-String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+String _capitalize(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);

@@ -21,7 +21,8 @@ import 'package:nursenow_app/analytics/analytics.dart';
 // for a Google account, unlike /edit which routes through the Docs editor
 // UI (expects an account context, and shows "could not find any Google
 // account" on a device signed into none).
-const _termsUrl = 'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/preview';
+const _termsUrl =
+    'https://docs.google.com/document/d/17BQ8hGoZ-U6Tqio-5pNsTZaDtQTlnl0XjJtmET0sG_Q/preview';
 
 class _MandatoryField {
   final GlobalKey key;
@@ -102,7 +103,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     // run first. Unauthenticated and fails open to otpModeProvider's own
     // default (false/PIN mode) on any error.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final isOtpEnabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+      final isOtpEnabled =
+          await ref.read(authConfigRepositoryProvider).isOtpEnabled();
       if (!mounted) return;
       ref.read(otpModeProvider.notifier).state = isOtpEnabled;
     });
@@ -112,9 +114,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   int? get _age => int.tryParse(_ageController.text.trim());
   bool get _otpMode => ref.watch(otpModeProvider);
 
-  bool get _isFullNameValid => Validators.isValidName(_fullNameController.text.trim());
+  bool get _isFullNameValid =>
+      Validators.isValidName(_fullNameController.text.trim());
   bool get _isPhoneValid => Validators.isValidPhone(_phone);
-  bool get _isCodeValid => _otpMode ? _verificationToken != null : Validators.isValidCode(_codeController.text.trim());
+  bool get _isCodeValid => _otpMode
+      ? _verificationToken != null
+      : Validators.isValidCode(_codeController.text.trim());
   bool get _isAgeValid => _age != null && Validators.isValidAge(_age!);
   bool get _isLanguagesValid => _languages.isNotEmpty;
   bool get _isReligionValid => _religion != null;
@@ -139,7 +144,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// In on-form order, so the first invalid one found here is genuinely the
   /// first one seen when Register scrolls/focuses to it.
   List<_MandatoryField> get _mandatoryFieldsInOrder => [
-        _MandatoryField(_fullNameKey, _isFullNameValid, focusNode: _fullNameFocusNode),
+        _MandatoryField(_fullNameKey, _isFullNameValid,
+            focusNode: _fullNameFocusNode),
         _MandatoryField(_phoneKey, _isPhoneValid, focusNode: _phoneFocusNode),
         _MandatoryField(_codeKey, _isCodeValid, focusNode: _codeFocusNode),
         _MandatoryField(_ageKey, _isAgeValid, focusNode: _ageFocusNode),
@@ -172,7 +178,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
     setState(() => _sendingOtp = true);
     try {
-      await ref.read(authRepositoryProvider).sendOtp(phone: _phone, purpose: OtpPurpose.register);
+      await ref
+          .read(authRepositoryProvider)
+          .sendOtp(phone: _phone, purpose: OtpPurpose.register);
       if (mounted) setState(() => _otpSent = true);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -212,8 +220,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool _rejectIfTooLarge(int sizeBytes, {int? maxBytes, String? message}) {
     final limit = maxBytes ?? Validation.fileMaxSizeBytes;
     if (sizeBytes <= limit) return false;
-    setState(() => _errorMessage =
-        message ?? 'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
+    setState(() => _errorMessage = message ??
+        'That file is larger than ${Validation.fileMaxSizeMb}MB. Please choose a smaller file.');
     return true;
   }
 
@@ -236,7 +244,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       // preview and the actual upload (ProfileRepository.uploadSelfie takes
       // bytes too, for the same reason).
       final bytes = await photo.readAsBytes();
-      if (_rejectIfTooLarge(bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
+      if (_rejectIfTooLarge(bytes.length,
+          maxBytes: photoAadhaarMaxSizeBytes,
+          message: photoAadhaarTooLargeMessage)) {
         return;
       }
       setState(() {
@@ -257,7 +267,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     // a high-res photo that's over the limit uncompressed can still
     // succeed once shrunk. Non-image files pass through untouched.
     final compressed = await compressImageIfPossible(pickedBytes, picked.name);
-    if (_rejectIfTooLarge(compressed.bytes.length, maxBytes: photoAadhaarMaxSizeBytes, message: photoAadhaarTooLargeMessage)) {
+    if (_rejectIfTooLarge(compressed.bytes.length,
+        maxBytes: photoAadhaarMaxSizeBytes,
+        message: photoAadhaarTooLargeMessage)) {
       return;
     }
     setState(() {
@@ -371,12 +383,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       );
 
       final localStorage = ref.read(localStorageProvider);
-      await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+      await localStorage.saveTokens(
+          accessToken: result.accessToken, refreshToken: result.refreshToken);
       unawaited(ref.read(fcmServiceProvider).register());
 
       final ProfileRepository profileRepo = ref.read(profileRepositoryProvider);
-      await profileRepo.uploadSelfie(_selfieBytes!, _selfieFilename ?? 'selfie.jpg');
-      await profileRepo.uploadDocument(_aadhaarBytes!, _aadhaarFilename ?? 'aadhaar', DocumentType.aadhaar);
+      await profileRepo.uploadSelfie(
+          _selfieBytes!, _selfieFilename ?? 'selfie.jpg');
+      await profileRepo.uploadDocument(
+          _aadhaarBytes!, _aadhaarFilename ?? 'aadhaar', DocumentType.aadhaar);
       if (_qualificationDocBytes != null) {
         await profileRepo.uploadDocument(
           _qualificationDocBytes!,
@@ -385,7 +400,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         );
       }
       for (final doc in _otherDocs) {
-        await profileRepo.uploadDocument(doc.bytes, doc.name, DocumentType.other);
+        await profileRepo.uploadDocument(
+            doc.bytes, doc.name, DocumentType.other);
       }
 
       if (!mounted) return;
@@ -407,7 +423,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/caregiver/pending-call', (route) => false);
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/caregiver/pending-call', (route) => false);
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);
     } finally {
@@ -424,263 +441,316 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       ),
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: ListView(
+        // SingleChildScrollView + Column, not a lazy ListView: a ListView only
+        // builds on-screen children, so an off-screen invalid field has no
+        // context and Scrollable.ensureVisible silently did nothing.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          children: [
-            const Text(
-              'Nurse/Caregivers Registration Form',
-              style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _fullNameKey,
-              controller: _fullNameController,
-              focusNode: _fullNameFocusNode,
-              maxLength: Validation.nameMaxLength,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'Full Name (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isFullNameValid
-                    ? 'Enter a valid full name (letters and spaces only)'
-                    : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Nurse/Caregivers Registration Form',
+                style: TextStyle(
+                    fontSize: AppTypography.title,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _phoneKey,
-              controller: _phoneController,
-              focusNode: _phoneFocusNode,
-              keyboardType: TextInputType.phone,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                prefixText: '+91 ',
-                labelText: 'Phone number (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isPhoneValid ? 'Enter a valid 10-digit mobile number' : null,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (_otpMode) _buildOtpVerificationBlock() else _buildPinField(),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _gender,
-              decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-              items: Gender.all
-                  .map((g) => DropdownMenuItem(value: g, child: Text(g[0].toUpperCase() + g.substring(1))))
-                  .toList(),
-              onChanged: (value) => setState(() => _gender = value ?? _gender),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              key: _ageKey,
-              controller: _ageController,
-              focusNode: _ageFocusNode,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'Age (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isAgeValid
-                    ? 'Age must be between ${Validation.ageMin} and ${Validation.ageMax}'
-                    : null,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            KeyedSubtree(
-              key: _languagesKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Languages (Mandatory)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _showValidationErrors && !_isLanguagesValid ? AppColors.error : null,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  VitaMultiSelectChips(
-                    options: Language.all,
-                    labels: Language.displayNames,
-                    selected: _languages,
-                    onChanged: (next) => setState(() {
-                      _languages
-                        ..clear()
-                        ..addAll(next);
-                    }),
-                  ),
-                  if (_showValidationErrors && !_isLanguagesValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Select at least one language', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              key: _religionKey,
-              isExpanded: true,
-              initialValue: _religion,
-              decoration: InputDecoration(
-                labelText: 'Religion (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isReligionValid ? 'Select your religion' : null,
-              ),
-              items: Religion.all
-                  .map((r) => DropdownMenuItem(value: r, child: Text(Religion.displayNames[r] ?? r)))
-                  .toList(),
-              onChanged: (value) => setState(() => _religion = value),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              key: _qualificationKey,
-              isExpanded: true,
-              initialValue: _qualification,
-              decoration: InputDecoration(
-                labelText: 'Highest Qualification (Mandatory)',
-                border: const OutlineInputBorder(),
-                errorText: _showValidationErrors && !_isQualificationValid ? 'Select your highest qualification' : null,
-              ),
-              items: Qualification.all
-                  .map((q) => DropdownMenuItem(value: q, child: Text(Qualification.displayNames[q] ?? q)))
-                  .toList(),
-              onChanged: (value) => setState(() => _qualification = value),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const Text('Documents', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
-            Text(
-              'Selfie and Aadhaar Card must each be under ${photoAadhaarMaxSizeMb}MB. '
-              'Qualification Document and Other Documents must each be under ${Validation.fileMaxSizeMb}MB.',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            KeyedSubtree(
-              key: _selfieKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _takeSelfie,
-                    style: _showValidationErrors && !_isSelfieValid
-                        ? OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error))
-                        : null,
-                    icon: const Icon(Icons.camera_alt),
-                    label: Text(_selfieBytes == null ? 'Take Selfie (mandatory)' : 'Retake Selfie'),
-                  ),
-                  if (_selfieBytes != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(AppSpacing.sm),
-                      child: Image.memory(_selfieBytes!, height: 120, width: 120, fit: BoxFit.cover),
-                    ),
-                  ],
-                  if (_showValidationErrors && !_isSelfieValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Take a selfie to continue', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _DocumentPicker(
-              key: _aadhaarKey,
-              label: 'Aadhaar Card (mandatory)',
-              filename: _aadhaarFilename,
-              onTap: _pickAadhaar,
-              hasError: _showValidationErrors && !_isAadhaarValid,
-              errorText: 'Upload your Aadhaar card to continue',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _DocumentPicker(
-              label: 'Qualification Document (optional)',
-              filename: _qualificationDocFilename,
-              onTap: _pickQualificationDoc,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Other Documents (optional, up to ${Validation.maxOtherDocuments})',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            for (int i = 0; i < _otherDocs.length; i++) ...[
-              _DocumentPicker(label: 'Other document ${i + 1}', filename: _otherDocs[i].name, onTap: null),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            if (_otherDocs.length < Validation.maxOtherDocuments)
-              OutlinedButton.icon(
-                onPressed: _pickOtherDoc,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add Other Document'),
-              ),
-            const SizedBox(height: AppSpacing.lg),
-            KeyedSubtree(
-              key: _termsKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CheckboxListTile(
-                    value: _termsAccepted,
-                    onChanged: (value) => setState(() => _termsAccepted = value ?? false),
-                    title: RichText(
-                      text: TextSpan(
-                        style: TextStyle(
-                          fontSize: AppTypography.body,
-                          color: _showValidationErrors && !_isTermsValid ? AppColors.error : AppColors.textPrimary,
-                        ),
-                        children: [
-                          const TextSpan(text: 'I accept the '),
-                          TextSpan(
-                            text: 'Terms & Conditions',
-                            style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline),
-                            recognizer: TapGestureRecognizer()..onTap = _openTerms,
-                          ),
-                          const TextSpan(text: ' (mandatory)'),
-                        ],
-                      ),
-                    ),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  if (_showValidationErrors && !_isTermsValid)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 12),
-                      child: Text(
-                        'You must accept the Terms & Conditions to continue',
-                        style: TextStyle(color: AppColors.error, fontSize: AppTypography.small),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (_errorMessage != null) ...[
               const SizedBox(height: AppSpacing.md),
-              Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+              TextField(
+                key: _fullNameKey,
+                controller: _fullNameController,
+                focusNode: _fullNameFocusNode,
+                maxLength: Validation.nameMaxLength,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Full Name (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isFullNameValid
+                      ? 'Enter a valid full name (letters and spaces only)'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                key: _phoneKey,
+                controller: _phoneController,
+                focusNode: _phoneFocusNode,
+                keyboardType: TextInputType.phone,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixText: '+91 ',
+                  labelText: 'Phone number (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isPhoneValid
+                      ? 'Enter a valid 10-digit mobile number'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (_otpMode) _buildOtpVerificationBlock() else _buildPinField(),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _gender,
+                decoration: const InputDecoration(
+                    labelText: 'Gender', border: OutlineInputBorder()),
+                items: Gender.all
+                    .map((g) => DropdownMenuItem(
+                        value: g,
+                        child: Text(g[0].toUpperCase() + g.substring(1))))
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => _gender = value ?? _gender),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                key: _ageKey,
+                controller: _ageController,
+                focusNode: _ageFocusNode,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Age (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isAgeValid
+                      ? 'Age must be between ${Validation.ageMin} and ${Validation.ageMax}'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              KeyedSubtree(
+                key: _languagesKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Languages (Mandatory)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: _showValidationErrors && !_isLanguagesValid
+                            ? AppColors.error
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    VitaMultiSelectChips(
+                      options: Language.all,
+                      labels: Language.displayNames,
+                      selected: _languages,
+                      onChanged: (next) => setState(() {
+                        _languages
+                          ..clear()
+                          ..addAll(next);
+                      }),
+                    ),
+                    if (_showValidationErrors && !_isLanguagesValid)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text('Select at least one language',
+                            style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: AppTypography.small)),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                key: _religionKey,
+                isExpanded: true,
+                initialValue: _religion,
+                decoration: InputDecoration(
+                  labelText: 'Religion (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isReligionValid
+                      ? 'Select your religion'
+                      : null,
+                ),
+                items: Religion.all
+                    .map((r) => DropdownMenuItem(
+                        value: r, child: Text(Religion.displayNames[r] ?? r)))
+                    .toList(),
+                onChanged: (value) => setState(() => _religion = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                key: _qualificationKey,
+                isExpanded: true,
+                initialValue: _qualification,
+                decoration: InputDecoration(
+                  labelText: 'Highest Qualification (Mandatory)',
+                  border: const OutlineInputBorder(),
+                  errorText: _showValidationErrors && !_isQualificationValid
+                      ? 'Select your highest qualification'
+                      : null,
+                ),
+                items: Qualification.all
+                    .map((q) => DropdownMenuItem(
+                        value: q,
+                        child: Text(Qualification.displayNames[q] ?? q)))
+                    .toList(),
+                onChanged: (value) => setState(() => _qualification = value),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text('Documents',
+                  style: TextStyle(
+                      fontSize: AppTypography.subtitle,
+                      fontWeight: FontWeight.bold)),
+              Text(
+                'Selfie and Aadhaar Card must each be under ${photoAadhaarMaxSizeMb}MB. '
+                'Qualification Document and Other Documents must each be under ${Validation.fileMaxSizeMb}MB.',
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: AppTypography.small),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              KeyedSubtree(
+                key: _selfieKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _takeSelfie,
+                      style: _showValidationErrors && !_isSelfieValid
+                          ? OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.error))
+                          : null,
+                      icon: const Icon(Icons.camera_alt),
+                      label: Text(_selfieBytes == null
+                          ? 'Take Selfie (mandatory)'
+                          : 'Retake Selfie'),
+                    ),
+                    if (_selfieBytes != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppSpacing.sm),
+                        child: Image.memory(_selfieBytes!,
+                            height: 120, width: 120, fit: BoxFit.cover),
+                      ),
+                    ],
+                    if (_showValidationErrors && !_isSelfieValid)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text('Take a selfie to continue',
+                            style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: AppTypography.small)),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _DocumentPicker(
+                key: _aadhaarKey,
+                label: 'Aadhaar Card (mandatory)',
+                filename: _aadhaarFilename,
+                onTap: _pickAadhaar,
+                hasError: _showValidationErrors && !_isAadhaarValid,
+                errorText: 'Upload your Aadhaar card to continue',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _DocumentPicker(
+                label: 'Qualification Document (optional)',
+                filename: _qualificationDocFilename,
+                onTap: _pickQualificationDoc,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Other Documents (optional, up to ${Validation.maxOtherDocuments})',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              for (int i = 0; i < _otherDocs.length; i++) ...[
+                _DocumentPicker(
+                    label: 'Other document ${i + 1}',
+                    filename: _otherDocs[i].name,
+                    onTap: null),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if (_otherDocs.length < Validation.maxOtherDocuments)
+                OutlinedButton.icon(
+                  onPressed: _pickOtherDoc,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Other Document'),
+                ),
+              const SizedBox(height: AppSpacing.lg),
+              KeyedSubtree(
+                key: _termsKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CheckboxListTile(
+                      value: _termsAccepted,
+                      onChanged: (value) =>
+                          setState(() => _termsAccepted = value ?? false),
+                      title: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: AppTypography.body,
+                            color: _showValidationErrors && !_isTermsValid
+                                ? AppColors.error
+                                : AppColors.textPrimary,
+                          ),
+                          children: [
+                            const TextSpan(text: 'I accept the '),
+                            TextSpan(
+                              text: 'Terms & Conditions',
+                              style: const TextStyle(
+                                  color: AppColors.primary,
+                                  decoration: TextDecoration.underline),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = _openTerms,
+                            ),
+                            const TextSpan(text: ' (mandatory)'),
+                          ],
+                        ),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    if (_showValidationErrors && !_isTermsValid)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 12),
+                        child: Text(
+                          'You must accept the Terms & Conditions to continue',
+                          style: TextStyle(
+                              color: AppColors.error,
+                              fontSize: AppTypography.small),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error)),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                onPressed: _loading ? null : _handleSubmitPressed,
+                child: _loading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Register'),
+              ),
+              // Added alongside the "Caregivers Registration" entry button on
+              // JustHeal's own LoginScreen (see CLAUDE.md's "Merged into one
+              // binary with NurseJobs") — without this, a caregiver who
+              // already has an account but taps that button lands here with
+              // no way back to their own login.
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(context).pushNamed('/caregiver/login'),
+                child: const Text('Already registered? Login'),
+              ),
             ],
-            const SizedBox(height: AppSpacing.lg),
-            ElevatedButton(
-              onPressed: _loading ? null : _handleSubmitPressed,
-              child: _loading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Register'),
-            ),
-            // Added alongside the "Caregivers Registration" entry button on
-            // JustHeal's own LoginScreen (see CLAUDE.md's "Merged into one
-            // binary with NurseJobs") — without this, a caregiver who
-            // already has an account but taps that button lands here with
-            // no way back to their own login.
-            TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/caregiver/login'),
-              child: const Text('Already registered? Login'),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -720,7 +790,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             'Verify Phone Number (Mandatory)',
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: _showValidationErrors && !_isCodeValid ? AppColors.error : null,
+              color: _showValidationErrors && !_isCodeValid
+                  ? AppColors.error
+                  : null,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -729,7 +801,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               children: [
                 Icon(Icons.check_circle, color: AppColors.success),
                 SizedBox(width: AppSpacing.sm),
-                Flexible(child: Text('Phone number verified', overflow: TextOverflow.ellipsis)),
+                Flexible(
+                    child: Text('Phone number verified',
+                        overflow: TextOverflow.ellipsis)),
               ],
             )
           else if (!_otpSent)
@@ -748,7 +822,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               controller: _otpController,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: '6-digit OTP', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: '6-digit OTP', border: OutlineInputBorder()),
             ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
@@ -762,7 +837,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Verify'),
                 ),
@@ -776,7 +852,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           if (_showValidationErrors && !_isCodeValid)
             const Padding(
               padding: EdgeInsets.only(top: 4),
-              child: Text('Verify your phone number to continue', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+              child: Text('Verify your phone number to continue',
+                  style: TextStyle(
+                      color: AppColors.error, fontSize: AppTypography.small)),
             ),
         ],
       ),
@@ -808,26 +886,36 @@ class _DocumentPicker extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            border: Border.all(color: hasError ? AppColors.error : AppColors.border, width: hasError ? 2 : 1),
+            border: Border.all(
+                color: hasError ? AppColors.error : AppColors.border,
+                width: hasError ? 2 : 1),
             borderRadius: BorderRadius.circular(AppSpacing.sm),
           ),
           child: Row(
             children: [
               Icon(
-                filename != null ? Icons.check_circle : Icons.insert_drive_file_outlined,
-                color: filename != null ? AppColors.success : AppColors.textSecondary,
+                filename != null
+                    ? Icons.check_circle
+                    : Icons.insert_drive_file_outlined,
+                color: filename != null
+                    ? AppColors.success
+                    : AppColors.textSecondary,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(child: Text(filename ?? label)),
               if (onTap != null)
-                TextButton(onPressed: onTap, child: Text(filename == null ? 'Upload' : 'Replace')),
+                TextButton(
+                    onPressed: onTap,
+                    child: Text(filename == null ? 'Upload' : 'Replace')),
             ],
           ),
         ),
         if (hasError && errorText != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(errorText!, style: const TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
+            child: Text(errorText!,
+                style: const TextStyle(
+                    color: AppColors.error, fontSize: AppTypography.small)),
           ),
       ],
     );
