@@ -1222,11 +1222,14 @@ timing rules live in that one file, pure functions, unit-tested).
   | Accepted job starts in ≤ 48 h / ≤ 24 h / ≤ 12 h | the caregiver | MyJobs |
 
   A pending_review job being approved by an admin **edit** announces approval only (it has no applicants).
-- **Gender rule.** `FcmService.sendToAllCaregivers(title, body, { preferredGender })` →
-  `UsersRepository.listCaregiverFcmTokens(gender)` joins `caregiver_profiles` and keeps `cp.gender = preferred`
-  (no preference → everyone). Same rule as `GET /caregiver/jobs`. Verification status is **not** filtered:
-  working (`assigned`), pending, unavailable and rejected caregivers all get it (browsing before approval is
-  by design) — narrow it if that changes. A caregiver whose gender is `other` is excluded by any preference.
+- **Who gets the "new job" push.** `FcmService.sendToAllCaregivers(title, body, { preferredGender })` →
+  `UsersRepository.listCaregiverFcmTokens(gender)`: every caregiver who **can actually apply**
+  (`APPLY_ELIGIBLE_STATUSES` in `common/apply-eligibility.ts` — `available` or `assigned`, so a caregiver already
+  working is included; `unavailable`, `pending_call` and `rejected` are not), whose account is not deactivated or
+  deleted. **How recently they used the app does not matter.** The same constant gates the apply endpoints, so the
+  push can never reach someone who couldn't apply. **Gender:** a job asking for female goes only to
+  `caregiver_profiles.gender = 'female'` (likewise male); no preference → everyone eligible; a caregiver whose
+  gender is `other` is excluded by any preference. Same rule as `GET /caregiver/jobs`.
 - **Duty-start reminders (`DutyRemindersService`, `*/15 * * * *`, migration 088).** Start = job `start_date` at
   08:00 IST (day/live-in) or 20:00 IST (night). Bands by time left: ≤ 48 h "2 days", ≤ 24 h "1 day", ≤ 12 h
   "You need to go on duty soon. Do not forget!". Each stage is **claimed in SQL before sending**
