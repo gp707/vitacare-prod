@@ -1,3 +1,4 @@
+import { APPLY_ELIGIBLE_STATUSES } from '../common/apply-eligibility';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   REQUIREMENT_APPLICANT_FIELDS,
@@ -35,13 +36,6 @@ import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-re
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { CompleteRequirementDto } from './dto/complete-requirement.dto';
-
-// Only these two can apply — same rule as the jobs pipeline: unavailable
-// caregivers must toggle back to available first.
-const APPLY_ELIGIBLE_STATUSES: VerificationStatus[] = [
-  VerificationStatus.AVAILABLE,
-  VerificationStatus.ASSIGNED,
-];
 
 /** Core requirement/application logic, shared by the org-facing,
  *  admin-facing, and caregiver-facing controllers — the organisation-phase

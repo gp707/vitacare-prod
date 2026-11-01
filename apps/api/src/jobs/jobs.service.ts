@@ -1,3 +1,4 @@
+import { APPLY_ELIGIBLE_STATUSES } from '../common/apply-eligibility';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JOB_APPLICANT_FIELDS, changedAny, jobDisplayId } from '../notifications/notification-templates';
 import { Injectable } from '@nestjs/common';
@@ -32,13 +33,6 @@ import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { DecideApplicationDto } from './dto/decide-application.dto';
 import { CompleteJobDto } from './dto/complete-job.dto';
-
-// Only these two can apply to a job — same rule as availability itself:
-// unavailable caregivers must toggle back to available first.
-const APPLY_ELIGIBLE_STATUSES: VerificationStatus[] = [
-  VerificationStatus.AVAILABLE,
-  VerificationStatus.ASSIGNED,
-];
 
 const DUTY_TYPE_LABELS: Record<DutyType, string> = {
   [DutyType.DAY_DUTY]: 'Day Duty',

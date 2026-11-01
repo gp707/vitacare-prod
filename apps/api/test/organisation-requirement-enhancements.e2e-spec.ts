@@ -133,6 +133,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
+    await app.listen(0); // one stable port; see notifications.e2e-spec.ts
   });
 
   afterAll(async () => {

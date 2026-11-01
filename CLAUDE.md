@@ -1099,8 +1099,9 @@ as the selection UI rather than building a new one.
   caregiver-app's own `FcmService` (`lib/caregiver/core/fcm/fcm_service.dart`, called from
   `SessionNotifier.loadSession()` and the registration screen). Added the same capability for
   the other two roles: `PUT /individual/profile/fcm-token` / `PUT /organisation/profile/fcm-token`
-  (both reuse the existing `UpdateFcmTokenDto`, both just call `UsersRepository.updateFcmToken`
-  with no audit log, same as caregiver's own `updateFcmToken`), and a patient_hospital-side
+  (both reuse the existing `UpdateFcmTokenDto`, both go through `NotificationsService.registerDevice`
+  with no audit log, same as caregiver's own `updateFcmToken` — devices now live in
+  `user_fcm_tokens`, see "Push Notifications (who gets what)" below), and a patient_hospital-side
   `FcmService` (`lib/patient_hospital/core/fcm/fcm_service.dart`) that mirrors caregiver's
   exactly except `register({required bool isOrganisation})` takes the role explicitly (patient_
   hospital's `SessionNotifier` already decodes it from the JWT via `_isOrganisationToken` to pick
@@ -1126,7 +1127,8 @@ as the selection UI rather than building a new one.
   reminder already uses) that finds every `pending` row whose `scheduled_at` has arrived and sends
   it; low enough volume (admin-composed, not a per-user trigger) that a simple poll is plenty, no
   overlap guard needed. Sending resolves the notification's recipient user ids, looks up their
-  `fcm_token`s via the new role-agnostic `UsersRepository.listFcmTokensByUserIds`, and calls the
+  device tokens (every device each account has registered, via the role-agnostic
+  `UsersRepository.listFcmTokensByUserIds`), and calls the
   new generic `FcmService.sendToTokens(tokens, title, body)` (unlike every other `FcmService`
   method, which is always caregiver-only and swallows+logs its own errors, this one throws so the
   caller can mark the notification `failed` rather than silently losing that signal). `GET
@@ -1168,6 +1170,84 @@ as the selection UI rather than building a new one.
   who composed it) with pagination; a pending row gets a Cancel action, nothing else is ever
   editable after composing. This screen is read/cancel-only — composing a new notification only
   ever happens via `RecipientCartBar` from one of the three list screens, never from here.
+
+## Push Notifications (who gets what)
+
+One binary, three kinds of person (caregiver, patient/family, organisation), so every push is addressed to an
+**account**, never a screen or a device. Admin-composed pushes are described above ("Admin Push Notifications");
+this section is the automatic, event-driven ones. English only; nothing is stored per person (no inbox/history
+yet — deliberately deferred). Built in `apps/api/src/notifications/` (`NotificationsService`,
+`DutyRemindersService`, `NoApplicantsNudgeService`, and `notification-templates.ts` — all wording, routes and
+timing rules live in that one file, pure functions, unit-tested).
+
+- **Devices, not one token per user (migration 087).** `user_fcm_tokens(token PK, user_id → users ON DELETE
+  CASCADE)`. A token belongs to exactly **one account at a time**: registering it for another account moves it
+  (`UsersRepository.updateFcmToken` upserts), so a phone handed to someone else stops receiving the previous
+  account's pushes. An account may have many devices. `users.fcm_token` is **still dual-written** so the previous
+  backend release can be rolled back; a later migration drops it. `listFcmTokensByUserIds` /
+  `listCaregiverFcmTokens` only return tokens of `is_active` accounts. `DELETE /caregiver/fcm-token`,
+  `DELETE /individual/profile/fcm-token`, `DELETE /organisation/profile/fcm-token` (body `{token}`) forget the
+  caller's own copy only — the updated app calls it on logout (`FcmService.unregister`, 3 s time-box,
+  failures ignored). Old installs never call it; the move-on-register rule covers them once another account
+  logs in on that phone.
+- **Every automatic push is fire-and-forget.** `void notificationsService.x(...)` — a push failing or being slow
+  must never fail or delay the action behind it (`NotificationsService.safe` logs and swallows). The two
+  exceptions are deliberate: `registerDevice` awaits the token save (the caller must know it failed), and a
+  **full account block awaits `accountBlocked` BEFORE `setActive(false)`** (a deactivated account receives
+  nothing, so it must be told first). Tests must wait for in-flight pushes (`settled()` in
+  `notifications.e2e-spec.ts`).
+- **Payload = notification + `data.route`.** The app (`lib/push/push_handler.dart`) follows a route only if it is
+  on its allow-list **and** the matching role is signed in: `/caregiver/jobs|my-jobs|profile` need a caregiver
+  session; `/home` an individual; `/org-home` an organisation. Anything else just opens the app. Caregiver
+  routes are pushed on top of the current screen; `/home`/`/org-home` replace the stack. A tap while the app is
+  closed is held until the splash has restored the session (2-minute lifetime). A push arriving while the app
+  is open shows an in-app SnackBar (with "View" when it has a route) — Android shows nothing itself. The
+  allow-list is mirrored by `PushRoutes` in `notification-templates.ts`; change both together.
+- **Events → who → opens** (`welcome*`, `requirementApproved`, … are the template names):
+
+  | Event | Recipient | Opens |
+  |---|---|---|
+  | First device of a **just-created** account registers (≤ 10 min old, no device before) | that account (welcome) | Profile / `/home` / `/org-home` |
+  | Admin approves/rejects a caregiver | the caregiver (rejection carries the reason) | Profile |
+  | Admin approves/rejects a patient's job or an organisation requirement | the poster | `/home` / `/org-home` |
+  | Job/requirement goes live (admin posted, admin approved, reactivated) | caregivers, **gender-filtered** (below) | Jobs |
+  | Caregiver applies | the poster (patient/organisation only; admin-posted jobs have no app) — first applicant of a 10-min burst, text carries the running total | `/home` / `/org-home` |
+  | Poster/admin accepts or declines | the caregiver (decline carries the reason) | MyJobs / Jobs |
+  | Caregiver closes their accepted engagement | the poster ("open again" only for jobs; a requirement does not reopen) | `/home` / `/org-home` |
+  | Job edited in a way applicants care about (`JOB_APPLICANT_FIELDS`: city, area, duty_type, start_date, salary, frequency, care_duration; requirements: `REQUIREMENT_APPLICANT_FIELDS`) | applicants with status applied/accepted (accepted → MyJobs, applied → Jobs) | MyJobs / Jobs |
+  | Patient cancels | applied + accepted caregivers (looked up **before** the cancel rejects them) | Jobs |
+  | Admin closes a job / organisation cancels (applications untouched) | caregivers still `applied` ("no longer accepting applications") | Jobs |
+  | Admin blocks/unblocks posting or the whole account (patient/organisation) | that account | `/home` / `/org-home` |
+  | Live 3 days, nobody ever applied | the poster, **once** | `/home` / `/org-home` |
+  | Accepted job starts in ≤ 48 h / ≤ 24 h / ≤ 12 h | the caregiver | MyJobs |
+
+  A pending_review job being approved by an admin **edit** announces approval only (it has no applicants).
+- **Gender rule.** `FcmService.sendToAllCaregivers(title, body, { preferredGender })` →
+  `UsersRepository.listCaregiverFcmTokens(gender)` joins `caregiver_profiles` and keeps `cp.gender = preferred`
+  (no preference → everyone). Same rule as `GET /caregiver/jobs`. Verification status is **not** filtered:
+  working (`assigned`), pending, unavailable and rejected caregivers all get it (browsing before approval is
+  by design) — narrow it if that changes. A caregiver whose gender is `other` is excluded by any preference.
+- **Duty-start reminders (`DutyRemindersService`, `*/15 * * * *`, migration 088).** Start = job `start_date` at
+  08:00 IST (day/live-in) or 20:00 IST (night). Bands by time left: ≤ 48 h "2 days", ≤ 24 h "1 day", ≤ 12 h
+  "You need to go on duty soon. Do not forget!". Each stage is **claimed in SQL before sending**
+  (`claimDutyReminder`, `duty_reminder_{2d,1d,12h}_at IS NULL`), so several API instances can't double-send
+  (a failed send is therefore not retried); sending a stage also uses up the less urgent ones, so a late
+  acceptance gets only the reminder that is true now. Routine stages are held outside **08:00–21:00 IST**
+  (`inSendWindow`); the final one still goes out at night if waiting would make it arrive < 1 h before the
+  shift (`shouldDefer`). The columns are cleared on (re-)acceptance (`JobApplicationsRepository.decide`) and when
+  the job's `start_date`/`duty_type` changes (`resetDutyRemindersForJob`). Organisation requirements have no
+  start date, so no duty reminders.
+- **No-applicants nudge (`NoApplicantsNudgeService`, `*/30 * * * *`, migration 088).** `NO_APPLICANTS_NUDGE_DAYS`
+  = 3 days since `posted_at`, status active, **zero applications ever**, poster is an individual/organisation.
+  Claimed via `no_applicants_nudge_at` (set once; cleared by `activate()` so a reposted requirement waits another
+  3 days). Only inside the 08:00–21:00 IST window.
+- **Migrations.** 087 (`user_fcm_tokens`) and 088 (reminder/nudge columns + index) are additive and idempotent.
+  Both are **applied to production** (2026-11-01). Because the deploy order was migration-first, re-run 087 once
+  after the new backend is live to pick up tokens the previous release wrote to `users.fcm_token` meanwhile.
+  The new backend writes to 088's columns when a poster accepts a caregiver, so 088 must always precede it.
+- **Known limits.** No inbox/history; no per-user opt-out; a claimed reminder whose send fails is lost; the
+  pre-existing daily-reminder and admin scheduled-push cron jobs still have no multi-instance guard; dead
+  tokens (uninstalled apps) are not pruned; iOS untested; none of this has been exercised on a physical phone.
 
 ## Admin Insights (activity, usage, drop-off)
 
@@ -1343,7 +1423,8 @@ only re-auth step anywhere in this product's self-service flows), since it's irr
 - **Anonymize-in-place, never a hard delete.** `UsersRepository.anonymizeAndDeactivate(userId,
   client?)` overwrites `phone` (tombstoned to `del_<first 16 hex chars of the user's own id>` —
   always unique with no DB round-trip, and short enough for the `VARCHAR(20)` column),
-  `full_name` ('Deleted User'), `email`, `code_hash`, and `fcm_token` (all `NULL`), and sets
+  `full_name` ('Deleted User'), `email`, `code_hash`, and `fcm_token` (all `NULL`; its rows in
+  `user_fcm_tokens` are deleted too), and sets
   `is_active = false` plus a new `deleted_at` timestamp (migration 079) — it never removes the
   `users` row. A hard delete was ruled out: `job_applications`, `audit_logs`, `support_tickets`,
   and the admin-notes tables all carry FK references to `users.id` that belong to *other*
@@ -1452,6 +1533,32 @@ only after they hit a confusing dead end.
   interface-up-but-unreachable case (the actual bug), and that reconnecting the interface alone
   does *not* clear the banner unless the probe also succeeds.
 
+## E2E Tests (read before running them)
+
+- **Never point the e2e suite at production.** `apps/api/.env` has the live `DATABASE_URL`, and the suites
+  toggle global singletons (maintenance mode, forced-upgrade version, audit-log retention, rate card, …) and
+  create real rows; a crash mid-run could leave production in maintenance mode. Run them against a throwaway
+  local Postgres: build it from `supabase/migrations/*.sql` in order, then override only the connection string
+  (`DATABASE_URL=postgresql://postgres@127.0.0.1:<port>/<db> npx jest --config ./test/jest-e2e.json --runInBand`).
+  The URL must **not** contain `sslmode=require` (a self-signed local cert then fails verification; the tests
+  set their own `ssl: { rejectUnauthorized: false }`). macOS has no `timeout`; use the Bash tool's background mode.
+- **Production schema has drifted from the migration files.** These exist in production but in no migration:
+  tables `duty_requirements`, `job_settings`, `otp_auth_settings`, `otp_verifications`; the `NOT NULL`
+  tightening of `caregiver_profiles.religion` and `jobs.area/care_duration/frequency_of_care/salary_amount/
+  start_date`; and the dropped `jobs.job_number`. Reproduce them locally (read production's definitions, read-only)
+  before running the suites, or they fail for the wrong reasons.
+- **Uploads still go to the real Supabase bucket** (`caregiver-documents`) even with a local DB — the suites that
+  register caregivers upload selfie/Aadhaar files under random profile ids and never delete them. After a run,
+  list the bucket's top-level folders and delete any whose id is not a live `caregiver_profiles.id`
+  (verify none is referenced by `caregiver_documents` first). Email and push are mocked in the suites that
+  trigger them; there are no SMS credentials configured.
+- **Each suite owns a phone prefix** (`+91700000` … `+91700016`; the next free one is `+91700017`) and cleans up
+  only that prefix, deleting child rows before the rows they reference (audit_logs, applications, profiles, then
+  users). Suites run fine in `--runInBand`. Every suite calls `await app.listen(0)` right after `app.init()`: left unstarted, supertest
+  opens a fresh temporary port per request and a recycled port can be answered by a leftover connection, which
+  showed up as random `socket hang up` / `Parse Error: Expected HTTP/` / stray 404s. Keep that line in any new suite.
+- A care-receiver fixture needs `patient_name` (letters/spaces, ≤ 24 chars) — the API rejects a job without it.
+
 ## Naming Conventions (STRICT)
 
 | Context | Convention | Example |
@@ -1510,6 +1617,7 @@ only after they hit a confusing dead end.
 - Do NOT add dark mode, i18n, rate limiting, HTML emails in V1.
 - Do NOT use code generation (build_runner, json_serializable) in shared packages.
 - Do NOT commit .env files.
+- Do NOT run the e2e suites against the production database — see "E2E Tests" below.
 
 ## Verification Status Transitions
 

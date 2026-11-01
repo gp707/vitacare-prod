@@ -18,13 +18,6 @@ import { NoApplicantsNudgeService } from '../src/notifications/no-applicants-nud
  * nothing is actually delivered). Uses the +91700016xxxx phone range, distinct
  * from every other e2e suite.
  */
-// Every e2e suite here talks to the app over a fresh supertest connection, and
-// roughly one run in a few sees "socket hang up" / "Parse Error: Expected HTTP/"
-// from the client side (no server error is logged; it also happens in the
-// older suites). Retry once so a dropped connection is not mistaken for a
-// failing assertion — a genuine assertion failure fails twice and still shows.
-jest.retryTimes(1, { logErrorsBeforeRetry: true });
-
 describe('Push notifications (e2e)', () => {
   let app: INestApplication;
   let db: Client;
@@ -158,6 +151,12 @@ describe('Push notifications (e2e)', () => {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
+    // Listen once on one port for the whole suite. Left unstarted, supertest opens
+    // a fresh temporary port for every request, and a recycled port can be
+    // answered by a leftover connection ("socket hang up", "Parse Error:
+    // Expected HTTP/", even a stray 404) — the intermittent flake the older
+    // suites still show.
+    await app.listen(0);
 
     await db.query(
       `INSERT INTO users (email, phone, password_hash, full_name, role, is_active)
@@ -224,6 +223,35 @@ describe('Push notifications (e2e)', () => {
 
       await request(app.getHttpServer()).delete('/v1/individual/profile/fcm-token').set(as(second)).send({ token: 'shared-phone' }).expect(200);
       expect((await db.query('SELECT 1 FROM user_fcm_tokens WHERE token = $1', ['shared-phone'])).rowCount).toBe(0);
+    });
+
+    it('targets exactly the caregivers who can apply — whatever their recent activity — and no others', async () => {
+      const make = async (suffix: string, status: string, token: string) => {
+        const c = await registerCaregiver(suffix);
+        await db.query('UPDATE caregiver_profiles SET verification_status = $2 WHERE user_id = $1', [c.user_id, status]);
+        await request(app.getHttpServer())
+          .put('/v1/caregiver/fcm-token')
+          .set('Authorization', `Bearer ${c.access_token}`)
+          .send({ token })
+          .expect(200);
+        return c;
+      };
+      const available = await make('0070', 'available', 'tok-available');
+      await make('0071', 'assigned', 'tok-working'); // already on a job: can still apply
+      await make('0072', 'unavailable', 'tok-unavailable');
+      await make('0073', 'pending_call', 'tok-pending');
+      await make('0074', 'rejected', 'tok-rejected');
+      const blocked = await make('0075', 'available', 'tok-deactivated');
+      await db.query('UPDATE users SET is_active = false WHERE id = $1', [blocked.user_id]);
+      // A caregiver nobody has seen in months is still told: recency does not matter.
+      await db.query("UPDATE users SET last_seen_at = NOW() - interval '400 days' WHERE id = $1", [available.user_id]);
+
+      const tokens = await app.get(UsersRepository).listCaregiverFcmTokens(null);
+
+      expect(tokens).toEqual(expect.arrayContaining(['tok-available', 'tok-working']));
+      for (const excluded of ['tok-unavailable', 'tok-pending', 'tok-rejected', 'tok-deactivated']) {
+        expect(tokens).not.toContain(excluded);
+      }
     });
 
     it('only targets caregivers an employer’s gender preference allows', async () => {

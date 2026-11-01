@@ -1,3 +1,4 @@
+import { APPLY_ELIGIBLE_STATUSES } from '../../common/apply-eligibility';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { UserRole } from '@vitacare/shared-constants';
@@ -173,17 +174,21 @@ export class UsersRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  /** Every active caregiver's devices. With [preferredGender] only caregivers
-   *  that job's employer would accept (same rule as the job list itself:
-   *  no preference, or the caregiver's own gender matches). */
+  /** The devices of every caregiver who can actually apply to a job
+   *  (APPLY_ELIGIBLE_STATUSES: available or already working — not unavailable,
+   *  pending verification or rejected), whose account is not deactivated. How
+   *  recently they used the app does not matter. With [preferredGender] only
+   *  caregivers that job's employer would accept (same rule as the job list
+   *  itself: no preference, or the caregiver's own gender matches). */
   async listCaregiverFcmTokens(preferredGender?: string | null): Promise<string[]> {
     const result = await this.db.query<{ fcm_token: string }>(
       `SELECT t.token AS fcm_token FROM user_fcm_tokens t
        JOIN users u ON u.id = t.user_id
        JOIN caregiver_profiles cp ON cp.user_id = u.id
-       WHERE u.role = 'caregiver' AND u.is_active = true
+       WHERE u.role = 'caregiver' AND u.is_active = true AND u.deleted_at IS NULL
+         AND cp.verification_status = ANY($2::text[])
          AND ($1::text IS NULL OR cp.gender = $1::text)`,
-      [preferredGender ?? null],
+      [preferredGender ?? null, APPLY_ELIGIBLE_STATUSES],
     );
     return result.rows.map((row) => row.fcm_token);
   }

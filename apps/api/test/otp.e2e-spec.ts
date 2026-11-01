@@ -108,6 +108,7 @@ describe('OTP Auth (e2e)', () => {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
+    await app.listen(0); // one stable port; see notifications.e2e-spec.ts
 
     const passwordHash = await bcrypt.hash('AdminPass123', 4);
     await db.query(
