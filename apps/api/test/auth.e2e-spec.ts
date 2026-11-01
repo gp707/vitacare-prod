@@ -295,71 +295,36 @@ describe('Auth (e2e)', () => {
     });
   });
 
-  describe('Cross-app account independence (phone unique per app bucket, migration 045)', () => {
-    it('the same phone can hold a NurseJobs caregiver account AND a NurseNow individual account — two separate, unlinked logins', async () => {
-      const phone = testPhone('0004');
-
-      const caregiver = await request(app.getHttpServer())
+  describe('One phone, one account across every role (AUTH_016); app-scoped login (migration 045)', () => {
+    const registerCaregiver = (phone: string, code: string, fullName: string) =>
+      request(app.getHttpServer())
         .post('/v1/auth/register')
         .send({
           phone,
-          full_name: 'Cross App Caregiver',
+          full_name: fullName,
           gender: 'male',
           age: 35,
           languages: ['hindi'],
           religion: 'hindu',
           highest_qualification: 'rn_above_2_years',
           terms_accepted: true,
-          code: '1234',
-        })
-        .expect(201);
+          code,
+        });
 
-      // Same phone, registering as a NurseNow individual — previously
-      // blocked by the global UNIQUE(phone) constraint (AUTH_001); now
-      // succeeds since caregiver and individual are separate app buckets.
+    it('a phone already registered as a caregiver cannot also register as an individual or organisation (AUTH_016)', async () => {
+      const phone = testPhone('0004');
+      await registerCaregiver(phone, '1234', 'Cross App Caregiver').expect(201);
+
+      // Registration used to allow one account per app bucket on the same
+      // phone; JustHeal's single login screen needs a phone to mean one
+      // account, so every cross-role registration is now refused.
       const individual = await request(app.getHttpServer())
         .post('/v1/auth/register/individual')
         .send({ phone, full_name: 'Cross App Patient', terms_accepted: true, code: '5678' })
-        .expect(201);
-
-      expect(individual.body.data.user_id).not.toBe(caregiver.body.data.user_id);
-
-      const nursejobsLogin = await request(app.getHttpServer())
-        .post('/v1/auth/login/code')
-        .send({ phone, code: '1234', app: 'nursejobs' })
-        .expect(200);
-      expect(nursejobsLogin.body.data.user_id).toBe(caregiver.body.data.user_id);
-      expect(nursejobsLogin.body.data.verification_status).toBe('pending_call');
-
-      const nursenowLogin = await request(app.getHttpServer())
-        .post('/v1/auth/login/code')
-        .send({ phone, code: '5678', app: 'nursenow' })
-        .expect(200);
-      expect(nursenowLogin.body.data.user_id).toBe(individual.body.data.user_id);
-      expect(nursenowLogin.body.data.verification_status).toBeUndefined();
-
-      // Same-bucket duplicates are still rejected: another caregiver
-      // account on this phone (AUTH_001)...
-      const dupeCaregiver = await request(app.getHttpServer())
-        .post('/v1/auth/register')
-        .send({
-          phone,
-          full_name: 'Someone Else',
-          gender: 'male',
-          age: 40,
-          languages: ['hindi'],
-          religion: 'hindu',
-          highest_qualification: 'rn_above_2_years',
-          terms_accepted: true,
-          code: '1111',
-        })
         .expect(409);
-      expect(dupeCaregiver.body.error.code).toBe('AUTH_001');
+      expect(individual.body.error.code).toBe('AUTH_016');
 
-      // ...and another NurseNow account (organisation this time) on the
-      // same phone, since the nursenow bucket is already taken by the
-      // individual account above.
-      const dupeOrg = await request(app.getHttpServer())
+      const org = await request(app.getHttpServer())
         .post('/v1/auth/register/organisation')
         .send({
           phone,
@@ -372,21 +337,50 @@ describe('Auth (e2e)', () => {
           terms_accepted: true,
         })
         .expect(409);
-      expect(dupeOrg.body.error.code).toBe('AUTH_001');
+      expect(org.body.error.code).toBe('AUTH_016');
 
-      // The nursejobs login can never authenticate into the nursenow
-      // account even with its correct code, and vice versa.
-      const wrongApp1 = await request(app.getHttpServer())
+      // A second account in the SAME role is still the older AUTH_001.
+      const dupeCaregiver = await registerCaregiver(phone, '1111', 'Someone Else').expect(409);
+      expect(dupeCaregiver.body.error.code).toBe('AUTH_001');
+    });
+
+    it('an organisation cannot register on a phone an individual already holds, and the individual stays signed in to its own app only', async () => {
+      const phone = testPhone('0005');
+      const individual = await request(app.getHttpServer())
+        .post('/v1/auth/register/individual')
+        .send({ phone, full_name: 'Cross App Patient', terms_accepted: true, code: '5678' })
+        .expect(201);
+
+      // individual and organisation share the nursenow bucket: same bucket
+      // duplicate, so AUTH_001 rather than the cross-role AUTH_016.
+      const org = await request(app.getHttpServer())
+        .post('/v1/auth/register/organisation')
+        .send({
+          phone,
+          code: '2222',
+          organisation_name: 'Some Hospital',
+          contact_person_name: 'Someone Else',
+          organisation_type: 'hospital',
+          city: 'bangalore',
+          area: 'Indiranagar',
+          terms_accepted: true,
+        })
+        .expect(409);
+      expect(org.body.error.code).toBe('AUTH_001');
+
+      const nursenowLogin = await request(app.getHttpServer())
+        .post('/v1/auth/login/code')
+        .send({ phone, code: '5678', app: 'nursenow' })
+        .expect(200);
+      expect(nursenowLogin.body.data.user_id).toBe(individual.body.data.user_id);
+
+      // The nursejobs login never reaches a nursenow account, even with the
+      // correct code: the role-scoped lookup finds no caregiver on this phone.
+      const wrongApp = await request(app.getHttpServer())
         .post('/v1/auth/login/code')
         .send({ phone, code: '5678', app: 'nursejobs' })
-        .expect(401);
-      expect(wrongApp1.body.error.code).toBe('AUTH_008');
-
-      const wrongApp2 = await request(app.getHttpServer())
-        .post('/v1/auth/login/code')
-        .send({ phone, code: '1234', app: 'nursenow' })
-        .expect(401);
-      expect(wrongApp2.body.error.code).toBe('AUTH_008');
+        .expect(404);
+      expect(wrongApp.body.error.code).toBe('AUTH_002');
     });
   });
 

@@ -3,6 +3,7 @@ import { OrganisationService } from './organisation.service';
 
 describe('OrganisationService', () => {
   let service: OrganisationService;
+  let notificationsService: any;
   let organisationProfilesRepo: any;
   let usersRepo: any;
   let auditService: any;
@@ -26,6 +27,20 @@ describe('OrganisationService', () => {
     db = { withTransaction: jest.fn(async (fn: any) => fn('client')) };
     requirementsRepo = { deleteAllByPostedBy: jest.fn().mockResolvedValue({ deleted: 0, acceptedProfileIds: [] }) };
     caregiverProfilesRepo = { releaseIfNoAcceptedWork: jest.fn() };
+    notificationsService = {
+      registerDevice: jest.fn(),
+      requirementApproved: jest.fn(),
+      requirementRejected: jest.fn(),
+      jobApplied: jest.fn(),
+      organisationRequirementApplied: jest.fn(),
+      applicationDecided: jest.fn(),
+      jobUpdated: jest.fn(),
+      jobCancelled: jest.fn(),
+      jobNoLongerOpen: jest.fn(),
+      caregiverClosedEngagement: jest.fn(),
+      organisationRequirementUpdated: jest.fn(),
+      organisationRequirementNoLongerOpen: jest.fn(),
+    };
     service = new OrganisationService(
       organisationProfilesRepo,
       usersRepo,
@@ -33,6 +48,7 @@ describe('OrganisationService', () => {
       db,
       requirementsRepo,
       caregiverProfilesRepo,
+      notificationsService,
     );
   });
 
@@ -292,7 +308,7 @@ describe('OrganisationService', () => {
   describe('updateFcmToken', () => {
     it('stores the token via usersRepo', async () => {
       const result = await service.updateFcmToken('user-1', { token: 'fcm-abc' } as any);
-      expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
+      expect(notificationsService.registerDevice).toHaveBeenCalledWith('user-1', 'fcm-abc');
       expect(result).toEqual({ message: 'FCM token updated' });
     });
   });

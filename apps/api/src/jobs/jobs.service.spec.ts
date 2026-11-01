@@ -3,6 +3,7 @@ import { VerificationStatus } from '@vitacare/shared-constants';
 
 describe('JobsService', () => {
   let service: JobsService;
+  let notificationsService: any;
   let db: any;
   let jobsRepo: any;
   let jobApplicationsRepo: any;
@@ -75,6 +76,8 @@ describe('JobsService', () => {
       findByJobId: jest.fn(),
       markCompleted: jest.fn(),
       countAcceptedByProfileId: jest.fn(),
+      resetDutyRemindersForJob: jest.fn(),
+      listApplicantUsers: jest.fn().mockResolvedValue([]),
     };
     careReceiversRepo = {
       create: jest.fn().mockResolvedValue(careReceiver),
@@ -87,6 +90,20 @@ describe('JobsService', () => {
     jobAdminNotesRepo = { findByJobId: jest.fn(), upsert: jest.fn() };
     auditService = { log: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
+    notificationsService = {
+      registerDevice: jest.fn(),
+      requirementApproved: jest.fn(),
+      requirementRejected: jest.fn(),
+      jobApplied: jest.fn(),
+      organisationRequirementApplied: jest.fn(),
+      applicationDecided: jest.fn(),
+      jobUpdated: jest.fn(),
+      jobCancelled: jest.fn(),
+      jobNoLongerOpen: jest.fn(),
+      caregiverClosedEngagement: jest.fn(),
+      organisationRequirementUpdated: jest.fn(),
+      organisationRequirementNoLongerOpen: jest.fn(),
+    };
     service = new JobsService(
       db,
       jobsRepo,
@@ -98,6 +115,7 @@ describe('JobsService', () => {
       jobAdminNotesRepo,
       auditService,
       fcmService,
+      notificationsService,
     );
   });
 
@@ -139,6 +157,7 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Live-In Care in Bangalore',
         'Indiranagar, Bangalore | IMMEDIATELY APPLY',
+        { preferredGender: 'female' },
       );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'admin-1', action: 'job_posted', entityId: 'job-1' }),
@@ -310,6 +329,7 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
+        { preferredGender: 'female' },
       );
     });
 
@@ -327,7 +347,41 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
+        { preferredGender: 'female' },
       );
+      // ...and the patient who posted it is told it is live.
+      expect(notificationsService.requirementApproved).toHaveBeenCalledWith(job.posted_by, expect.any(String));
+    });
+
+    it('tells applicants when an edit changes something they care about (salary here)', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'active', salary_amount: '30000' });
+      jobsRepo.update.mockResolvedValue({ ...job, status: 'active', duty_type: 'day_duty', salary_amount: '35000' });
+      await service.updateJob('admin-1', 'job-1', dto, null);
+      expect(notificationsService.jobUpdated).toHaveBeenCalledWith('job-1', expect.any(String));
+    });
+
+    it('stays quiet when only things applicants do not care about change (description)', async () => {
+      const same = { ...job, status: 'active', duty_type: 'day_duty', city: 'bangalore', area: 'Koramangala', start_date: '2026-09-01', salary_amount: '35000', frequency_of_care: 'daily', care_duration: 'few_weeks', description: 'old' };
+      jobsRepo.findById.mockResolvedValue(same);
+      jobsRepo.update.mockResolvedValue({ ...same, description: 'Updated description' });
+      await service.updateJob('admin-1', 'job-1', dto, null);
+      expect(notificationsService.jobUpdated).not.toHaveBeenCalled();
+    });
+
+    it('does not tell applicants about a pending_review job being approved by edit — there are none', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'pending_review', salary_amount: null, frequency_of_care: null });
+      jobsRepo.update.mockResolvedValue({ ...job, status: 'active', duty_type: 'day_duty' });
+      await service.updateJob('admin-1', 'job-1', dto, null);
+      expect(notificationsService.jobUpdated).not.toHaveBeenCalled();
+    });
+
+    it('does not tell the poster anything when an already-active (or closed) job is merely edited', async () => {
+      jobsRepo.findById.mockResolvedValue({ ...job, status: 'closed' });
+      jobsRepo.update.mockResolvedValue({ ...job, status: 'active', duty_type: 'day_duty', area: 'Koramangala' });
+
+      await service.updateJob('admin-1', 'job-1', dto, null);
+
+      expect(notificationsService.requirementApproved).not.toHaveBeenCalled();
     });
   });
 
@@ -389,6 +443,7 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         expect.stringContaining('New Job'),
         expect.any(String),
+        { preferredGender: 'female' },
       );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -549,6 +604,14 @@ describe('JobsService', () => {
       await expect(service.closeJob('admin-1', 'missing', null)).rejects.toMatchObject({ code: 'GEN_002' });
     });
 
+    it('tells caregivers still waiting on an answer that the job is no longer open', async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.listApplicantUsers.mockResolvedValue([{ user_id: 'c1', status: 'applied' }]);
+      await service.closeJob('admin-1', 'job-1', null);
+      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied']);
+      expect(notificationsService.jobNoLongerOpen).toHaveBeenCalledWith([{ user_id: 'c1', status: 'applied' }], expect.any(String));
+    });
+
     it('closes the job and audit-logs it', async () => {
       jobsRepo.findById.mockResolvedValue(job);
       const result = await service.closeJob('admin-1', 'job-1', null);
@@ -582,6 +645,7 @@ describe('JobsService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'Reminder: Live-In Care in Bangalore',
         "Indiranagar, Bangalore | APPLY NOW BEFORE IT'S FILLED",
+        { preferredGender: 'female' },
       );
       expect(result).toEqual({ message: 'Reminder sent' });
       expect(auditService.log).toHaveBeenCalledWith(
@@ -898,6 +962,18 @@ describe('JobsService', () => {
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ targetUserId: 'individual-user-1' }),
       );
+    });
+
+    it('tells the posting patient that the caregiver closed out and the job is open again', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'individual-user-1', patient_job_number: 512 });
+      usersRepo.findById.mockResolvedValue({ id: 'individual-user-1', role: 'individual' });
+
+      await service.completeJob('user-1', 'job-1', {}, null);
+
+      expect(notificationsService.caregiverClosedEngagement).toHaveBeenCalledWith('individual-user-1', 'PAT-JOB-512', true);
     });
 
     it('does not target anyone in the audit log for an admin-posted job', async () => {

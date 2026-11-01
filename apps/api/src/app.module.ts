@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { EmailModule } from './email/email.module';
 import { AuditModule } from './audit/audit.module';
 import { FcmModule } from './fcm/fcm.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { AuthModule } from './auth/auth.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { AdminModule } from './admin/admin.module';
@@ -39,6 +40,7 @@ import { validateEnv } from './config/env.validation';
     EmailModule,
     AuditModule,
     FcmModule,
+    NotificationsModule,
     AuthModule,
     CaregiverModule,
     AdminModule,

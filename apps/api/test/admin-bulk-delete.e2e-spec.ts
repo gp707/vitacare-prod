@@ -82,7 +82,7 @@ describe('Admin Bulk Delete (e2e)', () => {
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
   }
 
-  const defaultCareReceiver = {
+  const defaultCareReceiver = { patient_name: 'Test Patient',
     age: 72,
     gender: 'female',
     weight_kg: 58,

@@ -8,20 +8,31 @@ import '../caregiver/features/auth/state/session_notifier.dart'
     as caregiver_session;
 import '../caregiver/features/auth/state/session_state.dart' as caregiver_state;
 import '../patient_hospital/core/navigation/navigator_key.dart';
+import '../patient_hospital/features/auth/state/session_notifier.dart'
+    as host_session;
+import '../patient_hospital/features/auth/state/session_state.dart'
+    as host_state;
 
-/// Screens a push may open. The payload comes from our own server, but the
-/// app still only follows routes it knows — never an arbitrary string.
-const _allowedPushRoutes = {
-  '/caregiver/jobs',
-  '/caregiver/my-jobs',
-  '/caregiver/profile'
+/// Screens a push may open, and who may be taken there. The payload comes from
+/// our own server, but the app still only follows routes it knows — never an
+/// arbitrary string — and only for the signed-in role the screen belongs to:
+/// a caregiver's "you were accepted" must never open a patient screen, or any
+/// screen at all for someone signed in as a different kind of account.
+enum _PushAudience { caregiver, individual, organisation }
+
+const _pushRoutes = <String, _PushAudience>{
+  '/caregiver/jobs': _PushAudience.caregiver,
+  '/caregiver/my-jobs': _PushAudience.caregiver,
+  '/caregiver/profile': _PushAudience.caregiver,
+  '/home': _PushAudience.individual,
+  '/org-home': _PushAudience.organisation,
 };
 
 /// The route a push asks to open, or null if there is none / it isn't one the
 /// app will follow.
 String? routeFromPushData(Map<String, dynamic> data) {
   final route = data['route'];
-  return route is String && _allowedPushRoutes.contains(route) ? route : null;
+  return route is String && _pushRoutes.containsKey(route) ? route : null;
 }
 
 /// How long a tapped push waits for the session to finish loading before it
@@ -36,9 +47,9 @@ const pendingPushRouteLifetime = Duration(minutes: 2);
 /// - Received while the app is open -> Android shows nothing on its own, so an
 ///   in-app banner is shown with a "View" shortcut.
 ///
-/// Only the caregiver flow has push targets today, so a route is followed only
-/// when a caregiver session is signed in; for anyone else the tap just opens
-/// the app, as before.
+/// A route is followed only when the matching kind of account is signed in
+/// (caregiver, patient/family, or organisation); for anyone else the tap just
+/// opens the app, as before.
 class PushHandler {
   PushHandler._();
   static final instance = PushHandler._();
@@ -83,12 +94,33 @@ class PushHandler {
     final context = navigatorKey.currentContext;
     final navigator = navigatorKey.currentState;
     if (context == null || navigator == null) return;
-    final session = ProviderScope.containerOf(context, listen: false)
-        .read(caregiver_session.sessionProvider);
-    if (session is! caregiver_state.SessionAuthenticated) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final audience = _pushRoutes[route]!;
+    if (audience == _PushAudience.caregiver) {
+      if (container.read(caregiver_session.sessionProvider)
+          is! caregiver_state.SessionAuthenticated) {
+        return;
+      }
+      _clear();
+      // On top of wherever they are, so Back returns them to it.
+      navigator.pushNamed(route);
+      return;
+    }
+    final session = container.read(host_session.sessionProvider);
+    if (session is! host_state.SessionAuthenticated) return;
+    final signedInAs = session.role == 'organisation'
+        ? _PushAudience.organisation
+        : _PushAudience.individual;
+    if (signedInAs != audience) return;
     _clear();
-    navigator.pushNamed(route);
+    // These are the account's home screen, so replace the stack rather than
+    // stacking a second copy of the screen they may already be on.
+    navigator.pushNamedAndRemoveUntil(route, (_) => false);
   }
+
+  /// Drops a remembered tap. Used when the app has just opened on the account's
+  /// own home screen, which is where that tap was going anyway.
+  void discardPending() => _clear();
 
   void _clear() {
     _pendingRoute = null;

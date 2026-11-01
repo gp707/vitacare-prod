@@ -20,6 +20,25 @@ export interface JobApplicationRecord {
   updated_at: Date;
 }
 
+export interface ApplicantUser {
+  status: string;
+  user_id: string;
+}
+
+export interface DutyReminderCandidate {
+  application_id: string;
+  user_id: string;
+  start_date: string;
+  duty_type: string;
+  area: string | null;
+  city: string;
+  admin_job_number: number | null;
+  patient_job_number: number | null;
+  duty_reminder_2d_at: Date | null;
+  duty_reminder_1d_at: Date | null;
+  duty_reminder_12h_at: Date | null;
+}
+
 export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   full_name: string;
   phone: string;
@@ -124,9 +143,93 @@ export class JobApplicationsRepository {
       return;
     }
     await runner.query(
-      `UPDATE job_applications SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      // A (re-)acceptance starts a fresh duty-reminder cycle (migration 088).
+      `UPDATE job_applications SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW(),
+         duty_reminder_2d_at = NULL, duty_reminder_1d_at = NULL, duty_reminder_12h_at = NULL
+       WHERE id = $1`,
       [id, status, adminId],
     );
+  }
+
+  /** The caregivers (account ids) with an application in one of [statuses] on
+   *  this job — who to tell when the job is edited, cancelled or closed. */
+  async listApplicantUsers(jobId: string, statuses: string[]): Promise<ApplicantUser[]> {
+    const result = await this.db.query<ApplicantUser>(
+      `SELECT ja.status, u.id AS user_id
+       FROM job_applications ja
+       JOIN caregiver_profiles cp ON cp.id = ja.profile_id
+       JOIN users u ON u.id = cp.user_id
+       WHERE ja.job_id = $1 AND ja.status = ANY($2::text[])`,
+      [jobId, statuses],
+    );
+    return result.rows;
+  }
+
+  /** Candidates who currently have an open application on the job. */
+  async countApplied(jobId: string): Promise<number> {
+    const result = await this.db.query<{ n: string }>(
+      `SELECT count(*) AS n FROM job_applications WHERE job_id = $1 AND status = 'applied'`,
+      [jobId],
+    );
+    return Number(result.rows[0].n);
+  }
+
+  /** How many applications became/were 'applied' in the last [minutes]. Used
+   *  to announce only the first applicant of a burst to the job's poster. */
+  async countAppliedSince(jobId: string, minutes: number): Promise<number> {
+    const result = await this.db.query<{ n: string }>(
+      `SELECT count(*) AS n FROM job_applications
+       WHERE job_id = $1 AND status = 'applied' AND updated_at > NOW() - make_interval(mins => $2)`,
+      [jobId, minutes],
+    );
+    return Number(result.rows[0].n);
+  }
+
+  /** A changed start date means earlier reminders were for the wrong day. */
+  async resetDutyRemindersForJob(jobId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE job_applications
+       SET duty_reminder_2d_at = NULL, duty_reminder_1d_at = NULL, duty_reminder_12h_at = NULL
+       WHERE job_id = $1 AND status = 'accepted'`,
+      [jobId],
+    );
+  }
+
+  /** Accepted engagements starting soon, for the duty-reminder sweep. Date
+   *  window is generous (callers pick the exact reminder from the time left);
+   *  it only keeps the scan small. Only active, signed-in caregivers. */
+  async listAcceptedStartingBetween(fromDate: string, toDate: string): Promise<DutyReminderCandidate[]> {
+    const result = await this.db.query<DutyReminderCandidate>(
+      `SELECT ja.id AS application_id, u.id AS user_id, j.start_date::text AS start_date, j.duty_type, j.area, j.city,
+              j.admin_job_number, j.patient_job_number,
+              ja.duty_reminder_2d_at, ja.duty_reminder_1d_at, ja.duty_reminder_12h_at
+       FROM job_applications ja
+       JOIN jobs j ON j.id = ja.job_id
+       JOIN caregiver_profiles cp ON cp.id = ja.profile_id
+       JOIN users u ON u.id = cp.user_id
+       WHERE ja.status = 'accepted' AND u.is_active = true AND u.deleted_at IS NULL
+         AND j.start_date >= $1::date AND j.start_date <= $2::date`,
+      [fromDate, toDate],
+    );
+    return result.rows;
+  }
+
+  /** Atomically takes ownership of sending a reminder: true for exactly one
+   *  caller even if several API instances run the sweep at once. Also marks
+   *  every less urgent stage as used (see stagesUsedBy). */
+  async claimDutyReminder(applicationId: string, stage: '2d' | '1d' | '12h'): Promise<boolean> {
+    const col = { '2d': 'duty_reminder_2d_at', '1d': 'duty_reminder_1d_at', '12h': 'duty_reminder_12h_at' }[stage];
+    const set =
+      stage === '12h'
+        ? `duty_reminder_12h_at = NOW(), duty_reminder_1d_at = COALESCE(duty_reminder_1d_at, NOW()), duty_reminder_2d_at = COALESCE(duty_reminder_2d_at, NOW())`
+        : stage === '1d'
+          ? `duty_reminder_1d_at = NOW(), duty_reminder_2d_at = COALESCE(duty_reminder_2d_at, NOW())`
+          : `duty_reminder_2d_at = NOW()`;
+    const result = await this.db.query(
+      `UPDATE job_applications SET ${set} WHERE id = $1 AND status = 'accepted' AND ${col} IS NULL RETURNING id`,
+      [applicationId],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   /** A caregiver can only ever have one application per job — the

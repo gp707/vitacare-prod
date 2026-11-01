@@ -164,6 +164,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             ? restoreRoute
             : next.homeRoute;
         Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
+        // A push tapped while the app was closed was heading to this account's
+        // home screen, which is exactly where it has just landed.
+        PushHandler.instance.discardPending();
       }
     });
 

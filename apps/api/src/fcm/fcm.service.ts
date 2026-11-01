@@ -76,8 +76,12 @@ export class FcmService implements OnModuleInit {
    *  opened the app gets notified, regardless of verification status
    *  (browsing jobs pre-approval is the point — CLAUDE.md's "motivates
    *  onboarding" note). Silently no-ops if nobody has a token yet. */
-  async sendToAllCaregivers(title: string, body: string): Promise<void> {
-    const tokens = await this.usersRepo.listCaregiverFcmTokens();
+  async sendToAllCaregivers(
+    title: string,
+    body: string,
+    options: { preferredGender?: string | null } = {},
+  ): Promise<void> {
+    const tokens = await this.usersRepo.listCaregiverFcmTokens(options.preferredGender);
     if (tokens.length === 0) return;
 
     try {

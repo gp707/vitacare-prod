@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
@@ -21,6 +22,7 @@ export class AdminOrganisationsService {
     private readonly usersRepo: UsersRepository,
     private readonly notesRepo: OrganisationAdminNotesRepository,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async listOrganisations(query: ListOrganisationsQueryDto) {
@@ -167,10 +169,13 @@ export class AdminOrganisationsService {
     if (!organisation) throw new AppException('GEN_002');
 
     if (dto.level === 'full') {
+      // Told first: once deactivated, the account can no longer receive a push.
+      await this.notificationsService.accountBlocked(targetUserId, 'full');
       await this.usersRepo.setActive(targetUserId, false);
       await this.organisationsRepo.setBlockReason(targetUserId, dto.reason);
     } else {
       await this.organisationsRepo.setJobPostingBlocked(targetUserId, true, dto.reason);
+      void this.notificationsService.accountBlocked(targetUserId, 'job_posting');
     }
 
     await this.auditService.log({
@@ -193,9 +198,11 @@ export class AdminOrganisationsService {
 
     if (level === 'full') {
       await this.usersRepo.setActive(targetUserId, true);
+      void this.notificationsService.accountUnblocked(targetUserId, 'full');
       await this.organisationsRepo.setBlockReason(targetUserId, null);
     } else {
       await this.organisationsRepo.setJobPostingBlocked(targetUserId, false, null);
+      void this.notificationsService.accountUnblocked(targetUserId, 'job_posting');
     }
 
     await this.auditService.log({

@@ -1,3 +1,9 @@
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  REQUIREMENT_APPLICANT_FIELDS,
+  changedAny,
+  organisationJobDisplayId,
+} from '../notifications/notification-templates';
 import { Injectable } from '@nestjs/common';
 import {
   AuditAction,
@@ -54,6 +60,7 @@ export class OrganisationRequirementsService {
     private readonly adminCaregiversRepo: AdminCaregiversRepository,
     private readonly organisationProfilesRepo: OrganisationProfilesRepository,
     private readonly fcmService: FcmService,
+    private readonly notificationsService: NotificationsService,
     private readonly auditService: AuditService,
     private readonly caregiverService: CaregiverService,
   ) {}
@@ -171,6 +178,12 @@ export class OrganisationRequirementsService {
     }
 
     await this.requirementsRepo.cancel(id);
+    // Applicants stay as they are (see above); those still waiting are simply
+    // told it is no longer taking applications.
+    void this.notificationsService.organisationRequirementNoLongerOpen(
+      id,
+      organisationJobDisplayId(existing.requirement_number),
+    );
 
     await this.auditService.log({
       userId: orgUserId,
@@ -211,6 +224,7 @@ export class OrganisationRequirementsService {
     await this.fcmService.sendToAllCaregivers(
       'New Organisation Opening',
       `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
+      { preferredGender: requirement.preferred_gender },
     );
 
     await this.auditService.log({
@@ -338,6 +352,13 @@ export class OrganisationRequirementsService {
       }
     });
 
+    const decidedRequirement = await this.requirementsRepo.findById(requirementId);
+    void this.notificationsService.applicationDecided(caregiverDetail.user_id, {
+      accepted: isAccepting,
+      displayId: decidedRequirement ? organisationJobDisplayId(decidedRequirement.requirement_number) : 'your application',
+      reason: dto.reason,
+    });
+
     await this.auditService.log({
       userId: actorId,
       targetUserId: caregiverDetail.user_id,
@@ -396,6 +417,12 @@ export class OrganisationRequirementsService {
     if (requirement.status !== JobStatus.ACTIVE) throw new AppException('JOB_002');
 
     const application = await this.applicationsRepo.upsert(requirementId, profile.id, dto.status);
+    if (dto.status === JobApplicationStatus.APPLIED) {
+      void this.notificationsService.organisationRequirementApplied(
+        requirement,
+        organisationJobDisplayId(requirement.requirement_number),
+      );
+    }
 
     await this.auditService.log({
       userId,
@@ -447,6 +474,14 @@ export class OrganisationRequirementsService {
     // requirement's poster is always an organisation (see "NurseNow" in
     // CLAUDE.md), so no role check is needed here.
     const requirement = await this.requirementsRepo.findById(requirementId);
+    if (requirement) {
+      // A requirement is not reopened by a caregiver closing out, hence false.
+      void this.notificationsService.caregiverClosedEngagement(
+        requirement.posted_by,
+        organisationJobDisplayId(requirement.requirement_number),
+        false,
+      );
+    }
 
     await this.auditService.log({
       userId,
@@ -534,6 +569,7 @@ export class OrganisationRequirementsService {
     await this.fcmService.sendToAllCaregivers(
       'Reminder: Organisation Opening',
       `A hospital/rehab in ${where} is looking for a caregiver | APPLY NOW BEFORE IT'S FILLED`,
+      { preferredGender: requirement.preferred_gender },
     );
 
     await this.auditService.log({
@@ -598,12 +634,26 @@ export class OrganisationRequirementsService {
       employment_type: dto.employment_type !== undefined ? dto.employment_type : existing.employment_type,
     });
 
+    if (existing.status === JobStatus.ACTIVE && changedAny(existing, requirement, REQUIREMENT_APPLICANT_FIELDS)) {
+      void this.notificationsService.organisationRequirementUpdated(
+        id,
+        organisationJobDisplayId(requirement.requirement_number),
+      );
+    }
+
     if (existing.status !== JobStatus.ACTIVE) {
       requirement = await this.requirementsRepo.activate(id);
       await this.fcmService.sendToAllCaregivers(
         'New Organisation Opening',
         `A hospital/rehab is looking for a caregiver — check the Organisation Openings tab.`,
+        { preferredGender: requirement.preferred_gender },
       );
+      if (existing.status === JobStatus.PENDING_REVIEW) {
+        void this.notificationsService.requirementApproved(
+          existing.posted_by,
+          organisationJobDisplayId(requirement.requirement_number),
+        );
+      }
     }
 
     await this.auditService.log({
@@ -625,6 +675,11 @@ export class OrganisationRequirementsService {
     if (requirement.status !== JobStatus.PENDING_REVIEW) throw new AppException('JOB_011');
 
     await this.requirementsRepo.reject(id, reason, undefined);
+    void this.notificationsService.requirementRejected(
+      requirement.posted_by,
+      organisationJobDisplayId(requirement.requirement_number),
+      reason,
+    );
 
     await this.auditService.log({
       userId: adminId,

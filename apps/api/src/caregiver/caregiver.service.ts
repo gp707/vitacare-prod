@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, DocumentType, UserRole, Validation } from '@vitacare/shared-constants';
@@ -40,6 +41,7 @@ export class CaregiverService {
     private readonly uploadService: UploadService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getProfile(userId: string) {
@@ -374,7 +376,7 @@ export class CaregiverService {
   }
 
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
-    await this.usersRepo.updateFcmToken(userId, dto.token);
+    await this.notificationsService.registerDevice(userId, dto.token);
     return { message: 'FCM token updated' };
   }
 

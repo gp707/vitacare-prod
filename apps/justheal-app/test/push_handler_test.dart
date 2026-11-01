@@ -16,6 +16,8 @@ void main() {
       expect(routeFromPushData({}), isNull);
       expect(routeFromPushData({'route': 42}), isNull);
       expect(routeFromPushData({'route': '/login'}), isNull);
+      expect(routeFromPushData({'route': '/org-post-requirement'}), isNull);
+      expect(routeFromPushData({'route': '/profile'}), isNull);
       expect(
           routeFromPushData({'route': '/caregiver/jobs/../../admin'}), isNull);
     });

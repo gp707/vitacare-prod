@@ -3,6 +3,7 @@ import { IndividualService } from './individual.service';
 
 describe('IndividualService', () => {
   let service: IndividualService;
+  let notificationsService: any;
   let db: any;
   let jobsRepo: any;
   let jobApplicationsRepo: any;
@@ -51,6 +52,8 @@ describe('IndividualService', () => {
       hasActiveApplicationForJob: jest.fn().mockResolvedValue(false),
       findActiveForJob: jest.fn().mockResolvedValue([]),
       decide: jest.fn(),
+      resetDutyRemindersForJob: jest.fn(),
+      listApplicantUsers: jest.fn().mockResolvedValue([]),
     };
     careReceiversRepo = {
       create: jest.fn().mockResolvedValue({ id: 'cr-1' }),
@@ -74,6 +77,20 @@ describe('IndividualService', () => {
     caregiverProfilesRepo = { markAvailable: jest.fn(), releaseIfNoAcceptedWork: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
 
+    notificationsService = {
+      registerDevice: jest.fn(),
+      requirementApproved: jest.fn(),
+      requirementRejected: jest.fn(),
+      jobApplied: jest.fn(),
+      organisationRequirementApplied: jest.fn(),
+      applicationDecided: jest.fn(),
+      jobUpdated: jest.fn(),
+      jobCancelled: jest.fn(),
+      jobNoLongerOpen: jest.fn(),
+      caregiverClosedEngagement: jest.fn(),
+      organisationRequirementUpdated: jest.fn(),
+      organisationRequirementNoLongerOpen: jest.fn(),
+    };
     service = new IndividualService(
       db,
       jobsRepo,
@@ -86,6 +103,7 @@ describe('IndividualService', () => {
       caregiverService,
       caregiverProfilesRepo,
       fcmService,
+      notificationsService,
     );
   });
 
@@ -216,6 +234,64 @@ describe('IndividualService', () => {
 
       expect(jobApplicationsRepo.hasActiveApplicationForJob).not.toHaveBeenCalled();
       expect(result.id).toBe('job-1');
+    });
+
+    it('tells applicants when the patient changes something they care about (the start date here)', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        care_receiver_id: 'cr-1',
+        start_date: '2026-09-01',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        area: 'Koramangala',
+        languages: ['hindi', 'english'],
+      });
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        patient_job_number: 512,
+        start_date: '2026-09-15',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        area: 'Koramangala',
+        languages: ['hindi', 'english'],
+      });
+      careReceiversRepo.findById.mockResolvedValue(null);
+
+      await service.editRequirement('user-1', 'job-1', editDto, null);
+
+      expect(notificationsService.jobUpdated).toHaveBeenCalledWith('job-1', 'PAT-JOB-512');
+      expect(jobApplicationsRepo.resetDutyRemindersForJob).toHaveBeenCalledWith('job-1');
+    });
+
+    it('stays quiet when nothing applicants care about changed', async () => {
+      const same = {
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        care_receiver_id: 'cr-1',
+        start_date: '2026-09-15',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        area: 'Koramangala',
+        frequency_of_care: 'daily',
+        salary_amount: '1500',
+        care_duration: 'few_weeks',
+        languages: ['hindi', 'english'],
+      };
+      jobsRepo.findById.mockResolvedValue(same);
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+      jobsRepo.update.mockResolvedValue({ ...same });
+      careReceiversRepo.findById.mockResolvedValue(null);
+
+      await service.editRequirement('user-1', 'job-1', editDto, null);
+
+      expect(notificationsService.jobUpdated).not.toHaveBeenCalled();
+      expect(jobApplicationsRepo.resetDutyRemindersForJob).not.toHaveBeenCalled();
     });
 
     it('edits a still-pending_review requirement, setting frequency_of_care/salary_amount from the dto and leaving status untouched', async () => {
@@ -729,7 +805,7 @@ describe('IndividualService', () => {
   describe('updateFcmToken', () => {
     it('stores the token via usersRepo', async () => {
       const result = await service.updateFcmToken('user-1', { token: 'fcm-abc' } as any);
-      expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
+      expect(notificationsService.registerDevice).toHaveBeenCalledWith('user-1', 'fcm-abc');
       expect(result).toEqual({ message: 'FCM token updated' });
     });
   });
@@ -850,6 +926,22 @@ describe('IndividualService', () => {
       });
     });
 
+    it('tells every applicant and the accepted caregiver — looked up before the cancel rejects them', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active', patient_job_number: 512 });
+      jobApplicationsRepo.findActiveForJob.mockResolvedValue([]);
+      const waiting = [
+        { user_id: 'c1', status: 'applied' },
+        { user_id: 'c2', status: 'accepted' },
+      ];
+      jobApplicationsRepo.listApplicantUsers.mockResolvedValue(waiting);
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+
+      await service.cancelRequirement('user-1', 'job-1', null);
+
+      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied', 'accepted']);
+      expect(notificationsService.jobCancelled).toHaveBeenCalledWith(waiting, 'PAT-JOB-512');
+    });
+
     it('allows cancelling an already-closed requirement that has a filled/accepted candidate', async () => {
       jobsRepo.findById.mockResolvedValue({
         id: 'job-1',
@@ -963,6 +1055,7 @@ describe('IndividualService', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job Available',
         expect.any(String),
+        { preferredGender: undefined },
       );
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', action: 'job_updated', entityId: 'job-1' }),

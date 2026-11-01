@@ -98,7 +98,7 @@ describe('Admin Reports (e2e)', () => {
   }
 
   const individualRequirementPayload = (overrides: Record<string, unknown> = {}) => ({
-    care_receiver: {
+    care_receiver: { patient_name: 'Test Patient',
       age: 74,
       gender: 'female',
       weight_kg: 58,
@@ -146,7 +146,7 @@ describe('Admin Reports (e2e)', () => {
       .expect(200);
   }
 
-  const defaultCareReceiver = {
+  const defaultCareReceiver = { patient_name: 'Test Patient',
     age: 72,
     gender: 'female',
     weight_kg: 58,

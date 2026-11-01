@@ -2,6 +2,7 @@ import { AdminIndividualsService } from './admin-individuals.service';
 
 describe('AdminIndividualsService', () => {
   let service: AdminIndividualsService;
+  let notificationsService: any;
   let individualsRepo: any;
   let usersRepo: any;
   let notesRepo: any;
@@ -23,7 +24,8 @@ describe('AdminIndividualsService', () => {
     };
     notesRepo = { findByUserId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
     auditService = { log: jest.fn() };
-    service = new AdminIndividualsService(individualsRepo, usersRepo, notesRepo, auditService);
+    notificationsService = { accountBlocked: jest.fn(), accountUnblocked: jest.fn() };
+    service = new AdminIndividualsService(individualsRepo, usersRepo, notesRepo, auditService, notificationsService);
   });
 
   describe('listIndividuals', () => {
@@ -239,6 +241,35 @@ describe('AdminIndividualsService', () => {
       individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
       await service.unblock('u1', 'job_posting', 'admin-1', null);
       expect(individualsRepo.setJobPostingBlocked).toHaveBeenCalledWith('u1', false, null);
+    });
+  });
+
+  describe('push notifications on block / unblock', () => {
+    beforeEach(() => {
+      individualsRepo.findDetailByUserId.mockResolvedValue({ user_id: 'u1' });
+    });
+
+    it('tells the account BEFORE a full block switches it off (a deactivated account gets no pushes)', async () => {
+      const order: string[] = [];
+      notificationsService.accountBlocked.mockImplementation(async () => order.push('push'));
+      usersRepo.setActive.mockImplementation(async () => order.push('deactivate'));
+
+      await service.block('u1', { level: 'full', reason: 'abuse' } as any, 'admin-1', null);
+
+      expect(order).toEqual(['push', 'deactivate']);
+      expect(notificationsService.accountBlocked).toHaveBeenCalledWith('u1', 'full');
+    });
+
+    it('tells the account when only posting is blocked', async () => {
+      await service.block('u1', { level: 'job_posting', reason: 'spam' } as any, 'admin-1', null);
+      expect(notificationsService.accountBlocked).toHaveBeenCalledWith('u1', 'job_posting');
+    });
+
+    it('tells the account when a full block or a posting block is lifted', async () => {
+      await service.unblock('u1', 'full', 'admin-1', null);
+      await service.unblock('u1', 'job_posting', 'admin-1', null);
+      expect(notificationsService.accountUnblocked).toHaveBeenCalledWith('u1', 'full');
+      expect(notificationsService.accountUnblocked).toHaveBeenCalledWith('u1', 'job_posting');
     });
   });
 });

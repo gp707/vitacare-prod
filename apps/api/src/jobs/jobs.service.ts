@@ -1,3 +1,5 @@
+import { NotificationsService } from '../notifications/notifications.service';
+import { JOB_APPLICANT_FIELDS, changedAny, jobDisplayId } from '../notifications/notification-templates';
 import { Injectable } from '@nestjs/common';
 import {
   AuditAction,
@@ -101,6 +103,7 @@ export class JobsService {
     private readonly jobAdminNotesRepo: JobAdminNotesRepository,
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createJob(adminId: string, dto: CreateJobDto, ipAddress: string | null) {
@@ -136,6 +139,7 @@ export class JobsService {
     await this.fcmService.sendToAllCaregivers(
       `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
       `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
+      { preferredGender: job.preferred_gender },
     );
 
     await this.auditService.log({
@@ -270,7 +274,25 @@ export class JobsService {
       await this.fcmService.sendToAllCaregivers(
         `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
         `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
+        { preferredGender: job.preferred_gender },
       );
+      // Admin approving a patient's pending requirement (via the edit form)
+      // is the moment the poster should hear it is live.
+      if (existing.status === JobStatus.PENDING_REVIEW) {
+        void this.notificationsService.requirementApproved(existing.posted_by, jobDisplayId(job));
+      }
+    }
+
+    // A new start date or shift means duty reminders already sent were for the
+    // wrong time: let the accepted caregiver get fresh ones.
+    if (existing.start_date !== job.start_date || existing.duty_type !== job.duty_type) {
+      await this.jobApplicationsRepo.resetDutyRemindersForJob(job.id);
+    }
+
+    // Applicants of a live (or filled) job hear about a change that matters to
+    // them. A pending_review job has none yet; its approval is announced above.
+    if (existing.status !== JobStatus.PENDING_REVIEW && changedAny(existing, job, JOB_APPLICANT_FIELDS)) {
+      void this.notificationsService.jobUpdated(job.id, jobDisplayId(job));
     }
 
     await this.auditService.log({
@@ -302,10 +324,12 @@ export class JobsService {
     if (existing.status !== JobStatus.PENDING_REVIEW) throw new AppException('JOB_019');
 
     const job = await this.jobsRepo.activate(jobId);
+    void this.notificationsService.requirementApproved(existing.posted_by, jobDisplayId(job));
 
     await this.fcmService.sendToAllCaregivers(
       `New Job: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
       `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | IMMEDIATELY APPLY`,
+      { preferredGender: job.preferred_gender },
     );
 
     await this.auditService.log({
@@ -353,6 +377,7 @@ export class JobsService {
     if (job.status !== JobStatus.PENDING_REVIEW) throw new AppException('JOB_011');
 
     await this.jobsRepo.reject(jobId, reason);
+    void this.notificationsService.requirementRejected(job.posted_by, jobDisplayId(job), reason);
 
     await this.auditService.log({
       userId: adminId,
@@ -371,7 +396,9 @@ export class JobsService {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
 
+    const waiting = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied']);
     await this.jobsRepo.close(jobId);
+    void this.notificationsService.jobNoLongerOpen(waiting, jobDisplayId(job));
 
     await this.auditService.log({
       userId: adminId,
@@ -394,6 +421,7 @@ export class JobsService {
     await this.fcmService.sendToAllCaregivers(
       `Reminder: ${DUTY_TYPE_LABELS[job.duty_type]} in ${CITY_LABELS[job.city]}`,
       `${job.area ? `${job.area}, ` : ''}${CITY_LABELS[job.city]} | APPLY NOW BEFORE IT'S FILLED`,
+      { preferredGender: job.preferred_gender },
     );
 
     await this.auditService.log({
@@ -475,6 +503,9 @@ export class JobsService {
       (existing?.status === JobApplicationStatus.REJECTED || existing?.status === JobApplicationStatus.COMPLETED);
 
     const application = await this.jobApplicationsRepo.upsert(jobId, profile.id, dto.status);
+    if (dto.status === JobApplicationStatus.APPLIED) {
+      void this.notificationsService.jobApplied(job, jobDisplayId(job));
+    }
 
     await this.auditService.log({
       userId,
@@ -537,6 +568,10 @@ export class JobsService {
     // resolved here the same way — a users lookup on posted_by.
     const job = await this.jobsRepo.findById(jobId);
     const poster = job ? await this.usersRepo.findById(job.posted_by) : null;
+    if (job && poster) {
+      // completeJob always reopens the job to active, hence "reopened".
+      void this.notificationsService.caregiverClosedEngagement(poster.id, jobDisplayId(job), true);
+    }
 
     await this.auditService.log({
       userId,
@@ -632,6 +667,13 @@ export class JobsService {
           client,
         );
       }
+    });
+
+    const decidedJob = await this.jobsRepo.findById(jobId);
+    void this.notificationsService.applicationDecided(caregiverDetail.user_id, {
+      accepted: isAccepting,
+      displayId: decidedJob ? jobDisplayId(decidedJob) : 'your application',
+      reason: dto.reason,
     });
 
     await this.auditService.log({

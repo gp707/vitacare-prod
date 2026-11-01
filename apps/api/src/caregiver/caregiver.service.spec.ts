@@ -4,6 +4,7 @@ import { VerificationStatus } from '@vitacare/shared-constants';
 
 describe('CaregiverService', () => {
   let service: CaregiverService;
+  let notificationsService: any;
   let db: any;
   let usersRepo: any;
   let profilesRepo: any;
@@ -79,6 +80,20 @@ describe('CaregiverService', () => {
     emailService = { sendToAdmin: jest.fn(), send: jest.fn() };
     auditService = { log: jest.fn() };
 
+    notificationsService = {
+      registerDevice: jest.fn(),
+      requirementApproved: jest.fn(),
+      requirementRejected: jest.fn(),
+      jobApplied: jest.fn(),
+      organisationRequirementApplied: jest.fn(),
+      applicationDecided: jest.fn(),
+      jobUpdated: jest.fn(),
+      jobCancelled: jest.fn(),
+      jobNoLongerOpen: jest.fn(),
+      caregiverClosedEngagement: jest.fn(),
+      organisationRequirementUpdated: jest.fn(),
+      organisationRequirementNoLongerOpen: jest.fn(),
+    };
     service = new CaregiverService(
       db,
       usersRepo,
@@ -89,6 +104,7 @@ describe('CaregiverService', () => {
       uploadService,
       emailService,
       auditService,
+      notificationsService,
     );
   });
 
@@ -545,7 +561,7 @@ describe('CaregiverService', () => {
   describe('updateFcmToken', () => {
     it('stores the token and returns a success message', async () => {
       const result = await service.updateFcmToken('user-1', { token: 'abc123' });
-      expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'abc123');
+      expect(notificationsService.registerDevice).toHaveBeenCalledWith('user-1', 'abc123');
       expect(result).toEqual({ message: 'FCM token updated' });
     });
   });

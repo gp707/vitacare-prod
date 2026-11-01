@@ -1,3 +1,5 @@
+import { JOB_APPLICANT_FIELDS, jobDisplayId } from '../notifications/notification-templates';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
@@ -36,6 +38,7 @@ export class IndividualService {
     private readonly caregiverService: CaregiverService,
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
     private readonly fcmService: FcmService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -219,6 +222,16 @@ export class IndividualService {
       }
     }
 
+    // A new start date or shift means any duty reminders already sent were for
+    // the wrong time: let the accepted caregiver get fresh ones.
+    if ('start_date' in after || 'duty_type' in after) {
+      await this.jobApplicationsRepo.resetDutyRemindersForJob(jobId);
+    }
+    // Caregivers who applied or were accepted hear about changes that matter.
+    if (JOB_APPLICANT_FIELDS.some((field) => field in after)) {
+      void this.notificationsService.jobUpdated(jobId, jobDisplayId(job));
+    }
+
     const prevLanguages = [...existing.languages].sort();
     const nextLanguages = [...job.languages].sort();
     if (prevLanguages.join(',') !== nextLanguages.join(',')) {
@@ -319,6 +332,8 @@ export class IndividualService {
     }
 
     const activeApplications = await this.jobApplicationsRepo.findActiveForJob(jobId);
+    // Looked up now: cancelling rejects every one of these applications.
+    const affectedCaregivers = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied', 'accepted']);
 
     await this.db.withTransaction(async (client) => {
       for (const application of activeApplications) {
@@ -335,6 +350,7 @@ export class IndividualService {
       }
       await this.jobsRepo.cancel(jobId, client);
     });
+    void this.notificationsService.jobCancelled(affectedCaregivers, jobDisplayId(existing));
 
     await this.auditService.log({
       userId,
@@ -378,6 +394,7 @@ export class IndividualService {
     await this.fcmService.sendToAllCaregivers(
       'New Job Available',
       'A patient/family is looking for a caregiver — check the Jobs tab.',
+      { preferredGender: job.preferred_gender },
     );
 
     await this.auditService.log({
@@ -505,7 +522,7 @@ export class IndividualService {
   }
 
   async updateFcmToken(userId: string, dto: UpdateFcmTokenDto) {
-    await this.usersRepo.updateFcmToken(userId, dto.token);
+    await this.notificationsService.registerDevice(userId, dto.token);
     return { message: 'FCM token updated' };
   }
 

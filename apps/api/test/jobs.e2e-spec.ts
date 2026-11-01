@@ -67,7 +67,7 @@ describe('Jobs (e2e)', () => {
     return res.body.data as { user_id: string; profile_id: string; access_token: string };
   }
 
-  const defaultCareReceiver = {
+  const defaultCareReceiver = { patient_name: 'Test Patient',
     age: 72,
     gender: 'female',
     weight_kg: 58,
@@ -169,6 +169,7 @@ describe('Jobs (e2e)', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Live-In Care in Bangalore',
         'Indiranagar, Bangalore | IMMEDIATELY APPLY',
+        { preferredGender: 'female' },
       );
 
       const audit = await db.query(
@@ -313,7 +314,7 @@ describe('Jobs (e2e)', () => {
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          care_receiver: {
+          care_receiver: { patient_name: 'Test Patient',
             age: 65,
             gender: 'male',
             weight_kg: 70,
@@ -353,7 +354,7 @@ describe('Jobs (e2e)', () => {
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          care_receiver: { age: 65, gender: 'male', weight_kg: 70, toilet_assistance: ['independent'] },
+          care_receiver: { patient_name: 'Test Patient', age: 65, gender: 'male', weight_kg: 70, toilet_assistance: ['independent'] },
           city: 'bangalore',
           area: 'Indiranagar',
           description: `${jobDescriptionPrefix} missing feeding_type test`,
@@ -373,7 +374,7 @@ describe('Jobs (e2e)', () => {
         .post('/v1/admin/jobs')
         .set('Authorization', `Bearer ${superAdminToken}`)
         .send({
-          care_receiver: { age: 65, gender: 'male', weight_kg: 70, feeding_type: 'oral_feeding' },
+          care_receiver: { patient_name: 'Test Patient', age: 65, gender: 'male', weight_kg: 70, feeding_type: 'oral_feeding' },
           city: 'bangalore',
           area: 'Indiranagar',
           description: `${jobDescriptionPrefix} missing toilet_assistance test`,
@@ -485,7 +486,7 @@ describe('Jobs (e2e)', () => {
 
     it('accepts vital monitoring types when requires_vital_monitoring is true', async () => {
       const job = await createJob({
-        care_receiver: {
+        care_receiver: { patient_name: 'Test Patient',
           requires_vital_monitoring: true,
           vital_monitoring_types: ['blood_pressure', 'oxygen_spo2'],
         },
@@ -657,7 +658,7 @@ describe('Jobs (e2e)', () => {
 
     it('accepts a full care-needs payload including medical conditions', async () => {
       const job = await createJob({
-        care_receiver: {
+        care_receiver: { patient_name: 'Test Patient',
           feeding_type: 'tube_feeding',
           has_medical_condition: true,
           medical_conditions: ['diabetes', 'stroke'],
@@ -672,7 +673,7 @@ describe('Jobs (e2e)', () => {
 
     it('accepts free-text detail for the "other" option on toilet_assistance and medical_conditions, alongside the other selected values', async () => {
       const job = await createJob({
-        care_receiver: {
+        care_receiver: { patient_name: 'Test Patient',
           toilet_assistance: ['others'],
           toilet_assistance_other: 'Needs help transferring to the commode',
           has_medical_condition: true,
@@ -779,8 +780,8 @@ describe('Jobs (e2e)', () => {
     });
 
     it("filters by the patient's gender (care_receivers.gender, not the job's caregiver-preference field)", async () => {
-      const maleJob = await createJob({ care_receiver: { gender: 'male' } });
-      const femaleJob = await createJob({ care_receiver: { gender: 'female' } });
+      const maleJob = await createJob({ care_receiver: { patient_name: 'Test Patient', gender: 'male' } });
+      const femaleJob = await createJob({ care_receiver: { patient_name: 'Test Patient', gender: 'female' } });
       const res = await request(app.getHttpServer())
         .get('/v1/admin/jobs?limit=100&gender=male')
         .set('Authorization', `Bearer ${superAdminToken}`)
@@ -914,7 +915,7 @@ describe('Jobs (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/v1/admin/jobs/${job.id}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
-        .send(editPayload({ care_receiver: { age: 80, toilet_assistance: ['diapers_bedside_support'] } }))
+        .send(editPayload({ care_receiver: { patient_name: 'Test Patient', age: 80, toilet_assistance: ['diapers_bedside_support'] } }))
         .expect(200);
       expect(res.body.data.id).toBe(job.id);
       expect(res.body.data.area).toBe('Koramangala');
@@ -956,6 +957,7 @@ describe('Jobs (e2e)', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'New Job: Day Duty in Bangalore',
         'Koramangala, Bangalore | IMMEDIATELY APPLY',
+        { preferredGender: 'female' },
       );
       expect(new Date(res.body.data.posted_at).getTime()).toBeGreaterThan(
         new Date(job.posted_at).getTime(),
@@ -1071,6 +1073,7 @@ describe('Jobs (e2e)', () => {
       expect(fcmService.sendToAllCaregivers).toHaveBeenCalledWith(
         'Reminder: Live-In Care in Bangalore',
         "Indiranagar, Bangalore | APPLY NOW BEFORE IT'S FILLED",
+        { preferredGender: 'female' },
       );
 
       const audit = await db.query(
@@ -1176,7 +1179,7 @@ describe('Jobs (e2e)', () => {
     it('includes the full care_receiver (About Patient / Condition details) on every job, not just admin detail', async () => {
       const caregiver = await registerCaregiver('0022');
       const job = await createJob({
-        care_receiver: {
+        care_receiver: { patient_name: 'Test Patient',
           age: 81,
           toilet_assistance: ['uses_catheter'],
           requires_vital_monitoring: true,

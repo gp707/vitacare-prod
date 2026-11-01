@@ -269,7 +269,8 @@ export class OrganisationRequirementsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<OrganisationRequirementRecord>(
       `UPDATE organisation_requirements
-       SET status = 'active', cancelled_at = NULL, rejection_reason = NULL, posted_at = NOW(), updated_at = NOW()
+       SET status = 'active', cancelled_at = NULL, rejection_reason = NULL, posted_at = NOW(), updated_at = NOW(),
+           no_applicants_nudge_at = NULL
        WHERE id = $1
        RETURNING *`,
       [id],
@@ -391,5 +392,31 @@ export class OrganisationRequirementsRepository {
     );
     const result = await client.query('DELETE FROM organisation_requirements WHERE posted_by = $1', [userId]);
     return { deleted: result.rowCount ?? 0, acceptedProfileIds: accepted.rows.map((r) => r.profile_id) };
+  }
+
+  async listNoApplicantNudgeCandidates(
+    days: number,
+  ): Promise<{ id: string; posted_by: string; requirement_number: number | null }[]> {
+    const result = await this.db.query<{ id: string; posted_by: string; requirement_number: number | null }>(
+      `SELECT r.id, r.posted_by, r.requirement_number
+       FROM organisation_requirements r
+       JOIN users u ON u.id = r.posted_by AND u.is_active = true AND u.deleted_at IS NULL
+       WHERE r.status = 'active' AND r.no_applicants_nudge_at IS NULL
+         AND r.posted_at <= NOW() - make_interval(days => $1)
+         AND NOT EXISTS (SELECT 1 FROM organisation_requirement_applications a WHERE a.requirement_id = r.id)`,
+      [days],
+    );
+    return result.rows;
+  }
+
+  async claimNoApplicantNudge(id: string): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE organisation_requirements SET no_applicants_nudge_at = NOW()
+       WHERE id = $1 AND status = 'active' AND no_applicants_nudge_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM organisation_requirement_applications a WHERE a.requirement_id = organisation_requirements.id)
+       RETURNING id`,
+      [id],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 }

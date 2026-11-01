@@ -167,11 +167,23 @@ export class UsersRepository {
     );
   }
 
-  async listCaregiverFcmTokens(): Promise<string[]> {
+  /** True if the account already has at least one registered device. */
+  async hasFcmToken(userId: string): Promise<boolean> {
+    const result = await this.db.query('SELECT 1 FROM user_fcm_tokens WHERE user_id = $1 LIMIT 1', [userId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /** Every active caregiver's devices. With [preferredGender] only caregivers
+   *  that job's employer would accept (same rule as the job list itself:
+   *  no preference, or the caregiver's own gender matches). */
+  async listCaregiverFcmTokens(preferredGender?: string | null): Promise<string[]> {
     const result = await this.db.query<{ fcm_token: string }>(
       `SELECT t.token AS fcm_token FROM user_fcm_tokens t
        JOIN users u ON u.id = t.user_id
-       WHERE u.role = 'caregiver' AND u.is_active = true`,
+       JOIN caregiver_profiles cp ON cp.user_id = u.id
+       WHERE u.role = 'caregiver' AND u.is_active = true
+         AND ($1::text IS NULL OR cp.gender = $1::text)`,
+      [preferredGender ?? null],
     );
     return result.rows.map((row) => row.fcm_token);
   }

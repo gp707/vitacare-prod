@@ -93,7 +93,7 @@ describe('Individual (NurseNow) (e2e)', () => {
   }
 
   const requirementPayload = (overrides: Record<string, unknown> = {}) => ({
-    care_receiver: {
+    care_receiver: { patient_name: 'Test Patient',
       age: 74,
       gender: 'female',
       weight_kg: 58,
@@ -339,7 +339,7 @@ describe('Individual (NurseNow) (e2e)', () => {
       expect(secondEdit.body.data.salary_amount).toBe('32000');
     });
 
-    it('rejects editing while there is an active (applied) application (JOB_014)', async () => {
+    it('still allows editing while there is an active (applied) application — the JOB_014 lock was removed for individuals (the app asks the patient to confirm instead)', async () => {
       const individual = await registerIndividual('0039');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -367,11 +367,11 @@ describe('Individual (NurseNow) (e2e)', () => {
         .patch(`/v1/individual/requirements/${jobId}`)
         .set('Authorization', `Bearer ${individual.access_token}`)
         .send(requirementPayload({ area: 'Whitefield' }))
-        .expect(400);
-      expect(res.body.error.code).toBe('JOB_014');
+        .expect(200);
+      expect(res.body.data.area).toBe('Whitefield');
     });
 
-    it('a rejected/cancelled application does not count as active — editing is allowed again once it is rejected', async () => {
+    it('editing stays allowed before and after an application is rejected', async () => {
       const individual = await registerIndividual('0040');
       const created = await request(app.getHttpServer())
         .post('/v1/individual/requirements')
@@ -400,12 +400,12 @@ describe('Individual (NurseNow) (e2e)', () => {
         .expect(200);
       const applicationId = applicants.body.data[0].id;
 
-      // Still blocked while the application is 'applied'.
+      // Allowed even while the application is 'applied' (no JOB_014 lock).
       await request(app.getHttpServer())
         .patch(`/v1/individual/requirements/${jobId}`)
         .set('Authorization', `Bearer ${individual.access_token}`)
         .send(requirementPayload({ area: 'Whitefield' }))
-        .expect(400);
+        .expect(200);
 
       await request(app.getHttpServer())
         .patch(`/v1/individual/requirements/${jobId}/applications/${applicationId}`)
@@ -413,7 +413,7 @@ describe('Individual (NurseNow) (e2e)', () => {
         .send({ status: 'rejected', reason: 'Not a good fit' })
         .expect(200);
 
-      // Now allowed — the rejected application no longer counts as active.
+      // Still allowed once the application is rejected.
       const edited = await request(app.getHttpServer())
         .patch(`/v1/individual/requirements/${jobId}`)
         .set('Authorization', `Bearer ${individual.access_token}`)

@@ -2,6 +2,7 @@ import { OrganisationRequirementsService } from './organisation-requirements.ser
 
 describe('OrganisationRequirementsService', () => {
   let service: OrganisationRequirementsService;
+  let notificationsService: any;
   let db: any;
   let requirementsRepo: any;
   let applicationsRepo: any;
@@ -51,6 +52,20 @@ describe('OrganisationRequirementsService', () => {
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
 
+    notificationsService = {
+      registerDevice: jest.fn(),
+      requirementApproved: jest.fn(),
+      requirementRejected: jest.fn(),
+      jobApplied: jest.fn(),
+      organisationRequirementApplied: jest.fn(),
+      applicationDecided: jest.fn(),
+      jobUpdated: jest.fn(),
+      jobCancelled: jest.fn(),
+      jobNoLongerOpen: jest.fn(),
+      caregiverClosedEngagement: jest.fn(),
+      organisationRequirementUpdated: jest.fn(),
+      organisationRequirementNoLongerOpen: jest.fn(),
+    };
     service = new OrganisationRequirementsService(
       db,
       requirementsRepo,
@@ -59,6 +74,7 @@ describe('OrganisationRequirementsService', () => {
       adminCaregiversRepo,
       organisationProfilesRepo,
       fcmService,
+      notificationsService,
       auditService,
       caregiverService,
     );
@@ -367,6 +383,8 @@ describe('OrganisationRequirementsService', () => {
       expect(applicationsRepo.decide).not.toHaveBeenCalled();
       expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(requirementsRepo.cancel).toHaveBeenCalledWith('req-1');
+      // Applicants still waiting are told it no longer takes applications.
+      expect(notificationsService.organisationRequirementNoLongerOpen).toHaveBeenCalledWith('req-1', expect.any(String));
       expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed' });
     });
   });
@@ -673,14 +691,19 @@ describe('OrganisationRequirementsService', () => {
       },
     );
 
-    it('never consults the requirement at all when deciding — accepting is not gated on '
-      + 'number_of_vacancies for either accept or reject', async () => {
+    it('is not gated on number_of_vacancies — the requirement is only looked up to label the push', async () => {
       applicationsRepo.findById.mockResolvedValue(application);
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', requirement_number: 507, number_of_vacancies: 0 });
 
-      await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null);
+      const result = await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'accepted' } as any, null);
 
-      expect(requirementsRepo.findById).not.toHaveBeenCalled();
+      expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
+      expect(notificationsService.applicationDecided).toHaveBeenCalledWith(caregiverDetail.user_id, {
+        accepted: true,
+        displayId: 'ORG-JOB-507',
+        reason: undefined,
+      });
     });
   });
 
@@ -777,6 +800,17 @@ describe('OrganisationRequirementsService', () => {
 
       expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(result.verification_status).toBe('assigned');
+    });
+
+    it('tells the organisation the caregiver closed out, without claiming the requirement reopened', async () => {
+      caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-user-1', requirement_number: 507 });
+
+      await service.completeRequirement('user-1', 'req-1', {}, null);
+
+      expect(notificationsService.caregiverClosedEngagement).toHaveBeenCalledWith('org-user-1', 'ORG-JOB-507', false);
     });
 
     it('targets the posting organisation in the audit log', async () => {
@@ -903,6 +937,23 @@ describe('OrganisationRequirementsService', () => {
         expect(auditService.log).toHaveBeenCalled();
         expect(result.number_of_vacancies).toBe(9);
       });
+
+    it('tells applicants when admin changes the requirement they applied to', async () => {
+      requirementsRepo.findById.mockResolvedValue({ ...existing, status: 'active' });
+
+      await service.adminEditRequirement('admin-1', 'req-1', { number_of_vacancies: 9 }, null);
+
+      expect(notificationsService.organisationRequirementUpdated).toHaveBeenCalledWith('req-1', expect.any(String));
+    });
+
+    it('does not tell applicants about an approval of a pending_review requirement — there are none', async () => {
+      requirementsRepo.findById.mockResolvedValue(existing);
+      requirementsRepo.activate.mockResolvedValue({ ...existing, status: 'active' });
+
+      await service.adminEditRequirement('admin-1', 'req-1', {}, null);
+
+      expect(notificationsService.organisationRequirementUpdated).not.toHaveBeenCalled();
+    });
 
     it('throws GEN_001 when switching type_of_nurse to others without a free-text description', async () => {
       requirementsRepo.findById.mockResolvedValue(existing);

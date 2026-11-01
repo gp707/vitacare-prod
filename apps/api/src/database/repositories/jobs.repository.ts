@@ -634,11 +634,48 @@ export class JobsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<JobRecord>(
       `UPDATE jobs
-       SET status = 'active', cancelled_at = NULL, posted_at = NOW(), updated_at = NOW()
+       SET status = 'active', cancelled_at = NULL, posted_at = NOW(), updated_at = NOW(),
+           no_applicants_nudge_at = NULL
        WHERE id = $1
        RETURNING *`,
       [id],
     );
     return result.rows[0];
+  }
+
+  /** Patient-posted jobs that have been live for [days] days with nobody ever
+   *  applying and haven't been nudged yet. Admin-posted jobs are excluded:
+   *  their poster has no app. */
+  async listNoApplicantNudgeCandidates(
+    days: number,
+  ): Promise<{ id: string; posted_by: string; admin_job_number: number | null; patient_job_number: number | null }[]> {
+    const result = await this.db.query<{
+      id: string;
+      posted_by: string;
+      admin_job_number: number | null;
+      patient_job_number: number | null;
+    }>(
+      `SELECT j.id, j.posted_by, j.admin_job_number, j.patient_job_number
+       FROM jobs j
+       JOIN users u ON u.id = j.posted_by AND u.role = 'individual' AND u.is_active = true AND u.deleted_at IS NULL
+       WHERE j.status = 'active' AND j.no_applicants_nudge_at IS NULL
+         AND j.posted_at <= NOW() - make_interval(days => $1)
+         AND NOT EXISTS (SELECT 1 FROM job_applications ja WHERE ja.job_id = j.id)`,
+      [days],
+    );
+    return result.rows;
+  }
+
+  /** Takes ownership of sending the nudge: true for exactly one caller, and
+   *  only if the job is still live with nobody having applied meanwhile. */
+  async claimNoApplicantNudge(id: string): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE jobs SET no_applicants_nudge_at = NOW()
+       WHERE id = $1 AND status = 'active' AND no_applicants_nudge_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM job_applications ja WHERE ja.job_id = jobs.id)
+       RETURNING id`,
+      [id],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 }

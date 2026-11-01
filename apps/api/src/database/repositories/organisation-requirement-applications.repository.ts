@@ -248,4 +248,33 @@ export class OrganisationRequirementApplicationsRepository {
     );
     return result.rows;
   }
+
+  async countApplied(requirementId: string): Promise<number> {
+    const result = await this.db.query<{ n: string }>(
+      `SELECT count(*) AS n FROM organisation_requirement_applications WHERE requirement_id = $1 AND status = 'applied'`,
+      [requirementId],
+    );
+    return Number(result.rows[0].n);
+  }
+
+  async countAppliedSince(requirementId: string, minutes: number): Promise<number> {
+    const result = await this.db.query<{ n: string }>(
+      `SELECT count(*) AS n FROM organisation_requirement_applications
+       WHERE requirement_id = $1 AND status = 'applied' AND updated_at > NOW() - make_interval(mins => $2)`,
+      [requirementId, minutes],
+    );
+    return Number(result.rows[0].n);
+  }
+
+  async listApplicantUsers(requirementId: string, statuses: string[]): Promise<{ status: string; user_id: string }[]> {
+    const result = await this.db.query<{ status: string; user_id: string }>(
+      `SELECT a.status, u.id AS user_id
+       FROM organisation_requirement_applications a
+       JOIN caregiver_profiles cp ON cp.id = a.profile_id
+       JOIN users u ON u.id = cp.user_id
+       WHERE a.requirement_id = $1 AND a.status = ANY($2::text[])`,
+      [requirementId, statuses],
+    );
+    return result.rows;
+  }
 }
