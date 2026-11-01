@@ -119,11 +119,21 @@ export class UsersRepository {
     ]);
   }
 
+  /** A token identifies one physical device/app install, so only one account
+   *  may hold it at a time. Without clearing it from other rows, logging out
+   *  and into a different account on the same phone (the app never tells the
+   *  server about logout, and old installs never will) leaves both accounts
+   *  holding the token, so pushes meant for the previous account land on the
+   *  new person's phone. Single statement, so the move is atomic. */
   async updateFcmToken(userId: string, token: string): Promise<void> {
-    await this.db.query('UPDATE users SET fcm_token = $2, updated_at = NOW() WHERE id = $1', [
-      userId,
-      token,
-    ]);
+    await this.db.query(
+      `WITH released AS (
+         UPDATE users SET fcm_token = NULL, updated_at = NOW()
+         WHERE fcm_token = $2 AND id <> $1
+       )
+       UPDATE users SET fcm_token = $2, updated_at = NOW() WHERE id = $1`,
+      [userId, token],
+    );
   }
 
   async listCaregiverFcmTokens(): Promise<string[]> {
