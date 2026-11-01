@@ -36,7 +36,12 @@ export class FcmService implements OnModuleInit {
     });
   }
 
-  async sendToUser(userId: string, title: string, body: string): Promise<void> {
+  async sendToUser(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<void> {
     // Every device the account is signed in on, not just the last one.
     const tokens = await this.usersRepo.listFcmTokensByUserIds([userId]);
     if (tokens.length === 0) return;
@@ -45,6 +50,7 @@ export class FcmService implements OnModuleInit {
       await getMessaging(this.app).sendEachForMulticast({
         tokens,
         notification: { title, body },
+        ...(data ? { data } : {}),
       });
     } catch (error) {
       this.logger.error(`Failed to send push notification to user ${userId}`, error);
@@ -78,6 +84,9 @@ export class FcmService implements OnModuleInit {
       await getMessaging(this.app).sendEachForMulticast({
         tokens,
         notification: { title, body },
+        // Tapping the push opens the Jobs tab. The app only follows routes on
+        // its own allow-list, and old app versions ignore the field.
+        data: { route: '/caregiver/jobs' },
       });
     } catch (error) {
       this.logger.error('Failed to send job-posted push broadcast', error);

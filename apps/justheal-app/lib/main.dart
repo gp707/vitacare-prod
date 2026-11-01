@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'about/about_dialog.dart';
 import 'patient_hospital/app/app.dart';
 import 'patient_hospital/core/providers.dart';
 import 'patient_hospital/core/storage/local_storage.dart';
+import 'push/push_handler.dart';
 import 'caregiver/core/providers.dart' as caregiver;
 import 'caregiver/core/storage/local_storage.dart' as caregiver_storage;
 
@@ -37,6 +40,7 @@ Future<void> main() async {
     // lib/caregiver/) because the ported caregiver flow's "New Job" FCM
     // push depends on Firebase having been initialized once, app-wide.
     await Firebase.initializeApp();
+    unawaited(PushHandler.instance.start());
   } catch (_) {
     // Best-effort: push notifications just won't work this session.
   }
@@ -46,7 +50,8 @@ Future<void> main() async {
   // below would otherwise discard it, so it's threaded through to
   // SplashScreen to restore the page the account was on before a web page
   // refresh instead of always landing on their home tab.
-  final initialDeepLinkRoute = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+  final initialDeepLinkRoute =
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   final localStorage = await LocalStorage.create();
   // The ported caregiver flow is a second, independent session sharing
   // this one binary (see CLAUDE.md's JustHeal merge notes) — it needs its

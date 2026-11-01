@@ -9,6 +9,7 @@ import '../../../core/providers.dart';
 import '../../../core/version/app_version_repository.dart';
 import '../../../core/version/app_maintenance_repository.dart';
 import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_route;
+import 'package:nursenow_app/push/push_handler.dart';
 import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
 import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
 import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
@@ -125,6 +126,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         (route) => false,
         arguments: caregiver_route.routeArgumentsForStatus(caregiverSession),
       );
+      // A push tapped while the app was closed is opened on top of the
+      // caregiver's usual landing screen, once that screen is in place.
+      WidgetsBinding.instance.addPostFrameCallback((_) => PushHandler.instance.deliverPending());
     } else if (caregiverSession is caregiver_session_state.SessionLoadError) {
       // Transient failure — the token is still in storage. Show a retry
       // affordance (via the same error+Retry block the host's own

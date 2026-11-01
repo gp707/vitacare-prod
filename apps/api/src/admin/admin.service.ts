@@ -214,12 +214,14 @@ export class AdminService {
         profile.user_id,
         'Profile approved',
         'Congratulations! Your profile has been approved.',
+        { route: '/caregiver/profile' },
       );
     } else if (dto.status === 'rejected') {
       await this.fcmService.sendToUser(
         profile.user_id,
         'Profile update',
         dto.rejection_message ?? 'Your profile status has been updated. Please check the app for details.',
+        { route: '/caregiver/profile' },
       );
     }
 

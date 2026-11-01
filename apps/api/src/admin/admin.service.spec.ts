@@ -259,7 +259,9 @@ describe('AdminService', () => {
           verification_status: VerificationStatus.PENDING_CALL,
         });
         await service.updateStatus('profile-1', 'admin-1', { status } as any);
-        expect(fcmService.sendToUser).toHaveBeenCalledWith('user-1', expect.any(String), expect.any(String));
+        expect(fcmService.sendToUser).toHaveBeenCalledWith('user-1', expect.any(String), expect.any(String), {
+          route: '/caregiver/profile',
+        });
       }
     });
 
@@ -290,6 +292,7 @@ describe('AdminService', () => {
         'user-1',
         expect.any(String),
         'Docs unclear',
+        { route: '/caregiver/profile' },
       );
     });
   });

@@ -46,6 +46,16 @@ describe('FcmService', () => {
     });
   });
 
+  it('includes the tap-through route when given one', async () => {
+    usersRepo.listFcmTokensByUserIds.mockResolvedValue(['phone-1']);
+    await service.sendToUser('user-1', 'Title', 'Body', { route: '/caregiver/profile' });
+    expect(sendEachForMulticast).toHaveBeenCalledWith({
+      tokens: ['phone-1'],
+      notification: { title: 'Title', body: 'Body' },
+      data: { route: '/caregiver/profile' },
+    });
+  });
+
   it('no-ops silently when the user has no registered device', async () => {
     usersRepo.listFcmTokensByUserIds.mockResolvedValue([]);
     await service.sendToUser('user-1', 'Title', 'Body');
@@ -64,6 +74,7 @@ describe('FcmService', () => {
     expect(sendEachForMulticast).toHaveBeenCalledWith({
       tokens: ['token-a', 'token-b'],
       notification: { title: 'New Job: Bedside Care', body: 'Bangalore • 24Hrs (Live-In)' },
+      data: { route: '/caregiver/jobs' },
     });
   });
 
