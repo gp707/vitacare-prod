@@ -128,4 +128,10 @@ export class OrganisationController {
   updateFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
     return this.organisationService.updateFcmToken(user.sub, dto);
   }
+
+  @Delete('profile/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  removeFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
+    return this.organisationService.removeFcmToken(user.sub, dto);
+  }
 }

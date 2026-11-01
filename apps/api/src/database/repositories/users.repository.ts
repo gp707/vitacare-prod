@@ -120,14 +120,20 @@ export class UsersRepository {
   }
 
   /** A token identifies one physical device/app install, so only one account
-   *  may hold it at a time. Without clearing it from other rows, logging out
-   *  and into a different account on the same phone (the app never tells the
-   *  server about logout, and old installs never will) leaves both accounts
-   *  holding the token, so pushes meant for the previous account land on the
-   *  new person's phone. Single statement, so the move is atomic. */
+   *  may hold it at a time. The upsert moves it to this account if another
+   *  one held it (the app never told the server about logout, and old
+   *  installs never will, so a phone handed to a different account would
+   *  otherwise keep receiving the previous account's pushes). An account may
+   *  hold several tokens (one per device).
+   *
+   *  users.fcm_token is still dual-written, with the same one-owner rule, so
+   *  the previous backend release can be rolled back; see migration 087. */
   async updateFcmToken(userId: string, token: string): Promise<void> {
     await this.db.query(
-      `WITH released AS (
+      `WITH upserted AS (
+         INSERT INTO user_fcm_tokens (token, user_id) VALUES ($2, $1)
+         ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = NOW()
+       ), released AS (
          UPDATE users SET fcm_token = NULL, updated_at = NOW()
          WHERE fcm_token = $2 AND id <> $1
        )
@@ -136,9 +142,36 @@ export class UsersRepository {
     );
   }
 
+  /** Called on logout by updated apps: forgets just this device for this
+   *  account. Scoped to user_id so one account can never remove another's
+   *  token by sending it. Clears the legacy column too if it matches. */
+  async removeFcmToken(userId: string, token: string): Promise<void> {
+    await this.db.query(
+      `WITH removed AS (
+         DELETE FROM user_fcm_tokens WHERE token = $2 AND user_id = $1
+       )
+       UPDATE users SET fcm_token = NULL, updated_at = NOW() WHERE id = $1 AND fcm_token = $2`,
+      [userId, token],
+    );
+  }
+
+  /** Dead token reported by FCM (app uninstalled / token rotated). */
+  async removeFcmTokens(tokens: string[]): Promise<void> {
+    if (tokens.length === 0) return;
+    await this.db.query(
+      `WITH removed AS (
+         DELETE FROM user_fcm_tokens WHERE token = ANY($1::text[])
+       )
+       UPDATE users SET fcm_token = NULL WHERE fcm_token = ANY($1::text[])`,
+      [tokens],
+    );
+  }
+
   async listCaregiverFcmTokens(): Promise<string[]> {
     const result = await this.db.query<{ fcm_token: string }>(
-      `SELECT fcm_token FROM users WHERE role = 'caregiver' AND fcm_token IS NOT NULL`,
+      `SELECT t.token AS fcm_token FROM user_fcm_tokens t
+       JOIN users u ON u.id = t.user_id
+       WHERE u.role = 'caregiver' AND u.is_active = true`,
     );
     return result.rows.map((row) => row.fcm_token);
   }
@@ -149,9 +182,10 @@ export class UsersRepository {
    *  unfiltered broadcast to every caregiver. */
   async listCaregiverFcmTokensByStatus(statuses: string[]): Promise<string[]> {
     const result = await this.db.query<{ fcm_token: string }>(
-      `SELECT u.fcm_token FROM users u
+      `SELECT t.token AS fcm_token FROM user_fcm_tokens t
+       JOIN users u ON u.id = t.user_id
        JOIN caregiver_profiles cp ON cp.user_id = u.id
-       WHERE u.role = 'caregiver' AND u.fcm_token IS NOT NULL AND cp.verification_status = ANY($1::text[])`,
+       WHERE u.role = 'caregiver' AND u.is_active = true AND cp.verification_status = ANY($1::text[])`,
       [statuses],
     );
     return result.rows.map((row) => row.fcm_token);
@@ -162,7 +196,9 @@ export class UsersRepository {
    *  unlike listCaregiverFcmTokens(ByStatus). */
   async listFcmTokensByUserIds(userIds: string[]): Promise<string[]> {
     const result = await this.db.query<{ fcm_token: string }>(
-      `SELECT fcm_token FROM users WHERE id = ANY($1::uuid[]) AND fcm_token IS NOT NULL`,
+      `SELECT t.token AS fcm_token FROM user_fcm_tokens t
+       JOIN users u ON u.id = t.user_id
+       WHERE t.user_id = ANY($1::uuid[]) AND u.is_active = true`,
       [userIds],
     );
     return result.rows.map((row) => row.fcm_token);
@@ -202,6 +238,7 @@ export class UsersRepository {
   async anonymizeAndDeactivate(userId: string, client?: PoolClient): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     const tombstonePhone = `del_${userId.replace(/-/g, '').slice(0, 16)}`;
+    await runner.query('DELETE FROM user_fcm_tokens WHERE user_id = $1', [userId]);
     await runner.query(
       `UPDATE users
        SET phone = $2, full_name = 'Deleted User', email = NULL,

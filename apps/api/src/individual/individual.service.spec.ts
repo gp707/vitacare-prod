@@ -65,6 +65,7 @@ describe('IndividualService', () => {
       updateCodeHash: jest.fn(),
       updateFullName: jest.fn(),
       updateFcmToken: jest.fn(),
+      removeFcmToken: jest.fn(),
       anonymizeAndDeactivate: jest.fn(),
     };
     jobsService = { decideApplication: jest.fn() };
@@ -730,6 +731,14 @@ describe('IndividualService', () => {
       const result = await service.updateFcmToken('user-1', { token: 'fcm-abc' } as any);
       expect(usersRepo.updateFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
       expect(result).toEqual({ message: 'FCM token updated' });
+    });
+  });
+
+  describe('removeFcmToken', () => {
+    it('forgets only the calling account\'s copy of the token', async () => {
+      const result = await service.removeFcmToken('user-1', { token: 'fcm-abc' } as any);
+      expect(usersRepo.removeFcmToken).toHaveBeenCalledWith('user-1', 'fcm-abc');
+      expect(result).toEqual({ message: 'FCM token removed' });
     });
   });
 

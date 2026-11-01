@@ -28,7 +28,7 @@ describe('FcmService', () => {
     sendEachForMulticast.mockReset().mockResolvedValue({ successCount: 1, failureCount: 0 });
     configService = { getOrThrow: jest.fn((key: string) => config[key]) };
     usersRepo = {
-      findById: jest.fn(),
+      listFcmTokensByUserIds: jest.fn(),
       listCaregiverFcmTokens: jest.fn(),
       listCaregiverFcmTokensByStatus: jest.fn(),
     };
@@ -36,30 +36,25 @@ describe('FcmService', () => {
     service.onModuleInit();
   });
 
-  it('sends a push notification when the user has an fcm_token', async () => {
-    usersRepo.findById.mockResolvedValue({ id: 'user-1', fcm_token: 'device-token-abc' });
+  it('sends to every device the user has registered', async () => {
+    usersRepo.listFcmTokensByUserIds.mockResolvedValue(['phone-1', 'phone-2']);
     await service.sendToUser('user-1', 'Title', 'Body');
-    expect(send).toHaveBeenCalledWith({
-      token: 'device-token-abc',
+    expect(usersRepo.listFcmTokensByUserIds).toHaveBeenCalledWith(['user-1']);
+    expect(sendEachForMulticast).toHaveBeenCalledWith({
+      tokens: ['phone-1', 'phone-2'],
       notification: { title: 'Title', body: 'Body' },
     });
   });
 
-  it('no-ops silently when the user has no fcm_token', async () => {
-    usersRepo.findById.mockResolvedValue({ id: 'user-1', fcm_token: null });
+  it('no-ops silently when the user has no registered device', async () => {
+    usersRepo.listFcmTokensByUserIds.mockResolvedValue([]);
     await service.sendToUser('user-1', 'Title', 'Body');
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it('no-ops silently when the user does not exist', async () => {
-    usersRepo.findById.mockResolvedValue(null);
-    await service.sendToUser('missing', 'Title', 'Body');
-    expect(send).not.toHaveBeenCalled();
+    expect(sendEachForMulticast).not.toHaveBeenCalled();
   });
 
   it('swallows send failures so a notification failure never throws', async () => {
-    usersRepo.findById.mockResolvedValue({ id: 'user-1', fcm_token: 'device-token-abc' });
-    send.mockRejectedValueOnce(new Error('messaging/invalid-registration-token'));
+    usersRepo.listFcmTokensByUserIds.mockResolvedValue(['device-token-abc']);
+    sendEachForMulticast.mockRejectedValueOnce(new Error('messaging/invalid-registration-token'));
     await expect(service.sendToUser('user-1', 'Title', 'Body')).resolves.toBeUndefined();
   });
 

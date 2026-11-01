@@ -378,6 +378,12 @@ export class CaregiverService {
     return { message: 'FCM token updated' };
   }
 
+  /** Logout: forget this device only. Idempotent; scoped to this account. */
+  async removeFcmToken(userId: string, dto: UpdateFcmTokenDto) {
+    await this.usersRepo.removeFcmToken(userId, dto.token);
+    return { message: 'FCM token removed' };
+  }
+
   /** Self-service account deletion. Requires re-entering the PIN (AUTH_008
    *  on mismatch) since this is irreversible. Document storage paths are
    *  captured from the full upload history — not just the current

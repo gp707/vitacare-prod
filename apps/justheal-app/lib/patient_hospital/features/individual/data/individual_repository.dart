@@ -271,6 +271,15 @@ class IndividualRepository {
     }
   }
 
+  /// Called on logout so this device stops receiving this account's pushes.
+  Future<void> removeFcmToken(String token) async {
+    try {
+      await _dio.delete(ApiRoutes.individualProfileFcmToken, data: {'token': token});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Unlike a caregiver's full_name (locked from self-edit — only admins
   /// can change it), a patient/family account can freely update their own
   /// name — no verification pipeline ties it to anything else.

@@ -219,4 +219,13 @@ class OrganisationRepository {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// Called on logout so this device stops receiving this account's pushes.
+  Future<void> removeFcmToken(String token) async {
+    try {
+      await _dio.delete(ApiRoutes.organisationProfileFcmToken, data: {'token': token});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

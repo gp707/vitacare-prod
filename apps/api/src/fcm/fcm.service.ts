@@ -37,12 +37,13 @@ export class FcmService implements OnModuleInit {
   }
 
   async sendToUser(userId: string, title: string, body: string): Promise<void> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user?.fcm_token) return;
+    // Every device the account is signed in on, not just the last one.
+    const tokens = await this.usersRepo.listFcmTokensByUserIds([userId]);
+    if (tokens.length === 0) return;
 
     try {
-      await getMessaging(this.app).send({
-        token: user.fcm_token,
+      await getMessaging(this.app).sendEachForMulticast({
+        tokens,
         notification: { title, body },
       });
     } catch (error) {

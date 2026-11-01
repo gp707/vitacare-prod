@@ -113,4 +113,10 @@ export class CaregiverController {
   updateFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
     return this.caregiverService.updateFcmToken(user.sub, dto);
   }
+
+  @Delete('fcm-token')
+  @HttpCode(HttpStatus.OK)
+  removeFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
+    return this.caregiverService.removeFcmToken(user.sub, dto);
+  }
 }

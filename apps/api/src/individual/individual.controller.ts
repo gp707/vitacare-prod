@@ -103,6 +103,12 @@ export class IndividualController {
     return this.individualService.updateFcmToken(user.sub, dto);
   }
 
+  @Delete('profile/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  removeFcmToken(@CurrentUser() user: JwtPayload, @Body() dto: UpdateFcmTokenDto) {
+    return this.individualService.removeFcmToken(user.sub, dto);
+  }
+
   @Get('requirements/:id/applications')
   listApplications(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.individualService.getMyRequirementApplications(user.sub, id);

@@ -185,4 +185,10 @@ export class OrganisationService {
     await this.usersRepo.updateFcmToken(userId, dto.token);
     return { message: 'FCM token updated' };
   }
+
+  /** Logout: forget this device only. Idempotent; scoped to this account. */
+  async removeFcmToken(userId: string, dto: UpdateFcmTokenDto) {
+    await this.usersRepo.removeFcmToken(userId, dto.token);
+    return { message: 'FCM token removed' };
+  }
 }

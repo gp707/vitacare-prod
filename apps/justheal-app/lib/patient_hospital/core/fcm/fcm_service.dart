@@ -52,4 +52,24 @@ class FcmService {
         ? _organisationRepository.updateFcmToken(token)
         : _individualRepository.updateFcmToken(token);
   }
+
+  /// Logout: tells the server to stop sending this account's pushes to this
+  /// device. Must run while the session token is still stored (the request is
+  /// authenticated). Best-effort and time-boxed — logging out must never be
+  /// blocked or failed by a slow/offline push cleanup; the server also moves a
+  /// token to whichever account registers it next, so a miss here is covered
+  /// the next time anyone logs in on this device.
+  Future<void> unregister({required bool isOrganisation}) async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        final removal = isOrganisation
+            ? _organisationRepository.removeFcmToken(token)
+            : _individualRepository.removeFcmToken(token);
+        await removal.timeout(const Duration(seconds: 3));
+      }
+    } catch (_) {
+      // Best-effort, see comment above.
+    }
+  }
 }

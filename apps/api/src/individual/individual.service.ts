@@ -509,6 +509,12 @@ export class IndividualService {
     return { message: 'FCM token updated' };
   }
 
+  /** Logout: forget this device only. Idempotent; scoped to this account. */
+  async removeFcmToken(userId: string, dto: UpdateFcmTokenDto) {
+    await this.usersRepo.removeFcmToken(userId, dto.token);
+    return { message: 'FCM token removed' };
+  }
+
   /** Once cancelled (see cancelRequirement above), the individual can no
    *  longer see who applied or their phone numbers — an empty list rather
    *  than an error, so the UI doesn't need special-case handling beyond

@@ -70,7 +70,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
         // Anything not already wrapped as an ApiException (e.g. no
         // connectivity at all) — same retry-then-fail-open treatment.
         if (attempt == _maxAttempts) {
-          state = const SessionLoadError('Could not reach the server. Please check your connection and try again.');
+          state = const SessionLoadError(
+              'Could not reach the server. Please check your connection and try again.');
           return;
         }
       }
@@ -102,12 +103,17 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   Future<void> logout() async {
+    // Before clearing tokens: the unregister request needs the session.
+    if (_localStorage.accessToken != null) {
+      await _fcmService.unregister();
+    }
     await _localStorage.clearTokens();
     state = const SessionUnauthenticated();
   }
 }
 
-final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((ref) {
+final sessionProvider =
+    StateNotifierProvider<SessionNotifier, SessionState>((ref) {
   return SessionNotifier(
     ref.watch(localStorageProvider),
     ref.watch(profileRepositoryProvider),
