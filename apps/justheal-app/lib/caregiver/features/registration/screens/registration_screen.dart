@@ -16,6 +16,7 @@ import '../../../core/utils/image_compression.dart';
 import '../../../core/utils/upload_size_limit.dart';
 import '../../profile/data/profile_repository.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/branding/logo_watermark.dart';
 
 // /preview, not /edit — a plain public read-only viewer that never prompts
 // for a Google account, unlike /edit which routes through the Docs editor
@@ -440,7 +441,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         actions: const [TextZoomButton(), RateCardButton()],
       ),
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: LogoWatermark(
+          child: SafeArea(
         // SingleChildScrollView + Column, not a lazy ListView: a ListView only
         // builds on-screen children, so an off-screen invalid field has no
         // context and Scrollable.ensureVisible silently did nothing.
@@ -752,7 +754,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 

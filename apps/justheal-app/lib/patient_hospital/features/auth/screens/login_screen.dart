@@ -11,12 +11,18 @@ import '../data/auth_result.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
-import 'package:nursenow_app/caregiver/core/network/api_exception.dart' as caregiver_net;
-import 'package:nursenow_app/caregiver/app/route_for_status.dart' as caregiver_route;
-import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart' as caregiver_auth;
-import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart' as caregiver_session;
-import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart' as caregiver_session_state;
+import 'package:nursenow_app/caregiver/core/network/api_exception.dart'
+    as caregiver_net;
+import 'package:nursenow_app/caregiver/app/route_for_status.dart'
+    as caregiver_route;
+import 'package:nursenow_app/caregiver/features/auth/data/auth_result.dart'
+    as caregiver_auth;
+import 'package:nursenow_app/caregiver/features/auth/state/session_notifier.dart'
+    as caregiver_session;
+import 'package:nursenow_app/caregiver/features/auth/state/session_state.dart'
+    as caregiver_session_state;
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/branding/logo_watermark.dart';
 
 /// Colors from this screen's redesign spec that don't already match
 /// vitacare_ui's shared AppColors palette (that palette is shared across
@@ -32,7 +38,6 @@ class _LoginPalette {
   static const textSecondary = Color(0xFF555866);
   static const fieldBorder = Color(0xFF777680);
   static const rowBorder = Color(0xFFC4C6D0);
-  static const divider = Color(0xFFD8D9E3);
   static const patientIconBg = Color(0xFFFBE7E1);
   static const patientIconFg = Color(0xFFA8412A);
   static const nurseIconBg = Color(0xFFDCEEEF);
@@ -75,13 +80,15 @@ class _RegisterOptionRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: () {
-            Analytics.tap('auth', 'login', 'register_as_${title.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}');
+            Analytics.tap('auth', 'welcome',
+                'register_as_${title.toLowerCase().replaceAll(RegExp(r'[^a-z]+'), '_')}');
             onTap();
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _LoginPalette.rowBorder),
@@ -115,17 +122,185 @@ class _RegisterOptionRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         description,
-                        style: const TextStyle(fontSize: 13, color: _LoginPalette.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 13, color: _LoginPalette.textSecondary),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: _LoginPalette.textSecondary),
+                const Icon(Icons.chevron_right,
+                    color: _LoginPalette.textSecondary),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Logo, Help/zoom buttons, title and byline — shared by the welcome and
+/// log-in screens. No AppBar: Help sits in the corner of the same block as
+/// the logo (a Stack) so it doesn't cost a whole extra row of height.
+class _AuthHeader extends StatelessWidget {
+  const _AuthHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Stack(
+          children: [
+            VitaLogoTap(
+              child: Image.asset(
+                'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
+                width: 56,
+              ),
+            ),
+            const Positioned(
+              top: 0,
+              right: 0,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextZoomButton(),
+                  WhatsAppHelpButton(
+                    backgroundColor: _LoginPalette.helpRed,
+                    margin: EdgeInsets.zero,
+                    minimumSize: Size(0, 44),
+                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    iconSize: 16,
+                    fontSize: AppTypography.body,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        const Text(
+          'JustHeal',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: AppTypography.jumbo,
+            fontWeight: FontWeight.bold,
+            color: _LoginPalette.primaryBlue,
+          ),
+        ),
+        const Text(
+          'By VitaCasaHealth.in',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              fontSize: AppTypography.small,
+              color: _LoginPalette.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+/// The screen a new install (or a logged-out user) lands on, at `/login`:
+/// the three "Register as" choices, with a small "Already registered?"
+/// button pinned at the bottom that opens the actual log-in form
+/// (`/sign-in`, [LoginScreen]). Kept at `/login` so everything that already
+/// sends a logged-out user there (splash, every logout, SessionWatcher)
+/// lands here without changes.
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: LogoWatermark(
+          child: SafeArea(
+        child: Column(
+          children: [
+            // Top offset matches the 40px bar the log-in screen shows above
+            // its header (the back arrow), so the logo/title sit at the same
+            // height on both screens.
+            const Padding(
+              padding: EdgeInsets.fromLTRB(AppSpacing.lg, 40 + AppSpacing.xs,
+                  AppSpacing.lg, AppSpacing.xs),
+              child: _AuthHeader(),
+            ),
+            // The register-as block sits above the middle of the space between
+            // the header and the bottom button (alignment y = -0.55; 0 would
+            // be dead centre). It is proportional, so a short phone gets
+            // almost no offset, and it scrolls only if a very small screen
+            // genuinely can't fit it.
+            Expanded(
+              child: Align(
+                alignment: const Alignment(0, -0.55),
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'New here? Register as:',
+                        style: TextStyle(
+                            fontSize: AppTypography.title,
+                            fontWeight: FontWeight.w500,
+                            color: _LoginPalette.textPrimary),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _RegisterOptionRow(
+                        icon: Icons.person,
+                        iconBackground: _LoginPalette.patientIconBg,
+                        iconColor: _LoginPalette.patientIconFg,
+                        title: 'Patient',
+                        description: 'I need care for me or my family',
+                        onTap: () =>
+                            Navigator.of(context).pushNamed('/register'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      // Straight into the ported caregiver (NurseJobs) flow's own
+                      // registration screen (see CLAUDE.md's "Merged into one
+                      // binary with NurseJobs").
+                      _RegisterOptionRow(
+                        icon: Icons.favorite,
+                        iconBackground: _LoginPalette.nurseIconBg,
+                        iconColor: _LoginPalette.nurseIconFg,
+                        title: 'Nurses/Caregivers',
+                        description: 'I provide care and want to join',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed('/caregiver/register'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      // Same RegistrationScreen as the Patient row, pre-selecting
+                      // its "Register as Organisation" checkbox — there is no
+                      // separate organisation registration flow (see
+                      // RegistrationScreen.startAsOrganisation).
+                      _RegisterOptionRow(
+                        icon: Icons.apartment,
+                        iconBackground: _LoginPalette.orgIconBg,
+                        iconColor: _LoginPalette.orgIconFg,
+                        title: 'Organisation',
+                        description: 'We arrange care for our patients',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed('/register', arguments: true),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: TextButton(
+                onPressed: () {
+                  Analytics.tap('auth', 'welcome', 'already_registered');
+                  Navigator.of(context).pushNamed('/sign-in');
+                },
+                child: const Text('Already registered? Click here'),
+              ),
+            ),
+          ],
+        ),
+      )),
     );
   }
 }
@@ -183,7 +358,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       final authRepo = ref.read(authRepositoryProvider);
-      final AuthResult result = await authRepo.loginCode(_phone, _codeController.text.trim());
+      final AuthResult result =
+          await authRepo.loginCode(_phone, _codeController.text.trim());
       await _onLoggedIn(result);
     } on ApiException catch (e) {
       // AUTH_002 ("no account found with this phone number") means this
@@ -205,7 +381,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _tryCaregiverLogin() async {
     try {
       final authRepo = ref.read(caregiver.authRepositoryProvider);
-      final result = await authRepo.loginCode(_phone, _codeController.text.trim());
+      final result =
+          await authRepo.loginCode(_phone, _codeController.text.trim());
       await _onCaregiverLoggedIn(result);
     } on caregiver_net.ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -224,7 +401,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _errorMessage = null;
     });
     try {
-      await ref.read(authRepositoryProvider).sendOtp(phone: _phone, purpose: OtpPurpose.login);
+      await ref
+          .read(authRepositoryProvider)
+          .sendOtp(phone: _phone, purpose: OtpPurpose.login);
       if (mounted) setState(() => _otpSent = true);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -270,12 +449,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _onLoggedIn(AuthResult result) async {
     final localStorage = ref.read(localStorageProvider);
-    await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+    await localStorage.saveTokens(
+        accessToken: result.accessToken, refreshToken: result.refreshToken);
     await ref.read(sessionProvider.notifier).loadSession();
     if (!mounted) return;
     final session = ref.read(sessionProvider);
     if (session is SessionAuthenticated) {
-      Navigator.of(context).pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil(session.homeRoute, (route) => false);
     } else if (session is SessionLoadError) {
       // Login itself already succeeded (tokens were saved) — this is
       // loadSession's own post-auth profile fetch failing transiently.
@@ -294,7 +475,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// merge notes).
   Future<void> _onCaregiverLoggedIn(caregiver_auth.AuthResult result) async {
     final localStorage = ref.read(caregiver.localStorageProvider);
-    await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+    await localStorage.saveTokens(
+        accessToken: result.accessToken, refreshToken: result.refreshToken);
     await ref.read(caregiver_session.sessionProvider.notifier).loadSession();
     if (!mounted) return;
     final session = ref.read(caregiver_session.sessionProvider);
@@ -316,144 +498,81 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final otpMode = ref.watch(otpModeProvider);
 
     return Scaffold(
+      // A bare back arrow (nothing else) when this was opened from the
+      // welcome screen's "Already registered?" button; no bar at all when it
+      // is the first route.
+      appBar: Navigator.canPop(context)
+          ? AppBar(
+              backgroundColor: AppColors.background,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              toolbarHeight: 40,
+            )
+          : null,
       // No AppBar — a dedicated toolbar strip left Help as the only thing
       // in an otherwise-empty full-width row. Instead it's positioned in
       // the corner of the same block as the logo/title (a Stack, not a
       // separate section), so it shares that space rather than pushing
       // everything else down a whole extra row's worth of height.
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: LogoWatermark(
+          child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Stack(
-                children: [
-                  VitaLogoTap(
-                    child: Image.asset(
-                      'packages/vitacare_ui/assets/branding/justheal_logo_no_tagline.webp',
-                      width: 56,
-                    ),
-                  ),
-                  const Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextZoomButton(),
-                        WhatsAppHelpButton(
-                          backgroundColor: _LoginPalette.helpRed,
-                          margin: EdgeInsets.zero,
-                          minimumSize: Size(0, 44),
-                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          iconSize: 16,
-                          fontSize: AppTypography.body,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'JustHeal',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: AppTypography.jumbo,
-                  fontWeight: FontWeight.bold,
-                  color: _LoginPalette.primaryBlue,
-                ),
-              ),
-              const Text(
-                'By VitaCasaHealth.in',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Registration moved above Log in (previously below it) —
-              // this is the primary conversion path for a new visitor,
-              // so it's shown first; returning users scroll past it to
-              // the Log in section below.
-              const Text(
-                'New here? Register as:',
-                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Goes where "New here? Register" used to go — this screen's
-              // RegistrationScreen defaults to the Individual/patient
-              // account type.
-              _RegisterOptionRow(
-                icon: Icons.person,
-                iconBackground: _LoginPalette.patientIconBg,
-                iconColor: _LoginPalette.patientIconFg,
-                title: 'Patient',
-                description: 'I need care for me or my family',
-                onTap: () => Navigator.of(context).pushNamed('/register'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Goes where the old top-bar "Caregivers Registration" button
-              // used to go — straight into the ported caregiver (NurseJobs)
-              // flow's own registration screen (see CLAUDE.md's "Merged
-              // into one binary with NurseJobs").
-              _RegisterOptionRow(
-                icon: Icons.favorite,
-                iconBackground: _LoginPalette.nurseIconBg,
-                iconColor: _LoginPalette.nurseIconFg,
-                title: 'Nurses/Caregivers',
-                description: 'I provide care and want to join',
-                onTap: () => Navigator.of(context).pushNamed('/caregiver/register'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // Same RegistrationScreen as the Patient row, pre-selecting
-              // its "Register as Organisation" checkbox — there is no
-              // separate organisation registration flow (see
-              // RegistrationScreen.startAsOrganisation).
-              _RegisterOptionRow(
-                icon: Icons.apartment,
-                iconBackground: _LoginPalette.orgIconBg,
-                iconColor: _LoginPalette.orgIconFg,
-                title: 'Organisation',
-                description: 'We arrange care for our patients',
-                onTap: () => Navigator.of(context).pushNamed('/register', arguments: true),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              const Divider(color: _LoginPalette.divider, height: 1),
+              const _AuthHeader(),
               const SizedBox(height: AppSpacing.lg),
               const Text(
                 'Log in',
-                style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.w500, color: _LoginPalette.textPrimary),
+                style: TextStyle(
+                    fontSize: AppTypography.title,
+                    fontWeight: FontWeight.w500,
+                    color: _LoginPalette.textPrimary),
               ),
               const SizedBox(height: 2),
               const Text(
-                'Already registered? Patients, nurses/caregivers and organisations all log in here.',
-                style: TextStyle(fontSize: AppTypography.small, color: _LoginPalette.textSecondary),
+                'Patients, nurses/caregivers and organisations all log in here.',
+                style: TextStyle(
+                    fontSize: AppTypography.small,
+                    color: _LoginPalette.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
               if (otpMode) ..._buildOtpFields() else ..._buildPinFields(),
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.xs),
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error)),
               ],
               const SizedBox(height: AppSpacing.md),
               SizedBox(
                 height: 44,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : (otpMode ? (_otpSent ? _verifyAndLogin : _sendOtp) : _submitPin),
+                  onPressed: _loading
+                      ? null
+                      : (otpMode
+                          ? (_otpSent ? _verifyAndLogin : _sendOtp)
+                          : _submitPin),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _LoginPalette.primaryBlue,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: _LoginPalette.primaryBlue.withValues(alpha: 0.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    disabledBackgroundColor:
+                        _LoginPalette.primaryBlue.withValues(alpha: 0.5),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999)),
                   ),
                   child: _loading
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
-                      : Text(otpMode ? (_otpSent ? 'Verify & Login' : 'Send OTP') : 'Log in'),
+                      : Text(otpMode
+                          ? (_otpSent ? 'Verify & Login' : 'Send OTP')
+                          : 'Log in'),
                 ),
               ),
               if (otpMode && _otpSent) ...[
@@ -470,7 +589,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 
@@ -483,7 +602,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           isDense: true,
           prefixText: '+91 ',
           labelText: 'Phone number',
-          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
+          border: OutlineInputBorder(
+              borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
       ),
       const SizedBox(height: AppSpacing.md),
@@ -495,7 +615,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         decoration: const InputDecoration(
           isDense: true,
           labelText: '4-digit code',
-          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
+          border: OutlineInputBorder(
+              borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
         onSubmitted: (_) => _submitPin(),
       ),
@@ -504,7 +625,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: TextButton(
           onPressed: () {
             Analytics.tap('auth', 'login', 'forgot_pin');
-            showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim());
+            showForgotPinDialog(context, ref,
+                initialPhone: _phoneController.text.trim());
           },
           child: const Text('Forgot PIN?'),
         ),
@@ -522,7 +644,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           isDense: true,
           prefixText: '+91 ',
           labelText: 'Phone number',
-          border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
+          border: OutlineInputBorder(
+              borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
         ),
       ),
       if (_otpSent) ...[
@@ -534,7 +657,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           decoration: const InputDecoration(
             isDense: true,
             labelText: '6-digit OTP',
-            border: OutlineInputBorder(borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
+            border: OutlineInputBorder(
+                borderSide: BorderSide(color: _LoginPalette.fieldBorder)),
           ),
           onSubmitted: (_) => _verifyAndLogin(),
         ),

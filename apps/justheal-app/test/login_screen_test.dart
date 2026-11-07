@@ -150,6 +150,7 @@ Future<void> _pumpLogin(
   _FakeCaregiverAuthRepository? caregiverAuthRepo,
   _FakeCaregiverProfileRepository? caregiverProfileRepo,
   List<RouteSettings>? pushedRoutes,
+  Widget home = const LoginScreen(),
   // Registration moved above Log in, so the whole screen is now taller
   // than the default 800x600 test window — tall enough that buttons
   // below the fold would otherwise fail tester.tap()'s hit test. Both
@@ -185,7 +186,7 @@ Future<void> _pumpLogin(
         if (caregiverProfileRepo != null) caregiver.profileRepositoryProvider.overrideWithValue(caregiverProfileRepo),
       ],
       child: MaterialApp(
-        home: const LoginScreen(),
+        home: home,
         routes: {'/home': (_) => const Scaffold(body: Text('home'))},
         // Records every named push the three "New here? Register as:" rows
         // make (route name + arguments), rather than actually resolving
@@ -208,7 +209,7 @@ void main() {
     // devicePixelRatio instead — both must be set together, per this
     // project's own flutter-widget-test-gotchas memory note.
     Future<double> maxScrollExtentAt(WidgetTester tester, Size size) async {
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), surfaceSize: size);
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), surfaceSize: size, home: const WelcomeScreen());
       await tester.pumpAndSettle();
 
       final scrollableState = tester.state<ScrollableState>(
@@ -226,21 +227,16 @@ void main() {
     // — same designed fallback as the 667pt-tall case below: scroll
     // gracefully rather than clip, confirmed here rather than asserted
     // as zero.
-    testWidgets('360x800 (common Android) — falls back to a small scroll rather than clipping', (tester) async {
-      expect(await maxScrollExtentAt(tester, const Size(360, 800)), greaterThan(0));
+    // The log-in form moved to its own screen, so this one is just the logo
+    // and three rows — it fits without scrolling on small phones too.
+    testWidgets('360x800 (common Android) — no scroll needed', (tester) async {
+      expect(await maxScrollExtentAt(tester, const Size(360, 800)), 0);
     });
 
-    // 667pt tall is a genuinely old/small device (iPhone SE) that neither
-    // the task's own target sizes (360/390 wide) nor its "no scroll" goal
-    // were written against — the explicit fallback for exactly this case
-    // (per the original spec) is to scroll rather than clip, so this just
-    // confirms that fallback engages cleanly instead of asserting zero
-    // scroll like the two sizes above.
-    testWidgets('375x667 (iPhone SE) — falls back to a small scroll rather than clipping', (tester) async {
-      expect(await maxScrollExtentAt(tester, const Size(375, 667)), greaterThan(0));
+    testWidgets('375x667 (iPhone SE) — no scroll needed', (tester) async {
+      expect(await maxScrollExtentAt(tester, const Size(375, 667)), 0);
     });
   });
-
 
   testWidgets('shows phone and code fields', (tester) async {
     await _pumpLogin(tester, authRepo: _FakeAuthRepository());
@@ -290,14 +286,12 @@ void main() {
     expect(find.text('Invalid code'), findsOneWidget);
   });
 
-  testWidgets('"New here? Register as:" is shown above the "Log in" section', (tester) async {
+  testWidgets('the log-in screen no longer shows the "Register as" options', (tester) async {
     await _pumpLogin(tester, authRepo: _FakeAuthRepository());
 
-    // "Log in" matches both the section heading and the submit button's
-    // label — the heading comes first in the widget tree either way.
-    final registerY = tester.getTopLeft(find.text('New here? Register as:')).dy;
-    final loginY = tester.getTopLeft(find.text('Log in').first).dy;
-    expect(registerY, lessThan(loginY));
+    expect(find.text('New here? Register as:'), findsNothing);
+    expect(find.text('Patient'), findsNothing);
+    expect(find.text('Already registered? Click here'), findsNothing);
   });
 
   group('Forgot PIN', () {
@@ -549,10 +543,10 @@ void main() {
     });
   });
 
-  group('New here? Register as: rows', () {
+  group('Welcome screen — New here? Register as: rows', () {
     testWidgets('Patient row pushes /register with no arguments (defaults to Individual)', (tester) async {
       final pushedRoutes = <RouteSettings>[];
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes, home: const WelcomeScreen());
 
       await tester.ensureVisible(find.text('Patient'));
       await tester.tap(find.text('Patient'));
@@ -564,7 +558,7 @@ void main() {
 
     testWidgets('Nurses/Caregivers row pushes /caregiver/register — same as the old top-bar button', (tester) async {
       final pushedRoutes = <RouteSettings>[];
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes, home: const WelcomeScreen());
 
       await tester.ensureVisible(find.text('Nurses/Caregivers'));
       await tester.tap(find.text('Nurses/Caregivers'));
@@ -576,7 +570,7 @@ void main() {
     testWidgets('Organisation row pushes /register with arguments: true, to preselect that account type',
         (tester) async {
       final pushedRoutes = <RouteSettings>[];
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes);
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes, home: const WelcomeScreen());
 
       await tester.ensureVisible(find.text('Organisation'));
       await tester.tap(find.text('Organisation'));
@@ -588,10 +582,25 @@ void main() {
 
     testWidgets('the old "Caregivers Registration" top-bar button and "New here? Register" link are both gone',
         (tester) async {
-      await _pumpLogin(tester, authRepo: _FakeAuthRepository());
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), home: const WelcomeScreen());
 
       expect(find.text('Caregivers Registration'), findsNothing);
       expect(find.text('New here? Register'), findsNothing);
+    });
+
+    testWidgets('"Already registered? Click here" sits below the options and opens /sign-in', (tester) async {
+      final pushedRoutes = <RouteSettings>[];
+      await _pumpLogin(tester, authRepo: _FakeAuthRepository(), pushedRoutes: pushedRoutes, home: const WelcomeScreen());
+
+      final already = find.text('Already registered? Click here');
+      expect(already, findsOneWidget);
+      expect(tester.getTopLeft(already).dy, greaterThan(tester.getTopLeft(find.text('Organisation')).dy));
+      // Phone/PIN live on the other screen now.
+      expect(find.byType(TextField), findsNothing);
+
+      await tester.tap(already);
+      await tester.pumpAndSettle();
+      expect(pushedRoutes.single.name, '/sign-in');
     });
   });
 }

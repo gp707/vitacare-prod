@@ -10,6 +10,7 @@ import '../state/session_state.dart';
 import '../../../app/route_for_status.dart';
 import '../../../app/forgot_pin_dialog.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/branding/logo_watermark.dart';
 
 /// Every caregiver sets their 4-digit code at registration (SPEC.md 3.1
 /// Stage 1), so login always requires phone + code — there's no more
@@ -50,7 +51,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // run first. Unauthenticated and fails open to otpModeProvider's own
     // default (false/PIN mode) on any error.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final isOtpEnabled = await ref.read(authConfigRepositoryProvider).isOtpEnabled();
+      final isOtpEnabled =
+          await ref.read(authConfigRepositoryProvider).isOtpEnabled();
       if (!mounted) return;
       ref.read(otpModeProvider.notifier).state = isOtpEnabled;
     });
@@ -82,7 +84,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       final authRepo = ref.read(authRepositoryProvider);
-      final AuthResult result = await authRepo.loginCode(_phone, _codeController.text.trim());
+      final AuthResult result =
+          await authRepo.loginCode(_phone, _codeController.text.trim());
       await _onLoggedIn(result);
     } on ApiException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -103,7 +106,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _errorMessage = null;
     });
     try {
-      await ref.read(authRepositoryProvider).sendOtp(phone: _phone, purpose: OtpPurpose.login);
+      await ref
+          .read(authRepositoryProvider)
+          .sendOtp(phone: _phone, purpose: OtpPurpose.login);
       if (mounted) setState(() => _otpSent = true);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errorMessage = e.message);
@@ -149,13 +154,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _onLoggedIn(AuthResult result) async {
     final localStorage = ref.read(localStorageProvider);
-    await localStorage.saveTokens(accessToken: result.accessToken, refreshToken: result.refreshToken);
+    await localStorage.saveTokens(
+        accessToken: result.accessToken, refreshToken: result.refreshToken);
     await ref.read(sessionProvider.notifier).loadSession();
     if (!mounted) return;
     final session = ref.read(sessionProvider);
     if (session is SessionAuthenticated) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(routeForStatus(session), (route) => false, arguments: routeArgumentsForStatus(session));
+      Navigator.of(context).pushNamedAndRemoveUntil(
+          routeForStatus(session), (route) => false,
+          arguments: routeArgumentsForStatus(session));
     } else if (session is SessionLoadError) {
       setState(() => _errorMessage = session.message);
     } else {
@@ -169,7 +176,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: LogoWatermark(
+          child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
@@ -187,29 +195,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const Text(
                 'JustHeal',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: AppTypography.jumbo, fontWeight: FontWeight.bold, color: AppColors.primary),
+                style: TextStyle(
+                    fontSize: AppTypography.jumbo,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary),
               ),
               const Text(
                 'By VitaCasaHealth.in',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
+                style: TextStyle(
+                    fontSize: AppTypography.small,
+                    color: AppColors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.xl),
               if (otpMode) ..._buildOtpFields() else ..._buildPinFields(),
               if (_errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),
+                Text(_errorMessage!,
+                    style: const TextStyle(color: AppColors.error)),
               ],
               const SizedBox(height: AppSpacing.md),
               ElevatedButton(
-                onPressed: _loading ? null : (otpMode ? (_otpSent ? _verifyAndLogin : _sendOtp) : _submitPin),
+                onPressed: _loading
+                    ? null
+                    : (otpMode
+                        ? (_otpSent ? _verifyAndLogin : _sendOtp)
+                        : _submitPin),
                 child: _loading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
-                    : Text(otpMode ? (_otpSent ? 'Verify & Login' : 'Send OTP') : 'Login'),
+                    : Text(otpMode
+                        ? (_otpSent ? 'Verify & Login' : 'Send OTP')
+                        : 'Login'),
               ),
               if (otpMode && _otpSent) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -224,13 +245,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
               const SizedBox(height: AppSpacing.lg),
               TextButton(
-                onPressed: () => Navigator.of(context).pushNamed('/caregiver/register'),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed('/caregiver/register'),
                 child: const Text('New here? Register'),
               ),
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 
@@ -262,7 +284,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: TextButton(
           onPressed: () {
             Analytics.tap('caregiver', 'login', 'forgot_pin');
-            showForgotPinDialog(context, ref, initialPhone: _phoneController.text.trim());
+            showForgotPinDialog(context, ref,
+                initialPhone: _phoneController.text.trim());
           },
           child: const Text('Forgot PIN?'),
         ),

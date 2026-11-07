@@ -48,7 +48,7 @@ class SessionWatcher extends ConsumerWidget {
 /// who is logged in.
 String analyticsFlowForRoute(String name, {String? role}) {
   if (name.startsWith('/caregiver')) return Analytics.caregiverFlow;
-  if (name == '/' || name == '/login' || name == '/register') return 'auth';
+  if (name == '/' || name == '/login' || name == '/sign-in' || name == '/register') return 'auth';
   if (name.startsWith('/org-')) return 'organisation';
   if (role == 'organisation') return 'organisation';
   if (role == 'individual') return 'individual';

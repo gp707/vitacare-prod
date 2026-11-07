@@ -28,7 +28,11 @@ import 'package:nursenow_app/caregiver/app/router.dart' show buildCaregiverRoute
 Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
   return {
     '/': (context) => SplashScreen(initialDeepLinkRoute: initialDeepLinkRoute),
-    '/login': (context) => const LoginScreen(),
+    // '/login' is the welcome/register-as screen (every logout and the
+    // splash redirect land here); the actual log-in form is '/sign-in',
+    // reached from its "Already registered?" button.
+    '/login': (context) => const WelcomeScreen(),
+    '/sign-in': (context) => const LoginScreen(),
     // The login screen's "Organisation" registration row passes
     // `arguments: true` to preselect that account type on this one shared
     // form — see RegistrationScreen.startAsOrganisation.

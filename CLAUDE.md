@@ -1415,13 +1415,19 @@ elsewhere in this doc).
   field from whatever's already typed into the login screen's own phone field, and on submit
   shows the returned message via a `SnackBar`. A "Forgot PIN?" `TextButton` sits right below the
   PIN field on both login screens (PIN-mode only — OTP mode has no PIN to forget).
-- **Login screen reorder (patient_hospital only, explicit request)**: this screen's "New here?
-  Register as:" section (+ its 3 account-type rows) now renders *above* the "Log in" section
-  (phone/PIN or OTP fields, Forgot PIN link, submit button) — previously the reverse. Registration
-  is this app's primary conversion path for a new visitor, so it's shown first; a returning user
-  scrolls past it to Log in below. Caregiver's own dedicated login screen (`/caregiver/login`) was
-  not reordered — it only ever had a single "New here? Register" link already positioned below its
-  login form, so no reorder was needed there.
+- **Welcome screen + separate log-in screen (patient_hospital only, explicit request).** The shared login screen used
+  to carry both the "New here? Register as:" rows and the phone/PIN form. They are now two screens:
+  `WelcomeScreen` at **`/login`** (logo, the three register-as rows, and a small "Already registered? Click here"
+  button pinned at the bottom) and `LoginScreen` at **`/sign-in`** (the unchanged log-in form — PIN or OTP mode,
+  Forgot PIN, caregiver fallback — with a bare back arrow). `/login` deliberately stays the welcome screen's route
+  because the splash redirect, every logout and `SessionWatcher` already navigate there. Both live in
+  `features/auth/screens/login_screen.dart` and share `_AuthHeader`. Register-row analytics are reported as screen
+  `welcome`, the new button as `already_registered`. Caregiver's own `/caregiver/login` is untouched.
+- **Sessions are permanent on a device.** Caregiver/individual/organisation access tokens have no `exp`; the app only
+  logs out on an explicit Logout (Profile button or the hidden triple-tap on the title), or when the server answers
+  `AUTH_004` (account deactivated/deleted) or `AUTH_005` (invalid token / account gone). Network and 5xx errors never
+  clear the token (`SessionNotifier.loadSession` retries, then shows a retry state). Uninstalling clears app storage,
+  so a reinstall needs a fresh login.
 
 ## Account Deletion
 

@@ -17,6 +17,7 @@ import '../../individual/widgets/section_box.dart';
 import '../state/session_notifier.dart';
 import '../state/session_state.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/branding/logo_watermark.dart';
 
 // organisation_profiles.city accepts the existing 7 cities plus this one
 // extra sentinel — a separate org-scoped list, not an extension of the
@@ -779,7 +780,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             : const [TextZoomButton(), RateCardButton(), WhatsAppHelpButton()],
       ),
       backgroundColor: AppColors.background,
-      body: SafeArea(
+      body: LogoWatermark(
+          child: SafeArea(
         child: _isOrganisation
             ? formContent
             : Column(
@@ -788,7 +790,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   Expanded(child: formContent),
                 ],
               ),
-      ),
+      )),
     );
   }
 
