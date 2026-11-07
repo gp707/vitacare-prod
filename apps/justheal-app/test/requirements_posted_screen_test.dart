@@ -194,6 +194,15 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   }
 }
 
+/// Each applicant's activity log is collapsed by default — tap every
+/// "Show Activity Log" link so the timeline entries become visible.
+Future<void> _expandAllActivityLogs(WidgetTester tester) async {
+  while (find.text('Show Activity Log').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Show Activity Log').first);
+    await _settle(tester);
+  }
+}
+
 Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo, {bool isJobPostingBlocked = false}) async {
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
@@ -400,6 +409,7 @@ void main() {
     // Computed via toLocal() same as the widget under test, since the
     // runner's own timezone can shift the displayed date/hour away from
     // the UTC literals above.
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied: ${_localDate('2026-08-01T10:00:00Z')}'), findsOneWidget);
     expect(
       find.textContaining('Rejected by Ravi Sharma: ${_localDateTime('2026-08-02T11:30:15Z')}'),
@@ -427,6 +437,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Re-applied: ${_localDateTime('2026-08-05T09:00:00Z')}'), findsOneWidget);
     expect(find.textContaining('Rejected'), findsNothing);
   });
@@ -445,6 +456,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(
       find.textContaining('Rejected by Caregiver: ${_localDate('2026-08-02T11:30:15Z')}'),
       findsOneWidget,
@@ -471,6 +483,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(
       find.textContaining('Accepted by Ravi Sharma: ${_localDate('2026-08-02T09:00:00Z')}'),
       findsOneWidget,
@@ -505,6 +518,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Rejected by Ravi Sharma:'), findsOneWidget);
     expect(find.textContaining('Reason: Not a fit'), findsOneWidget);
@@ -529,6 +543,7 @@ void main() {
       ),
     );
 
+    await _expandAllActivityLogs(tester);
     expect(find.textContaining('Reason: Temporarily Not Available'), findsOneWidget);
   });
 
@@ -542,7 +557,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Accept'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
     await _settle(tester);
 
     expect(repo.decidedRequirementId, 'req-1');
@@ -560,7 +575,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await _settle(tester);
 
     final confirmButton =
@@ -587,8 +602,8 @@ void main() {
     );
     await _pump(tester, repo);
 
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept Anyway'));
     await _settle(tester);
 
     expect(repo.decidedApplicationId, 'app-1');
@@ -612,8 +627,8 @@ void main() {
     );
 
     // The already-accepted applicant offers Reject (undo), not Accept.
-    expect(find.widgetWithText(TextButton, 'Accept'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Reject'), findsNWidgets(2));
+    expect(find.widgetWithText(FilledButton, 'Accept'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Reject'), findsNWidgets(2));
   });
 
   testWidgets('tapping View Profile on an undecided applicant opens their full profile', (tester) async {

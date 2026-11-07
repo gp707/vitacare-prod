@@ -518,8 +518,8 @@ void main() {
     expect(find.text('2 candidates awaiting your decision'), findsOneWidget);
     expect(find.text('Ramesh Kumar'), findsOneWidget);
     expect(find.text('Sita Devi'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Accept'), findsNWidgets(2));
-    expect(find.widgetWithText(TextButton, 'Reject'), findsNWidgets(2));
+    expect(find.widgetWithText(FilledButton, 'Accept'), findsNWidgets(2));
+    expect(find.widgetWithText(FilledButton, 'Reject'), findsNWidgets(2));
   });
 
   testWidgets(
@@ -676,12 +676,12 @@ void main() {
     expect(find.text('Ramesh Kumar'), findsOneWidget);
     // The still-applied candidate stays fully visible — just without Accept.
     expect(find.text('Sita Devi'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Accept'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsNothing);
     // The one Reject button present belongs to the accepted candidate's own
     // tile (undo the acceptance) — Sita, still just 'applied', offers
     // neither Accept nor Reject while someone else is accepted.
-    expect(find.widgetWithText(TextButton, 'Reject'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Reject'), findsOneWidget);
     // Both candidates' profiles/phones stay reachable regardless.
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsNWidgets(2));
   });
@@ -704,7 +704,7 @@ void main() {
     expect(find.text('+919876543210'), findsNWidgets(2));
     expect(find.text('Sita Devi'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await _settle(tester);
 
     expect(find.text('Decline this candidate'), findsOneWidget);
@@ -730,11 +730,11 @@ void main() {
 
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsOneWidget);
     // A candidate already decided (rejected) can't be rejected again.
-    expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Reject'), findsNothing);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept Anyway'));
     await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
@@ -758,7 +758,7 @@ void main() {
     expect(find.text('Rejected by Caregiver'), findsOneWidget);
     expect(find.text('+919876543210'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsOneWidget);
   });
 
   testWidgets(
@@ -775,9 +775,9 @@ void main() {
     );
 
     expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Accept'), findsNothing);
-    expect(find.widgetWithText(TextButton, 'Accept Anyway'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Reject'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Accept'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Reject'), findsNothing);
   });
 
   testWidgets('tapping "Accept Anyway" on a completed engagement calls decideApplication with accepted', (tester) async {
@@ -789,7 +789,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Accept Anyway'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept Anyway'));
     await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
@@ -806,7 +806,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Accept'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
     await _settle(tester);
 
     expect(repo.decidedJobId, 'job-1');
@@ -861,7 +861,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await _settle(tester);
 
     expect(find.text('Decline this candidate'), findsOneWidget);
@@ -891,7 +891,7 @@ void main() {
     );
     await _pump(tester, repo);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await _settle(tester);
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await _settle(tester);

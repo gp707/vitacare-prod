@@ -50,6 +50,7 @@ describe('AdminService', () => {
       getDashboardStats: jest.fn(),
       listCaregivers: jest.fn(),
       getDetailById: jest.fn(),
+      listEngagements: jest.fn().mockResolvedValue([]),
       updateStatus: jest.fn(),
     };
     notesRepo = { findByProfileId: jest.fn().mockResolvedValue(null), upsert: jest.fn() };
@@ -214,6 +215,15 @@ describe('AdminService', () => {
         internal_notes: null,
         availability_remarks: null,
       });
+    });
+
+    it('includes the caregiver\'s accepted engagements with start dates', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      const engagements = [{ kind: 'job', status: 'accepted', start_date: '2026-11-10', poster_name: 'Asha' }];
+      caregiversRepo.listEngagements.mockResolvedValue(engagements);
+      const result = await service.getCaregiverDetail('profile-1');
+      expect(caregiversRepo.listEngagements).toHaveBeenCalledWith(detail.id);
+      expect(result.engagements).toEqual(engagements);
     });
 
     it('includes preferred_cities from the junction table', async () => {

@@ -762,14 +762,46 @@ class _ApplicantTile extends StatelessWidget {
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
   bool get _isRejected => application.status == JobApplicationStatus.rejected;
   bool get _isCompleted => application.status == JobApplicationStatus.completed;
+  bool get _isApplied => application.status == JobApplicationStatus.applied;
+
+  String get _statusLabel {
+    if (_isAccepted) return 'Accepted';
+    if (_isApplied) return 'Awaiting decision';
+    if (_isCompleted) return 'Closed';
+    return 'Rejected';
+  }
+
+  Color get _statusColor {
+    if (_isAccepted) return AppColors.success;
+    if (_isApplied) return AppColors.warning;
+    if (_isRejected) return AppColors.error;
+    return AppColors.textSecondary;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: _isAccepted ? AppColors.success.withValues(alpha: 0.08) : null,
-        border: Border.all(color: _isAccepted ? AppColors.success : AppColors.border),
+        // Same colour coding as Individual's tile: green accepted, amber
+        // awaiting a decision (wider border so it stands out), red rejected.
+        color: _isAccepted
+            ? AppColors.success.withValues(alpha: 0.08)
+            : _isApplied
+                ? AppColors.warning.withValues(alpha: 0.08)
+                : _isRejected
+                    ? AppColors.error.withValues(alpha: 0.06)
+                    : null,
+        border: Border.all(
+          color: _isAccepted
+              ? AppColors.success
+              : _isApplied
+                  ? AppColors.warning
+                  : _isRejected
+                      ? AppColors.error
+                      : AppColors.border,
+          width: _isApplied ? 2 : 1,
+        ),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(
@@ -798,7 +830,15 @@ class _ApplicantTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isDeciding) const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
+              if (isDeciding)
+                const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
+              else
+                // The status sits up here beside the name, never in the
+                // same row as the Accept/Reject buttons below.
+                Text(
+                  _statusLabel,
+                  style: TextStyle(color: _statusColor, fontWeight: FontWeight.bold),
+                ),
             ],
           ),
           const SizedBox(height: 2),
@@ -807,37 +847,52 @@ class _ApplicantTile extends StatelessWidget {
           _ApplicantTimeline(application),
           if (!isDeciding) ...[
             const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.xs,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            // View Profile on the left, Accept + Reject together on the right.
+            // FittedBox scales the pair down on a very narrow tile instead of
+            // letting Reject wrap onto a second line.
+            Row(
               children: [
                 OutlinedButton.icon(
                   onPressed: onViewProfile,
+                  style: _compactButtonStyle,
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                // "Accepted" stays visible even while the Reject (undo)
-                // button is also offered — a currently-accepted candidate
-                // is always both, unlike every other status which shows
-                // exactly one of a status word or an action button.
-                if (_isAccepted)
-                  const Text('Accepted', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                if (canAccept)
-                  TextButton.icon(
-                    onPressed: onAccept,
-                    icon: const Icon(Icons.check, size: 16, color: AppColors.success),
-                    label: Text(
-                      (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
-                      style: const TextStyle(color: AppColors.success),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (canAccept)
+                            FilledButton.icon(
+                              onPressed: onAccept,
+                              style: _compactButtonStyle.copyWith(
+                                backgroundColor: WidgetStateProperty.all(AppColors.success),
+                                foregroundColor: WidgetStateProperty.all(Colors.white),
+                              ),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: Text((_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept'),
+                            ),
+                          if (canAccept && canReject) const SizedBox(width: AppSpacing.xs),
+                          if (canReject)
+                            FilledButton.icon(
+                              onPressed: onReject,
+                              style: _compactButtonStyle.copyWith(
+                                backgroundColor: WidgetStateProperty.all(AppColors.error),
+                                foregroundColor: WidgetStateProperty.all(Colors.white),
+                              ),
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text('Reject'),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                if (canReject)
-                  TextButton.icon(
-                    onPressed: onReject,
-                    icon: const Icon(Icons.close, size: 16, color: AppColors.error),
-                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
-                  ),
+                ),
               ],
             ),
           ],
@@ -846,6 +901,14 @@ class _ApplicantTile extends StatelessWidget {
     );
   }
 }
+
+/// Tight padding / tap target so the three applicant buttons fit one row.
+final _compactButtonStyle = ButtonStyle(
+  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0)),
+  minimumSize: WidgetStateProperty.all(Size.zero),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  visualDensity: VisualDensity.compact,
+);
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -872,22 +935,13 @@ class _ApplicantTimeline extends StatefulWidget {
 }
 
 class _ApplicantTimelineState extends State<_ApplicantTimeline> {
-  // Same fixed per-row heights as caregiver-app's own ApplicationTimeline
-  // (job_detail_card.dart) and Individual's own _ApplicantTimeline — both
-  // parties see the same "4 rows by default, scroll for the rest"
-  // treatment.
   static const _fontSize = AppTypography.small;
-  static const _rowHeight = 18.0;
-  static const _reasonRowHeight = 32.0; // a "Rejected + Reason" row wraps to two lines
-  static const _maxHeight = 78.0;
 
-  final _controller = ScrollController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  // Collapsed by default, same as Individual's own _ApplicantTimeline — each
+  // applicant tile owns its own state, so expanding one never affects another.
+  // Fixed-height rows used to clip/overlap whenever an entry wrapped (long
+  // names or reasons, narrow screens).
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -941,32 +995,43 @@ class _ApplicantTimelineState extends State<_ApplicantTimeline> {
     // _ApplicantTimeline and caregiver-app's ApplicationTimeline.
     entries.sort((a, b) => b.key.compareTo(a.key));
 
-    final totalHeight = entries.fold<double>(
-      0,
-      (sum, entry) => sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
-    );
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: _maxHeight),
-      child: Scrollbar(
-        controller: _controller,
-        thumbVisibility: totalHeight > _maxHeight,
-        child: ListView(
-          controller: _controller,
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            for (final entry in entries)
-              SizedBox(
-                height: entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
-                child: Text(
-                  entry.value,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _expanded ? 'Hide Activity Log' : 'Show Activity Log',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: _fontSize,
+                  decoration: TextDecoration.underline,
                 ),
               ),
-          ],
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
         ),
-      ),
+        if (_expanded) ...[
+          const SizedBox(height: 2),
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                entry.value,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

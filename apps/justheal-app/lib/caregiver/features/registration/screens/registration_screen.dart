@@ -767,7 +767,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         labelText: '4-Digit Login Code (Mandatory)',
-        helperText: "You'll use this + your phone number to log in from now on",
         border: const OutlineInputBorder(),
         errorText: _showValidationErrors && !_isCodeValid
             ? "Set a 4-digit code — you'll use it with your phone to log in"

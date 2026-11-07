@@ -1,3 +1,5 @@
+import 'package:vitacare_shared/vitacare_shared.dart' show organisationDisplayId, patientDisplayId;
+
 export 'package:vitacare_shared/vitacare_shared.dart' show PaginationMeta;
 
 class AdminCaregiverListItem {
@@ -77,6 +79,7 @@ class AdminCaregiverDetail {
   final bool hasPendingEdits;
   final List<String> preferredCities;
   final AdminNotes adminNotes;
+  final List<CaregiverEngagement> engagements;
   final String createdAt;
   final String? verifiedAt;
 
@@ -102,6 +105,7 @@ class AdminCaregiverDetail {
     required this.hasPendingEdits,
     required this.preferredCities,
     required this.adminNotes,
+    this.engagements = const [],
     required this.createdAt,
     this.verifiedAt,
   });
@@ -132,8 +136,91 @@ class AdminCaregiverDetail {
             List<String>.from(json['preferred_cities'] as List? ?? const []),
         adminNotes: AdminNotes.fromJson(
             json['admin_notes'] as Map<String, dynamic>? ?? const {}),
+        engagements: (json['engagements'] as List? ?? const [])
+            .map((e) => CaregiverEngagement.fromJson(e as Map<String, dynamic>))
+            .toList(),
         createdAt: json['created_at'] as String,
         verifiedAt: json['verified_at'] as String?,
+      );
+}
+
+/// A job or organisation requirement this caregiver is (or was) accepted
+/// onto — shown on the caregiver detail screen so admin can see exactly who
+/// they are working for and from when.
+class CaregiverEngagement {
+  final bool isRequirement;
+  final String status; // accepted | completed
+  final int? adminJobNumber;
+  final int? patientJobNumber;
+  final int? requirementNumber;
+  final String? posterName;
+  final String? posterPhone;
+  final String? posterRole;
+  final int? posterNumber;
+  final String? patientName;
+  final String? city;
+  final String? area;
+  final String? dutyType;
+  final String? startDate; // YYYY-MM-DD; null for organisation requirements
+  final String? acceptedAt;
+  final String? completedAt;
+  final String? acceptedByName;
+
+  const CaregiverEngagement({
+    required this.isRequirement,
+    required this.status,
+    this.adminJobNumber,
+    this.patientJobNumber,
+    this.requirementNumber,
+    this.posterName,
+    this.posterPhone,
+    this.posterRole,
+    this.posterNumber,
+    this.patientName,
+    this.city,
+    this.area,
+    this.dutyType,
+    this.startDate,
+    this.acceptedAt,
+    this.completedAt,
+    this.acceptedByName,
+  });
+
+  bool get isActive => status == 'accepted';
+
+  /// ADMIN-JOB-n / PAT-JOB-n / ORG-JOB-n, same as every other screen.
+  String? get jobId {
+    if (isRequirement) return requirementNumber == null ? null : 'ORG-JOB-$requirementNumber';
+    if (patientJobNumber != null) return 'PAT-JOB-$patientJobNumber';
+    if (adminJobNumber != null) return 'ADMIN-JOB-$adminJobNumber';
+    return null;
+  }
+
+  /// PAT-n / ORG-n of whoever posted it (none for an admin-posted job).
+  String? get posterDisplayId => posterRole == 'organisation'
+      ? organisationDisplayId(posterNumber)
+      : posterRole == 'individual'
+          ? patientDisplayId(posterNumber)
+          : null;
+
+  factory CaregiverEngagement.fromJson(Map<String, dynamic> json) => CaregiverEngagement(
+        isRequirement: json['kind'] == 'organisation_requirement',
+        status: json['status'] as String,
+        adminJobNumber: json['admin_job_number'] as int?,
+        patientJobNumber: json['patient_job_number'] as int?,
+        requirementNumber: json['requirement_number'] as int?,
+        posterName: json['poster_name'] as String?,
+        posterPhone: json['poster_phone'] as String?,
+        posterRole: json['poster_role'] as String?,
+        posterNumber: json['poster_number'] as int?,
+        patientName: json['patient_name'] as String?,
+        city: json['city'] as String?,
+        area: json['area'] as String?,
+        dutyType: json['duty_type'] as String?,
+        startDate: json['start_date'] as String?,
+        acceptedAt: json['accepted_at'] as String?,
+        completedAt: json['completed_at'] as String?,
+        acceptedByName: json['accepted_by_name'] as String?,
       );
 }
 

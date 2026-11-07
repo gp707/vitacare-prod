@@ -2098,23 +2098,28 @@ class _ApplicantTile extends StatelessWidget {
                       runSpacing: AppSpacing.xs,
                       children: [
                         if (canAccept)
-                          TextButton.icon(
+                          FilledButton.icon(
                             onPressed: onAccept,
-                            style: _compactButtonStyle,
-                            icon: const Icon(Icons.check, size: 14, color: AppColors.success),
+                            style: _compactButtonStyle.copyWith(
+                              backgroundColor: WidgetStateProperty.all(AppColors.success),
+                              foregroundColor: WidgetStateProperty.all(Colors.white),
+                            ),
+                            icon: const Icon(Icons.check, size: 14),
                             label: Text(
                               (_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept',
                               softWrap: false,
                               overflow: TextOverflow.visible,
-                              style: const TextStyle(color: AppColors.success),
                             ),
                           ),
                         if (canReject)
-                          TextButton.icon(
+                          FilledButton.icon(
                             onPressed: onReject,
-                            style: _compactButtonStyle,
-                            icon: const Icon(Icons.close, size: 14, color: AppColors.error),
-                            label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                            style: _compactButtonStyle.copyWith(
+                              backgroundColor: WidgetStateProperty.all(AppColors.error),
+                              foregroundColor: WidgetStateProperty.all(Colors.white),
+                            ),
+                            icon: const Icon(Icons.close, size: 14),
+                            label: const Text('Reject'),
                           ),
                       ],
                     ),

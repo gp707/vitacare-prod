@@ -125,7 +125,7 @@ export class AdminService {
     const profile = await this.caregiversRepo.getDetailById(profileId);
     if (!profile) throw new AppException('PROFILE_019');
 
-    const [languages, preferredCities, notes, selfieUrl, qualificationUrl, aadhaarUrl, otherUrls] =
+    const [languages, preferredCities, notes, selfieUrl, qualificationUrl, aadhaarUrl, otherUrls, engagements] =
       await Promise.all([
         this.languagesRepo.findByProfileId(profile.id),
         this.preferredCitiesRepo.findByProfileId(profile.id),
@@ -141,6 +141,7 @@ export class AdminService {
             this.uploadService.getSignedUrl(Config.STORAGE_BUCKET, path),
           ),
         ),
+        this.caregiversRepo.listEngagements(profile.id),
       ]);
 
     return {
@@ -168,6 +169,7 @@ export class AdminService {
         internal_notes: notes?.internal_notes ?? null,
         availability_remarks: notes?.availability_remarks ?? null,
       },
+      engagements,
       created_at: profile.created_at,
       verified_at: profile.verified_at,
     };

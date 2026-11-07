@@ -523,6 +523,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (detail.engagements.isNotEmpty) ...[
+            _buildEngagements(detail),
+            const SizedBox(height: AppSpacing.md),
+          ],
           Align(
             alignment: Alignment.centerRight,
             child: _editMode
@@ -544,6 +548,101 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             _buildProfileEditForm(detail)
           else
             _buildProfileReadOnly(detail),
+        ],
+      ),
+    );
+  }
+
+  /// Who this caregiver is working for, with start dates: every accepted job
+  /// or organisation requirement (active ones first), plus completed ones
+  /// greyed out as history.
+  Widget _buildEngagements(AdminCaregiverDetail detail) {
+    final active = detail.engagements.where((e) => e.isActive).length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.06),
+        border: Border.all(color: Colors.green.shade600, width: 1.5),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            active == 0
+                ? 'Accepted work (none active)'
+                : 'Currently accepted by ($active)',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final e in detail.engagements) _buildEngagementCard(e),
+        ],
+      ),
+    );
+  }
+
+  String _formatEngagementDate(String? iso) {
+    if (iso == null) return '-';
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return iso;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildEngagementCard(CaregiverEngagement e) {
+    final poster = [
+      if (e.posterDisplayId != null) e.posterDisplayId!,
+      if (e.posterName != null) e.posterName!,
+    ].join(' · ');
+    final place = [e.area, e.city].whereType<String>().where((v) => v.isNotEmpty).join(', ');
+    final started = e.startDate == null
+        ? 'Not set (organisation requirement)'
+        : _formatEngagementDate(e.startDate);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: e.isActive ? Colors.white : Colors.grey.withValues(alpha: 0.08),
+        border: Border.all(color: e.isActive ? Colors.green.shade300 : Colors.grey.shade400),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(e.jobId ?? 'Job',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Chip(
+                label: Text(e.isActive ? 'Active' : 'Completed',
+                    style: const TextStyle(color: Colors.white, fontSize: 12)),
+                backgroundColor: e.isActive ? Colors.green.shade700 : Colors.grey.shade600,
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Start date: $started',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          if (e.dutyType != null)
+            Text('Shift: ${DutyType.displayNames[e.dutyType] ?? e.dutyType}'),
+          if (poster.isNotEmpty) Text('Accepted by: $poster'),
+          if (e.posterPhone != null) Text('Phone: ${e.posterPhone}'),
+          if (e.patientName != null && e.patientName != e.posterName)
+            Text('Patient: ${e.patientName}'),
+          if (place.isNotEmpty) Text('Location: $place'),
+          Text(
+            'Accepted on ${_formatEngagementDate(e.acceptedAt)}'
+            '${e.acceptedByName != null ? ' by ${e.acceptedByName}' : ''}'
+            '${e.completedAt != null ? ' · Closed ${_formatEngagementDate(e.completedAt)}' : ''}',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
         ],
       ),
     );

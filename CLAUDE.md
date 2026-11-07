@@ -717,6 +717,14 @@ location) that didn't fit the Individual/admin jobs-table model.
   "same account" guarantee explicit in the UI — no new endpoint, button, or dialog, since this
   reuses the Edit toggle + Save Changes flow each screen already had.
 
+- **Admin sees who a caregiver is working for.** `GET /admin/caregivers/:id` now returns `engagements`
+  (`AdminCaregiversRepository.listEngagements`): every `accepted` or `completed` job application and
+  organisation-requirement application of that caregiver, active first, then by start date — display id
+  (`ADMIN-JOB-n`/`PAT-JOB-n`/`ORG-JOB-n`), the poster's name/phone/display id, shift, location, `start_date`
+  (null for organisation requirements, which have none), and who accepted it and when. admin-web's caregiver
+  detail screen shows it as a green "Currently accepted by (n)" box at the top of the Profile tab (completed
+  ones greyed as history); hidden when the caregiver has never been accepted.
+
 ### Organisation (Hospital/Rehab/Clinic)
 
 Entirely separate tables/codepath from Individual — `organisation_profiles`,

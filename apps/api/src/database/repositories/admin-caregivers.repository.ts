@@ -139,6 +139,31 @@ function buildWhereClause(filters: AdminCaregiverListFilters): { clause: string;
   };
 }
 
+/** One accepted/completed engagement of a caregiver — a job (patient/admin
+ *  posted) or an organisation requirement — for the admin caregiver detail. */
+export interface CaregiverEngagement {
+  kind: 'job' | 'organisation_requirement';
+  application_id: string;
+  status: 'accepted' | 'completed';
+  admin_job_number: number | null;
+  patient_job_number: number | null;
+  requirement_number: number | null;
+  /** Who posted it: a patient's/admin's name, or the organisation's name. */
+  poster_name: string | null;
+  poster_phone: string | null;
+  poster_role: string | null;
+  poster_number: number | null;
+  patient_name: string | null;
+  city: string | null;
+  area: string | null;
+  duty_type: string | null;
+  /** DATE as YYYY-MM-DD; null for organisation requirements (no start date). */
+  start_date: string | null;
+  accepted_at: Date | null;
+  completed_at: Date | null;
+  accepted_by_name: string | null;
+}
+
 @Injectable()
 export class AdminCaregiversRepository {
   constructor(private readonly db: DatabaseService) {}
@@ -210,6 +235,50 @@ export class AdminCaregiversRepository {
       [profileId],
     );
     return result.rows[0] ?? null;
+  }
+
+  /** Every job and organisation requirement this caregiver is (or was)
+   *  accepted onto, active ones first, then by start date. */
+  async listEngagements(profileId: string): Promise<CaregiverEngagement[]> {
+    const jobs = await this.db.query<CaregiverEngagement>(
+      `SELECT 'job' AS kind, ja.id AS application_id, ja.status,
+              j.admin_job_number, j.patient_job_number, NULL::int AS requirement_number,
+              pu.full_name AS poster_name, pu.phone AS poster_phone, pu.role AS poster_role,
+              ip.patient_number AS poster_number, cr.patient_name,
+              j.city, j.area, j.duty_type, j.start_date,
+              ja.accepted_at, ja.completed_at, du.full_name AS accepted_by_name
+       FROM job_applications ja
+       JOIN jobs j ON j.id = ja.job_id
+       LEFT JOIN users pu ON pu.id = j.posted_by
+       LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by
+       LEFT JOIN care_receivers cr ON cr.id = j.care_receiver_id
+       LEFT JOIN users du ON du.id = ja.decided_by
+       WHERE ja.profile_id = $1 AND ja.status IN ('accepted', 'completed')`,
+      [profileId],
+    );
+    const requirements = await this.db.query<CaregiverEngagement>(
+      `SELECT 'organisation_requirement' AS kind, oa.id AS application_id, oa.status,
+              NULL::int AS admin_job_number, NULL::int AS patient_job_number,
+              r.requirement_number,
+              op.organisation_name AS poster_name, pu.phone AS poster_phone, pu.role AS poster_role,
+              op.org_number AS poster_number, NULL AS patient_name,
+              op.city, op.area, NULL AS duty_type, NULL::date AS start_date,
+              oa.accepted_at, oa.completed_at, du.full_name AS accepted_by_name
+       FROM organisation_requirement_applications oa
+       JOIN organisation_requirements r ON r.id = oa.requirement_id
+       LEFT JOIN users pu ON pu.id = r.posted_by
+       LEFT JOIN organisation_profiles op ON op.user_id = r.posted_by
+       LEFT JOIN users du ON du.id = oa.decided_by
+       WHERE oa.profile_id = $1 AND oa.status IN ('accepted', 'completed')`,
+      [profileId],
+    );
+    const rank = (e: CaregiverEngagement) => (e.status === 'accepted' ? 0 : 1);
+    return [...jobs.rows, ...requirements.rows].sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        String(a.start_date ?? '9999').localeCompare(String(b.start_date ?? '9999')) ||
+        new Date(b.accepted_at ?? 0).getTime() - new Date(a.accepted_at ?? 0).getTime(),
+    );
   }
 
   /** Admin override — any VerificationStatus, from any current status (no
