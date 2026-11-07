@@ -10,7 +10,7 @@ class LogoWatermark extends StatelessWidget {
   const LogoWatermark({super.key, required this.child});
 
   /// Low enough that text and fields on top stay fully readable.
-  static const opacity = 0.05;
+  static const opacity = 0.04;
 
   /// Vertical position (-1 = top edge, 1 = bottom edge) and width (fraction
   /// of the screen) of each mark. The lower one is the original watermark.
