@@ -725,6 +725,14 @@ location) that didn't fit the Individual/admin jobs-table model.
   detail screen shows it as a green "Currently accepted by (n)" box at the top of the Profile tab (completed
   ones greyed as history); hidden when the caregiver has never been accepted.
 
+- **Admin sees every "no" and why (Rejections tab).** `GET /admin/rejections` (`direction=caregiver|poster`, `search`) lists
+  three event kinds across jobs and organisation requirements: `caregiver_declined` (caregiver rejected/withdrew —
+  **no reason is collected by the app**, shown as such), `caregiver_closed` (the fixed `close_reason`), and
+  `poster_rejected` (patient/organisation/admin rejected the caregiver, free-text `decline_reason`; `decided_by` role tells
+  admin from patient). Read-only, no new table. Known limitation: a caregiver who declines after an earlier poster
+  rejection keeps the old `decided_by`, so that case reads as a poster rejection. Adding a reason prompt to the caregiver's
+  decline would be an app + API change.
+
 ### Organisation (Hospital/Rehab/Clinic)
 
 Entirely separate tables/codepath from Individual — `organisation_profiles`,

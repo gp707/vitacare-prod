@@ -19,6 +19,7 @@ import { IndividualAdminNotesRepository } from './repositories/individual-admin-
 import { OrganisationAdminNotesRepository } from './repositories/organisation-admin-notes.repository';
 import { AdminPushNotificationsRepository } from './repositories/admin-push-notifications.repository';
 import { TicketsRepository } from './repositories/tickets.repository';
+import { AdminRejectionsRepository } from './repositories/admin-rejections.repository';
 import { AuditLogsRepository } from './repositories/audit-logs.repository';
 import { JobsRepository } from './repositories/jobs.repository';
 import { JobApplicationsRepository } from './repositories/job-applications.repository';
@@ -61,6 +62,7 @@ const repositories = [
   OrganisationAdminNotesRepository,
   AdminPushNotificationsRepository,
   TicketsRepository,
+  AdminRejectionsRepository,
   AuditLogsRepository,
   JobsRepository,
   JobApplicationsRepository,
