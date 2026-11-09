@@ -261,8 +261,7 @@ void main() {
   });
 
   testWidgets(
-      'shows live (active) requirements first, regardless of post date — an older active requirement '
-      'still outranks a newer pending_review/closed one', (tester) async {
+      'shows the most recently posted requirement first, whatever its status', (tester) async {
     // 4 full requirement cards need more vertical room than the default
     // test surface to all lay out within the ListView's cache extent.
     await tester.binding.setSurfaceSize(const Size(400, 4000));
@@ -271,8 +270,6 @@ void main() {
       tester,
       _FakeOrganisationRepository(
         requirements: [
-          // Posted most recently, but not live — should sort below the
-          // older active one despite its newer postedAt.
           _requirement(
             id: 'req-new-pending',
             requirementNumber: 3,
@@ -301,17 +298,12 @@ void main() {
       ),
     );
 
-    final activeNewerTop = tester.getTopLeft(find.text('ORG-JOB-2')).dy;
-    final activeOlderTop = tester.getTopLeft(find.text('ORG-JOB-1')).dy;
-    final pendingTop = tester.getTopLeft(find.text('ORG-JOB-3')).dy;
-    final closedTop = tester.getTopLeft(find.text('ORG-JOB-4')).dy;
+    double top(String id) => tester.getTopLeft(find.text(id)).dy;
 
-    // Both active requirements (newest-active-first between themselves)
-    // appear above both non-active ones, regardless of each one's own
-    // postedAt relative to the non-active requirements.
-    expect(activeNewerTop, lessThan(activeOlderTop));
-    expect(activeOlderTop, lessThan(pendingTop));
-    expect(activeOlderTop, lessThan(closedTop));
+    // Posted 08-04, 08-03, 08-02, 08-01 — strictly newest first.
+    expect(top('ORG-JOB-4'), lessThan(top('ORG-JOB-3')));
+    expect(top('ORG-JOB-3'), lessThan(top('ORG-JOB-2')));
+    expect(top('ORG-JOB-2'), lessThan(top('ORG-JOB-1')));
   });
 
   testWidgets('shows requirement details: type of nurse, experience/employment, accommodation/food, and a '
