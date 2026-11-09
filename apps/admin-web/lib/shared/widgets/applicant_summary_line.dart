@@ -27,7 +27,7 @@ class ApplicantSummaryLine extends StatelessWidget {
     final s = summary;
     if (s == null) return const SizedBox.shrink();
     const base = TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary);
-    if (s.total == 0) return const Text('No applicants yet', style: base);
+    if (s.total == 0) return const Text('0 applicants', style: base);
     final parts = <InlineSpan>[
       TextSpan(text: '${s.total} applicant${s.total == 1 ? '' : 's'}'),
       if (s.awaiting > 0) TextSpan(text: ' · ${s.awaiting} awaiting'),

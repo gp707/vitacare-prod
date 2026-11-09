@@ -49,9 +49,9 @@ void main() {
     expect(find.textContaining('2 rejected (Hansa x2)'), findsOneWidget);
   });
 
-  testWidgets('shows a plain message when nobody has applied, and nothing without data', (tester) async {
+  testWidgets('shows a plain message when nobody has applied (0 applicants), and nothing without data', (tester) async {
     await _pump(tester, _summary());
-    expect(find.text('No applicants yet'), findsOneWidget);
+    expect(find.text('0 applicants'), findsOneWidget);
     await _pump(tester, null);
     expect(find.byType(Text), findsNothing);
   });
