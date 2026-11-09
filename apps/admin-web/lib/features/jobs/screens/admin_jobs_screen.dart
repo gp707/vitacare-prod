@@ -12,6 +12,7 @@ import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
 import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
+import '../../../shared/widgets/applicant_summary_line.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
@@ -1295,6 +1296,10 @@ class _JobRow extends StatelessWidget {
           onPressed: onViewApplications,
           icon: const Icon(Icons.people_outline, size: 16),
           label: const Text('Applicants'),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
+          child: ApplicantSummaryLine(summary: job.applicantSummary),
         ),
         if (onRemind != null)
           TextButton.icon(

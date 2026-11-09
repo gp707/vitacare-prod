@@ -36,6 +36,8 @@ class AdminOrganisationRequirement {
   /// posted job.
   final String? contactPersonName;
   final String? organisationPhone;
+  /// List responses only: applicant tally with who rejected.
+  final ApplicantSummary? applicantSummary;
 
   const AdminOrganisationRequirement({
     required this.id,
@@ -59,6 +61,7 @@ class AdminOrganisationRequirement {
     this.area,
     this.contactPersonName,
     this.organisationPhone,
+    this.applicantSummary,
   });
 
   factory AdminOrganisationRequirement.fromJson(Map<String, dynamic> json) =>
@@ -84,6 +87,9 @@ class AdminOrganisationRequirement {
         area: json['area'] as String?,
         contactPersonName: json['contact_person_name'] as String?,
         organisationPhone: json['organisation_phone'] as String?,
+        applicantSummary: json['applicant_summary'] == null
+            ? null
+            : ApplicantSummary.fromJson(json['applicant_summary'] as Map<String, dynamic>),
       );
 }
 

@@ -725,6 +725,11 @@ location) that didn't fit the Individual/admin jobs-table model.
   detail screen shows it as a green "Currently accepted by (n)" box at the top of the Profile tab (completed
   ones greyed as history); hidden when the caregiver has never been accepted.
 
+- **Applicant tally on every admin job/requirement row.** `GET /admin/jobs` and `GET /admin/organisation-requirements` each row
+  carries `applicant_summary` (`applicantSummarySql` in `database/repositories/applicant-summary.sql.ts`): total, awaiting,
+  accepted, closed-by-caregiver, rejected by the caregiver themselves, and rejected by named employers (patient/organisation/
+  admin, from `decided_by`). admin-web's `ApplicantSummaryLine` shows it next to the Applicants button. Same stale-`decided_by`
+  limitation as the Rejections tab.
 - **Admin sees every "no" and why (Rejections tab).** `GET /admin/rejections` (`direction=caregiver|poster`, `search`) lists
   three event kinds across jobs and organisation requirements: `caregiver_declined` (caregiver rejected/withdrew —
   **no reason is collected by the app**, shown as such), `caregiver_closed` (the fixed `close_reason`), and

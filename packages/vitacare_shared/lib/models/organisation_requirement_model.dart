@@ -1,3 +1,4 @@
+import 'applicant_summary.dart';
 import 'job_model.dart';
 
 /// Mirrors a row from GET /caregiver/organisation-requirements or
@@ -60,6 +61,8 @@ class OrganisationRequirementModel {
   /// convention as JobModel.applicantCount. Only present on
   /// GET /caregiver/organisation-requirements's response.
   final int? applicantCount;
+  /// Admin list responses only: waiting/accepted/rejected tally with who rejected.
+  final ApplicantSummary? applicantSummary;
 
   const OrganisationRequirementModel({
     required this.id,
@@ -85,6 +88,7 @@ class OrganisationRequirementModel {
     this.organisationPhone,
     this.myApplication,
     this.applicantCount,
+    this.applicantSummary,
   });
 
   factory OrganisationRequirementModel.fromJson(Map<String, dynamic> json) => OrganisationRequirementModel(
@@ -113,6 +117,9 @@ class OrganisationRequirementModel {
             ? MyApplicationModel.fromJson(json['my_application'] as Map<String, dynamic>)
             : null,
         applicantCount: json['applicant_count'] as int?,
+        applicantSummary: json['applicant_summary'] == null
+            ? null
+            : ApplicantSummary.fromJson(json['applicant_summary'] as Map<String, dynamic>),
       );
 
   /// Mirrors JobModel.isCancelled — set once the org cancels this

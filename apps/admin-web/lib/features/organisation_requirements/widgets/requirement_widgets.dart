@@ -4,6 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
+import '../../../shared/widgets/applicant_summary_line.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
 /// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
@@ -131,6 +132,10 @@ class RequirementRow extends StatelessWidget {
                   TextButton(
                       onPressed: onViewApplicants,
                       child: const Text('Applicants')),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
+                    child: ApplicantSummaryLine(summary: requirement.applicantSummary),
+                  ),
                   TextButton(onPressed: onEdit, child: const Text('Edit')),
                   if (onRemind != null)
                     TextButton.icon(

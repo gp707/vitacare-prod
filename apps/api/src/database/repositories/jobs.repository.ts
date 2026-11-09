@@ -12,6 +12,7 @@ import {
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { CareReceiverRecord } from './care-receivers.repository';
+import { ApplicantSummary, applicantSummarySql } from './applicant-summary.sql';
 
 export interface JobRecord {
   id: string;
@@ -60,6 +61,7 @@ export interface JobRecord {
  *  admin's own, without a second round trip. Not present on plain
  *  JobRecord (e.g. findById) since most callers don't need it. */
 export interface JobListItemForAdmin extends JobRecord {
+  applicant_summary: ApplicantSummary;
   posted_by_role: string;
   posted_by_name: string;
   posted_by_phone: string;
@@ -318,7 +320,8 @@ export class JobsRepository {
 
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobListItemForAdmin>(
-        `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name, u.phone AS posted_by_phone
+        `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name, u.phone AS posted_by_phone,
+                ${applicantSummarySql('job_applications', 'job_id', 'j')}
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          JOIN users u ON u.id = j.posted_by

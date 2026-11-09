@@ -1,3 +1,4 @@
+import 'applicant_summary.dart';
 import 'care_receiver_model.dart';
 
 /// The posting admin's contact info — only ever present on
@@ -138,6 +139,8 @@ class JobModel {
   /// of who posted the job. Only present on GET /caregiver/jobs's response;
   /// null everywhere else (e.g. the assigned/MyJobs list, admin-web).
   final int? applicantCount;
+  /// Admin list responses only: waiting/accepted/rejected tally with who rejected.
+  final ApplicantSummary? applicantSummary;
   /// Admin-only personal/internal note about this job — only present on
   /// admin-facing responses (GET /admin/jobs/:id), never on any
   /// caregiver/individual/organisation-facing endpoint.
@@ -173,6 +176,7 @@ class JobModel {
     this.postedByName,
     this.postedByPhone,
     this.applicantCount,
+    this.applicantSummary,
     this.notes,
   });
 
@@ -212,6 +216,9 @@ class JobModel {
         postedByName: json['posted_by_name'] as String?,
         postedByPhone: json['posted_by_phone'] as String?,
         applicantCount: json['applicant_count'] as int?,
+        applicantSummary: json['applicant_summary'] == null
+            ? null
+            : ApplicantSummary.fromJson(json['applicant_summary'] as Map<String, dynamic>),
         notes: json['notes'] as String?,
       );
 

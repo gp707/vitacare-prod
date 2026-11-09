@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { MyApplicationSummary } from './jobs.repository';
+import { ApplicantSummary, applicantSummarySql } from './applicant-summary.sql';
 
 export interface OrganisationRequirementRecord {
   id: string;
@@ -49,6 +50,7 @@ export interface OrganisationRequirementWithOrg extends OrganisationRequirementR
  *  requirement without a second round trip, mirroring
  *  JobListItemForAdmin's posted_by_name/posted_by_phone. */
 export interface OrganisationRequirementListItemForAdmin extends OrganisationRequirementWithOrg {
+  applicant_summary: ApplicantSummary;
   contact_person_name: string;
   organisation_phone: string;
 }
@@ -240,7 +242,8 @@ export class OrganisationRequirementsRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<OrganisationRequirementListItemForAdmin>(
         `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
-                op.contact_person_name, u.phone AS organisation_phone
+                op.contact_person_name, u.phone AS organisation_phone,
+                ${applicantSummarySql('organisation_requirement_applications', 'requirement_id', 'r')}
          FROM organisation_requirements r
          JOIN organisation_profiles op ON op.user_id = r.posted_by
          JOIN users u ON u.id = r.posted_by
