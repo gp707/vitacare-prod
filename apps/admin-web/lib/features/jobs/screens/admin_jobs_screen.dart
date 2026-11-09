@@ -1281,6 +1281,10 @@ class _JobRow extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(job.description!, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],
+        const SizedBox(height: AppSpacing.xs),
+        // Applicants/accepted/rejected tally, at the bottom of the row's
+        // content like an organisation requirement's row.
+        ApplicantSummaryLine(summary: job.applicantSummary),
       ],
     );
 
@@ -1296,10 +1300,6 @@ class _JobRow extends StatelessWidget {
           onPressed: onViewApplications,
           icon: const Icon(Icons.people_outline, size: 16),
           label: const Text('Applicants'),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
-          child: ApplicantSummaryLine(summary: job.applicantSummary),
         ),
         if (onRemind != null)
           TextButton.icon(
