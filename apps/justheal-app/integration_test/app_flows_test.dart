@@ -24,6 +24,10 @@ const _individualPhone = '7000990001';
 const _organisationPhone = '7000990002';
 const _pin = '1234';
 
+/// Every launch / logout lands on the welcome screen (register-as rows); the
+/// log-in form is one tap further, behind this button.
+const _welcomeMarker = 'Already registered? Click here';
+
 Future<void> _pumpFor(WidgetTester tester, Duration duration) async {
   final end = DateTime.now().add(duration);
   while (DateTime.now().isBefore(end)) {
@@ -64,8 +68,14 @@ Future<void> _launchFresh(WidgetTester tester) async {
   app.main();
   // A cold launch on a loaded emulator can take minutes (Firebase init, JIT
   // warm-up), so this one wait is deliberately far more patient than the rest.
-  await _waitFor(tester, find.text('Log in'),
-      timeout: const Duration(seconds: 300), reason: 'login screen after cold launch');
+  await _waitFor(tester, find.text(_welcomeMarker),
+      timeout: const Duration(seconds: 300), reason: 'welcome screen after cold launch');
+}
+
+/// Welcome screen -> log-in form.
+Future<void> _openSignIn(WidgetTester tester) async {
+  await tester.tap(find.text(_welcomeMarker));
+  await _waitFor(tester, find.text('Log in'), reason: 'log-in form');
 }
 
 /// Real device: entering text opens the soft keyboard, which covers the
@@ -152,7 +162,7 @@ Future<void> _logoutViaLogoTripleTap(WidgetTester tester) async {
     await tester.tap(logo);
     await tester.pump(const Duration(milliseconds: 120));
   }
-  await _waitFor(tester, find.text('Log in'), reason: 'login screen after triple-tap logout');
+  await _waitFor(tester, find.text(_welcomeMarker), reason: 'welcome screen after triple-tap logout');
 }
 
 
@@ -203,7 +213,7 @@ Future<void> _deleteAccount(WidgetTester tester) async {
   await _dismissKeyboard(tester);
   await tester.tap(find.text('Delete Forever'));
   await _pumpFor(tester, const Duration(milliseconds: 300));
-  await _waitFor(tester, find.text('Log in'), reason: 'login screen after account deletion');
+  await _waitFor(tester, find.text(_welcomeMarker), reason: 'welcome screen after account deletion');
 }
 
 void main() {
@@ -211,6 +221,7 @@ void main() {
 
   testWidgets('Login screen validation and unknown-account error', (tester) async {
     await _launchFresh(tester);
+    await _openSignIn(tester);
 
     await _login(tester, phone: '123', pin: _pin);
     await _pumpFor(tester, const Duration(milliseconds: 500));
@@ -281,9 +292,10 @@ void main() {
 
     // --- Logged out: a force-close + reopen must land on the login screen ---
     await _forceCloseAndReopen(tester);
-    await _waitFor(tester, find.text('Log in'), reason: 'login screen after reopening while logged out');
+    await _waitFor(tester, find.text(_welcomeMarker), reason: 'welcome screen after reopening while logged out');
     expect(find.text('Requirement Posted'), findsNothing);
 
+    await _openSignIn(tester);
     await _login(tester, phone: _individualPhone, pin: '0000');
     await _waitFor(tester, find.textContaining(RegExp('invalid', caseSensitive: false)), reason: 'wrong-PIN error');
 
@@ -297,6 +309,8 @@ void main() {
     await _pumpFor(tester, const Duration(seconds: 1));
 
     // --- Phone numbers are globally unique: an organisation can't reuse it ---
+    await tester.pageBack(); // sign-in -> welcome (register-as rows live there)
+    await _waitFor(tester, find.text(_welcomeMarker), reason: 'welcome screen');
     await _reveal(tester, find.text('Organisation').first);
     await tester.tap(find.text('Organisation').first);
     await _waitFor(tester, find.text('Contact person name (Mandatory)'), reason: 'org registration form');
@@ -306,7 +320,8 @@ void main() {
     await tester.tap(register);
     await _waitFor(tester, find.textContaining('already registered'), reason: 'AUTH_016 phone clash message');
     await tester.pageBack();
-    await _waitFor(tester, find.text('Log in'));
+    await _waitFor(tester, find.text(_welcomeMarker), reason: 'welcome screen after the clash');
+    await _openSignIn(tester);
 
     // --- Correct PIN logs in again, then the account is deleted ---
     await _login(tester, phone: _individualPhone, pin: _pin);
@@ -317,6 +332,7 @@ void main() {
     await _deleteAccount(tester);
 
     // The deleted account can no longer log in.
+    await _openSignIn(tester);
     await _login(tester, phone: _individualPhone, pin: _pin);
     await _waitFor(tester, find.textContaining(RegExp('no account|not found|not registered', caseSensitive: false)),
         reason: 'deleted account rejected');
@@ -366,6 +382,7 @@ void main() {
     await tester.tap(find.text('Profile').last);
     await _waitFor(tester, find.textContaining(_organisationPhone), reason: 'org profile shows phone');
     await _logoutViaLogoTripleTap(tester);
+    await _openSignIn(tester);
     await _login(tester, phone: _organisationPhone, pin: _pin);
     await _waitFor(tester, find.text('Requirements Posted'), reason: 'org home after login');
 
