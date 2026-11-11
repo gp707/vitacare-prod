@@ -96,3 +96,14 @@ tmp/
 temp/
 *.hprof
 *.hprof
+
+# ============================================
+# Claude Code local settings (hold dev commands, can leak credentials)
+# ============================================
+.claude/settings.local.json
+
+# Android signing / local machine files
+*.keystore
+*.jks
+key.properties
+local.properties
