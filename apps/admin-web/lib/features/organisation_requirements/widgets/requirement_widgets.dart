@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/providers.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
@@ -24,6 +26,7 @@ String _posterValueText({required String role, String? name, String? phone}) {
 class RequirementRow extends StatelessWidget {
   final AdminOrganisationRequirement requirement;
   final VoidCallback onTap;
+
   /// Always offered, regardless of status — admin can edit any org-owned
   /// field at any point in the requirement's lifecycle; saving from
   /// pending_review (or closed) also approves/reposts it (see
@@ -32,15 +35,19 @@ class RequirementRow extends StatelessWidget {
   /// to open the full Edit dialog and re-save every field unchanged just to
   /// activate it — same reasoning as admin-posted jobs' own Approve button.
   final VoidCallback onEdit;
+
   /// Only supplied for a pending_review requirement — same one-click
   /// activation admin-posted jobs' own Approve button offers.
   final VoidCallback? onApprove;
+
   /// Only supplied for a pending_review requirement — declines it, same as
   /// admin-posted jobs' own Reject action.
   final VoidCallback? onReject;
+
   /// Only supplied for an active requirement — re-pushes it to caregivers,
   /// same as admin-posted jobs' own Remind button.
   final VoidCallback? onRemind;
+
   /// Supplied for every status except pending_review — sends it back to
   /// admin review.
   final VoidCallback? onMovePendingReview;
@@ -87,8 +94,9 @@ class RequirementRow extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
               InkWell(
-                onTap: () => Navigator.of(context)
-                    .pushNamed('/organisation-detail', arguments: requirement.postedBy),
+                onTap: () => Navigator.of(context).pushNamed(
+                    '/organisation-detail',
+                    arguments: requirement.postedBy),
                 child: Text(
                   _posterValueText(
                     role: 'Posted by',
@@ -133,14 +141,17 @@ class RequirementRow extends StatelessWidget {
                       onPressed: onViewApplicants,
                       child: const Text('Applicants')),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
-                    child: ApplicantSummaryLine(summary: requirement.applicantSummary),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
+                    child: ApplicantSummaryLine(
+                        summary: requirement.applicantSummary),
                   ),
                   TextButton(onPressed: onEdit, child: const Text('Edit')),
                   if (onRemind != null)
                     TextButton.icon(
                       onPressed: onRemind,
-                      icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                      icon: const Icon(Icons.notifications_active_outlined,
+                          size: 16),
                       label: const Text('Remind'),
                     ),
                   if (onMovePendingReview != null)
@@ -152,7 +163,8 @@ class RequirementRow extends StatelessWidget {
                   if (onApprove != null)
                     TextButton.icon(
                       onPressed: onApprove,
-                      style: TextButton.styleFrom(foregroundColor: AppColors.success),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.success),
                       icon: const Icon(Icons.check, size: 16),
                       label: const Text('Approve'),
                     ),
@@ -197,7 +209,9 @@ class RequirementStatusBadge extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              color: color, fontSize: AppTypography.small, fontWeight: FontWeight.w600)),
+              color: color,
+              fontSize: AppTypography.small,
+              fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -241,8 +255,8 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
   late bool _foodProvided = widget.requirement.foodProvided;
   late final _specialSkillsController =
       TextEditingController(text: widget.requirement.specialSkills ?? '');
-  late final _numberOfVacanciesController =
-      TextEditingController(text: widget.requirement.numberOfVacancies.toString());
+  late final _numberOfVacanciesController = TextEditingController(
+      text: widget.requirement.numberOfVacancies.toString());
   late String? _preferredGender = widget.requirement.preferredGender;
   late String? _experienceRequired = widget.requirement.experienceRequired;
   late String? _employmentType = widget.requirement.employmentType;
@@ -253,7 +267,8 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
 
   bool get _isTypeOfNurseValid => _typeOfNurse != null;
   bool get _isTypeOfNurseOtherValid =>
-      _typeOfNurse != TypeOfNurse.others || _typeOfNurseOtherController.text.trim().isNotEmpty;
+      _typeOfNurse != TypeOfNurse.others ||
+      _typeOfNurseOtherController.text.trim().isNotEmpty;
   bool get _isNumberOfVacanciesValid {
     final value = int.tryParse(_numberOfVacanciesController.text.trim());
     return value != null && value > 0 && value < 50;
@@ -285,7 +300,9 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
     try {
       await widget.onSubmit(
         typeOfNurse: _typeOfNurse!,
-        typeOfNurseOther: _typeOfNurse == TypeOfNurse.others ? _typeOfNurseOtherController.text.trim() : null,
+        typeOfNurseOther: _typeOfNurse == TypeOfNurse.others
+            ? _typeOfNurseOtherController.text.trim()
+            : null,
         accommodationProvided: _accommodationProvided,
         foodProvided: _foodProvided,
         specialSkills: _specialSkillsController.text.trim(),
@@ -319,10 +336,14 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
                 decoration: InputDecoration(
                   labelText: 'Type of Nurse/Caregiver (Mandatory)',
                   border: const OutlineInputBorder(),
-                  errorText: _showValidationErrors && !_isTypeOfNurseValid ? 'Please select a type' : null,
+                  errorText: _showValidationErrors && !_isTypeOfNurseValid
+                      ? 'Please select a type'
+                      : null,
                 ),
                 items: TypeOfNurse.all
-                    .map((t) => DropdownMenuItem(value: t, child: Text(TypeOfNurse.displayNames[t] ?? t)))
+                    .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(TypeOfNurse.displayNames[t] ?? t)))
                     .toList(),
                 onChanged: (value) => setState(() => _typeOfNurse = value),
               ),
@@ -334,9 +355,10 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
                   decoration: InputDecoration(
                     labelText: 'Please specify (Mandatory)',
                     border: const OutlineInputBorder(),
-                    errorText: _showValidationErrors && !_isTypeOfNurseOtherValid
-                        ? 'Please specify the type of nurse/caregiver'
-                        : null,
+                    errorText:
+                        _showValidationErrors && !_isTypeOfNurseOtherValid
+                            ? 'Please specify the type of nurse/caregiver'
+                            : null,
                   ),
                 ),
               ],
@@ -362,12 +384,16 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('No preference')),
+                  const DropdownMenuItem(
+                      value: null, child: Text('No preference')),
                   ...ExperienceRequired.all.map(
-                    (e) => DropdownMenuItem(value: e, child: Text(ExperienceRequired.displayNames[e] ?? e)),
+                    (e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(ExperienceRequired.displayNames[e] ?? e)),
                   ),
                 ],
-                onChanged: (value) => setState(() => _experienceRequired = value),
+                onChanged: (value) =>
+                    setState(() => _experienceRequired = value),
               ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<String>(
@@ -378,9 +404,12 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('No preference')),
+                  const DropdownMenuItem(
+                      value: null, child: Text('No preference')),
                   ...EmploymentType.all.map(
-                    (e) => DropdownMenuItem(value: e, child: Text(EmploymentType.displayNames[e] ?? e)),
+                    (e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(EmploymentType.displayNames[e] ?? e)),
                   ),
                 ],
                 onChanged: (value) => setState(() => _employmentType = value),
@@ -405,7 +434,8 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Accommodation provided?'),
                 value: _accommodationProvided,
-                onChanged: (value) => setState(() => _accommodationProvided = value),
+                onChanged: (value) =>
+                    setState(() => _accommodationProvided = value),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -480,8 +510,9 @@ class _RequirementApplicantsDialogState
         .pushNamed('/caregiver-detail', arguments: application.profileId);
   }
 
-  int get _acceptedCount =>
-      widget.applications.where((a) => a.status == JobApplicationStatus.accepted).length;
+  int get _acceptedCount => widget.applications
+      .where((a) => a.status == JobApplicationStatus.accepted)
+      .length;
 
   @override
   Widget build(BuildContext context) {
@@ -595,7 +626,8 @@ class RequirementReadOnlyDialog extends StatelessWidget {
                     : requirement.contactPersonName ?? '—',
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(context).pushNamed('/organisation-detail', arguments: requirement.postedBy);
+                  Navigator.of(context).pushNamed('/organisation-detail',
+                      arguments: requirement.postedBy);
                 },
               ),
               _DetailRow(
@@ -616,20 +648,25 @@ class RequirementReadOnlyDialog extends StatelessWidget {
               const Divider(height: AppSpacing.lg),
               _DetailRow(
                   'Type of Nurse',
-                  requirement.typeOfNurse == TypeOfNurse.others && requirement.typeOfNurseOther != null
+                  requirement.typeOfNurse == TypeOfNurse.others &&
+                          requirement.typeOfNurseOther != null
                       ? '${TypeOfNurse.displayNames[requirement.typeOfNurse]}: ${requirement.typeOfNurseOther}'
-                      : TypeOfNurse.displayNames[requirement.typeOfNurse] ?? requirement.typeOfNurse),
-              _DetailRow('Number of Vacancies', requirement.numberOfVacancies.toString()),
+                      : TypeOfNurse.displayNames[requirement.typeOfNurse] ??
+                          requirement.typeOfNurse),
+              _DetailRow('Number of Vacancies',
+                  requirement.numberOfVacancies.toString()),
               _DetailRow(
                 'Preferred Caregiver Gender',
                 requirement.preferredGender != null
-                    ? Gender.displayNames[requirement.preferredGender] ?? requirement.preferredGender!
+                    ? Gender.displayNames[requirement.preferredGender] ??
+                        requirement.preferredGender!
                     : 'No preference',
               ),
               _DetailRow(
                 'Experience Required',
                 requirement.experienceRequired != null
-                    ? ExperienceRequired.displayNames[requirement.experienceRequired] ??
+                    ? ExperienceRequired
+                            .displayNames[requirement.experienceRequired] ??
                         requirement.experienceRequired!
                     : '—',
               ),
@@ -654,6 +691,9 @@ class RequirementReadOnlyDialog extends StatelessWidget {
                 _DetailRow('Rejection Reason', requirement.rejectionReason!),
               const Divider(height: AppSpacing.lg),
               _DetailRow('Posted', requirement.postedAt.split('T').first),
+              const Divider(height: AppSpacing.lg),
+              _OrganisationNotesSection(
+                  organisationUserId: requirement.postedBy),
             ],
           ),
         ),
@@ -681,6 +721,7 @@ class RequirementReadOnlyDialog extends StatelessWidget {
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
+
   /// When provided, [value] becomes a tappable, underlined link (e.g. to
   /// the organisation's own profile screen) instead of plain text.
   final VoidCallback? onTap;
@@ -692,7 +733,9 @@ class _DetailRow extends StatelessWidget {
     final valueText = Text(
       value,
       style: onTap != null
-          ? const TextStyle(color: AppColors.primaryDark, decoration: TextDecoration.underline)
+          ? const TextStyle(
+              color: AppColors.primaryDark,
+              decoration: TextDecoration.underline)
           : null,
     );
     return Padding(
@@ -705,9 +748,172 @@ class _DetailRow extends StatelessWidget {
             child: Text(label,
                 style: const TextStyle(color: AppColors.textSecondary)),
           ),
-          Expanded(child: onTap != null ? InkWell(onTap: onTap, child: valueText) : valueText),
+          Expanded(
+              child: onTap != null
+                  ? InkWell(onTap: onTap, child: valueText)
+                  : valueText),
         ],
       ),
+    );
+  }
+}
+
+/// Admin-only internal note, shown on every one of an organisation's jobs.
+/// An organisation posts many jobs, so there is no per-job note: this is the
+/// organisation account's own note (organisation_admin_notes, the same one
+/// on its Rehab/Hospitals detail screen) surfaced here, so reading or
+/// editing it from either place changes the one value. Never shown to the
+/// organisation or to caregivers.
+class _OrganisationNotesSection extends ConsumerStatefulWidget {
+  final String organisationUserId;
+
+  const _OrganisationNotesSection({required this.organisationUserId});
+
+  @override
+  ConsumerState<_OrganisationNotesSection> createState() =>
+      _OrganisationNotesSectionState();
+}
+
+class _OrganisationNotesSectionState
+    extends ConsumerState<_OrganisationNotesSection> {
+  final _controller = TextEditingController();
+  String _saved = '';
+  bool _loading = true;
+  bool _editing = false;
+  bool _saving = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final org = await ref
+          .read(adminOrganisationsRepositoryProvider)
+          .getDetail(widget.organisationUserId);
+      if (!mounted) return;
+      setState(() {
+        _saved = org.notes ?? '';
+        _controller.text = _saved;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.message;
+        _loading = false;
+      });
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final text = _controller.text.trim();
+      await ref
+          .read(adminOrganisationsRepositoryProvider)
+          .upsertNotes(widget.organisationUserId, text);
+      if (!mounted) return;
+      setState(() {
+        _saved = text;
+        _editing = false;
+      });
+    } on ApiException catch (e) {
+      if (mounted) _showError(e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+            if (!_editing && !_loading && _loadError == null)
+              TextButton.icon(
+                onPressed: () => setState(() => _editing = true),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Edit'),
+              ),
+          ],
+        ),
+        const Text(
+          'Shared with the organisation\'s own page. Never shown to the organisation or caregivers.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.all(AppSpacing.sm),
+            child: SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (_loadError != null)
+          Text(_loadError!, style: const TextStyle(color: AppColors.error))
+        else if (_editing)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _controller,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Internal notes about this organisation',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Save'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  TextButton.icon(
+                    onPressed: _saving
+                        ? null
+                        : () => setState(() {
+                              _editing = false;
+                              _controller.text = _saved;
+                            }),
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ],
+          )
+        else
+          Text(
+            _saved.isNotEmpty ? _saved : 'No notes yet.',
+            style: TextStyle(
+                color: _saved.isNotEmpty ? null : AppColors.textSecondary),
+          ),
+      ],
     );
   }
 }

@@ -18,9 +18,13 @@ import 'package:nursenow_app/analytics/analytics.dart';
 /// the session turns out to be Organisation — Organisation has no
 /// requirement/care-tier/applicant concepts feeding resolveMessages(), so
 /// there's nothing for a bell on that account type to count.
-List<Widget> individualAppBarActions({required bool showBell}) => [
+/// [showRateCard] is false for Organisation too: rate-card guidance is for
+/// individual hiring only (CLAUDE.md "Rate Card").
+List<Widget> individualAppBarActions(
+        {required bool showBell, bool showRateCard = true}) =>
+    [
       const TextZoomButton(),
-      const RateCardButton(),
+      if (showRateCard) const RateCardButton(),
       const WhatsAppHelpButton(),
       if (showBell) const MessagesBellButton(),
     ];
@@ -60,8 +64,10 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
-    _swing = Tween<double>(begin: -0.12, end: 0.12).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _swing = Tween<double>(begin: -0.12, end: 0.12)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     _load();
   }
 
@@ -113,7 +119,8 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
   /// immediately. [onClosed] (which actually marks the message read) only
   /// runs once the popup is dismissed, whether via the Close button or by
   /// tapping the barrier — showDialog's Future resolves on either path.
-  Future<void> _openMessageDetail(BuildContext context, MessageItem message, {required VoidCallback onClosed}) async {
+  Future<void> _openMessageDetail(BuildContext context, MessageItem message,
+      {required VoidCallback onClosed}) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -163,7 +170,8 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
             setSheetState(() => readIds.add(id));
             await ref.read(localStorageProvider).markMessagesRead([id]);
             if (!mounted) return;
-            setState(() => _unreadCount = messages.where((m) => !readIds.contains(m.id)).length);
+            setState(() => _unreadCount =
+                messages.where((m) => !readIds.contains(m.id)).length);
             _syncAnimation();
           }
 
@@ -171,7 +179,8 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.7),
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(sheetContext).size.height * 0.7),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -179,20 +188,30 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
                     children: [
                       const Padding(
                         padding: EdgeInsets.only(bottom: AppSpacing.xs),
-                        child: Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
+                        child: Text('Messages',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: AppTypography.title)),
                       ),
                       const Padding(
                         padding: EdgeInsets.only(bottom: AppSpacing.md),
-                        child: Text('Click on the below message to mark it read.',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.caption)),
+                        child: Text(
+                            'Click on the below message to mark it read.',
+                            style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: AppTypography.caption)),
                       ),
                       if (error != null)
-                        Text(error, style: const TextStyle(color: AppColors.error))
+                        Text(error,
+                            style: const TextStyle(color: AppColors.error))
                       else if (messages.isEmpty)
                         const Padding(
-                          padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                          padding:
+                              EdgeInsets.symmetric(vertical: AppSpacing.lg),
                           child: Center(
-                            child: Text('No messages right now.', style: TextStyle(color: AppColors.textSecondary)),
+                            child: Text('No messages right now.',
+                                style:
+                                    TextStyle(color: AppColors.textSecondary)),
                           ),
                         )
                       else
@@ -200,45 +219,65 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: messages.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final message = messages[index];
                             final isRead = readIds.contains(message.id);
                             return Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () => _openMessageDetail(sheetContext, message, onClosed: () => markRead(message.id)),
-                                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                                onTap: () => _openMessageDetail(
+                                    sheetContext, message,
+                                    onClosed: () => markRead(message.id)),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.sm),
                                 child: Container(
                                   padding: const EdgeInsets.all(AppSpacing.md),
                                   decoration: BoxDecoration(
                                     color: isRead
-                                        ? AppColors.textSecondary.withValues(alpha: 0.05)
-                                        : AppColors.success.withValues(alpha: 0.06),
+                                        ? AppColors.textSecondary
+                                            .withValues(alpha: 0.05)
+                                        : AppColors.success
+                                            .withValues(alpha: 0.06),
                                     border: Border.all(
-                                      color: isRead ? AppColors.textSecondary.withValues(alpha: 0.3) : AppColors.error,
+                                      color: isRead
+                                          ? AppColors.textSecondary
+                                              .withValues(alpha: 0.3)
+                                          : AppColors.error,
                                       width: isRead ? 1 : 2.5,
                                     ),
-                                    borderRadius: BorderRadius.circular(AppSpacing.sm),
+                                    borderRadius:
+                                        BorderRadius.circular(AppSpacing.sm),
                                   ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Container(
                                         width: 24,
                                         height: 24,
                                         decoration: BoxDecoration(
-                                          color: isRead ? AppColors.textSecondary.withValues(alpha: 0.15) : AppColors.primaryLight,
-                                          borderRadius: BorderRadius.circular(8),
+                                          color: isRead
+                                              ? AppColors.textSecondary
+                                                  .withValues(alpha: 0.15)
+                                              : AppColors.primaryLight,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         child: Icon(message.icon,
-                                            color: isRead ? AppColors.textSecondary : AppColors.primaryDark, size: 15),
+                                            color: isRead
+                                                ? AppColors.textSecondary
+                                                : AppColors.primaryDark,
+                                            size: 15),
                                       ),
                                       const SizedBox(width: AppSpacing.sm),
                                       Expanded(
                                         child: Text(message.text,
                                             style: TextStyle(
-                                                color: isRead ? AppColors.textSecondary : AppColors.success,
+                                                color: isRead
+                                                    ? AppColors.textSecondary
+                                                    : AppColors.success,
                                                 fontWeight: FontWeight.bold)),
                                       ),
                                     ],
@@ -293,7 +332,10 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
                 child: Text(
                   '$_unreadCount',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ),

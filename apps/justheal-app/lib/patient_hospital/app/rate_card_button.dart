@@ -109,7 +109,19 @@ class _RateCardDialogState extends State<_RateCardDialog> {
       // title, each frequency's own title, and the tier column labels)
       // stay black, since they were never given an explicit color.
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      title: const Text('Salary Guidance'),
+      title: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Salary Guidance'),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            'Applicable Only For Home Care Jobs',
+            style: TextStyle(
+                fontSize: AppTypography.small, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
       content: SizedBox(
         width: dialogWidth,
         child: _loading

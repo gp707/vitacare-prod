@@ -123,9 +123,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: VitaAppBar(
         title: 'Profile',
         onTripleTap: _logout,
-        actions: individualAppBarActions(
-            showBell:
-                !(session is SessionAuthenticated && session.isOrganisation)),
+        actions: () {
+          final isOrg =
+              session is SessionAuthenticated && session.isOrganisation;
+          return individualAppBarActions(
+              showBell: !isOrg, showRateCard: !isOrg);
+        }(),
       ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 0),

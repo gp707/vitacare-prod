@@ -725,6 +725,11 @@ location) that didn't fit the Individual/admin jobs-table model.
   detail screen shows it as a green "Currently accepted by (n)" box at the top of the Profile tab (completed
   ones greyed as history); hidden when the caregiver has never been accepted.
 
+- **Organisation notes also show on each of that organisation's jobs.** An organisation posts many requirements, so there is no
+  per-requirement note: admin-web's `RequirementReadOnlyDialog` embeds the organisation account's own note
+  (`organisation_admin_notes`, loaded via `GET /admin/organisations/:id`, saved via `POST /admin/organisations/:id/notes`) — the
+  same single value as on the Rehab/Hospitals detail screen, editable from either. No new field or endpoint. Patient jobs keep
+  their own per-job note (`job_admin_notes`).
 - **Applicant tally on every admin job/requirement row.** `GET /admin/jobs` and `GET /admin/organisation-requirements` each row
   carries `applicant_summary` (`applicantSummarySql` in `database/repositories/applicant-summary.sql.ts`): total, awaiting,
   accepted, closed-by-caregiver, rejected by the caregiver themselves, and rejected by named employers (patient/organisation/
