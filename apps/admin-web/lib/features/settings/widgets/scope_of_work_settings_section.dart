@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
+import '../../../shared/widgets/action_help.dart';
 
 /// The "Scope of Work" tab of the Settings hub — lets an admin edit the 3
 /// cumulative bullet lists (Companion Care / Bedside Care / Critical Care)
@@ -153,12 +154,18 @@ class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettings
               style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
-        ElevatedButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
+        ActionHelp(
+          message: AdminHelp.saveScopeOfWork,
+          child: ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save'),
+          ),
         ),
       ],
     );
@@ -206,7 +213,7 @@ class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettings
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                    tooltip: 'Remove bullet',
+                    tooltip: AdminHelp.removeBullet,
                     onPressed: () {
                       final updated = [...controllers];
                       updated.removeAt(i).dispose();
@@ -216,10 +223,13 @@ class _ScopeOfWorkSettingsSectionState extends ConsumerState<ScopeOfWorkSettings
                 ],
               ),
             ),
-          TextButton.icon(
-            onPressed: () => onChanged([...controllers, TextEditingController()]),
-            icon: const Icon(Icons.add),
-            label: const Text('Add bullet'),
+          ActionHelp(
+            message: AdminHelp.addBullet,
+            child: TextButton.icon(
+              onPressed: () => onChanged([...controllers, TextEditingController()]),
+              icon: const Icon(Icons.add),
+              label: const Text('Add bullet'),
+            ),
           ),
         ],
       ),

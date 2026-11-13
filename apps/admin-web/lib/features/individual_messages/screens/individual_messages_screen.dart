@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// Maps an admin-picked MessageIcon key to real IconData for the row
 /// preview/dropdown — Flutter-specific, so it can't live in the pure-Dart
@@ -257,10 +258,14 @@ class _IndividualMessagesScreenState extends ConsumerState<IndividualMessagesScr
                 children: [
                   const Text('NurseNow Messages',
                       style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
-                  ElevatedButton.icon(
-                    onPressed: () => _showMessageDialog(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Message'),
+                  ActionHelp(
+                    message:
+                        'Opens a form to add an in-app message for patients/families. It appears to them only once saved and enabled.',
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showMessageDialog(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Message'),
+                    ),
                   ),
                 ],
               ),
@@ -337,14 +342,21 @@ class _IndividualMessagesScreenState extends ConsumerState<IndividualMessagesScr
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: () => _showMessageDialog(existing: message),
-                child: const Text('Edit'),
+              ActionHelp(
+                message:
+                    'Opens this message for editing. Changes apply to patients/families as soon as you save.',
+                child: TextButton(
+                  onPressed: () => _showMessageDialog(existing: message),
+                  child: const Text('Edit'),
+                ),
               ),
-              TextButton(
-                onPressed: () => _confirmDelete(message),
-                style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                child: const Text('Delete'),
+              ActionHelp(
+                message: AdminHelp.deleteMessage,
+                child: TextButton(
+                  onPressed: () => _confirmDelete(message),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                  child: const Text('Delete'),
+                ),
               ),
             ],
           ),

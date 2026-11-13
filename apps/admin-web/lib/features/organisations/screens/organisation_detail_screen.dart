@@ -12,6 +12,7 @@ import '../../audit_logs/widgets/audit_entry_cells.dart';
 import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_organisations_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// organisation_profiles.city accepts the existing 7 cities plus this one
 /// extra sentinel — a separate org-scoped list, not an extension of the
@@ -287,38 +288,53 @@ class _OrganisationDetailScreenState
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
-              OutlinedButton.icon(
-                onPressed: () => _resetPin(detail),
-                icon: const Icon(Icons.password, size: 16),
-                label: const Text('Reset PIN'),
+              ActionHelp(
+                message: AdminHelp.resetPin,
+                child: OutlinedButton.icon(
+                  onPressed: () => _resetPin(detail),
+                  icon: const Icon(Icons.password, size: 16),
+                  label: const Text('Reset PIN'),
+                ),
               ),
               if (detail.isJobPostingBlocked)
-                OutlinedButton.icon(
-                  onPressed: () => _unblock(detail, 'job_posting'),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
-                  icon: const Icon(Icons.lock_open, size: 16),
-                  label: const Text('Unblock Posting'),
+                ActionHelp(
+                  message: AdminHelp.unblockPosting,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _unblock(detail, 'job_posting'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                    icon: const Icon(Icons.lock_open, size: 16),
+                    label: const Text('Unblock Posting'),
+                  ),
                 )
               else
-                OutlinedButton.icon(
-                  onPressed: () => _showBlockDialog(detail, 'job_posting'),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
-                  icon: const Icon(Icons.block, size: 16),
-                  label: const Text('Block Posting'),
+                ActionHelp(
+                  message: AdminHelp.blockPosting,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showBlockDialog(detail, 'job_posting'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                    icon: const Icon(Icons.block, size: 16),
+                    label: const Text('Block Posting'),
+                  ),
                 ),
               if (detail.isActive)
-                OutlinedButton.icon(
-                  onPressed: () => _showBlockDialog(detail, 'full'),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
-                  icon: const Icon(Icons.person_off, size: 16),
-                  label: const Text('Block Profile'),
+                ActionHelp(
+                  message: AdminHelp.blockProfile,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showBlockDialog(detail, 'full'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                    icon: const Icon(Icons.person_off, size: 16),
+                    label: const Text('Block Profile'),
+                  ),
                 )
               else
-                OutlinedButton.icon(
-                  onPressed: () => _unblock(detail, 'full'),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
-                  icon: const Icon(Icons.lock_open, size: 16),
-                  label: const Text('Unblock'),
+                ActionHelp(
+                  message: AdminHelp.unblockProfile,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _unblock(detail, 'full'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.success),
+                    icon: const Icon(Icons.lock_open, size: 16),
+                    label: const Text('Unblock'),
+                  ),
                 ),
             ],
           ),
@@ -344,10 +360,13 @@ class _OrganisationDetailScreenState
                       ],
                     ),
                     if (!_editMode)
-                      TextButton.icon(
-                        onPressed: () => _enterEditMode(detail),
-                        icon: const Icon(Icons.edit, size: 16),
-                        label: const Text('Edit'),
+                      ActionHelp(
+                        message: AdminHelp.editProfile,
+                        child: TextButton.icon(
+                          onPressed: () => _enterEditMode(detail),
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Edit'),
+                        ),
                       ),
                   ],
                 ),
@@ -464,17 +483,22 @@ class _OrganisationDetailScreenState
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            ElevatedButton.icon(
-              onPressed: _savingEdits ? null : () => _saveEdits(detail),
-              icon: _savingEdits
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.check, size: 16),
-              label: const Text('Save Changes'),
+            ActionHelp(
+              message: AdminHelp.saveChanges,
+              child: ElevatedButton.icon(
+                onPressed: _savingEdits ? null : () => _saveEdits(detail),
+                icon: _savingEdits
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check, size: 16),
+                label: const Text('Save Changes'),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
             TextButton.icon(
@@ -537,10 +561,13 @@ class _OrganisationDetailScreenState
                 ],
               ),
               if (!_editingNotes)
-                TextButton.icon(
-                  onPressed: () => _enterEditNotes(detail),
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Edit'),
+                ActionHelp(
+                  message: AdminHelp.editNotes,
+                  child: TextButton.icon(
+                    onPressed: () => _enterEditNotes(detail),
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Edit'),
+                  ),
                 ),
             ],
           ),
@@ -560,16 +587,22 @@ class _OrganisationDetailScreenState
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: _savingNotes ? null : () => _saveNotes(detail),
-                      icon: _savingNotes
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.check, size: 16),
-                      label: const Text('Save Notes'),
+                    ActionHelp(
+                      message: AdminHelp.saveNotes,
+                      child: ElevatedButton.icon(
+                        onPressed: _savingNotes ? null : () => _saveNotes(detail),
+                        icon: _savingNotes
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check, size: 16),
+                        label: const Text('Save Notes'),
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     TextButton.icon(
@@ -614,11 +647,15 @@ class _OrganisationDetailScreenState
                   Text('Audit History', style: TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold)),
                 ],
               ),
-              TextButton.icon(
-                onPressed: () => Navigator.of(context)
-                    .pushNamed('/audit-logs', arguments: widget.userId),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('View full audit log'),
+              ActionHelp(
+                message: AdminHelp.viewFullAuditLog,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).pushNamed('/audit-logs', arguments: widget.userId),
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('View full audit log'),
+                ),
               ),
             ],
           ),

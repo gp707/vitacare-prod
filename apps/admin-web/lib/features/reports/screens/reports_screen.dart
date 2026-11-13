@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The 12 cross-cutting operational reports described in CLAUDE.md's Admin
 /// Reports section (caregivers idle/no-duty, patients with no applicants,
@@ -220,7 +221,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                         const SizedBox(height: AppSpacing.md),
                         _buildParams(),
                         const SizedBox(height: AppSpacing.md),
-                        ElevatedButton(onPressed: _loading ? null : _run, child: const Text('Run')),
+                        ActionHelp(
+                          message: AdminHelp.runReport,
+                          child: ElevatedButton(
+                            onPressed: _loading ? null : _run,
+                            child: const Text('Run'),
+                          ),
+                        ),
                         const SizedBox(height: AppSpacing.md),
                         if (_errorMessage != null)
                           Text(_errorMessage!, style: const TextStyle(color: AppColors.error)),

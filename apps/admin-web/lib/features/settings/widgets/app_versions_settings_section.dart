@@ -4,6 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_versions/data/app_versions_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The "App Versions" tab of the Settings hub — lets an admin force-upgrade
 /// the single JustHeal binary (covers both the caregiver and patient/
@@ -87,21 +88,26 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  await ref.read(appVersionsRepositoryProvider).update(
-                        version.platform,
-                        minVersion: minVersionController.text.trim(),
-                        storeUrl: storeUrlController.text.trim(),
-                        updateMessage: updateMessageController.text.trim(),
-                      );
-                  if (context.mounted) Navigator.of(context).pop(true);
-                } on ApiException catch (e) {
-                  setDialogState(() => dialogError = e.message);
-                }
-              },
-              child: const Text('Save'),
+            ActionHelp(
+              message: AdminHelp.saveMinVersion,
+              child: ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(appVersionsRepositoryProvider)
+                        .update(
+                          version.platform,
+                          minVersion: minVersionController.text.trim(),
+                          storeUrl: storeUrlController.text.trim(),
+                          updateMessage: updateMessageController.text.trim(),
+                        );
+                    if (context.mounted) Navigator.of(context).pop(true);
+                  } on ApiException catch (e) {
+                    setDialogState(() => dialogError = e.message);
+                  }
+                },
+                child: const Text('Save'),
+              ),
             ),
           ],
         ),
@@ -167,7 +173,13 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                           ],
                         ),
                       ),
-                      TextButton(onPressed: () => _showEditDialog(version), child: const Text('Edit')),
+                      ActionHelp(
+                        message: AdminHelp.editMinVersion,
+                        child: TextButton(
+                          onPressed: () => _showEditDialog(version),
+                          child: const Text('Edit'),
+                        ),
+                      ),
                     ],
                   ),
                 ),

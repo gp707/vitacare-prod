@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_push_notifications_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// History of every push notification an admin has composed — pending
 /// (scheduled, not yet due), sent, failed, or cancelled. The only action
@@ -119,10 +120,13 @@ class _PushNotificationsScreenState extends ConsumerState<PushNotificationsScree
             ],
             actions: [
               if (item.status == 'pending')
-                TextButton.icon(
-                  onPressed: () => _cancel(item),
-                  icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
-                  label: const Text('Cancel', style: TextStyle(color: AppColors.error)),
+                ActionHelp(
+                  message: AdminHelp.cancelPush,
+                  child: TextButton.icon(
+                    onPressed: () => _cancel(item),
+                    icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
+                    label: const Text('Cancel', style: TextStyle(color: AppColors.error)),
+                  ),
                 ),
             ],
           );
@@ -152,10 +156,13 @@ class _PushNotificationsScreenState extends ConsumerState<PushNotificationsScree
                     DataCell(Text(item.createdByName)),
                     DataCell(
                       item.status == 'pending'
-                          ? TextButton(
+                          ? ActionHelp(
+                            message: AdminHelp.cancelPush,
+                            child: TextButton(
                               onPressed: () => _cancel(item),
                               child: const Text('Cancel', style: TextStyle(color: AppColors.error)),
-                            )
+                            ),
+                          )
                           : const SizedBox.shrink(),
                     ),
                   ]))

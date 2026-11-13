@@ -4,6 +4,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_maintenance/data/app_maintenance_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The "Maintenance Mode" tab of the Settings hub — lets an admin take the
 /// single JustHeal binary down entirely with a custom message (e.g. "App is
@@ -174,11 +175,18 @@ class _MaintenanceSectionState extends ConsumerState<_MaintenanceSection> {
             style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
           ),
           const SizedBox(height: AppSpacing.sm),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Save'),
+          ActionHelp(
+            message: AdminHelp.saveMaintenance,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
+            ),
           ),
         ],
       ),

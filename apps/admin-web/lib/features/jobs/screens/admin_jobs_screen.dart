@@ -12,6 +12,7 @@ import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
 import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
+import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/admin_notes_dialog.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 
@@ -1317,58 +1318,85 @@ class _JobRow extends StatelessWidget {
       ],
     );
 
-    final actions = Wrap(
-      spacing: AppSpacing.xs,
-      children: [
-        TextButton.icon(
+  final actions = Wrap(
+    spacing: AppSpacing.xs,
+    children: [
+      ActionHelp(
+        message: JobActionHelp.edit(
+          pendingReview: job.status == JobStatus.pendingReview,
+          closed: job.status == JobStatus.closed,
+        ),
+        child: TextButton.icon(
           onPressed: onEdit,
           icon: const Icon(Icons.edit, size: 16),
           label: const Text('Edit'),
         ),
-        TextButton.icon(
+      ),
+      ActionHelp(
+        message: JobActionHelp.applicants,
+        child: TextButton.icon(
           onPressed: onViewApplications,
           icon: const Icon(Icons.people_outline, size: 16),
           label: const Text('Applicants'),
         ),
-        TextButton.icon(
+      ),
+      ActionHelp(
+        message: JobActionHelp.notes,
+        child: TextButton.icon(
           onPressed: onNotes,
           icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
           label: const Text('Notes'),
         ),
-        if (onRemind != null)
-          TextButton.icon(
+      ),
+      if (onRemind != null)
+        ActionHelp(
+          message: JobActionHelp.remind,
+          child: TextButton.icon(
             onPressed: onRemind,
             icon: const Icon(Icons.notifications_active_outlined, size: 16),
             label: const Text('Remind'),
           ),
-        if (onClose != null)
-          TextButton.icon(
+        ),
+      if (onClose != null)
+        ActionHelp(
+          message: JobActionHelp.close,
+          child: TextButton.icon(
             onPressed: onClose,
             icon: const Icon(Icons.lock_outline, size: 16),
             label: const Text('Close'),
           ),
-        if (onMovePendingReview != null)
-          TextButton.icon(
+        ),
+      if (onMovePendingReview != null)
+        ActionHelp(
+          message: JobActionHelp.movePendingReview,
+          child: TextButton.icon(
             onPressed: onMovePendingReview,
             icon: const Icon(Icons.undo, size: 16),
             label: const Text('Move to Pending Review'),
           ),
-        if (onApprove != null)
-          TextButton.icon(
+        ),
+      if (onApprove != null)
+        ActionHelp(
+          message: JobActionHelp.approve,
+          child: TextButton.icon(
             onPressed: onApprove,
             style: TextButton.styleFrom(foregroundColor: AppColors.success),
             icon: const Icon(Icons.check, size: 16),
             label: const Text('Approve'),
           ),
-        if (onReject != null)
-          TextButton.icon(
+        ),
+      if (onReject != null)
+        ActionHelp(
+          message: JobActionHelp.reject,
+          child: TextButton.icon(
             onPressed: onReject,
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             icon: const Icon(Icons.close, size: 16),
             label: const Text('Reject'),
           ),
-      ],
-    );
+        ),
+    ],
+  );
 
     return Material(
       color: Colors.transparent,

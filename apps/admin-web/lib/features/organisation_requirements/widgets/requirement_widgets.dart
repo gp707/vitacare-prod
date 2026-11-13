@@ -6,6 +6,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/admin_organisation_requirements_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
+import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
@@ -139,45 +140,70 @@ class RequirementRow extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 children: [
-                  TextButton(
-                      onPressed: onViewApplicants,
-                      child: const Text('Applicants')),
+                  ActionHelp(
+                    message: JobActionHelp.applicants,
+                    child: TextButton(
+                        onPressed: onViewApplicants,
+                        child: const Text('Applicants')),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
                     child: ApplicantSummaryLine(
                         summary: requirement.applicantSummary),
                   ),
-                  TextButton(onPressed: onEdit, child: const Text('Edit')),
-                  TextButton.icon(
-                    onPressed: onNotes,
-                    icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
-                    label: const Text('Notes'),
+                  ActionHelp(
+                    message: JobActionHelp.editRequirement(
+                        pendingReview:
+                            requirement.status == JobStatus.pendingReview,
+                        closed: requirement.status == JobStatus.closed),
+                    child: TextButton(
+                        onPressed: onEdit, child: const Text('Edit')),
+                  ),
+                  ActionHelp(
+                    message: JobActionHelp.notesOrganisation,
+                    child: TextButton.icon(
+                      onPressed: onNotes,
+                      icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
+                      label: const Text('Notes'),
+                    ),
                   ),
                   if (onRemind != null)
-                    TextButton.icon(
-                      onPressed: onRemind,
-                      icon: const Icon(Icons.notifications_active_outlined,
-                          size: 16),
-                      label: const Text('Remind'),
+                    ActionHelp(
+                      message: JobActionHelp.remindRequirement,
+                      child: TextButton.icon(
+                        onPressed: onRemind,
+                        icon: const Icon(Icons.notifications_active_outlined,
+                            size: 16),
+                        label: const Text('Remind'),
+                      ),
                     ),
                   if (onMovePendingReview != null)
-                    TextButton.icon(
-                      onPressed: onMovePendingReview,
-                      icon: const Icon(Icons.undo, size: 16),
-                      label: const Text('Move to Pending Review'),
+                    ActionHelp(
+                      message: JobActionHelp.movePendingReview,
+                      child: TextButton.icon(
+                        onPressed: onMovePendingReview,
+                        icon: const Icon(Icons.undo, size: 16),
+                        label: const Text('Move to Pending Review'),
+                      ),
                     ),
                   if (onApprove != null)
-                    TextButton.icon(
-                      onPressed: onApprove,
-                      style: TextButton.styleFrom(
-                          foregroundColor: AppColors.success),
-                      icon: const Icon(Icons.check, size: 16),
-                      label: const Text('Approve'),
+                    ActionHelp(
+                      message: JobActionHelp.approve,
+                      child: TextButton.icon(
+                        onPressed: onApprove,
+                        style: TextButton.styleFrom(
+                            foregroundColor: AppColors.success),
+                        icon: const Icon(Icons.check, size: 16),
+                        label: const Text('Approve'),
+                      ),
                     ),
                   if (onReject != null)
-                    TextButton(
-                        onPressed: onReject, child: const Text('Reject')),
+                    ActionHelp(
+                      message: JobActionHelp.reject,
+                      child: TextButton(
+                          onPressed: onReject, child: const Text('Reject')),
+                    ),
                 ],
               ),
             ],

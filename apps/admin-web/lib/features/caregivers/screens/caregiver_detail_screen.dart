@@ -17,6 +17,7 @@ import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// Allowed status action buttons per SPEC.md 13.3 — every field (including
 /// what used to be "Advanced Details") is now collected at registration, so
@@ -399,29 +400,40 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
     final actions = _statusActions[detail.verificationStatus] ?? [];
     for (final action in actions) {
       if (action == 'rejected') {
-        buttons.add(OutlinedButton.icon(
-          onPressed: _actionInFlight ? null : _showRejectDialog,
-          style: OutlinedButton.styleFrom(
+        buttons.add(ActionHelp(
+          message: AdminHelp.caregiverReject,
+          child: OutlinedButton.icon(
+            onPressed: _actionInFlight ? null : _showRejectDialog,
+            style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.error,
-              side: const BorderSide(color: AppColors.error)),
-          icon: const Icon(Icons.close, size: 16),
-          label: const Text('Reject'),
+              side: const BorderSide(color: AppColors.error),
+            ),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Reject'),
+          ),
         ));
       } else if (action == 'available') {
-        buttons.add(ElevatedButton.icon(
-          onPressed: _actionInFlight ? null : () => _updateStatus('available'),
-          style: ElevatedButton.styleFrom(
+        buttons.add(ActionHelp(
+          message: AdminHelp.caregiverApprove,
+          child: ElevatedButton.icon(
+            onPressed: _actionInFlight ? null : () => _updateStatus('available'),
+            style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
-              foregroundColor: Colors.white),
-          icon: const Icon(Icons.check, size: 16),
-          label: const Text('Approve'),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Approve'),
+          ),
         ));
       }
     }
-    buttons.add(OutlinedButton.icon(
-      onPressed: () => _resetPin(detail),
-      icon: const Icon(Icons.password, size: 16),
-      label: const Text('Reset PIN'),
+    buttons.add(ActionHelp(
+      message: AdminHelp.resetPin,
+      child: OutlinedButton.icon(
+        onPressed: () => _resetPin(detail),
+        icon: const Icon(Icons.password, size: 16),
+        label: const Text('Reset PIN'),
+      ),
     ));
     return Wrap(spacing: AppSpacing.sm, children: buttons);
   }
@@ -487,25 +499,27 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     labelText: 'Rejection message (optional)', isDense: true),
               ),
             ),
-          ElevatedButton.icon(
-            onPressed: (_actionInFlight || _overrideStatus == null)
-                ? null
-                : () {
-                    final status = _overrideStatus!;
-                    final rejectionMessage =
-                        status == VerificationStatus.rejected
-                            ? (_overrideRejectionController.text.trim().isEmpty
+          ActionHelp(
+            message: AdminHelp.setStatus,
+            child: ElevatedButton.icon(
+              onPressed: (_actionInFlight || _overrideStatus == null)
+                  ? null
+                  : () {
+                      final status = _overrideStatus!;
+                      final rejectionMessage = status == VerificationStatus.rejected
+                          ? (_overrideRejectionController.text.trim().isEmpty
                                 ? null
                                 : _overrideRejectionController.text.trim())
-                            : null;
-                    setState(() {
-                      _overrideStatus = null;
-                      _overrideRejectionController.clear();
-                    });
-                    _updateStatus(status, rejectionMessage: rejectionMessage);
-                  },
-            icon: const Icon(Icons.check, size: 16),
-            label: const Text('Set Status'),
+                          : null;
+                      setState(() {
+                        _overrideStatus = null;
+                        _overrideRejectionController.clear();
+                      });
+                      _updateStatus(status, rejectionMessage: rejectionMessage);
+                    },
+              icon: const Icon(Icons.check, size: 16),
+              label: const Text('Set Status'),
+            ),
           ),
         ],
       ),
@@ -537,11 +551,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     icon: const Icon(Icons.close, size: 16),
                     label: const Text('Cancel'),
                   )
-                : OutlinedButton.icon(
+                : ActionHelp(
+                  message: AdminHelp.editProfile,
+                  child: OutlinedButton.icon(
                     onPressed: () => _enterEditMode(detail),
                     icon: const Icon(Icons.edit, size: 16),
                     label: const Text('Edit'),
                   ),
+                ),
           ),
           const SizedBox(height: AppSpacing.sm),
           if (_editMode)
@@ -780,17 +797,22 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        ElevatedButton.icon(
-          onPressed: _savingEdits ? null : () => _saveProfileEdits(detail),
-          icon: _savingEdits
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.check, size: 16),
-          label: const Text('Save Changes'),
+        ActionHelp(
+          message: AdminHelp.saveChanges,
+          child: ElevatedButton.icon(
+            onPressed: _savingEdits ? null : () => _saveProfileEdits(detail),
+            icon: _savingEdits
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check, size: 16),
+            label: const Text('Save Changes'),
+          ),
         ),
       ],
     );
@@ -844,11 +866,14 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     height: 20,
                     width: 20,
                     child: VitaLoadingIndicator(size: 20))
-                : OutlinedButton.icon(
+                : ActionHelp(
+                  message: AdminHelp.addOtherDocument,
+                  child: OutlinedButton.icon(
                     onPressed: () => _pickAndUploadDocument(DocumentType.other),
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Add Other Document'),
                   ),
+                ),
           ],
         ],
       ),
@@ -877,19 +902,23 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
             child: url == null
                 ? const Text('Not uploaded',
                     style: TextStyle(color: AppColors.textSecondary))
-                : TextButton.icon(
-                    onPressed: () =>
-                        launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'),
+                : ActionHelp(
+                  message: AdminHelp.viewDownload,
+                  child: TextButton.icon(
+                    onPressed: () => launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'),
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: const Text('View / Download'),
                   ),
+                ),
           ),
           if (url != null && documentType != null) ...[
-            TextButton.icon(
-              onPressed: () =>
-                  _showDocumentHistory(label, documentType, slotIndex),
-              icon: const Icon(Icons.history, size: 16),
-              label: const Text('History'),
+            ActionHelp(
+              message: AdminHelp.documentHistory,
+              child: TextButton.icon(
+                onPressed: () => _showDocumentHistory(label, documentType, slotIndex),
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('History'),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
@@ -950,10 +979,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                 border: OutlineInputBorder()),
           ),
           const SizedBox(height: AppSpacing.lg),
-          ElevatedButton.icon(
+          ActionHelp(
+            message:
+                'Saves the internal notes and availability remarks. Only admins see them; they are never shown to the caregiver or to employers.',
+            child: ElevatedButton.icon(
               onPressed: _actionInFlight ? null : _saveNotes,
               icon: const Icon(Icons.check, size: 16),
-              label: const Text('Save')),
+              label: const Text('Save'),
+            ),
+          ),
         ],
       ),
     );
@@ -967,11 +1001,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
         children: [
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => Navigator.of(context)
-                  .pushNamed('/audit-logs', arguments: detail.userId),
-              icon: const Icon(Icons.history, size: 16),
-              label: const Text('View full audit log'),
+            child: ActionHelp(
+              message: AdminHelp.viewFullAuditLog,
+              child: TextButton.icon(
+                onPressed: () => Navigator.of(
+                  context,
+                ).pushNamed('/audit-logs', arguments: detail.userId),
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('View full audit log'),
+              ),
             ),
           ),
           ScopedAuditHistorySection(
@@ -1175,11 +1213,14 @@ class _DocumentHistoryDialogState
                                 ],
                               ),
                             ),
-                            TextButton.icon(
-                              onPressed: () => launchUrl(Uri.parse(v.signedUrl),
-                                  webOnlyWindowName: '_blank'),
-                              icon: const Icon(Icons.open_in_new, size: 16),
-                              label: const Text('View'),
+                            ActionHelp(
+                              message: AdminHelp.viewDownload,
+                              child: TextButton.icon(
+                                onPressed: () =>
+                                    launchUrl(Uri.parse(v.signedUrl), webOnlyWindowName: '_blank'),
+                                icon: const Icon(Icons.open_in_new, size: 16),
+                                label: const Text('View'),
+                              ),
                             ),
                             // Deleting the current version is refused
                             // server-side (UPLOAD_007) — offered here
@@ -1196,7 +1237,7 @@ class _DocumentHistoryDialogState
                                       onPressed: () => _deleteVersion(v),
                                       icon: const Icon(Icons.delete_outline,
                                           size: 18, color: AppColors.error),
-                                      tooltip: 'Delete this version',
+                                      tooltip: AdminHelp.deleteVersion,
                                     ),
                           ],
                         ),

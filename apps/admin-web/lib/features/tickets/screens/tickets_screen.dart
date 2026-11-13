@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_tickets_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// Support tickets — currently only ever created by the "Forgot PIN" link
 /// on any login screen (caregiver, individual, organisation): there's no
@@ -193,10 +194,13 @@ class _TicketsScreenState extends ConsumerState<TicketsScreen> {
             ],
             actions: [
               if (item.status == 'open')
-                ElevatedButton.icon(
-                  onPressed: () => _resolve(item),
-                  icon: const Icon(Icons.check, size: 16),
-                  label: const Text('Resolve'),
+                ActionHelp(
+                  message: AdminHelp.resolveTicket,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _resolve(item),
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Resolve'),
+                  ),
                 ),
             ],
           );
@@ -228,10 +232,13 @@ class _TicketsScreenState extends ConsumerState<TicketsScreen> {
                     DataCell(Text(item.createdAt.split('T').first)),
                     DataCell(
                       item.status == 'open'
-                          ? ElevatedButton(
+                          ? ActionHelp(
+                            message: AdminHelp.resolveTicket,
+                            child: ElevatedButton(
                               onPressed: () => _resolve(item),
                               child: const Text('Resolve'),
-                            )
+                            ),
+                          )
                           : Text(item.resolvedByName != null ? 'By ${item.resolvedByName}' : '-'),
                     ),
                   ]))

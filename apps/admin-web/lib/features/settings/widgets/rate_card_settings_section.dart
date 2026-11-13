@@ -6,6 +6,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../jobs/widgets/scope_of_work_button.dart' show tierIcon;
 import '../../rate_card/data/rate_card_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The "Rate Card" tab of the Settings hub — lets an admin edit the
 /// salary-guidance grids shown behind a persistent app-bar icon on
@@ -219,12 +220,18 @@ class _RateCardSectionState extends ConsumerState<_RateCardSection> {
                 style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
               ),
             ),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Save'),
+          ActionHelp(
+            message: AdminHelp.saveRateCard,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
+            ),
           ),
         ],
       ),

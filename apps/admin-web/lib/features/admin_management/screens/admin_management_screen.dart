@@ -7,6 +7,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_users_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 class AdminManagementScreen extends ConsumerStatefulWidget {
   const AdminManagementScreen({super.key});
@@ -264,10 +265,13 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  ElevatedButton.icon(
-                    onPressed: _showCreateDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Admin'),
+                  ActionHelp(
+                    message: AdminHelp.createAdmin,
+                    child: ElevatedButton.icon(
+                      onPressed: _showCreateDialog,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create Admin'),
+                    ),
                   ),
                 ],
               ),
@@ -317,25 +321,25 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                         IconButton(
                           onPressed: () => _confirmMakeSuperAdmin(admin),
                           icon: const Icon(Icons.upgrade),
-                          tooltip: 'Make Super Admin',
+                          tooltip: AdminHelp.makeSuperAdmin,
                         ),
                       IconButton(
                         onPressed: () => _confirmDeactivate(admin),
                         icon: const Icon(Icons.block, color: AppColors.error),
-                        tooltip: 'Deactivate',
+                        tooltip: AdminHelp.deactivateAdmin,
                       ),
                     ] else
                       IconButton(
                         onPressed: () => _activate(admin),
                         icon: const Icon(Icons.check_circle_outline,
                             color: AppColors.success),
-                        tooltip: 'Activate',
+                        tooltip: AdminHelp.activateAdmin,
                       ),
                     IconButton(
                       onPressed: () => _confirmDelete(admin),
                       icon: const Icon(Icons.delete_outline,
                           color: AppColors.error),
-                      tooltip: 'Delete',
+                      tooltip: AdminHelp.deleteAdmin,
                     ),
                   ],
                 ),

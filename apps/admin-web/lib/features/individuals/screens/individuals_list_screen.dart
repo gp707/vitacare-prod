@@ -11,6 +11,7 @@ import '../../../shared/widgets/recipient_cart_bar.dart';
 import '../../../shared/state/recipient_selection_cart.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_individuals_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// NurseNow patient/family accounts. No verification pipeline like
 /// caregivers — just the two admin block levers (job-posting-only vs full
@@ -460,10 +461,13 @@ class _ActionsCell extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextButton.icon(
-          onPressed: onViewJobs,
-          icon: const Icon(Icons.work_outline, size: 16),
-          label: const Text('View Jobs'),
+        ActionHelp(
+          message: AdminHelp.viewJobsPosted,
+          child: TextButton.icon(
+            onPressed: onViewJobs,
+            icon: const Icon(Icons.work_outline, size: 16),
+            label: const Text('View Jobs'),
+          ),
         ),
         PopupMenuButton<VoidCallback>(
           tooltip: 'More actions',
@@ -472,22 +476,50 @@ class _ActionsCell extends StatelessWidget {
             if (item.isJobPostingBlocked)
               PopupMenuItem(
                 value: onUnblockJobPosting,
-                child: const _MenuLabel(icon: Icons.lock_open, color: AppColors.success, label: 'Unblock Posting'),
+                child: ActionHelp(
+                  message: AdminHelp.unblockPosting,
+                  child: const _MenuLabel(
+                    icon: Icons.lock_open,
+                    color: AppColors.success,
+                    label: 'Unblock Posting',
+                  ),
+                ),
               )
             else
               PopupMenuItem(
                 value: onBlockJobPosting,
-                child: const _MenuLabel(icon: Icons.block, color: AppColors.error, label: 'Block Posting'),
+                child: ActionHelp(
+                  message: AdminHelp.blockPosting,
+                  child: const _MenuLabel(
+                    icon: Icons.block,
+                    color: AppColors.error,
+                    label: 'Block Posting',
+                  ),
+                ),
               ),
             if (item.isActive)
               PopupMenuItem(
                 value: onBlockFull,
-                child: const _MenuLabel(icon: Icons.person_off, color: AppColors.error, label: 'Block Profile'),
+                child: ActionHelp(
+                  message: AdminHelp.blockProfile,
+                  child: const _MenuLabel(
+                    icon: Icons.person_off,
+                    color: AppColors.error,
+                    label: 'Block Profile',
+                  ),
+                ),
               )
             else
               PopupMenuItem(
                 value: onUnblockFull,
-                child: const _MenuLabel(icon: Icons.lock_open, color: AppColors.success, label: 'Unblock'),
+                child: ActionHelp(
+                  message: AdminHelp.unblockProfile,
+                  child: const _MenuLabel(
+                    icon: Icons.lock_open,
+                    color: AppColors.success,
+                    label: 'Unblock',
+                  ),
+                ),
               ),
           ],
         ),

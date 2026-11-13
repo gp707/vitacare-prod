@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The "Duty Requirements" tab of the Settings hub — lets an admin edit the
 /// 3 independent bullet lists (24Hrs Live-In / Day Shift / Night Shift)
@@ -149,12 +150,18 @@ class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequiremen
               style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
             ),
           ),
-        ElevatedButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
+        ActionHelp(
+          message: AdminHelp.saveDutyRequirements,
+          child: ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save'),
+          ),
         ),
       ],
     );
@@ -190,7 +197,7 @@ class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequiremen
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                    tooltip: 'Remove bullet',
+                    tooltip: AdminHelp.removeBullet,
                     onPressed: () {
                       final updated = [...controllers];
                       updated.removeAt(i).dispose();
@@ -200,10 +207,13 @@ class _DutyRequirementsSettingsSectionState extends ConsumerState<DutyRequiremen
                 ],
               ),
             ),
-          TextButton.icon(
-            onPressed: () => onChanged([...controllers, TextEditingController()]),
-            icon: const Icon(Icons.add),
-            label: const Text('Add bullet'),
+          ActionHelp(
+            message: AdminHelp.addBullet,
+            child: TextButton.icon(
+              onPressed: () => onChanged([...controllers, TextEditingController()]),
+              icon: const Icon(Icons.add),
+              label: const Text('Add bullet'),
+            ),
           ),
         ],
       ),

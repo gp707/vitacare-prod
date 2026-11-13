@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../state/recipient_selection_cart.dart';
 import '../../features/push_notifications/widgets/compose_notification_dialog.dart';
+import '../../shared/widgets/action_help.dart';
 
 /// Shown at the bottom of the Caregivers/Patients-Family/Rehab-Hospitals
 /// list screens whenever the recipient selection cart is non-empty — the
@@ -36,19 +37,25 @@ class RecipientCartBar extends ConsumerWidget {
             Expanded(
               child: Text('$summary selected', style: const TextStyle(color: Colors.white)),
             ),
-            TextButton(
-              onPressed: () => ref.read(recipientSelectionCartProvider.notifier).clear(),
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
-              child: const Text('Clear'),
+            ActionHelp(
+              message: AdminHelp.clearSelection,
+              child: TextButton(
+                onPressed: () => ref.read(recipientSelectionCartProvider.notifier).clear(),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                child: const Text('Clear'),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            ElevatedButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const ComposeNotificationDialog(),
+            ActionHelp(
+              message: AdminHelp.notifySelected,
+              child: ElevatedButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const ComposeNotificationDialog(),
+                ),
+                icon: const Icon(Icons.send, size: 16),
+                label: const Text('Notify Selected'),
               ),
-              icon: const Icon(Icons.send, size: 16),
-              label: const Text('Notify Selected'),
             ),
           ],
         ),

@@ -10,6 +10,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_error_logs_repository.dart';
+import '../../../shared/widgets/action_help.dart';
 
 String _roleLabel(String? role) {
   switch (role) {
@@ -451,7 +452,13 @@ class _ErrorsTabState extends ConsumerState<_ErrorsTab> with AutomaticKeepAliveC
             ],
             actions: [
               if (item.hasCustomer) ContactButtons(phone: item.userPhone!),
-              if (!item.isResolved) TextButton(onPressed: () => _resolve(item), child: const Text('Resolve')),
+              if (!item.isResolved) ActionHelp(
+                message: AdminHelp.resolveError,
+                child: TextButton(
+                  onPressed: () => _resolve(item),
+                  child: const Text('Resolve'),
+                ),
+              ),
             ],
           );
         },
@@ -493,7 +500,13 @@ class _ErrorsTabState extends ConsumerState<_ErrorsTab> with AutomaticKeepAliveC
                         children: [
                           if (item.hasCustomer) ContactButtons(phone: item.userPhone!),
                           if (!item.isResolved)
-                            TextButton(onPressed: () => _resolve(item), child: const Text('Resolve')),
+                            ActionHelp(
+                              message: AdminHelp.resolveError,
+                              child: TextButton(
+                                onPressed: () => _resolve(item),
+                                child: const Text('Resolve'),
+                              ),
+                            ),
                         ],
                       )),
                     ],
@@ -657,9 +670,21 @@ class _AffectedUsersTabState extends ConsumerState<_AffectedUsersTab> with Autom
             ],
             actions: [
               ContactButtons(phone: user.phone),
-              TextButton(onPressed: () => widget.onViewErrors(user), child: const Text('View errors')),
+              ActionHelp(
+                message: AdminHelp.viewErrors,
+                child: TextButton(
+                  onPressed: () => widget.onViewErrors(user),
+                  child: const Text('View errors'),
+                ),
+              ),
               if (user.openCount > 0)
-                TextButton(onPressed: () => _markContacted(user), child: const Text('Mark contacted')),
+                ActionHelp(
+                  message: AdminHelp.markContacted,
+                  child: TextButton(
+                    onPressed: () => _markContacted(user),
+                    child: const Text('Mark contacted'),
+                  ),
+                ),
             ],
           );
         },
@@ -699,9 +724,21 @@ class _AffectedUsersTabState extends ConsumerState<_AffectedUsersTab> with Autom
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           ContactButtons(phone: user.phone),
-                          TextButton(onPressed: () => widget.onViewErrors(user), child: const Text('View errors')),
+                          ActionHelp(
+                            message: AdminHelp.viewErrors,
+                            child: TextButton(
+                              onPressed: () => widget.onViewErrors(user),
+                              child: const Text('View errors'),
+                            ),
+                          ),
                           if (user.openCount > 0)
-                            TextButton(onPressed: () => _markContacted(user), child: const Text('Mark contacted')),
+                            ActionHelp(
+                              message: AdminHelp.markContacted,
+                              child: TextButton(
+                                onPressed: () => _markContacted(user),
+                                child: const Text('Mark contacted'),
+                              ),
+                            ),
                         ],
                       )),
                     ],

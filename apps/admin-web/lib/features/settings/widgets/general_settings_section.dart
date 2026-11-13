@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/action_help.dart';
 
 /// The "General" tab of the Settings hub: the apply-by urgency window (how
 /// many days a job stays flagged "new"/urgent to caregivers before showing
@@ -129,13 +130,19 @@ class _GeneralSettingsSectionState extends ConsumerState<GeneralSettingsSection>
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                     ),
                   ),
-                ElevatedButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.check, size: 18),
-                  label: const Text('Save'),
+                ActionHelp(
+                  message: AdminHelp.saveApplyByWindow,
+                  child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check, size: 18),
+                    label: const Text('Save'),
+                  ),
                 ),
               ],
             ),
@@ -265,12 +272,19 @@ class _AuditLogRetentionCardState extends ConsumerState<_AuditLogRetentionCard> 
                 style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
               ),
             ),
-          ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.check, size: 18),
-            label: const Text('Save'),
+          ActionHelp(
+            message: AdminHelp.saveAuditRetention,
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Save'),
+            ),
           ),
         ],
       ),
@@ -432,13 +446,19 @@ class _ChangePasswordCardState extends ConsumerState<_ChangePasswordCard> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.check, size: 18),
-            label: const Text('Change Password'),
+          ActionHelp(
+            message: AdminHelp.changePassword,
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Change Password'),
+            ),
           ),
         ],
       ),

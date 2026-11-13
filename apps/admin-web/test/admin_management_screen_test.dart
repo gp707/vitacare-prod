@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:admin_web/shared/widgets/action_help.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:admin_web/core/providers.dart';
@@ -107,9 +108,9 @@ void main() {
     await _pump(tester, repo);
 
     expect(find.text('Super Admin'), findsOneWidget);
-    expect(find.byTooltip('Make Super Admin'), findsNothing);
-    expect(find.byTooltip('Deactivate'), findsOneWidget);
-    expect(find.byTooltip('Delete'), findsOneWidget);
+    expect(find.byTooltip(AdminHelp.makeSuperAdmin), findsNothing);
+    expect(find.byTooltip(AdminHelp.deactivateAdmin), findsOneWidget);
+    expect(find.byTooltip(AdminHelp.deleteAdmin), findsOneWidget);
   });
 
   testWidgets('your own row has no deactivate or delete actions',
@@ -119,8 +120,8 @@ void main() {
     await _pump(tester, repo);
 
     expect(find.text('You'), findsOneWidget);
-    expect(find.byTooltip('Deactivate'), findsNothing);
-    expect(find.byTooltip('Delete'), findsNothing);
+    expect(find.byTooltip(AdminHelp.deactivateAdmin), findsNothing);
+    expect(find.byTooltip(AdminHelp.deleteAdmin), findsNothing);
   });
 
   testWidgets('tapping Delete and confirming deletes the admin and removes the row',
@@ -128,7 +129,7 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(find.byTooltip(AdminHelp.deleteAdmin));
     await tester.pumpAndSettle();
     expect(find.text('Delete admin?'), findsOneWidget);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Delete'));
@@ -142,7 +143,7 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(find.byTooltip(AdminHelp.deleteAdmin));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
@@ -162,9 +163,9 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
-    expect(find.byTooltip('Make Super Admin'), findsOneWidget);
-    expect(find.byTooltip('Deactivate'), findsOneWidget);
-    expect(find.byTooltip('Activate'), findsNothing);
+    expect(find.byTooltip(AdminHelp.makeSuperAdmin), findsOneWidget);
+    expect(find.byTooltip(AdminHelp.deactivateAdmin), findsOneWidget);
+    expect(find.byTooltip(AdminHelp.activateAdmin), findsNothing);
   });
 
   testWidgets('tapping Make Super Admin, confirming, calls updateRole',
@@ -172,7 +173,7 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.byTooltip('Make Super Admin'));
+    await tester.tap(find.byTooltip(AdminHelp.makeSuperAdmin));
     await tester.pumpAndSettle();
     expect(find.text('Make Super Admin?'), findsOneWidget);
 
@@ -188,7 +189,7 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin()]);
     await _pump(tester, repo);
 
-    await tester.tap(find.byTooltip('Make Super Admin'));
+    await tester.tap(find.byTooltip(AdminHelp.makeSuperAdmin));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
@@ -203,8 +204,8 @@ void main() {
     await _pump(tester, repo);
 
     expect(find.text('Deactivated'), findsOneWidget);
-    expect(find.byTooltip('Activate'), findsOneWidget);
-    expect(find.byTooltip('Deactivate'), findsNothing);
+    expect(find.byTooltip(AdminHelp.activateAdmin), findsOneWidget);
+    expect(find.byTooltip(AdminHelp.deactivateAdmin), findsNothing);
   });
 
   testWidgets('tapping Activate calls the repository and refreshes to Active',
@@ -212,7 +213,7 @@ void main() {
     final repo = _FakeAdminUsersRepository([_admin(isActive: false)]);
     await _pump(tester, repo);
 
-    await tester.tap(find.byTooltip('Activate'));
+    await tester.tap(find.byTooltip(AdminHelp.activateAdmin));
     await tester.pumpAndSettle();
 
     expect(repo.activatedUserId, 'admin-1');
