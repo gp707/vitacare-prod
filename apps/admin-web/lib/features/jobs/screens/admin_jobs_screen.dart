@@ -1381,30 +1381,16 @@ class _JobRow extends StatelessWidget {
             border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(AppSpacing.sm),
           ),
-          // Below the mobile breakpoint the action buttons no longer
-          // reliably fit beside the content column (a Row's non-flexible
-          // children don't wrap on their own) — stack them below instead.
-          // Above it, the existing side-by-side layout has always had
-          // enough room.
-          child: context.isMobile
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    content,
-                    const SizedBox(height: AppSpacing.sm),
-                    actions
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: content),
-                    // Capped so the (now wider) button set wraps onto a
-                    // second line instead of overflowing the row.
-                    ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: actions),
-                  ],
-                ),
+          // Buttons always sit below the job's details, like an organisation
+          // requirement's row (RequirementRow), on every screen width.
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              content,
+              const SizedBox(height: AppSpacing.sm),
+              actions,
+            ],
+          ),
         ),
       ),
     );
