@@ -13,6 +13,7 @@ class ErrorCodes {
     'AUTH_008': 'Invalid code',
     'AUTH_015': 'Current password is incorrect',
     'AUTH_016': 'This phone number is already registered under a different account type',
+    'AUTH_017': 'Too many wrong PINs — please wait a few minutes and try again',
 
     // Profile
     'PROFILE_001': 'Full name is required',

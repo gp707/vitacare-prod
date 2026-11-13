@@ -15,6 +15,7 @@ import '../widgets/job_read_only_detail_dialog.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/admin_notes_dialog.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
@@ -367,6 +368,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   }
 
   Future<void> _close(JobModel job) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Close ${jobDisplayId(job)}?',
+      message: 'Caregivers will no longer see this job or be able to apply.',
+      details: [
+        'Caregivers who applied but were not accepted are told it is no longer accepting applications.',
+        'An already accepted caregiver stays accepted.',
+        'To open it again, use Edit and save.',
+      ],
+      confirmLabel: 'Close job',
+      destructive: true,
+    );
+    if (!ok) return;
     try {
       await ref.read(adminJobsRepositoryProvider).close(job.id);
       await _load();
@@ -379,6 +393,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   }
 
   Future<void> _remind(JobModel job) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Send reminder for ${jobDisplayId(job)}?',
+      message:
+          'A push notification goes out right now to every caregiver who can apply. It cannot be taken back.',
+      confirmLabel: 'Send reminder',
+    );
+    if (!ok) return;
     try {
       await ref.read(adminJobsRepositoryProvider).remind(job.id);
       if (mounted) {
@@ -595,6 +617,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   Future<void> _remindRequirement(
       AdminOrganisationRequirement requirement) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Send reminder?',
+      message:
+          'A push notification goes out right now to every caregiver who can apply. It cannot be taken back.',
+      confirmLabel: 'Send reminder',
+    );
+    if (!ok) return;
     try {
       await ref
           .read(adminOrganisationRequirementsRepositoryProvider)
@@ -1899,6 +1929,20 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   }
 
   Future<void> _submit() async {
+    if (_isEditing) {
+      final status = widget.job!.status;
+      final ok = await confirmAction(
+        context,
+        title: 'Save changes to ${jobDisplayId(widget.job!)}?',
+        message: status == JobStatus.pendingReview
+            ? 'This job is waiting for review. Saving APPROVES it: it goes live and every caregiver who can apply is notified.'
+            : status == JobStatus.closed
+                ? 'This job is closed. Saving REOPENS it: it goes live again and every caregiver who can apply is notified.'
+                : 'The job stays live. If the place, shift, start date or pay changed, caregivers who applied are told.',
+        confirmLabel: 'Save changes',
+      );
+      if (!ok) return;
+    }
     setState(() {
       _submitting = true;
       _errorMessage = null;

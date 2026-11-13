@@ -5,6 +5,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_maintenance/data/app_maintenance_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// The "Maintenance Mode" tab of the Settings hub — lets an admin take the
 /// single JustHeal binary down entirely with a custom message (e.g. "App is
@@ -110,6 +111,16 @@ class _MaintenanceSectionState extends ConsumerState<_MaintenanceSection> {
   }
 
   Future<void> _save() async {
+    final ok = await confirmAction(
+      context,
+      title: _enabled ? 'Turn maintenance mode ON?' : 'Save maintenance settings?',
+      message: _enabled
+          ? 'EVERY user of the app (caregivers, patients and organisations) is blocked immediately and sees your message until you turn this off.'
+          : 'Maintenance mode is off, so the app stays open to everyone.',
+      confirmLabel: _enabled ? 'Turn ON' : 'Save',
+      destructive: _enabled,
+    );
+    if (!ok) return;
     setState(() {
       _saving = true;
       _errorMessage = null;

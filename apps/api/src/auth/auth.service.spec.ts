@@ -1,3 +1,4 @@
+import { LoginThrottleService } from './login-throttle.service';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { AppException } from '../common/exceptions/app.exception';
@@ -82,6 +83,7 @@ describe('AuthService', () => {
       emailService,
       auditService,
       loginAttempts as any,
+      new LoginThrottleService(),
     );
   });
 
@@ -439,6 +441,54 @@ describe('AuthService', () => {
       await expect(
         service.loginCode({ phone: baseUser.phone, code: '9999', app: 'nursejobs' }),
       ).rejects.toMatchObject({ code: 'AUTH_008' });
+    });
+
+    describe('wrong-PIN lockout', () => {
+      const wrongPin = () => service.loginCode({ phone: baseUser.phone, code: '9999', app: 'nursejobs' });
+      const rightPin = () => service.loginCode({ phone: baseUser.phone, code: '1234', app: 'nursejobs' });
+
+      beforeEach(async () => {
+        const codeHash = await bcrypt.hash('1234', 4);
+        usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, code_hash: codeHash });
+        caregiverProfilesRepo.findByUserId.mockResolvedValue({
+          verification_status: VerificationStatus.AVAILABLE,
+        });
+      });
+
+      it('pauses the account after 7 wrong PINs, even for the correct PIN', async () => {
+        for (let i = 0; i < 7; i++) {
+          await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+        }
+        await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_017' });
+        await expect(rightPin()).rejects.toMatchObject({ code: 'AUTH_017' });
+      });
+
+      it('does not pause on 6 wrong PINs, and a correct PIN then clears the count', async () => {
+        for (let i = 0; i < 6; i++) await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+        await expect(rightPin()).resolves.toBeDefined();
+        for (let i = 0; i < 6; i++) await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+        await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+      });
+
+      it('lets the account in again after the pause', async () => {
+        const realNow = Date.now;
+        const start = realNow();
+        try {
+          for (let i = 0; i < 7; i++) await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+          await expect(rightPin()).rejects.toMatchObject({ code: 'AUTH_017' });
+          Date.now = () => start + 5 * 60_000 + 1000;
+          await expect(rightPin()).resolves.toBeDefined();
+        } finally {
+          Date.now = realNow;
+        }
+      });
+
+      it('only pauses the account that was guessed', async () => {
+        for (let i = 0; i < 7; i++) await expect(wrongPin()).rejects.toMatchObject({ code: 'AUTH_008' });
+        const codeHash = await bcrypt.hash('1234', 4);
+        usersRepo.findByPhoneAndRoles.mockResolvedValue({ ...baseUser, id: 'someone-else', code_hash: codeHash });
+        await expect(rightPin()).resolves.toBeDefined();
+      });
     });
 
     it('succeeds when code matches', async () => {

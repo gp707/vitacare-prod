@@ -14,6 +14,7 @@ import '../../jobs/screens/admin_jobs_screen.dart' show JobsScreenInitialFilter;
 import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_individuals_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// individual_profiles has no profile depth beyond the two block levers —
 /// this is deliberately a single-page detail view (no tabs, unlike
@@ -84,7 +85,6 @@ class _IndividualDetailScreenState
   }
 
   Future<void> _saveEdits(AdminIndividualListItem detail) async {
-    setState(() => _savingEdits = true);
     try {
       final fields = <String, dynamic>{};
       final fullName = _fullNameController.text.trim();
@@ -97,6 +97,15 @@ class _IndividualDetailScreenState
       }
 
       if (fields.isNotEmpty) {
+        final ok = await confirmAction(
+          context,
+          title: 'Save changes to this profile?',
+          message: 'These will be saved and recorded in the audit log:',
+          details: fields.keys.map((k) => k.replaceAll('_', ' ')).toList(),
+          confirmLabel: 'Save changes',
+        );
+        if (!ok) return;
+        setState(() => _savingEdits = true);
         await ref
             .read(adminIndividualsRepositoryProvider)
             .editProfile(widget.userId, fields);

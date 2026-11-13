@@ -18,6 +18,7 @@ import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// Allowed status action buttons per SPEC.md 13.3 — every field (including
 /// what used to be "Advanced Details") is now collected at registration, so
@@ -105,6 +106,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Future<void> _updateStatus(String status, {String? rejectionMessage}) async {
+    if (status == 'available') {
+      final ok = await confirmAction(
+        context,
+        title: 'Set this caregiver to available?',
+        message:
+            'They are marked verified and available for work, and are notified. Use this after the verification call and document check.',
+        confirmLabel: 'Set available',
+      );
+      if (!ok) return;
+    }
     setState(() => _actionInFlight = true);
     try {
       await ref.read(adminCaregiversRepositoryProvider).updateStatus(
@@ -156,7 +167,6 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
   }
 
   Future<void> _saveProfileEdits(AdminCaregiverDetail detail) async {
-    setState(() => _savingEdits = true);
     try {
       final fields = <String, dynamic>{};
 
@@ -189,6 +199,15 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
       }
 
       if (fields.isNotEmpty) {
+        final ok = await confirmAction(
+          context,
+          title: 'Save changes to this profile?',
+          message: 'These will be saved and recorded in the audit log:',
+          details: fields.keys.map((k) => k.replaceAll('_', ' ')).toList(),
+          confirmLabel: 'Save changes',
+        );
+        if (!ok) return;
+        setState(() => _savingEdits = true);
         await ref
             .read(adminCaregiversRepositoryProvider)
             .editProfile(widget.profileId, fields);

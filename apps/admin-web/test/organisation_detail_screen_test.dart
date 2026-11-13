@@ -154,6 +154,17 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+/// Taps the confirmation dialog's button, if one is showing (saving or
+/// sending now asks first).
+Future<void> _confirm(WidgetTester tester, String label) async {
+  final button = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ElevatedButton, label));
+  if (button.evaluate().isEmpty) return;
+  await tester.tap(button.last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       'shows the organisation\'s identity, display id, type, location, and status',
@@ -236,6 +247,7 @@ void main() {
         'Renamed Rehab Center');
     await tester.tap(find.text('Save Changes'));
     await tester.pumpAndSettle();
+    await _confirm(tester, 'Save changes');
 
     expect(repo.editedUserId, 'u1');
     expect(repo.editedFields, {'organisation_name': 'Renamed Rehab Center'});
@@ -254,6 +266,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Phone'), '+919999999999');
     await tester.tap(find.text('Save Changes'));
     await tester.pumpAndSettle();
+    await _confirm(tester, 'Save changes');
 
     expect(repo.editedUserId, 'u1');
     expect(repo.editedFields, {'phone': '+919999999999'});

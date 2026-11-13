@@ -730,6 +730,12 @@ location) that didn't fit the Individual/admin jobs-table model.
   (`organisation_admin_notes`, loaded via `GET /admin/organisations/:id`, saved via `POST /admin/organisations/:id/notes`) — the
   same single value as on the Rehab/Hospitals detail screen, editable from either. No new field or endpoint. Patient jobs keep
   their own per-job note (`job_admin_notes`).
+- **Wrong-PIN lockout (`LoginThrottleService`, `auth/login-throttle.service.ts`).** After 7 wrong PINs within 15 minutes an account
+  refuses PIN login (`AUTH_017`, 429, message names the minutes left) until 5 minutes after its latest wrong guess — a correct PIN is
+  refused too while paused, and each further wrong guess restarts the pause. A correct PIN clears the count. In memory, keyed by
+  `users.id` (only existing accounts, so it cannot be bloated by random phones); resets on API restart and is not shared across
+  instances — fine for one Render instance, move to the database before scaling out. Existing app builds show the server message
+  as-is, so no app change is needed. This is the one exception to "no rate limiting in V1"; OTP has its own limit (`AUTH_013`).
 - **Applicant tally on every admin job/requirement row.** `GET /admin/jobs` and `GET /admin/organisation-requirements` each row
   carries `applicant_summary` (`applicantSummarySql` in `database/repositories/applicant-summary.sql.ts`): total, awaiting,
   accepted, closed-by-caregiver, rejected by the caregiver themselves, and rejected by named employers (patient/organisation/
@@ -1649,7 +1655,7 @@ only after they hit a confusing dead end.
 
 ### General
 - Do NOT add features beyond V1 scope (no booking, payments, messaging, AI).
-- Do NOT add dark mode, i18n, rate limiting, HTML emails in V1.
+- Do NOT add dark mode, i18n, general rate limiting, HTML emails in V1 (the wrong-PIN lockout and OTP limits are the deliberate exceptions).
 - Do NOT use code generation (build_runner, json_serializable) in shared packages.
 - Do NOT commit .env files.
 - Do NOT run the e2e suites against the production database — see "E2E Tests" below.

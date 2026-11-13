@@ -5,6 +5,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_versions/data/app_versions_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// The "App Versions" tab of the Settings hub — lets an admin force-upgrade
 /// the single JustHeal binary (covers both the caregiver and patient/
@@ -92,6 +93,15 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
               message: AdminHelp.saveMinVersion,
               child: ElevatedButton(
                 onPressed: () async {
+                  final ok = await confirmAction(
+                    context,
+                    title: 'Force update to ${minVersionController.text.trim()}?',
+                    message:
+                        'Anyone on an older ${version.platform} version sees a full-screen "Update required" on their next launch and cannot use the app until they update. Make sure this version is already live in the store.',
+                    confirmLabel: 'Save',
+                    destructive: true,
+                  );
+                  if (!ok) return;
                   try {
                     await ref
                         .read(appVersionsRepositoryProvider)

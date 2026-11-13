@@ -21,6 +21,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   AUTH_014: { status: 500, message: 'SMS provider is unavailable — please try again shortly' },
   AUTH_015: { status: 401, message: 'Current password is incorrect' },
   AUTH_016: { status: 409, message: 'This phone number is already registered under a different account type' },
+  AUTH_017: { status: 429, message: 'Too many wrong PINs — please wait a few minutes and try again' },
 
   // Profile errors
   PROFILE_001: { status: 400, message: 'Full name is required' },

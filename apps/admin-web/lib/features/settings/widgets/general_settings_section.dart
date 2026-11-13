@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// The "General" tab of the Settings hub: the apply-by urgency window (how
 /// many days a job stays flagged "new"/urgent to caregivers before showing
@@ -211,6 +212,15 @@ class _AuditLogRetentionCardState extends ConsumerState<_AuditLogRetentionCard> 
       setState(() => _errorMessage = 'Enter a whole number of at least 1');
       return;
     }
+    final ok = await confirmAction(
+      context,
+      title: 'Keep audit logs for $days days?',
+      message:
+          'Entries older than $days days are DELETED automatically and cannot be recovered.',
+      confirmLabel: 'Save',
+      destructive: true,
+    );
+    if (!ok) return;
     setState(() {
       _saving = true;
       _errorMessage = null;

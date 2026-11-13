@@ -599,6 +599,17 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await _fillSalary(tester);
 }
 
+/// Taps the confirmation dialog's button, if one is showing (saving or
+/// sending now asks first).
+Future<void> _confirm(WidgetTester tester, String label) async {
+  final button = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ElevatedButton, label));
+  if (button.evaluate().isEmpty) return;
+  await tester.tap(button.last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       'lists posted jobs with job number, duty type, city, salary, and status',
@@ -824,6 +835,8 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Close'));
     await tester.pumpAndSettle();
 
+    await _confirm(tester, 'Close job');
+
     expect(repo.closeCalled, isTrue);
   });
 
@@ -834,6 +847,8 @@ void main() {
 
     await tester.tap(find.widgetWithText(TextButton, 'Remind'));
     await tester.pumpAndSettle();
+
+    await _confirm(tester, 'Send reminder');
 
     expect(repo.remindedJobId, 'job-1');
   });
@@ -1511,6 +1526,7 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
+    await _confirm(tester, 'Save changes');
 
     expect(repo.updatedJobId, 'job-1');
     expect(repo.createCalled, isFalse);
@@ -1628,6 +1644,7 @@ void main() {
       await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save changes');
 
       expect(repo.updatedJobId, 'job-1');
       expect(repo.submittedFrequencyOfCare, 'daily');
@@ -1647,6 +1664,7 @@ void main() {
       await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save changes');
 
       expect(find.text('Salary is required'), findsOneWidget);
       expect(repo.updatedJobId, isNull);
@@ -2014,6 +2032,7 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
+    await _confirm(tester, 'Save changes');
 
     expect(repo.notesJobId, 'job-1');
     expect(repo.notesValue, 'Family mentioned they may cancel.');
@@ -2193,6 +2212,7 @@ void main() {
       await tester.enterText(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), '8');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save changes');
 
       expect(requirementsRepo.editedId, 'req-9');
       expect(requirementsRepo.editedNumberOfVacancies, 8);
@@ -2211,6 +2231,7 @@ void main() {
       await tester.enterText(find.widgetWithText(TextField, 'Number of Vacancies (Mandatory)'), '');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save changes');
 
       expect(find.text('Enter a number between 1 and 49'), findsOneWidget);
       expect(requirementsRepo.editedId, isNull);

@@ -8,6 +8,7 @@ import '../data/admin_organisation_requirements_repository.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
 /// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
@@ -326,6 +327,18 @@ class _EditRequirementDialogState extends State<EditRequirementDialog> {
       setState(() => _showValidationErrors = true);
       return;
     }
+    final status = widget.requirement.status;
+    final ok = await confirmAction(
+      context,
+      title: 'Save changes?',
+      message: status == JobStatus.pendingReview
+          ? 'This posting is waiting for review. Saving APPROVES it: it goes live and caregivers are notified.'
+          : status == JobStatus.closed
+              ? 'This requirement is closed. Saving REOPENS it and caregivers are notified.'
+              : 'It stays live. Caregivers who applied are told if a key detail changed.',
+      confirmLabel: 'Save changes',
+    );
+    if (!ok || !mounted) return;
     setState(() {
       _submitting = true;
       _error = null;

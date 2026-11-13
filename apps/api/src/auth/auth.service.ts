@@ -20,6 +20,7 @@ import { RefreshTokensRepository } from '../database/repositories/refresh-tokens
 import { OtpAuthSettingsRepository } from '../database/repositories/otp-auth-settings.repository';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
+import { LoginThrottleService } from './login-throttle.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginAttemptsService } from '../login-attempts/login-attempts.service';
 import { TokenService } from './token.service';
@@ -78,6 +79,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
     private readonly loginAttempts: LoginAttemptsService,
+    private readonly loginThrottle: LoginThrottleService,
   ) {}
 
   async register(dto: RegisterDto, ipAddress: string | null = null) {
@@ -167,7 +169,10 @@ export class AuthService {
       });
       throw new AppException('AUTH_004');
     }
+    // Refuses even a correct PIN while paused, so guessing cannot just continue.
+    this.loginThrottle.assertNotLocked(user.id);
     if (!user.code_hash || !(await bcrypt.compare(dto.code, user.code_hash))) {
+      this.loginThrottle.recordWrongPin(user.id);
       // Only that it failed is recorded — never the PIN that was tried.
       this.loginAttempts.recordFailure({
         ...attempt,
@@ -178,6 +183,7 @@ export class AuthService {
       throw new AppException('AUTH_008');
     }
 
+    this.loginThrottle.clear(user.id);
     return this.finishLogin(user, ipAddress, 'code');
   }
 

@@ -108,6 +108,17 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+/// Taps the confirmation dialog's button, if one is showing (saving or
+/// sending now asks first).
+Future<void> _confirm(WidgetTester tester, String label) async {
+  final button = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ElevatedButton, label));
+  if (button.evaluate().isEmpty) return;
+  await tester.tap(button.last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows the Admin Override control regardless of current status',
       (tester) async {
@@ -214,6 +225,7 @@ void main() {
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
+    await _confirm(tester, 'Save changes');
 
     expect(repo.editedProfileId, 'profile-1');
     expect(repo.editedFields, {'phone': '+919999999999'});

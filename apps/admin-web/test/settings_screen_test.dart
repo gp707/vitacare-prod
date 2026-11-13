@@ -337,6 +337,15 @@ Future<void> _selectTab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps the confirmation dialog's button (saving now asks first).
+Future<void> _confirm(WidgetTester tester, String label) async {
+  final button = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(ElevatedButton, label));
+  await tester.tap(button.last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shows all 7 tabs and defaults to General', (tester) async {
     await _pump(tester, _Repos());
@@ -398,6 +407,7 @@ void main() {
       await tester.enterText(field, '90');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save').at(1));
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save');
 
       expect(repos.auditLogRetention.savedDays, 90);
       expect(find.text('Audit log retention saved'), findsOneWidget);
@@ -545,6 +555,7 @@ void main() {
       await tester.enterText(find.widgetWithText(TextField, 'Minimum version (e.g. 1.2.0)'), '1.3.0');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Save');
 
       expect(find.text('Minimum version: 1.3.0'), findsOneWidget);
       expect(find.text('Minimum version: 2.0.0'), findsOneWidget);
@@ -565,6 +576,7 @@ void main() {
       );
       await tester.tap(find.widgetWithText(ElevatedButton, 'Save').first);
       await tester.pumpAndSettle();
+      await _confirm(tester, 'Turn ON');
 
       expect(repos.appMaintenance.row.enabled, isTrue);
       expect(

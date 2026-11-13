@@ -13,6 +13,7 @@ import '../../audit_logs/widgets/scoped_audit_history_section.dart';
 import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_organisations_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/confirm_action.dart';
 
 /// organisation_profiles.city accepts the existing 7 cities plus this one
 /// extra sentinel — a separate org-scoped list, not an extension of the
@@ -98,7 +99,6 @@ class _OrganisationDetailScreenState
   }
 
   Future<void> _saveEdits(AdminOrganisationListItem detail) async {
-    setState(() => _savingEdits = true);
     try {
       final fields = <String, dynamic>{};
 
@@ -126,6 +126,15 @@ class _OrganisationDetailScreenState
       if (area.isNotEmpty && area != detail.area) fields['area'] = area;
 
       if (fields.isNotEmpty) {
+        final ok = await confirmAction(
+          context,
+          title: 'Save changes to this profile?',
+          message: 'These will be saved and recorded in the audit log:',
+          details: fields.keys.map((k) => k.replaceAll('_', ' ')).toList(),
+          confirmLabel: 'Save changes',
+        );
+        if (!ok) return;
+        setState(() => _savingEdits = true);
         await ref
             .read(adminOrganisationsRepositoryProvider)
             .editProfile(widget.userId, fields);
