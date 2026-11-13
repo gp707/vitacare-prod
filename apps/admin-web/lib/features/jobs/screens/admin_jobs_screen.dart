@@ -12,6 +12,7 @@ import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
 import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
+import '../../../shared/widgets/admin_notes_dialog.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
@@ -690,6 +691,30 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
   }
 
+  Future<void> _notesForJob(JobModel job) {
+    final repo = ref.read(adminJobsRepositoryProvider);
+    return showAdminNotesDialog(
+      context,
+      title: 'Notes · ${jobDisplayId(job)}',
+      hint: 'Internal notes about this job (never shown to the poster or caregivers)',
+      load: () async => (await repo.getDetail(job.id)).$1.notes,
+      save: (notes) => repo.upsertNotes(job.id, notes),
+    );
+  }
+
+  /// An organisation has many jobs, so its note is the organisation's own
+  /// (same one as on its Rehab/Hospitals page).
+  Future<void> _notesForRequirement(AdminOrganisationRequirement r) {
+    final repo = ref.read(adminOrganisationsRepositoryProvider);
+    return showAdminNotesDialog(
+      context,
+      title: 'Notes · ${r.organisationName ?? 'Organisation'}',
+      hint: 'Internal notes about this organisation (shown on all its jobs)',
+      load: () async => (await repo.getDetail(r.postedBy)).notes,
+      save: (notes) => repo.upsertNotes(r.postedBy, notes),
+    );
+  }
+
   Future<void> _viewRequirementApplicants(
       AdminOrganisationRequirement requirement) async {
     final (_, applications) = await ref
@@ -1114,6 +1139,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                 ? () => _reject(job)
                                 : null,
                             onViewApplications: () => _viewApplications(job),
+                            onNotes: () => _notesForJob(job),
                             onEdit: () => _openEditDialog(job),
                           ),
                         _RequirementEntry(:final requirement) => RequirementRow(
@@ -1140,6 +1166,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                         .moveToPendingReview(requirement.id)),
                             onViewApplicants: () =>
                                 _viewRequirementApplicants(requirement),
+                            onNotes: () => _notesForRequirement(requirement),
                           ),
                       };
                       final session = ref.watch(sessionProvider);
@@ -1186,6 +1213,7 @@ class _JobRow extends StatelessWidget {
   final VoidCallback? onReject;
   final VoidCallback onViewApplications;
   final VoidCallback onEdit;
+  final VoidCallback onNotes;
 
   const _JobRow({
     required this.job,
@@ -1197,6 +1225,7 @@ class _JobRow extends StatelessWidget {
     required this.onReject,
     required this.onViewApplications,
     required this.onEdit,
+    required this.onNotes,
   });
 
   @override
@@ -1300,6 +1329,11 @@ class _JobRow extends StatelessWidget {
           onPressed: onViewApplications,
           icon: const Icon(Icons.people_outline, size: 16),
           label: const Text('Applicants'),
+        ),
+        TextButton.icon(
+          onPressed: onNotes,
+          icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
+          label: const Text('Notes'),
         ),
         if (onRemind != null)
           TextButton.icon(

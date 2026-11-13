@@ -38,6 +38,7 @@ class RequirementRow extends StatelessWidget {
 
   /// Only supplied for a pending_review requirement — same one-click
   /// activation admin-posted jobs' own Approve button offers.
+  final VoidCallback onNotes;
   final VoidCallback? onApprove;
 
   /// Only supplied for a pending_review requirement — declines it, same as
@@ -58,6 +59,7 @@ class RequirementRow extends StatelessWidget {
     required this.requirement,
     required this.onTap,
     required this.onEdit,
+    required this.onNotes,
     required this.onApprove,
     required this.onReject,
     required this.onRemind,
@@ -147,6 +149,11 @@ class RequirementRow extends StatelessWidget {
                         summary: requirement.applicantSummary),
                   ),
                   TextButton(onPressed: onEdit, child: const Text('Edit')),
+                  TextButton.icon(
+                    onPressed: onNotes,
+                    icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
+                    label: const Text('Notes'),
+                  ),
                   if (onRemind != null)
                     TextButton.icon(
                       onPressed: onRemind,

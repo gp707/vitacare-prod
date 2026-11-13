@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/features/organisations/data/admin_organisations_repository.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
