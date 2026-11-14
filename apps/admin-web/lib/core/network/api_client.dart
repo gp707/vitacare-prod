@@ -14,7 +14,7 @@ class ApiClient {
 
   ApiClient._(this.dio);
 
-  factory ApiClient(LocalStorage localStorage) {
+  factory ApiClient(LocalStorage localStorage, {void Function()? onSessionEnded}) {
     final dio = Dio(
       BaseOptions(
         baseUrl: kReleaseMode ? _productionBaseUrl : _developmentBaseUrl,
@@ -22,7 +22,7 @@ class ApiClient {
         receiveTimeout: const Duration(seconds: 15),
       ),
     );
-    dio.interceptors.add(AuthInterceptor(localStorage));
+    dio.interceptors.add(AuthInterceptor(localStorage, onSessionEnded: onSessionEnded));
     return ApiClient._(dio);
   }
 }

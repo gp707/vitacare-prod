@@ -93,6 +93,16 @@ describe('RolesGuard', () => {
       expect(() => new RolesGuard(superOnly).canActivate(ctx('GET', '/api/v1/admin/users'))).toThrow(AppException);
     });
 
+    it('cannot bulk-delete jobs: that route lists only super_admin', () => {
+      const superOnly = { getAllAndOverride: () => [UserRole.SUPER_ADMIN] } as unknown as Reflector;
+      try {
+        new RolesGuard(superOnly).canActivate(ctx('POST', '/api/v1/admin/jobs/bulk-delete'));
+        fail('should have thrown');
+      } catch (e) {
+        expect((e as AppException).code).toBe('AUTH_007');
+      }
+    });
+
     it('leaves a plain admin completely unrestricted', () => {
       const request: any = { user: { role: UserRole.ADMIN }, method: 'POST', route: { path: '/api/v1/admin/jobs' } };
       const context = {

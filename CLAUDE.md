@@ -1430,7 +1430,11 @@ email/password endpoint (`isAdminAccountRole`, `common/admin-roles.ts`).
   Approve sends every field, so `AdminOrganisationRequirementsRepository.approveWithoutChanges` (empty PATCH) is used when `isReadOnlyAdminProvider` is true.
 - **admin-web** only hides what would be refused: `isReadOnlyAdminProvider` / `HideForReadOnly` (buttons), `BlockedForReadOnly` (route wrapper for Settings, messages,
   push, Admin Management in `router.dart`), sidebar items in `AppShell`. The API is the real gate; a missed button just shows the `AUTH_018` message.
-- **Deploy order:** apply migration 089 → deploy API → deploy admin-web. Creating the account before 089 fails on the role CHECK.
+- **Session length: 4 hours, no renewal.** A read-only admin's access token expires after `READ_ONLY_ADMIN_TOKEN_TTL` seconds (default 14400); its refresh token is capped
+  to the same time and `AuthService.refresh` refuses them (`AUTH_006`), so the session can never be extended — they log in again. admin-web now handles a mid-session
+  expiry for every admin role: `AuthInterceptor` calls `onSessionEnded` on a 401 `AUTH_005`/`AUTH_004`, which clears the session, shows "Your session has ended" and
+  navigates to `/login` via `adminNavigatorKey` (`core/navigation.dart`). Plain admins' 6-month tokens are unchanged, they just get the same redirect if one ever expires.
+- **Applied to production already:** migration 089 (2026-11-14). Deploy order for the rest: API → admin-web.
 
 ## Support Tickets ("Forgot PIN")
 

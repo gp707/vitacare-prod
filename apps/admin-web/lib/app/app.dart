@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
+import '../core/navigation.dart';
 import 'router.dart';
 import 'url_route_observer.dart';
 
@@ -29,6 +30,8 @@ class AdminWebApp extends StatelessWidget {
         ),
         fontFamily: AppTypography.fontFamily,
       ),
+      navigatorKey: adminNavigatorKey,
+      scaffoldMessengerKey: adminMessengerKey,
       initialRoute: '/',
       routes: buildRoutes(initialDeepLinkRoute: initialDeepLinkRoute),
       onGenerateRoute: onGenerateRoute,

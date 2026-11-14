@@ -831,6 +831,18 @@ describe('AuthService', () => {
     });
   });
 
+  describe('refresh for a read-only admin', () => {
+    it('is refused (AUTH_006): their 4 hour session cannot be renewed', async () => {
+      tokenService.verifyRefreshToken.mockReturnValue({ sub: 'ro-1', jti: 'rt-9', type: 'refresh' });
+      const storedHash = await bcrypt.hash('the-token', 4);
+      refreshTokensRepo.findActiveById.mockResolvedValue({ id: 'rt-9', user_id: 'ro-1', token_hash: storedHash });
+      usersRepo.findById.mockResolvedValue({ ...baseUser, id: 'ro-1', role: UserRole.READ_ONLY_ADMIN });
+
+      await expect(service.refresh('the-token')).rejects.toMatchObject({ code: 'AUTH_006' });
+      expect(refreshTokensRepo.revoke).not.toHaveBeenCalled();
+    });
+  });
+
   describe('logout', () => {
     it('revokes all refresh tokens for the user', async () => {
       await service.logout('user-1');

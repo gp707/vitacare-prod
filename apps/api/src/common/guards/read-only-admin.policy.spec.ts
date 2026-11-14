@@ -13,6 +13,7 @@ describe('read-only admin policy', () => {
       '/admin/dashboard/stats',
       '/admin/caregivers',
       '/admin/caregivers/:id',
+      '/admin/caregivers/:id/documents/history', // viewing document history stays allowed
       '/admin/jobs',
       '/admin/jobs/:id',
       '/admin/organisation-requirements/:id',
@@ -65,6 +66,10 @@ describe('read-only admin policy', () => {
       ['PATCH', '/admin/jobs/:id'],
       ['PATCH', '/admin/jobs/:id/reject'],
       ['PATCH', '/admin/jobs/:id/close'],
+      ['POST', '/admin/jobs/bulk-delete'],
+      ['PATCH', '/admin/profile/password'], // own password change (lives on the Settings screen)
+      ['DELETE', '/admin/jobs/:id'],
+      ['DELETE', '/admin/organisation-requirements/:id'],
       ['PATCH', '/admin/jobs/:id/pending-review'],
       ['POST', '/admin/jobs/:id/remind'],
       ['PATCH', '/admin/jobs/:jobId/applications/:applicationId'],
@@ -73,6 +78,7 @@ describe('read-only admin policy', () => {
       ['PATCH', '/admin/caregivers/:id/status'],
       ['PUT', '/admin/caregivers/:id'],
       ['POST', '/admin/caregivers/:id/selfie'],
+      ['POST', '/admin/caregivers/:id/documents'], // upload / replace a current document
       ['DELETE', '/admin/caregivers/:id/documents/history/:versionId'],
       ['PUT', '/admin/individuals/:id'],
       ['PUT', '/admin/organisations/:id'],

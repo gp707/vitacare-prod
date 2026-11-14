@@ -474,6 +474,10 @@ export class AuthService {
     if (!user || !user.is_active) {
       throw new AppException('AUTH_006');
     }
+    // A read-only admin's session is a fixed 4 hours: no renewing it, they log in again.
+    if (user.role === UserRole.READ_ONLY_ADMIN) {
+      throw new AppException('AUTH_006');
+    }
 
     await this.refreshTokensRepo.revoke(record.id);
     const tokens = await this.issueTokens(user);
@@ -545,6 +549,7 @@ export class AuthService {
     const { token: refresh_token, expiresAt } = this.tokenService.signRefreshToken(
       user.id,
       tokenRowId,
+      user.role,
     );
     const tokenHash = await bcrypt.hash(refresh_token, Config.BCRYPT_SALT_ROUNDS);
     await this.refreshTokensRepo.create(tokenRowId, user.id, tokenHash, expiresAt);

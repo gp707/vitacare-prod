@@ -47,6 +47,33 @@ describe('TokenService', () => {
       expect(decoded.exp).toBeDefined();
     });
 
+    it('gives a read_only_admin a 4 hour token, whatever the admin TTL is', () => {
+      const token = service.signAccessToken(user(UserRole.READ_ONLY_ADMIN));
+      const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
+      expect(decoded.exp! - decoded.iat!).toBe(14400);
+    });
+
+    it('honors a configured READ_ONLY_ADMIN_TOKEN_TTL, and does not touch an admin token', () => {
+      configService.get.mockImplementation((key: string) =>
+        key === 'READ_ONLY_ADMIN_TOKEN_TTL' ? '600' : undefined,
+      );
+      const scoped = new TokenService(configService);
+      const ro = jwt.verify(scoped.signAccessToken(user(UserRole.READ_ONLY_ADMIN)), secret) as jwt.JwtPayload;
+      const admin = jwt.verify(scoped.signAccessToken(user(UserRole.ADMIN)), secret) as jwt.JwtPayload;
+      expect(ro.exp! - ro.iat!).toBe(600);
+      expect(admin.exp! - admin.iat!).toBe(15552000);
+    });
+
+    it("caps a read_only_admin's refresh token at the same 4 hours; others keep 30 days", () => {
+      const ro = service.signRefreshToken('u1', 'row-1', UserRole.READ_ONLY_ADMIN);
+      const admin = service.signRefreshToken('u1', 'row-2', UserRole.ADMIN);
+      const roSeconds = (ro.expiresAt.getTime() - Date.now()) / 1000;
+      const adminSeconds = (admin.expiresAt.getTime() - Date.now()) / 1000;
+      expect(roSeconds).toBeLessThanOrEqual(14400);
+      expect(roSeconds).toBeGreaterThan(14300);
+      expect(adminSeconds).toBeGreaterThan(2590000);
+    });
+
     it('honors a configured JWT_ACCESS_TOKEN_TTL for admin tokens', () => {
       configService.get.mockImplementation((key: string) =>
         key === 'JWT_ACCESS_TOKEN_TTL' ? '60' : undefined,

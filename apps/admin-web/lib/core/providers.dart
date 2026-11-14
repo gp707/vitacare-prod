@@ -1,6 +1,10 @@
+import 'package:flutter/material.dart' show SnackBar, Text;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'navigation.dart';
 import 'network/api_client.dart';
+import '../features/auth/state/session_notifier.dart';
+import '../features/auth/state/session_state.dart';
 import 'storage/local_storage.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/dashboard/data/dashboard_repository.dart';
@@ -36,7 +40,19 @@ final localStorageProvider = Provider<LocalStorage>((ref) {
 });
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(ref.watch(localStorageProvider));
+  return ApiClient(
+    ref.watch(localStorageProvider),
+    onSessionEnded: () {
+      // Many requests can fail at once on an expired token; only the first
+      // one ends the session and navigates.
+      if (ref.read(sessionProvider) is! AdminSessionAuthenticated) return;
+      ref.read(sessionProvider.notifier).logout();
+      adminNavigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+      adminMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Your session has ended. Please log in again.')),
+      );
+    },
+  );
 });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
