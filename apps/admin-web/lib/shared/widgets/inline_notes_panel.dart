@@ -5,8 +5,8 @@ import 'confirm_action.dart';
 
 /// Row width from which the notes panel sits in the row's right-hand column;
 /// narrower rows stack it below the row's content instead.
-const _sideBySideMinWidth = 820.0;
-const _panelWidth = 300.0;
+const _sideBySideMinWidth = 900.0;
+const _panelWidth = 400.0;
 
 /// Puts [panel] in a right-hand column beside [main] on a wide row, or below
 /// it on a narrow one.
@@ -116,8 +116,8 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
           key: const Key('inline-notes-field'),
           controller: _controller,
           enabled: !_saving,
-          minLines: 3,
-          maxLines: 6,
+          minLines: 6,
+          maxLines: 12,
           style: const TextStyle(fontSize: AppTypography.small),
           decoration: const InputDecoration(
             hintText: 'Add a note (only admins see this)',
