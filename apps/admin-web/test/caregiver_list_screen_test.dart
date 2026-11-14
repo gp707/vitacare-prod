@@ -109,6 +109,9 @@ void main() {
     // (the first column is the select-all checkbox)
     expect(headers.take(3), ['Registered', 'ID', 'Name']);
 
+    // Name 'Ramesh Kumar' (12 chars) is cut to 10 with the full name on hover.
+    expect(find.text('Ramesh Kum…'), findsOneWidget);
+    expect(find.byTooltip('Ramesh Kumar'), findsOneWidget);
     expect(find.text('M'), findsOneWidget);
     expect(find.text('male'), findsNothing);
 
@@ -184,7 +187,8 @@ void main() {
     await _pump(tester, _FakeAdminCaregiversRepository([_item()]));
 
     expect(find.byType(DataTable), findsOneWidget);
-    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    // Names over 10 characters are cut in the table, full name on hover.
+    expect(find.text('Ramesh Kum…'), findsOneWidget);
     expect(find.text('NUR-500'), findsOneWidget);
   });
 

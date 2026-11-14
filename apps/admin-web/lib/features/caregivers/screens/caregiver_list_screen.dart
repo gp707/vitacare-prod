@@ -387,7 +387,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('caregiver_number')),
             DataColumn(label: const Text('Name'), onSort: (_, __) => _sortBy('full_name')),
             DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
-            DataColumn(label: const Text('Gender'), onSort: (_, __) => _sortBy('gender')),
+            DataColumn(label: const Tooltip(message: 'Gender', child: Text('Sex')), onSort: (_, __) => _sortBy('gender')),
             DataColumn(label: const Text('Age'), onSort: (_, __) => _sortBy('age')),
             DataColumn(label: const Text('Qualification'), onSort: (_, __) => _sortBy('highest_qualification')),
             DataColumn(label: const Text('Status'), onSort: (_, __) => _sortBy('verification_status')),
@@ -412,7 +412,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                         onTap: () => _openDetail(item)),
                     DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-'),
                         onTap: () => _openDetail(item)),
-                    DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                    DataCell(_shortWithHover(item.fullName, 10),
+                        onTap: () => _openDetail(item)),
                     DataCell(PhoneWithContact(phone: item.phone)),
                     DataCell(Tooltip(message: item.gender, child: Text(_genderInitial(item.gender))),
                         onTap: () => _openDetail(item)),
@@ -435,17 +436,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   static String _genderInitial(String gender) =>
       gender.isEmpty ? '-' : gender[0].toUpperCase();
 
-  static const _qualificationShortLength = 7;
+  /// The first [length] characters of [text], with the full text on hover.
+  Widget _shortWithHover(String text, int length) {
+    if (text.length <= length) return Text(text);
+    return Tooltip(message: text, child: Text('${text.substring(0, length)}…'));
+  }
 
-  /// The first 7 characters of the qualification; the full name on hover.
   Widget _qualificationCell(String? qualification) {
     final full = Qualification.displayNames[qualification] ?? qualification;
-    if (full == null) return const Text('-');
-    if (full.length <= _qualificationShortLength) return Text(full);
-    return Tooltip(
-      message: full,
-      child: Text('${full.substring(0, _qualificationShortLength)}…'),
-    );
+    return full == null ? const Text('-') : _shortWithHover(full, 7);
   }
 
   Future<void> _saveNotes(AdminCaregiverListItem item, String notes) async {
