@@ -74,7 +74,7 @@ class _OrganisationsListScreenState
 
   Future<void> _saveNotes(dynamic item, String notes) async {
     await ref.read(adminOrganisationsRepositoryProvider).upsertNotes(item.userId, notes);
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Widget _notesCell(dynamic item) => Padding(
@@ -106,9 +106,11 @@ class _OrganisationsListScreenState
     _setSort(nextKey, ascending);
   }
 
-  Future<void> _load() async {
+  /// [silent] refreshes in place after an action (save notes, block, ...): no
+  /// loading spinner, so the list keeps its scroll position.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _errorMessage = null;
     });
     try {
@@ -283,7 +285,7 @@ class _OrganisationsListScreenState
       await ref
           .read(adminOrganisationsRepositoryProvider)
           .block(item.userId, level, controller.text.trim());
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -297,7 +299,7 @@ class _OrganisationsListScreenState
       await ref
           .read(adminOrganisationsRepositoryProvider)
           .unblock(item.userId, level);
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

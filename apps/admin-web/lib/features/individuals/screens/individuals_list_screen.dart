@@ -67,7 +67,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
 
   Future<void> _saveNotes(dynamic item, String notes) async {
     await ref.read(adminIndividualsRepositoryProvider).upsertNotes(item.userId, notes);
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Widget _notesCell(dynamic item) => Padding(
@@ -99,9 +99,11 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
     _setSort(nextKey, ascending);
   }
 
-  Future<void> _load() async {
+  /// [silent] refreshes in place after an action (save notes, block, ...): no
+  /// loading spinner, so the list keeps its scroll position.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _errorMessage = null;
     });
     try {
@@ -223,7 +225,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
       await ref
           .read(adminIndividualsRepositoryProvider)
           .block(item.userId, level, controller.text.trim());
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -237,7 +239,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
       await ref
           .read(adminIndividualsRepositoryProvider)
           .unblock(item.userId, level);
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

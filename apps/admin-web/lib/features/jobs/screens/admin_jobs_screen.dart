@@ -227,14 +227,18 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   /// so they're simply omitted from that fetch; Status/City/search apply to
   /// both, since organisation_requirements.status reuses the same 3-value
   /// enum and both tables carry a city.
-  Future<void> _load() async {
+  /// [silent] refreshes the list in place after an action (save notes, decide
+  /// an applicant, ...): no loading spinner, so the list keeps its scroll
+  /// position, and the selection is kept (minus rows that no longer exist).
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) {
+        _loading = true;
+        // A full reload (initial load, filter change) invalidates whatever
+        // was previously selected — the list it referred to is about to change.
+        _selected.clear();
+      }
       _errorMessage = null;
-      // A reload (initial load, filter change, or post-delete refresh)
-      // always invalidates whatever was previously selected — the list
-      // it referred to is about to change.
-      _selected.clear();
     });
     final search = _searchController.text.trim().isEmpty
         ? null
@@ -280,6 +284,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
         setState(() {
           _jobs = jobs;
           _requirements = requirements;
+          if (silent) {
+            final keys = _mergedEntries.map((e) => e.selectionKey).toSet();
+            _selected.removeWhere((key) => !keys.contains(key));
+          }
         });
       }
     } on ApiException catch (e) {
@@ -311,7 +319,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => const _JobFormDialog(),
     );
-    if (created == true) await _load();
+    if (created == true) await _load(silent: true);
   }
 
   /// Opens the same form pre-filled with the job's full current details —
@@ -331,7 +339,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
         builder: (dialogContext) =>
             _JobFormDialog(job: fullJob, careReceiver: fullJob.careReceiver),
       );
-      if (saved == true) await _load();
+      if (saved == true) await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -384,7 +392,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     if (!ok) return;
     try {
       await ref.read(adminJobsRepositoryProvider).close(job.id);
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -444,7 +452,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     if (confirmed != true) return;
     try {
       await action();
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -478,7 +486,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     if (confirmed != true) return;
     try {
       await ref.read(adminJobsRepositoryProvider).approve(job.id);
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -522,7 +530,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       await ref
           .read(adminJobsRepositoryProvider)
           .reject(job.id, controller.text.trim());
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -536,7 +544,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       context: context,
       builder: (dialogContext) => JobDetailDialog(jobId: job.id),
     );
-    await _load();
+    await _load(silent: true);
   }
 
   /// Always offered, any status — admin can edit any org-owned field;
@@ -569,7 +577,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                 experienceRequired: experienceRequired,
                 employmentType: employmentType,
               );
-          await _load();
+          await _load(silent: true);
         },
       ),
     );
@@ -607,7 +615,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       await ref
           .read(adminOrganisationRequirementsRepositoryProvider)
           .approve(requirement);
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -683,7 +691,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       await ref
           .read(adminOrganisationRequirementsRepositoryProvider)
           .reject(requirement.id, controller.text.trim());
-      await _load();
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -725,12 +733,12 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   Future<void> _saveJobNotes(JobModel job, String notes) async {
     await ref.read(adminJobsRepositoryProvider).upsertNotes(job.id, notes);
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Future<void> _saveRequirementNotes(AdminOrganisationRequirement r, String notes) async {
     await ref.read(adminOrganisationsRepositoryProvider).upsertNotes(r.postedBy, notes);
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Future<void> _notesForJob(JobModel job) async {
@@ -745,7 +753,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       save: (notes) => repo.upsertNotes(job.id, notes),
     );
     // The row shows the note, so refresh it once the dialog closes.
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   /// An organisation has many jobs, so its note is the organisation's own
@@ -759,7 +767,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       load: () async => (await repo.getDetail(r.postedBy)).notes,
       save: (notes) => repo.upsertNotes(r.postedBy, notes),
     );
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Future<void> _viewRequirementApplicants(
@@ -777,7 +785,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           await ref
               .read(adminOrganisationRequirementsRepositoryProvider)
               .decideApplication(requirement.id, applicationId, status);
-          await _load();
+          await _load(silent: true);
         },
       ),
     );
@@ -859,7 +867,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           ),
         );
       }
-      await _load();
+      // Whatever was selected has just been deleted, so start from none.
+      if (mounted) setState(_selected.clear);
+      await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {

@@ -314,6 +314,7 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
   String? detailNotes;
   String? notesJobId;
   String? notesValue;
+  Duration? listDelay;
 
   _FakeAdminJobsRepository(this.jobs,
       {this.applications = const [],
@@ -334,6 +335,8 @@ class _FakeAdminJobsRepository extends AdminJobsRepository {
       {JobListFilters filters = const JobListFilters()}) async {
     listCallCount++;
     lastListFilters = filters;
+    // A real network round trip, so a reload that shows a spinner gets drawn.
+    if (listDelay != null) await Future<void>.delayed(listDelay!);
     return jobs;
   }
 
@@ -611,6 +614,36 @@ Future<void> _confirm(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('saving a note from a row keeps the list where it was scrolled (no jump to the top)',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      for (var i = 0; i < 30; i++) _job(id: 'job-$i', adminJobNumber: 600 + i),
+    ]);
+    await _pump(tester, repo);
+
+    final listFinder = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
+    ScrollPosition position() => tester.state<ScrollableState>(listFinder).position;
+    await tester.drag(listFinder, const Offset(0, -1500));
+    await tester.pumpAndSettle();
+    final before = position().pixels;
+    expect(before, greaterThan(500));
+
+    repo.listDelay = const Duration(milliseconds: 200);
+    final loadsBefore = repo.listCallCount;
+    final field = find.byKey(const Key('inline-notes-field')).first;
+    await tester.enterText(field, 'a new note');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('inline-notes-save')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('inline-notes-save')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save note'));
+    await tester.pumpAndSettle();
+
+    expect(repo.listCallCount, greaterThan(loadsBefore), reason: 'the list was refreshed');
+    expect(position().pixels, greaterThan(500), reason: 'and kept its scroll position');
+  });
+
   testWidgets(
       'lists posted jobs with job number, duty type, city, salary, and status',
       (tester) async {

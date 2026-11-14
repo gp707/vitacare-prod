@@ -77,9 +77,11 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     _setSort(nextKey, ascending);
   }
 
-  Future<void> _load() async {
+  /// [silent] refreshes in place after an action (save notes, block, ...): no
+  /// loading spinner, so the list keeps its scroll position.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _errorMessage = null;
     });
     try {
@@ -451,7 +453,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     await ref
         .read(adminCaregiversRepositoryProvider)
         .upsertInternalNotes(item.profileId, notes);
-    if (mounted) await _load();
+    if (mounted) await _load(silent: true);
   }
 
   Widget _notesCell(AdminCaregiverListItem item) => Padding(
