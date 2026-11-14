@@ -363,6 +363,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           // Rows grow with the notes box.
+          columnSpacing: 12,
+          horizontalMargin: 8,
           dataRowMinHeight: 72,
           dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
@@ -381,6 +383,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                 },
               ),
             ),
+            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('caregiver_number')),
             DataColumn(label: const Text('Name'), onSort: (_, __) => _sortBy('full_name')),
             DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
@@ -388,7 +391,6 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             DataColumn(label: const Text('Age'), onSort: (_, __) => _sortBy('age')),
             DataColumn(label: const Text('Qualification'), onSort: (_, __) => _sortBy('highest_qualification')),
             DataColumn(label: const Text('Status'), onSort: (_, __) => _sortBy('verification_status')),
-            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             const DataColumn(label: Text('Notes')),
           ],
           rows: _items
@@ -406,20 +408,18 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                             .toggle(_toRecipient(item)),
                       ),
                     ),
+                    DataCell(Text(item.createdAt.split('T').first),
+                        onTap: () => _openDetail(item)),
                     DataCell(Text(caregiverDisplayId(item.caregiverNumber) ?? '-'),
                         onTap: () => _openDetail(item)),
                     DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
                     DataCell(PhoneWithContact(phone: item.phone)),
-                    DataCell(Text(item.gender), onTap: () => _openDetail(item)),
+                    DataCell(Tooltip(message: item.gender, child: Text(_genderInitial(item.gender))),
+                        onTap: () => _openDetail(item)),
                     DataCell(Text('${item.age}'), onTap: () => _openDetail(item)),
-                    DataCell(
-                        Text(Qualification.displayNames[item.highestQualification] ??
-                            item.highestQualification ??
-                            '-'),
+                    DataCell(_qualificationCell(item.highestQualification),
                         onTap: () => _openDetail(item)),
                     DataCell(VitaStatusBadge(status: item.verificationStatus),
-                        onTap: () => _openDetail(item)),
-                    DataCell(Text(item.createdAt.split('T').first),
                         onTap: () => _openDetail(item)),
                     DataCell(_notesCell(item)),
                   ],
@@ -428,6 +428,23 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
               .toList(),
         ),
       ),
+    );
+  }
+
+  /// M / F in the table; the full word is on hover.
+  static String _genderInitial(String gender) =>
+      gender.isEmpty ? '-' : gender[0].toUpperCase();
+
+  static const _qualificationShortLength = 7;
+
+  /// The first 7 characters of the qualification; the full name on hover.
+  Widget _qualificationCell(String? qualification) {
+    final full = Qualification.displayNames[qualification] ?? qualification;
+    if (full == null) return const Text('-');
+    if (full.length <= _qualificationShortLength) return Text(full);
+    return Tooltip(
+      message: full,
+      child: Text('${full.substring(0, _qualificationShortLength)}…'),
     );
   }
 

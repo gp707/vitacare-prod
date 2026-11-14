@@ -95,6 +95,29 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('table: Registered first, gender as M/F, qualification cut to 7 characters with the full name on hover',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(tester, _FakeAdminCaregiversRepository([_item()]));
+
+    final headers = tester.widget<DataTable>(find.byType(DataTable)).columns
+        .map((c) => c.label)
+        .whereType<Text>()
+        .map((t) => t.data)
+        .toList();
+    // (the first column is the select-all checkbox)
+    expect(headers.take(3), ['Registered', 'ID', 'Name']);
+
+    expect(find.text('M'), findsOneWidget);
+    expect(find.text('male'), findsNothing);
+
+    const full = 'Registered Nurse above 2 years of experience';
+    expect(find.text('${full.substring(0, 7)}…'), findsOneWidget);
+    expect(find.text(full), findsNothing);
+    expect(find.byTooltip(full), findsOneWidget);
+  });
+
   testWidgets('shows each caregiver\'s note in the table and saves an edit in place after confirming',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(2200, 800));
