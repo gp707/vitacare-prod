@@ -11,8 +11,7 @@ class AdminIndividualListItem {
   final bool isJobPostingBlocked;
   final String? blockReason;
   final String createdAt;
-  // Only ever populated by getDetail() — the list endpoint doesn't return
-  // it (same convention as caregiver notes being detail-only).
+  // Admin's internal note — returned by both the list and the detail endpoint.
   final String? notes;
 
   const AdminIndividualListItem({

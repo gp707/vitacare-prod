@@ -11,6 +11,8 @@ export interface AdminIndividualListItem {
   is_job_posting_blocked: boolean;
   block_reason: string | null;
   created_at: Date;
+  /** Admin's internal note — only selected by the list query. */
+  notes?: string | null;
 }
 
 export interface AdminIndividualListFilters {
@@ -84,9 +86,10 @@ export class AdminIndividualsRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminIndividualListItem>(
         `SELECT u.id AS user_id, ip.patient_number, u.full_name, u.phone, u.is_active,
-                ip.is_job_posting_blocked, ip.block_reason, u.created_at
+                ip.is_job_posting_blocked, ip.block_reason, u.created_at, ian.notes
          FROM users u
          JOIN individual_profiles ip ON ip.user_id = u.id
+         LEFT JOIN individual_admin_notes ian ON ian.user_id = u.id
          ${clause}
          ORDER BY ${sortColumn} ${orderDirection}, u.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,

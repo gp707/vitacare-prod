@@ -12,6 +12,7 @@ import '../../../shared/state/recipient_selection_cart.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_individuals_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
 
 /// NurseNow patient/family accounts. No verification pipeline like
@@ -51,12 +52,31 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
 
   /// Sort key of each table column after the leading checkbox column;
   /// '' marks a column that can't be sorted.
-  static const _columnSortKeys = ['patient_number', 'full_name', 'phone', '', 'created_at', ''];
+  static const _columnSortKeys = ['created_at', 'patient_number', 'full_name', 'phone', '', '', ''];
 
   int? get _sortColumnIndex {
     final i = _columnSortKeys.indexOf(_sort);
     return i < 0 ? null : i + 1;
   }
+
+  Future<void> _saveNotes(dynamic item, String notes) async {
+    await ref.read(adminIndividualsRepositoryProvider).upsertNotes(item.userId, notes);
+    if (mounted) await _load();
+  }
+
+  Widget _notesCell(dynamic item) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: SizedBox(
+          width: 300,
+          child: InlineNotesPanel(
+            key: ValueKey('notes-${item.userId}'),
+            subject: 'this patient',
+            notes: item.notes,
+            compact: true,
+            onSave: (notes) => _saveNotes(item, notes),
+          ),
+        ),
+      );
 
   void _setSort(String key, bool ascending) {
     setState(() {
@@ -335,6 +355,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                   'ID', patientDisplayId(item.patientNumber) ?? '-'),
               PhoneWithContact(label: 'Phone', phone: item.phone),
               VitaListCard.kv('Registered', item.createdAt.split('T').first),
+              InlineNotesPanel(
+                key: ValueKey('notes-${item.userId}'),
+                subject: 'this patient',
+                notes: item.notes,
+                onSave: (notes) => _saveNotes(item, notes),
+              ),
             ],
             actions: [
               _ActionsCell(
@@ -355,6 +381,9 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          // Rows grow with the notes box.
+          dataRowMinHeight: 72,
+          dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
           sortAscending: _sortAscending,
           columns: [
@@ -371,11 +400,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                 },
               ),
             ),
+            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('patient_number')),
             DataColumn(label: const Text('Name'), onSort: (_, __) => _sortBy('full_name')),
             DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
             const DataColumn(label: Text('Status')),
-            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
+            const DataColumn(label: Text('Notes')),
             const DataColumn(label: Text('Actions')),
           ],
           rows: _items
@@ -395,14 +425,15 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                                 .toggle(_toRecipient(item)),
                           ),
                         ),
+                        DataCell(Text(item.createdAt.split('T').first),
+                            onTap: () => _openDetail(item)),
                         DataCell(
                             Text(patientDisplayId(item.patientNumber) ?? '-'),
                             onTap: () => _openDetail(item)),
                         DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
                         DataCell(PhoneWithContact(phone: item.phone)),
                         DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
-                        DataCell(Text(item.createdAt.split('T').first),
-                            onTap: () => _openDetail(item)),
+                        DataCell(_notesCell(item)),
                         DataCell(_ActionsCell(
                           item: item,
                           onViewJobs: () => _viewJobs(item),

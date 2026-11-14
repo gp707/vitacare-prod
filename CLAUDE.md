@@ -738,6 +738,8 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Notes on the job list.** `GET /admin/jobs` and `GET /admin/organisation-requirements` rows carry `notes` (patient's note for patient jobs, the organisation's for
   its requirements, the per-job note for admin-posted jobs). admin-web shows it in `InlineNotesPanel` in each row's right-hand column (below the content on
   narrow rows): editable in place, Save asks for confirmation, then the list reloads.
+- **Notes in the account lists.** `GET /admin/individuals` and `GET /admin/organisations` rows also carry `notes` (the account's own note, same as on its detail
+  screen); admin-web's Patients/Family and Rehab/Hospitals tables have the same inline Notes column. **Registered is the first column in all three account tables.**
 - **Caregiver notes in the list.** `GET /admin/caregivers` rows carry `notes` (= `admin_notes.internal_notes`). admin-web's Caregivers table has a Notes column
   (not sortable) with `InlineNotesPanel` (compact): edit in place, Save confirms, then the list reloads. It saves via `POST /admin/caregivers/:id/notes` with only
   `internal_notes`; `AdminService.upsertNotes` keeps `availability_remarks` when the field is omitted (an explicit null clears it).

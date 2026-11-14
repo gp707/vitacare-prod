@@ -22,6 +22,7 @@ AdminOrganisationListItem _item({
   bool isActive = true,
   bool isJobPostingBlocked = false,
   String? blockReason,
+  String? notes,
   String? area = 'Whitefield',
 }) {
   return AdminOrganisationListItem(
@@ -37,6 +38,7 @@ AdminOrganisationListItem _item({
     isJobPostingBlocked: isJobPostingBlocked,
     blockReason: blockReason,
     createdAt: '2026-08-01T10:00:00Z',
+    notes: notes,
   );
 }
 
@@ -49,7 +51,14 @@ class _FakeAdminOrganisationsRepository extends AdminOrganisationsRepository {
   String? unblockedLevel;
   OrganisationListFilters? lastFilters;
 
+  final savedNotes = <String, String?>{};
+
   _FakeAdminOrganisationsRepository(this.items) : super(Dio());
+
+  @override
+  Future<void> upsertNotes(String userId, String? notes) async {
+    savedNotes[userId] = notes;
+  }
 
   @override
   Future<AdminOrganisationsListResult> list({
@@ -93,7 +102,7 @@ Future<void> _selectFilterDropdown(
 
 Future<void> _pump(
     WidgetTester tester, _FakeAdminOrganisationsRepository repo) async {
-  await tester.binding.setSurfaceSize(const Size(2450, 800));
+  await tester.binding.setSurfaceSize(const Size(2900, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -118,6 +127,32 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('organisations: Registered is the first column; the Notes column edits in place after confirming',
+      (tester) async {
+    final repo = _FakeAdminOrganisationsRepository([_item(notes: 'Call after 6pm')]);
+    await _pump(tester, repo);
+
+    final headers = tester.widget<DataTable>(find.byType(DataTable)).columns
+        .map((c) => c.label)
+        .whereType<Text>()
+        .map((t) => t.data)
+        .toList();
+    expect(headers.first, 'Registered');
+    expect(headers, contains('Notes'));
+    expect(find.text('Call after 6pm'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('inline-notes-field')), 'Call after 7pm');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, isEmpty);
+    await tester.tap(find.text('Save note'));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, {'u1': 'Call after 7pm'});
+  });
+
   testWidgets('clicking a column header sorts the list by it, and again reverses it', (tester) async {
     final repo = _FakeAdminOrganisationsRepository([_item()]);
     await _pump(tester, repo);
@@ -306,7 +341,7 @@ void main() {
   testWidgets(
       'tapping a row navigates to /organisation-detail with the account\'s user id',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2450, 800));
+    await tester.binding.setSurfaceSize(const Size(2900, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();
@@ -350,7 +385,7 @@ void main() {
   testWidgets(
       'tapping View Jobs redirects to /jobs pre-filtered to this organisation',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2450, 800));
+    await tester.binding.setSurfaceSize(const Size(2900, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();

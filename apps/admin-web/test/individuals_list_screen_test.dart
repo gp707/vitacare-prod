@@ -20,6 +20,7 @@ AdminIndividualListItem _item({
   bool isActive = true,
   bool isJobPostingBlocked = false,
   String? blockReason,
+  String? notes,
 }) {
   return AdminIndividualListItem(
     userId: userId,
@@ -30,6 +31,7 @@ AdminIndividualListItem _item({
     isJobPostingBlocked: isJobPostingBlocked,
     blockReason: blockReason,
     createdAt: '2026-08-01T10:00:00Z',
+    notes: notes,
   );
 }
 
@@ -42,7 +44,14 @@ class _FakeAdminIndividualsRepository extends AdminIndividualsRepository {
   String? unblockedLevel;
   IndividualListFilters? lastFilters;
 
+  final savedNotes = <String, String?>{};
+
   _FakeAdminIndividualsRepository(this.items) : super(Dio());
+
+  @override
+  Future<void> upsertNotes(String userId, String? notes) async {
+    savedNotes[userId] = notes;
+  }
 
   @override
   Future<AdminIndividualsListResult> list({
@@ -88,7 +97,7 @@ Future<void> _pump(
     WidgetTester tester, _FakeAdminIndividualsRepository repo) async {
   // The Actions column sits at the right edge of a horizontally-scrolling
   // DataTable — the default 800x600 test surface clips it off-screen.
-  await tester.binding.setSurfaceSize(const Size(2150, 800));
+  await tester.binding.setSurfaceSize(const Size(2600, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   // ignore: invalid_use_of_visible_for_testing_member
@@ -113,6 +122,32 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('patients: Registered is the first column; the Notes column edits in place after confirming',
+      (tester) async {
+    final repo = _FakeAdminIndividualsRepository([_item(notes: 'Call after 6pm')]);
+    await _pump(tester, repo);
+
+    final headers = tester.widget<DataTable>(find.byType(DataTable)).columns
+        .map((c) => c.label)
+        .whereType<Text>()
+        .map((t) => t.data)
+        .toList();
+    expect(headers.first, 'Registered');
+    expect(headers, contains('Notes'));
+    expect(find.text('Call after 6pm'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('inline-notes-field')), 'Call after 7pm');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, isEmpty);
+    await tester.tap(find.text('Save note'));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, {'u1': 'Call after 7pm'});
+  });
+
   testWidgets('clicking a column header sorts the list by it, and again reverses it', (tester) async {
     final repo = _FakeAdminIndividualsRepository([_item()]);
     await _pump(tester, repo);
@@ -159,7 +194,7 @@ void main() {
 
   testWidgets('tapping the checkbox only selects the row — it does not also navigate to the detail screen',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2150, 800));
+    await tester.binding.setSurfaceSize(const Size(2600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();
@@ -314,7 +349,7 @@ void main() {
   testWidgets(
       'tapping a row navigates to /individual-detail with the account\'s user id',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2150, 800));
+    await tester.binding.setSurfaceSize(const Size(2600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();
@@ -358,7 +393,7 @@ void main() {
   testWidgets(
       'tapping View Jobs redirects to /jobs pre-filtered to this individual',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(2150, 800));
+    await tester.binding.setSurfaceSize(const Size(2600, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
     final localStorage = await LocalStorage.create();

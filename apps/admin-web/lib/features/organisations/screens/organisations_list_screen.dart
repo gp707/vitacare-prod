@@ -12,6 +12,7 @@ import '../../../shared/state/recipient_selection_cart.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_organisations_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
 
 /// NurseNow hospital/rehab/clinic accounts — mirrors IndividualsListScreen
@@ -58,12 +59,31 @@ class _OrganisationsListScreenState
 
   /// Sort key of each table column after the leading checkbox column;
   /// '' marks a column that can't be sorted.
-  static const _columnSortKeys = ['org_number', 'organisation_name', 'full_name', 'phone', 'city', '', 'created_at', ''];
+  static const _columnSortKeys = ['created_at', 'org_number', 'organisation_name', 'full_name', 'phone', 'city', '', '', ''];
 
   int? get _sortColumnIndex {
     final i = _columnSortKeys.indexOf(_sort);
     return i < 0 ? null : i + 1;
   }
+
+  Future<void> _saveNotes(dynamic item, String notes) async {
+    await ref.read(adminOrganisationsRepositoryProvider).upsertNotes(item.userId, notes);
+    if (mounted) await _load();
+  }
+
+  Widget _notesCell(dynamic item) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: SizedBox(
+          width: 300,
+          child: InlineNotesPanel(
+            key: ValueKey('notes-${item.userId}'),
+            subject: 'this organisation',
+            notes: item.notes,
+            compact: true,
+            onSave: (notes) => _saveNotes(item, notes),
+          ),
+        ),
+      );
 
   void _setSort(String key, bool ascending) {
     setState(() {
@@ -398,6 +418,12 @@ class _OrganisationsListScreenState
               PhoneWithContact(label: 'Phone', phone: item.phone),
               VitaListCard.kv('Location', _locationText(item)),
               VitaListCard.kv('Registered', item.createdAt.split('T').first),
+              InlineNotesPanel(
+                key: ValueKey('notes-${item.userId}'),
+                subject: 'this organisation',
+                notes: item.notes,
+                onSave: (notes) => _saveNotes(item, notes),
+              ),
             ],
             actions: [
               _ActionsCell(
@@ -418,6 +444,9 @@ class _OrganisationsListScreenState
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          // Rows grow with the notes box.
+          dataRowMinHeight: 72,
+          dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
           sortAscending: _sortAscending,
           columns: [
@@ -434,13 +463,14 @@ class _OrganisationsListScreenState
                 },
               ),
             ),
+            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('org_number')),
             DataColumn(label: const Text('Organisation'), onSort: (_, __) => _sortBy('organisation_name')),
             DataColumn(label: const Text('Contact'), onSort: (_, __) => _sortBy('full_name')),
             DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
             DataColumn(label: const Text('Location'), onSort: (_, __) => _sortBy('city')),
             const DataColumn(label: Text('Status')),
-            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
+            const DataColumn(label: Text('Notes')),
             const DataColumn(label: Text('Actions')),
           ],
           rows: _items
@@ -458,6 +488,8 @@ class _OrganisationsListScreenState
                                 .toggle(_toRecipient(item)),
                           ),
                         ),
+                        DataCell(Text(item.createdAt.split('T').first),
+                            onTap: () => _openDetail(item)),
                         DataCell(Text(organisationDisplayId(item.orgNumber) ?? '-'),
                             onTap: () => _openDetail(item)),
                         DataCell(Text(item.organisationName), onTap: () => _openDetail(item)),
@@ -467,8 +499,7 @@ class _OrganisationsListScreenState
                             Text(_locationText(item)),
                             onTap: () => _openDetail(item)),
                         DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
-                        DataCell(Text(item.createdAt.split('T').first),
-                            onTap: () => _openDetail(item)),
+                        DataCell(_notesCell(item)),
                         DataCell(_ActionsCell(
                           item: item,
                           onViewJobs: () => _viewJobs(item),

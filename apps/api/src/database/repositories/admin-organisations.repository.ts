@@ -15,6 +15,8 @@ export interface AdminOrganisationListItem {
   is_job_posting_blocked: boolean;
   block_reason: string | null;
   created_at: Date;
+  /** Admin's internal note — only selected by the list query. */
+  notes?: string | null;
 }
 
 export const ORGANISATION_SORT_COLUMNS = {
@@ -103,9 +105,10 @@ export class AdminOrganisationsRepository {
       this.db.query<AdminOrganisationListItem>(
         `SELECT u.id AS user_id, op.org_number, u.full_name, u.phone,
                 op.organisation_name, op.organisation_type, op.city, op.area,
-                u.is_active, op.is_job_posting_blocked, op.block_reason, u.created_at
+                u.is_active, op.is_job_posting_blocked, op.block_reason, u.created_at, oan.notes
          FROM users u
          JOIN organisation_profiles op ON op.user_id = u.id
+         LEFT JOIN organisation_admin_notes oan ON oan.user_id = u.id
          ${clause}
          ORDER BY ${sortColumn} ${orderDirection}, u.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
