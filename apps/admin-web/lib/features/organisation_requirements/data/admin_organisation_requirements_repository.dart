@@ -221,6 +221,17 @@ class AdminOrganisationRequirementsRepository {
     }
   }
 
+  /// Approve with an empty PATCH — what a read-only admin uses, since the API
+  /// refuses any request that carries fields from that role. The server treats
+  /// a bare body as a pure approve (pending_review/closed -> active).
+  Future<void> approveWithoutChanges(String id) async {
+    try {
+      await _dio.patch('/admin/organisation-requirements/$id', data: <String, dynamic>{});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// One-click approve — there's no dedicated backend approve endpoint for
   /// organisation requirements (unlike admin-posted jobs' own
   /// PATCH /admin/jobs/:id/approve); per CLAUDE.md, the existing edit

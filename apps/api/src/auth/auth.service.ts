@@ -1,3 +1,4 @@
+import { isAdminAccountRole } from '../common/admin-roles';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -419,7 +420,7 @@ export class AuthService {
 
   async loginEmail(dto: LoginEmailDto, ipAddress: string | null = null) {
     const user = await this.usersRepo.findByEmail(dto.email);
-    if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+    if (!user || !isAdminAccountRole(user.role)) {
       throw new AppException('AUTH_003');
     }
     if (!user.is_active) {

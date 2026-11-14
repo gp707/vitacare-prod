@@ -4,6 +4,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -138,31 +139,37 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                                         ),
                                         if (application.status ==
                                             JobApplicationStatus.applied) ...[
-                                          TextButton(
-                                            onPressed: () => _decide(
-                                                application,
-                                                JobApplicationStatus.accepted),
-                                            child: const Text('Accept'),
+                                          HideForReadOnly(
+                                            child: TextButton(
+                                              onPressed: () => _decide(
+                                                  application,
+                                                  JobApplicationStatus.accepted),
+                                              child: const Text('Accept'),
+                                            ),
                                           ),
-                                          TextButton(
-                                            onPressed: () => _decide(
-                                                application,
-                                                JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.error),
-                                            child: const Text('Reject'),
+                                          HideForReadOnly(
+                                            child: TextButton(
+                                              onPressed: () => _decide(
+                                                  application,
+                                                  JobApplicationStatus.rejected),
+                                              style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppColors.error),
+                                              child: const Text('Reject'),
+                                            ),
                                           ),
                                         ] else if (application.status ==
                                             JobApplicationStatus.accepted)
-                                          TextButton(
-                                            onPressed: () => _decide(
-                                                application,
-                                                JobApplicationStatus.rejected),
-                                            style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.error),
-                                            child: const Text('Reject'),
+                                          HideForReadOnly(
+                                            child: TextButton(
+                                              onPressed: () => _decide(
+                                                  application,
+                                                  JobApplicationStatus.rejected),
+                                              style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppColors.error),
+                                              child: const Text('Reject'),
+                                            ),
                                           ),
                                       ],
                                     ),

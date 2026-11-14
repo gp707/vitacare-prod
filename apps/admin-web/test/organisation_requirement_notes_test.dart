@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:admin_web/core/providers.dart';
+import 'package:admin_web/shared/state/read_only_admin.dart';
 import 'package:admin_web/features/organisations/data/admin_organisations_repository.dart';
 import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
 import 'package:admin_web/features/organisation_requirements/widgets/requirement_widgets.dart';
@@ -56,7 +57,10 @@ void main() {
     });
     await tester.binding.setSurfaceSize(const Size(1200, 1600));
     await tester.pumpWidget(ProviderScope(
-      overrides: [adminOrganisationsRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        adminOrganisationsRepositoryProvider.overrideWithValue(repo),
+        isReadOnlyAdminProvider.overrideWithValue(false),
+      ],
       child: MaterialApp(
         home: Scaffold(
           body: RequirementReadOnlyDialog(requirement: req, onEdit: () {}),

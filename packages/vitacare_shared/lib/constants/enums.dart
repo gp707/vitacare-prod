@@ -603,6 +603,7 @@ class PushNotificationStatus {
 class UserRole {
   static const superAdmin = 'super_admin';
   static const admin = 'admin';
+  static const readOnlyAdmin = 'read_only_admin';
   static const caregiver = 'caregiver';
   // NurseNow patient/family account.
   static const individual = 'individual';

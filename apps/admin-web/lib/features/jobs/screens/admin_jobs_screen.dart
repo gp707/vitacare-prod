@@ -20,6 +20,8 @@ import '../../../shared/widgets/admin_notes_dialog.dart';
 import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 import '../../../shared/widgets/confirm_action.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
+import '../../../shared/state/read_only_admin.dart';
 
 /// Admin posts a job built around the care receiver's needs, it's
 /// broadcast to all caregivers via push, and caregivers apply/reject. This
@@ -680,9 +682,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
     if (confirmed != true) return;
     try {
-      await ref
-          .read(adminOrganisationRequirementsRepositoryProvider)
-          .approve(requirement);
+      final repo = ref.read(adminOrganisationRequirementsRepositoryProvider);
+      // A read-only admin may only send a bare approve; a plain admin keeps
+      // the original request exactly as it was.
+      if (ref.read(isReadOnlyAdminProvider)) {
+        await repo.approveWithoutChanges(requirement.id);
+      } else {
+        await repo.approve(requirement);
+      }
       await _load(silent: true);
     } on ApiException catch (e) {
       if (mounted) {
@@ -1238,10 +1245,12 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  ElevatedButton.icon(
-                    onPressed: _openCreateDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Post New Job'),
+                  HideForReadOnly(
+                    child: ElevatedButton.icon(
+                      onPressed: _openCreateDialog,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Post New Job'),
+                    ),
                   ),
                 ],
               ),
@@ -1275,18 +1284,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                         const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final entry = _mergedEntries[index];
+                      final readOnly = ref.watch(isReadOnlyAdminProvider);
                       final row = switch (entry) {
                         _JobEntry(:final job) => _JobRow(
                             job: job,
                             onTap: () => _openDetailDialog(job.id),
-                            onClose: job.status == JobStatus.active
+                            onClose: !readOnly && job.status == JobStatus.active
                                 ? () => _close(job)
                                 : null,
-                            onRemind: job.status == JobStatus.active
+                            onRemind: !readOnly && job.status == JobStatus.active
                                 ? () => _remind(job)
                                 : null,
                             onMovePendingReview:
-                                job.status == JobStatus.pendingReview
+                                readOnly || job.status == JobStatus.pendingReview
                                     ? null
                                     : () => _moveToPendingReview(
                                         () => ref
@@ -1295,7 +1305,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onApprove: job.status == JobStatus.pendingReview
                                 ? () => _approve(job)
                                 : null,
-                            onReject: job.status == JobStatus.pendingReview
+                            onReject: !readOnly && job.status == JobStatus.pendingReview
                                 ? () => _reject(job)
                                 : null,
                             onViewApplications: () => _viewApplications(job),
@@ -1312,14 +1322,14 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                     ? () => _approveRequirement(requirement)
                                     : null,
                             onReject:
-                                requirement.status == JobStatus.pendingReview
+                                !readOnly && requirement.status == JobStatus.pendingReview
                                     ? () => _rejectRequirement(requirement)
                                     : null,
-                            onRemind: requirement.status == JobStatus.active
+                            onRemind: !readOnly && requirement.status == JobStatus.active
                                 ? () => _remindRequirement(requirement)
                                 : null,
                             onMovePendingReview:
-                                requirement.status == JobStatus.pendingReview
+                                readOnly || requirement.status == JobStatus.pendingReview
                                     ? null
                                     : () => _moveToPendingReview(() => ref
                                         .read(
@@ -1484,15 +1494,17 @@ class _JobRow extends StatelessWidget {
   final actions = Wrap(
     spacing: AppSpacing.xs,
     children: [
-      ActionHelp(
-        message: JobActionHelp.edit(
-          pendingReview: job.status == JobStatus.pendingReview,
-          closed: job.status == JobStatus.closed,
-        ),
-        child: TextButton.icon(
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit, size: 16),
-          label: const Text('Edit'),
+      HideForReadOnly(
+        child: ActionHelp(
+          message: JobActionHelp.edit(
+            pendingReview: job.status == JobStatus.pendingReview,
+            closed: job.status == JobStatus.closed,
+          ),
+          child: TextButton.icon(
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text('Edit'),
+          ),
         ),
       ),
       ActionHelp(
@@ -1723,6 +1735,19 @@ const _noPreferenceLanguageLabel = 'No Preference';
 /// toggle-then-reveal. Translated to `has_medical_condition: false` (no
 /// `medical_conditions`) at submission time.
 const _noneMedicalCondition = 'none';
+
+// UI-only "None" for Toilet Assistance / Feeding/Medicine Assistance — the
+// same sentinels, labels and mapping nursenow-app's patient form uses, so an
+// admin posting sees the same options. Never sent anywhere: it is saved as
+// ToiletAssistance.independent / FeedingType.oralFeeding (same tier, same
+// Rate Card suggestion), so a stored value of either reads back as None.
+const _noneToiletAssistance = 'none';
+const _noneFeedingType = 'none';
+
+String _toiletToUi(String stored) =>
+    stored == ToiletAssistance.independent ? _noneToiletAssistance : stored;
+String? _feedingToUi(String? stored) =>
+    stored == FeedingType.oralFeeding ? _noneFeedingType : stored;
 const _noneMedicalConditionLabel = 'None';
 
 /// Handles both posting a new job and editing an existing one. Pass [job] +
@@ -1781,7 +1806,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   final _weightKey = GlobalKey();
   final _salaryKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
-  final _startDateKey = GlobalKey();
   final _careDurationKey = GlobalKey();
   final _toiletAssistanceKey = GlobalKey();
   final _feedingTypeKey = GlobalKey();
@@ -1802,7 +1826,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   String? _feedingType;
   List<String> _toiletAssistance = [];
   String? _dutyType;
-  DateTime? _startDate;
   String? _careDuration;
   List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender; // null = no preference
@@ -1833,16 +1856,21 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   /// Post/Edit Requirement screens exactly. Vital-monitoring isn't
   /// collected on this form at all, so it's fixed at its server-side
   /// default, same as nursenow-app's PostRequirementScreen.
+  String get _effectiveFeedingType =>
+      _feedingType == null || _feedingType == _noneFeedingType ? FeedingType.oralFeeding : _feedingType!;
+  List<String> get _effectiveToiletAssistance =>
+      _toiletAssistance.contains(_noneToiletAssistance) ? const [ToiletAssistance.independent] : _toiletAssistance;
+
   CareReceiverModel get _careReceiverForTierDerivation => CareReceiverModel(
         id: widget.careReceiver?.id ?? '',
         age: _age ?? 0,
         gender: _gender ?? '',
         weightKg: _weightKg ?? 0,
-        feedingType: _feedingType ?? FeedingType.oralFeeding,
+        feedingType: _effectiveFeedingType,
         hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
         medicalConditions:
             _medicalConditions.contains(_noneMedicalCondition) ? const [] : _medicalConditions,
-        toiletAssistance: _toiletAssistance,
+        toiletAssistance: _effectiveToiletAssistance,
         requiresVitalMonitoring: false,
         vitalMonitoringTypes: const [],
       );
@@ -1900,8 +1928,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _areaController.text = job.area ?? '';
       _dutyType = job.dutyType;
       _careDuration = job.careDuration;
-      _startDate =
-          job.startDate == null ? null : DateTime.tryParse(job.startDate!);
       _languages =
           job.languages.isEmpty ? [_noPreferenceLanguage] : List.of(job.languages);
       _salaryController.text = job.salaryAmount ?? '';
@@ -1912,14 +1938,14 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
-      _feedingType = cr.feedingType;
+      _feedingType = _feedingToUi(cr.feedingType);
       // Empty/false source means the job was itself "None" —
       // _medicalConditions already defaults to that, so leave it untouched.
       if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
         _medicalConditions = List.of(cr.medicalConditions);
       }
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
-      _toiletAssistance = List.of(cr.toiletAssistance);
+      _toiletAssistance = cr.toiletAssistance.map(_toiletToUi).toList();
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
     }
     _loadRateCards();
@@ -1953,7 +1979,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
   bool get _isWeightValid =>
       _weightKg != null && _weightKg! >= 1 && _weightKg! <= 300;
   bool get _isDutyTypeValid => _dutyType != null;
-  bool get _isStartDateValid => _startDate != null;
   bool get _isCareDurationValid => _careDuration != null;
   bool get _isToiletAssistanceValid => _toiletAssistance.isNotEmpty;
   bool get _isFeedingTypeValid => _feedingType != null;
@@ -1975,7 +2000,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
       _isGenderValid &&
       _isWeightValid &&
       _isDutyTypeValid &&
-      _isStartDateValid &&
       _isCareDurationValid &&
       _isToiletAssistanceValid &&
       _isFeedingTypeValid &&
@@ -1994,7 +2018,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         _MandatoryField(_cityKey, _isCityValid),
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
-        _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_careDurationKey, _isCareDurationValid),
         _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
@@ -2057,17 +2080,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
     await _submit();
   }
 
-  Future<void> _pickStartDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _startDate = picked);
-  }
-
   Future<void> _submit() async {
     if (_isEditing) {
       final status = widget.job!.status;
@@ -2094,7 +2106,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         age: _age!,
         gender: _gender!,
         weightKg: _weightKg!,
-        feedingType: _feedingType,
+        feedingType: _feedingType == null ? null : _effectiveFeedingType,
         hasMedicalCondition: hasMedicalCondition,
         medicalConditions: hasMedicalCondition ? _medicalConditions : null,
         medicalConditionOther:
@@ -2102,7 +2114,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                     _medicalConditionOtherController.text.trim().isNotEmpty
                 ? _medicalConditionOtherController.text.trim()
                 : null,
-        toiletAssistance: _toiletAssistance,
+        toiletAssistance: _effectiveToiletAssistance,
         toiletAssistanceOther:
             _toiletAssistance.contains(ToiletAssistance.others) &&
                     _toiletAssistanceOtherController.text.trim().isNotEmpty
@@ -2110,12 +2122,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 : null,
         requiresVitalMonitoring: false,
       );
-      final startDate = _startDate == null
-          ? null
-          : '${_startDate!.year.toString().padLeft(4, '0')}-'
-              '${_startDate!.month.toString().padLeft(2, '0')}-'
-              '${_startDate!.day.toString().padLeft(2, '0')}';
-
       if (_isEditing) {
         await ref.read(adminJobsRepositoryProvider).update(
               widget.job!.id,
@@ -2124,7 +2130,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               area: _areaController.text.trim(),
               dutyType: _dutyType!,
               frequencyOfCare: _derivedFrequencyOfCare!,
-              startDate: startDate,
               languages: _effectiveLanguages,
               salaryAmount: _salaryController.text.trim(),
               preferredGender: _effectivePreferredGender,
@@ -2138,7 +2143,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               area: _areaController.text.trim(),
               dutyType: _dutyType!,
               frequencyOfCare: _derivedFrequencyOfCare!,
-              startDate: startDate,
               languages: _effectiveLanguages,
               salaryAmount: _salaryController.text.trim(),
               preferredGender: _effectivePreferredGender,
@@ -2280,9 +2284,11 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ? 'Please select feeding/medicine assistance'
                 : null,
           ),
-          items: FeedingType.all
-              .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
-              .toList(),
+          items: [
+            const DropdownMenuItem(value: _noneFeedingType, child: Text('None')),
+            ...FeedingType.all
+                .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f))),
+          ],
           onChanged: (value) => setState(() {
             _feedingType = value;
             _refreshSuggestedSalary();
@@ -2330,9 +2336,11 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
                 ? 'Please select toilet assistance'
                 : null,
           ),
-          items: ToiletAssistance.all
-              .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
-              .toList(),
+          items: [
+            const DropdownMenuItem(value: _noneToiletAssistance, child: Text('None')),
+            ...ToiletAssistance.all
+                .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t))),
+          ],
           onChanged: (value) => setState(() {
             _toiletAssistance = [value!];
             _refreshSuggestedSalary();
@@ -2419,56 +2427,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ),
       ];
 
-  List<Widget> _startDateField() => [
-        KeyedSubtree(
-          key: _startDateKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // A persistent heading, unlike the old design where the
-              // button's own label doubled as the display text — that
-              // meant "Preferred Start Date" disappeared the moment a date
-              // was picked, leaving just a bare date with no context for
-              // what it was.
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: _showValidationErrors && !_isStartDateValid ? AppColors.error : AppColors.primaryDark,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      'Preferred Start Date (Mandatory)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              OutlinedButton.icon(
-                onPressed: _pickStartDate,
-                icon: const Icon(Icons.calendar_today, size: 16),
-                label: Text(
-                  _startDate == null
-                      ? 'Select date'
-                      : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
-                ),
-              ),
-              if (_showValidationErrors && !_isStartDateValid)
-                const Padding(
-                  padding: EdgeInsets.only(top: 4),
-                  child: Text('Please select a start date', style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
-                ),
-            ],
-          ),
-        ),
-      ];
-
   // Pregnancy/Japa care is always by a female caregiver (and always Critical
   // Care): the field is forced to Female and locked while it is selected.
   bool get _isPregnancyJapa => _medicalConditions.contains(MedicalCondition.pregnancyJapa);
@@ -2523,8 +2481,6 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         const Text('Care Preferences', style: _sectionHeading),
         _spacerSm,
         ..._dutyTypeField(),
-        _spacerSm,
-        ..._startDateField(),
         _spacerSm,
         ..._careDurationField(),
         _spacerSm,

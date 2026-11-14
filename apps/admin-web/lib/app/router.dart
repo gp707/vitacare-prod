@@ -20,6 +20,7 @@ import '../features/tickets/screens/tickets_screen.dart';
 import '../features/rejections/screens/rejections_screen.dart';
 import '../features/error_logs/screens/error_logs_screen.dart';
 import '../features/insights/screens/insights_screen.dart';
+import '../shared/widgets/blocked_for_read_only.dart';
 
 /// Settings route is added in a later phase (SPEC.md 13.1).
 /// /caregivers accepts an optional status filter, /jobs an optional
@@ -34,25 +35,31 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/': (context) => RootScreen(initialDeepLinkRoute: initialDeepLinkRoute),
     '/login': (context) => const LoginScreen(),
     '/dashboard': (context) => const DashboardScreen(),
-    '/admins': (context) => const AdminManagementScreen(),
-    '/settings': (context) => const SettingsScreen(),
+    '/admins': (context) =>
+        BlockedForReadOnly(child: const AdminManagementScreen()),
+    '/settings': (context) =>
+        BlockedForReadOnly(child: const SettingsScreen()),
     '/settings/rate-card': (context) =>
-        const SettingsScreen(initialTabIndex: 1),
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 1)),
     '/settings/scope-of-work': (context) =>
-        const SettingsScreen(initialTabIndex: 2),
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 2)),
     '/settings/duty-requirements': (context) =>
-        const SettingsScreen(initialTabIndex: 3),
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 3)),
     '/settings/app-versions': (context) =>
-        const SettingsScreen(initialTabIndex: 4),
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 4)),
     '/settings/maintenance': (context) =>
-        const SettingsScreen(initialTabIndex: 5),
-    '/settings/login': (context) => const SettingsScreen(initialTabIndex: 6),
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 5)),
+    '/settings/login': (context) =>
+        BlockedForReadOnly(child: const SettingsScreen(initialTabIndex: 6)),
     '/patients-family': (context) => const IndividualsListScreen(),
     '/rehab-hospitals': (context) => const OrganisationsListScreen(),
-    '/nursenow-messages': (context) => const IndividualMessagesScreen(),
-    '/nursejobs-messages': (context) => const CaregiverMessagesScreen(),
+    '/nursenow-messages': (context) =>
+        BlockedForReadOnly(child: const IndividualMessagesScreen()),
+    '/nursejobs-messages': (context) =>
+        BlockedForReadOnly(child: const CaregiverMessagesScreen()),
     '/reports': (context) => const ReportsScreen(),
-    '/push-notifications': (context) => const PushNotificationsScreen(),
+    '/push-notifications': (context) =>
+        BlockedForReadOnly(child: const PushNotificationsScreen()),
     '/tickets': (context) => const TicketsScreen(),
     '/rejections': (context) => const RejectionsScreen(),
     '/error-logs': (context) => const ErrorLogsScreen(),

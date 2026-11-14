@@ -531,17 +531,6 @@ Future<void> _tapChip(WidgetTester tester, String chipLabel) async {
 // form entirely (see CLAUDE.md's NurseNow section).
 const _descriptionLabel = 'More details you want to share about patient';
 
-/// Picks today's date (the picker's default) for the mandatory Preferred
-/// Start Date field via its own OK button.
-Future<void> _pickPreferredStartDate(WidgetTester tester) async {
-  final dateButton = find.widgetWithText(OutlinedButton, 'Select date');
-  await tester.ensureVisible(dateButton);
-  await tester.tap(dateButton);
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('OK'));
-  await tester.pumpAndSettle();
-}
-
 /// Fills Age/Gender/Weight/City/Area — the core Patient Details fields that
 /// nearly every test needs, leaving Medical Condition at its "None" default
 /// and Toilet Assistance/Feeding untouched (both optional).
@@ -584,7 +573,7 @@ Future<void> _fillSalary(WidgetTester tester, {String amount = '30000'}) async {
 }
 
 /// Fills every hard-required field on the unified form (Patient Details'
-/// core fields + Hours Care Needed + Preferred Start Date + Duration Care is
+/// core fields + Hours Care Needed + Duration Care is
 /// Needed + Toilet Assistance + Feeding/Medicine Assistance + Salary),
 /// leaving Medical Condition/Language Preference at their defaults — used by
 /// tests that only care about getting to a submittable state.
@@ -592,7 +581,6 @@ Future<void> _fillMandatoryFields(WidgetTester tester) async {
   await _fillPatientDetailsCore(tester);
   await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
       '12Hrs Day Shift (8am to 8pm)');
-  await _pickPreferredStartDate(tester);
   await _selectDropdown(
       tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
   await _selectDropdown(tester, 'Toilet Assistance (Mandatory)',
@@ -1167,32 +1155,54 @@ void main() {
     expect(repo.createCalled, isTrue);
   });
 
-  testWidgets(
-      'Preferred Start Date heading stays visible after a date is picked',
-      (tester) async {
+  testWidgets('the Post New Job form has no Preferred Start Date field', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Preferred Start Date (Mandatory)'), findsOneWidget);
-    expect(find.text('Select date'), findsOneWidget);
-
-    final dateButton = find.widgetWithText(OutlinedButton, 'Select date');
-    await tester.ensureVisible(dateButton);
-    await tester.tap(dateButton);
-    await tester.pumpAndSettle();
-
-    // Confirm the date picker's default (today's) date via its own OK button.
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    // The heading is still there — before this fix, the button's own label
-    // doubled as both the heading and the value, so picking a date replaced
-    // "Preferred Start Date" with a bare, context-free date.
-    expect(find.text('Preferred Start Date (Mandatory)'), findsOneWidget);
+    expect(find.textContaining('Preferred Start Date'), findsNothing);
     expect(find.text('Select date'), findsNothing);
+    expect(find.text('Hours Care Needed (Mandatory)'), findsOneWidget);
+  });
+
+  testWidgets('Toilet Assistance and Feeding/Medicine Assistance offer None, saved as independent / oral feeding — same as the patient form', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+
+    await _fillPatientDetailsCore(tester);
+    await _selectDropdown(tester, 'Hours Care Needed (Mandatory)', '12Hrs Day Shift (8am to 8pm)');
+    await _selectDropdown(tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
+    await _selectDropdown(tester, 'Toilet Assistance (Mandatory)', 'None');
+    await _selectDropdown(tester, 'Feeding/Medicine Assistance (Mandatory)', 'None');
+    await _fillSalary(tester);
+
+    final postButton = find.widgetWithText(ElevatedButton, 'Post');
+    await tester.ensureVisible(postButton);
+    await tester.tap(postButton);
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isTrue);
+    expect(repo.submittedCareReceiver!.toiletAssistance, ['independent']);
+    expect(repo.submittedCareReceiver!.feedingType, 'oral_feeding');
+  });
+
+  testWidgets('Toilet Assistance and Feeding/Medicine Assistance are still mandatory — leaving them unselected is not the same as None', (tester) async {
+    final repo = _FakeAdminJobsRepository([]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post New Job'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Post'));
+    await tester.pumpAndSettle();
+
+    expect(repo.createCalled, isFalse);
+    expect(find.text('Please select toilet assistance'), findsOneWidget);
+    expect(find.text('Please select feeding/medicine assistance'), findsOneWidget);
   });
 
   testWidgets(
@@ -1221,7 +1231,7 @@ void main() {
   });
 
   testWidgets(
-      'only age/weight/gender/city/area/duty-hours/start-date/duration/salary are hard-required — '
+      'only age/weight/gender/city/area/duty-hours/duration/salary are hard-required — '
       'feeding and toilet assistance can be left unselected', (tester) async {
     final repo = _FakeAdminJobsRepository([]);
     await _pump(tester, repo);
@@ -1266,7 +1276,7 @@ void main() {
     expect(find.text('Please select a gender'), findsOneWidget);
     expect(find.text('Weight is required (1-300 kg)'), findsOneWidget);
     expect(find.text('Please select duty hours'), findsOneWidget);
-    expect(find.text('Please select a start date'), findsOneWidget);
+    expect(find.text('Please select a start date'), findsNothing); // no such field any more
     expect(find.text('Please select how long care is needed'), findsOneWidget);
     expect(find.text('Salary is required'), findsOneWidget);
     // Frequency of Care can never be invalid — it's derived, not picked.
@@ -1307,7 +1317,6 @@ void main() {
 
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _pickPreferredStartDate(tester);
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
@@ -1343,7 +1352,6 @@ void main() {
 
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _pickPreferredStartDate(tester);
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
@@ -1387,7 +1395,6 @@ void main() {
         tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _pickPreferredStartDate(tester);
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
@@ -1434,7 +1441,6 @@ void main() {
         tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
     await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
         '12Hrs Day Shift (8am to 8pm)');
-    await _pickPreferredStartDate(tester);
     await _selectDropdown(
         tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
     await _fillSalary(tester);
@@ -1540,7 +1546,6 @@ void main() {
           tester, 'Feeding/Medicine Assistance (Mandatory)', 'Oral feeding');
       await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
           '12Hrs Day Shift (8am to 8pm)');
-      await _pickPreferredStartDate(tester);
       await _selectDropdown(
           tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
       await _fillSalary(tester);
@@ -1669,7 +1674,6 @@ void main() {
       await _fillPatientDetailsCore(tester);
       await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
           '12Hrs Day Shift (8am to 8pm)');
-      await _pickPreferredStartDate(tester);
       await _fillSalary(tester);
       // Duration Care is Needed deliberately left untouched.
 
@@ -1790,7 +1794,6 @@ void main() {
       await _fillPatientDetailsCore(tester);
       await _selectDropdown(tester, 'Hours Care Needed (Mandatory)',
           '12Hrs Day Shift (8am to 8pm)');
-      await _pickPreferredStartDate(tester);
       await _selectDropdown(
           tester, 'Duration Care is Needed (Mandatory)', 'Need for Few Weeks');
 

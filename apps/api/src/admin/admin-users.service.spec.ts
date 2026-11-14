@@ -94,6 +94,34 @@ describe('AdminUsersService', () => {
     });
   });
 
+  describe('createAdmin with a role', () => {
+    const dto = { email: 'ro@vitacasahealth.in', phone: '+919999900002', full_name: 'Read Only', password: 'securepass1' };
+
+    it('creates a read_only_admin when asked, and checks the phone against every admin-type role', async () => {
+      usersRepo.findByEmail.mockResolvedValue(null);
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      usersRepo.create.mockResolvedValue({ id: 'ro-1', email: dto.email, role: 'read_only_admin' });
+
+      const result = await service.createAdmin({ ...dto, role: UserRole.READ_ONLY_ADMIN } as any, 'admin-1');
+
+      expect(usersRepo.create).toHaveBeenCalledWith(expect.objectContaining({ role: UserRole.READ_ONLY_ADMIN }));
+      expect(usersRepo.findByPhoneAndRoles).toHaveBeenCalledWith(
+        dto.phone,
+        expect.arrayContaining([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.READ_ONLY_ADMIN]),
+      );
+      expect(result.role).toBe('read_only_admin');
+    });
+
+    it('treats a read_only_admin as an admin account when updating it', async () => {
+      usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.READ_ONLY_ADMIN });
+      usersRepo.findByPhoneAndRoles.mockResolvedValue(null);
+      usersRepo.updateAdmin.mockResolvedValue({ ...adminUser, role: UserRole.READ_ONLY_ADMIN });
+      await expect(service.updateAdmin('ro-1', { full_name: 'X' } as any)).resolves.toMatchObject({
+        role: 'read_only_admin',
+      });
+    });
+  });
+
   describe('updateAdmin', () => {
     it('throws ADMIN_004 when the target is not an admin/super_admin', async () => {
       usersRepo.findById.mockResolvedValue({ ...adminUser, role: UserRole.CAREGIVER });

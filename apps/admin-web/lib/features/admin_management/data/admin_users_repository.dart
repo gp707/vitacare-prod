@@ -52,6 +52,7 @@ class AdminUsersRepository {
     required String phone,
     required String fullName,
     required String password,
+    String role = 'admin',
   }) async {
     try {
       await _dio.post('/admin/users', data: {
@@ -59,6 +60,9 @@ class AdminUsersRepository {
         'phone': phone,
         'full_name': fullName,
         'password': password,
+        // Omitted for a plain admin so the request is byte-for-byte what it
+        // always was; only the new read-only role sends it.
+        if (role != 'admin') 'role': role,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

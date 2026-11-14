@@ -223,7 +223,7 @@ export class UsersRepository {
 
   async listAdmins(): Promise<UserRecord[]> {
     const result = await this.db.query<UserRecord>(
-      `SELECT * FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL ORDER BY created_at DESC`,
+      `SELECT * FROM users WHERE role IN ('admin', 'super_admin', 'read_only_admin') AND deleted_at IS NULL ORDER BY created_at DESC`,
     );
     return result.rows;
   }

@@ -6,6 +6,7 @@ import 'scope_of_work_button.dart';
 import '../../audit_logs/screens/audit_logs_screen.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 String _formatDate(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -117,8 +118,6 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               _DetailRow('Hours Care Needed',
                   DutyType.displayNames[job.dutyType] ?? job.dutyType),
-              if (job.startDate != null)
-                _DetailRow('Preferred Start Date', job.startDate!),
               // Only ever set on a NurseNow individual's own posting — null
               // for an admin-posted job.
               if (job.careDuration != null)
@@ -163,17 +162,21 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
               ),
               if (careReceiver != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(
-                        width: 160,
-                        child: Text('Scope of Work', style: TextStyle(color: AppColors.textSecondary)),
-                      ),
-                      ScopeOfWorkButton(careReceiver: careReceiver),
-                    ],
+                // The Scope of Work content is a settings endpoint a read-only
+                // admin can't read, so the row is hidden for them.
+                HideForReadOnly(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 160,
+                          child: Text('Scope of Work', style: TextStyle(color: AppColors.textSecondary)),
+                        ),
+                        ScopeOfWorkButton(careReceiver: careReceiver),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -197,7 +200,9 @@ class JobReadOnlyDetailDialog extends StatelessWidget {
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close')),
-        ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
+        HideForReadOnly(
+          child: ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
+        ),
       ],
     );
   }

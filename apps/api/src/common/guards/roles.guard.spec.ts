@@ -58,4 +58,49 @@ describe('RolesGuard', () => {
     const guard = new RolesGuard(reflector);
     expect(() => guard.canActivate(makeContext(undefined))).toThrow(AppException);
   });
+
+  describe('read_only_admin', () => {
+    const adminRoles = { getAllAndOverride: () => [UserRole.ADMIN, UserRole.SUPER_ADMIN] } as unknown as Reflector;
+    const ctx = (method: string, path: string, body?: unknown) => {
+      const request: any = { user: { role: UserRole.READ_ONLY_ADMIN }, method, route: { path }, body };
+      return {
+        switchToHttp: () => ({ getRequest: () => request }),
+        getHandler: () => ({}),
+        getClass: () => ({}),
+      } as unknown as ExecutionContext;
+    };
+
+    it('may read an admin route', () => {
+      expect(new RolesGuard(adminRoles).canActivate(ctx('GET', '/api/v1/admin/jobs'))).toBe(true);
+    });
+
+    it('may use an allow-listed write', () => {
+      expect(new RolesGuard(adminRoles).canActivate(ctx('PATCH', '/api/v1/admin/tickets/:id/resolve'))).toBe(true);
+    });
+
+    it('gets AUTH_018 for any other write', () => {
+      try {
+        new RolesGuard(adminRoles).canActivate(ctx('POST', '/api/v1/admin/jobs'));
+        fail('should have thrown');
+      } catch (e) {
+        expect(e).toBeInstanceOf(AppException);
+        expect((e as AppException).code).toBe('AUTH_018');
+      }
+    });
+
+    it('is refused on a super-admin-only route (AUTH_007)', () => {
+      const superOnly = { getAllAndOverride: () => [UserRole.SUPER_ADMIN] } as unknown as Reflector;
+      expect(() => new RolesGuard(superOnly).canActivate(ctx('GET', '/api/v1/admin/users'))).toThrow(AppException);
+    });
+
+    it('leaves a plain admin completely unrestricted', () => {
+      const request: any = { user: { role: UserRole.ADMIN }, method: 'POST', route: { path: '/api/v1/admin/jobs' } };
+      const context = {
+        switchToHttp: () => ({ getRequest: () => request }),
+        getHandler: () => ({}),
+        getClass: () => ({}),
+      } as unknown as ExecutionContext;
+      expect(new RolesGuard(adminRoles).canActivate(context)).toBe(true);
+    });
+  });
 });

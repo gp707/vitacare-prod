@@ -306,6 +306,10 @@ export type AppPlatform = (typeof AppPlatform)[keyof typeof AppPlatform];
 export const UserRole = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
+  // Limited back-office account: views everything except settings and
+  // messages, plus a short allow-list of writes (notes, tickets, PIN reset,
+  // approving jobs). See read-only-admin.policy.ts in the API.
+  READ_ONLY_ADMIN: 'read_only_admin',
   CAREGIVER: 'caregiver',
   // NurseNow patient/family account.
   INDIVIDUAL: 'individual',

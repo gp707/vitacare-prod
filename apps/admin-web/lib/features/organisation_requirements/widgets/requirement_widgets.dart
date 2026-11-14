@@ -10,6 +10,7 @@ import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 import '../../../shared/widgets/confirm_action.dart';
 import '../../../shared/widgets/inline_notes_panel.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
 /// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
@@ -162,13 +163,15 @@ class RequirementRow extends StatelessWidget {
                       child: ApplicantSummaryLine(
                           summary: requirement.applicantSummary),
                     ),
-                    ActionHelp(
-                      message: JobActionHelp.editRequirement(
-                          pendingReview:
-                              requirement.status == JobStatus.pendingReview,
-                          closed: requirement.status == JobStatus.closed),
-                      child: TextButton(
-                          onPressed: onEdit, child: const Text('Edit')),
+                    HideForReadOnly(
+                      child: ActionHelp(
+                        message: JobActionHelp.editRequirement(
+                            pendingReview:
+                                requirement.status == JobStatus.pendingReview,
+                            closed: requirement.status == JobStatus.closed),
+                        child: TextButton(
+                            onPressed: onEdit, child: const Text('Edit')),
+                      ),
                     ),
                     ActionHelp(
                       message: JobActionHelp.notesOrganisation,
@@ -613,15 +616,19 @@ class _RequirementApplicantsDialogState
                             ),
                             if (application.status ==
                                 JobApplicationStatus.applied) ...[
-                              TextButton(
-                                onPressed: () => _decide(application.id,
-                                    JobApplicationStatus.accepted),
-                                child: const Text('Accept'),
+                              HideForReadOnly(
+                                child: TextButton(
+                                  onPressed: () => _decide(application.id,
+                                      JobApplicationStatus.accepted),
+                                  child: const Text('Accept'),
+                                ),
                               ),
-                              TextButton(
-                                onPressed: () => _decide(application.id,
-                                    JobApplicationStatus.rejected),
-                                child: const Text('Reject'),
+                              HideForReadOnly(
+                                child: TextButton(
+                                  onPressed: () => _decide(application.id,
+                                      JobApplicationStatus.rejected),
+                                  child: const Text('Reject'),
+                                ),
                               ),
                             ] else
                               Text(application.status),
@@ -768,7 +775,9 @@ class RequirementReadOnlyDialog extends StatelessWidget {
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close')),
-        ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
+        HideForReadOnly(
+          child: ElevatedButton(onPressed: onEdit, child: const Text('Edit')),
+        ),
       ],
     );
   }

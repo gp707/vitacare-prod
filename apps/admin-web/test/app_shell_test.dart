@@ -11,6 +11,7 @@ import 'package:admin_web/features/auth/state/session_state.dart';
 import 'package:admin_web/features/dashboard/data/dashboard_repository.dart';
 import 'package:admin_web/shared/state/sidebar_badge_counts_notifier.dart';
 import 'package:admin_web/shared/widgets/app_shell.dart';
+import 'package:admin_web/shared/widgets/blocked_for_read_only.dart';
 
 DashboardStats _stats({
   int pendingCall = 0,
@@ -100,6 +101,55 @@ void main() {
     await tester.pump();
     expect(find.text('Jobs'), findsOneWidget);
     expect(prefs.getBool('sidebar_collapsed'), isFalse);
+  });
+
+  testWidgets('read-only admin: no Settings, messages or Push Notifications; everything else stays', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpShellAs(tester, 'read_only_admin');
+
+    for (final hidden in ['Settings', 'NurseNow Messages', 'NurseJobs Messages', 'Push Notifications', 'Admin Management']) {
+      expect(find.text(hidden), findsNothing, reason: '$hidden should be hidden');
+    }
+    for (final shown in [
+      'Jobs', 'Caregivers', 'Insights', 'Rejections', 'Tickets', 'Patients/Family', 'Rehab/Hospitals',
+      'Reports', 'Audit Logs', 'Error Logs', 'Dashboard', 'Logout',
+    ]) {
+      expect(find.text(shown), findsOneWidget, reason: '$shown should be visible');
+    }
+  });
+
+  testWidgets('a plain admin still sees every item a read-only admin does not', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpShellAs(tester, 'admin');
+    for (final label in ['Settings', 'NurseNow Messages', 'NurseJobs Messages', 'Push Notifications']) {
+      expect(find.text(label), findsOneWidget);
+    }
+  });
+
+  testWidgets('BlockedForReadOnly shows the page to an admin and a no-access message to a read-only admin', (tester) async {
+    for (final entry in {'admin': true, 'read_only_admin': false}.entries) {
+      // ignore: invalid_use_of_visible_for_testing_member
+      SharedPreferences.setMockInitialValues({});
+      final localStorage = await LocalStorage.create();
+      await tester.pumpWidget(
+        ProviderScope(
+          key: ValueKey(entry.key),
+          overrides: [
+            localStorageProvider.overrideWithValue(localStorage),
+            sessionProvider.overrideWith(
+              (ref) => SessionNotifier(localStorage)
+                ..state = AdminSessionAuthenticated(userId: 'u1', role: entry.key),
+            ),
+          ],
+          child: const MaterialApp(home: BlockedForReadOnly(child: Text('SECRET PAGE'))),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('SECRET PAGE'), entry.value ? findsOneWidget : findsNothing, reason: entry.key);
+      expect(find.textContaining("doesn't have access"), entry.value ? findsNothing : findsOneWidget, reason: entry.key);
+    }
   });
 
   testWidgets('shows Admin Management for a super_admin session',

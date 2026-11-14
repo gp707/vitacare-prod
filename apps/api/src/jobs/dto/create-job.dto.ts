@@ -128,9 +128,12 @@ export class CreateJobDto {
   @IsIn(Object.values(FrequencyOfCare), { message: 'GEN_001' })
   frequency_of_care!: FrequencyOfCare;
 
-  @IsNotEmpty({ message: 'GEN_001' })
+  // No longer asked for by any form: a new posting stores today's date as a
+  // placeholder (the column is NOT NULL), an edit keeps the stored one, and a
+  // client that still sends a date is honoured.
+  @IsOptional()
   @IsDateString({}, { message: 'GEN_001' })
-  start_date!: string;
+  start_date?: string;
 
   // Unit (₹/day vs ₹/month) follows frequency_of_care. Free text, not a
   // plain number — NurseNow's individual edit flow pre-fills this from the

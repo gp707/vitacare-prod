@@ -14,6 +14,7 @@ import '../data/admin_individuals_repository.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 /// NurseNow patient/family accounts. No verification pipeline like
 /// caregivers — just the two admin block levers (job-posting-only vs full
@@ -275,7 +276,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       current: AppShellSection.patientsFamily,
-      bottomBar: const RecipientCartBar(),
+      bottomBar: const HideForReadOnly(child: RecipientCartBar()),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -342,12 +343,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
             // area is deliberately excluded from any navigation gesture.
             title: Row(
               children: [
-                Checkbox(
+                HideForReadOnly(child: Checkbox(
                   value: cart.containsKey(item.userId),
                   onChanged: (_) => ref
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
-                ),
+                )),
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -398,7 +399,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
           sortAscending: _sortAscending,
           columns: [
             DataColumn(
-              label: Checkbox(
+              label: HideForReadOnly(child: Checkbox(
                 value: allSelected,
                 onChanged: (value) {
                   final notifier = ref.read(recipientSelectionCartProvider.notifier);
@@ -408,7 +409,7 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                     notifier.removeAll(_items.map((item) => item.userId));
                   }
                 },
-              ),
+              )),
             ),
             DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('patient_number')),
@@ -428,12 +429,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                       // only the non-checkbox cells get.
                       cells: [
                         DataCell(
-                          Checkbox(
+                          HideForReadOnly(child: Checkbox(
                             value: cart.containsKey(item.userId),
                             onChanged: (_) => ref
                                 .read(recipientSelectionCartProvider.notifier)
                                 .toggle(_toRecipient(item)),
-                          ),
+                          )),
                         ),
                         DataCell(Text(item.createdAt.split('T').first),
                             onTap: () => _openDetail(item)),

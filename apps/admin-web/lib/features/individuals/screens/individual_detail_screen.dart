@@ -15,6 +15,7 @@ import '../../../shared/widgets/reset_pin_dialog.dart';
 import '../data/admin_individuals_repository.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/confirm_action.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 /// individual_profiles has no profile depth beyond the two block levers —
 /// this is deliberately a single-page detail view (no tabs, unlike
@@ -299,7 +300,7 @@ class _IndividualDetailScreenState
                 ),
               ),
               if (detail.isJobPostingBlocked)
-                ActionHelp(
+                HideForReadOnly(child: ActionHelp(
                   message: AdminHelp.unblockPosting,
                   child: OutlinedButton.icon(
                     onPressed: () => _unblock(detail, 'job_posting'),
@@ -307,9 +308,9 @@ class _IndividualDetailScreenState
                     icon: const Icon(Icons.lock_open, size: 16),
                     label: const Text('Unblock Posting'),
                   ),
-                )
+                ))
               else
-                ActionHelp(
+                HideForReadOnly(child: ActionHelp(
                   message: AdminHelp.blockPosting,
                   child: OutlinedButton.icon(
                     onPressed: () => _showBlockDialog(detail, 'job_posting'),
@@ -317,9 +318,9 @@ class _IndividualDetailScreenState
                     icon: const Icon(Icons.block, size: 16),
                     label: const Text('Block Posting'),
                   ),
-                ),
+                )),
               if (detail.isActive)
-                ActionHelp(
+                HideForReadOnly(child: ActionHelp(
                   message: AdminHelp.blockProfile,
                   child: OutlinedButton.icon(
                     onPressed: () => _showBlockDialog(detail, 'full'),
@@ -327,9 +328,9 @@ class _IndividualDetailScreenState
                     icon: const Icon(Icons.person_off, size: 16),
                     label: const Text('Block Profile'),
                   ),
-                )
+                ))
               else
-                ActionHelp(
+                HideForReadOnly(child: ActionHelp(
                   message: AdminHelp.unblockProfile,
                   child: OutlinedButton.icon(
                     onPressed: () => _unblock(detail, 'full'),
@@ -337,7 +338,7 @@ class _IndividualDetailScreenState
                     icon: const Icon(Icons.lock_open, size: 16),
                     label: const Text('Unblock'),
                   ),
-                ),
+                )),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -362,14 +363,14 @@ class _IndividualDetailScreenState
                       ],
                     ),
                     if (!_editMode)
-                      ActionHelp(
+                      HideForReadOnly(child: ActionHelp(
                         message: AdminHelp.editProfile,
                         child: TextButton.icon(
                           onPressed: () => _enterEditMode(detail),
                           icon: const Icon(Icons.edit, size: 16),
                           label: const Text('Edit'),
                         ),
-                      ),
+                      )),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),

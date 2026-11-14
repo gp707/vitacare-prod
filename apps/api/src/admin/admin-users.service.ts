@@ -1,3 +1,4 @@
+import { ADMIN_ACCOUNT_ROLES, isAdminAccountRole } from '../common/admin-roles';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, UserRole } from '@vitacare/shared-constants';
@@ -31,16 +32,17 @@ export class AdminUsersService {
   async createAdmin(dto: CreateAdminDto, currentUserId: string, ipAddress: string | null = null) {
     const [existingByEmail, existingByPhone] = await Promise.all([
       this.usersRepo.findByEmail(dto.email),
-      this.usersRepo.findByPhoneAndRoles(dto.phone, [UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+      this.usersRepo.findByPhoneAndRoles(dto.phone, ADMIN_ACCOUNT_ROLES),
     ]);
     if (existingByEmail) throw new AppException('ADMIN_003');
     if (existingByPhone) throw new AppException('ADMIN_009');
 
+    const role = dto.role ?? UserRole.ADMIN;
     const passwordHash = await bcrypt.hash(dto.password, Config.BCRYPT_SALT_ROUNDS);
     const admin = await this.usersRepo.create({
       phone: dto.phone,
       full_name: dto.full_name,
-      role: UserRole.ADMIN,
+      role,
       email: dto.email,
       password_hash: passwordHash,
     });
@@ -51,7 +53,7 @@ export class AdminUsersService {
       action: AuditAction.ADMIN_CREATED,
       entityType: 'users',
       entityId: admin.id,
-      afterValue: { full_name: dto.full_name, email: dto.email, phone: dto.phone, role: UserRole.ADMIN },
+      afterValue: { full_name: dto.full_name, email: dto.email, phone: dto.phone, role },
       ipAddress,
     });
 
@@ -60,14 +62,11 @@ export class AdminUsersService {
 
   async updateAdmin(targetId: string, dto: UpdateAdminDto) {
     const target = await this.usersRepo.findById(targetId);
-    if (!target || (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)) {
+    if (!target || !isAdminAccountRole(target.role)) {
       throw new AppException('ADMIN_004');
     }
     if (dto.phone) {
-      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, [
-        UserRole.ADMIN,
-        UserRole.SUPER_ADMIN,
-      ]);
+      const existing = await this.usersRepo.findByPhoneAndRoles(dto.phone, ADMIN_ACCOUNT_ROLES);
       if (existing && existing.id !== targetId) throw new AppException('ADMIN_009');
     }
 
@@ -84,7 +83,7 @@ export class AdminUsersService {
 
   async deactivateAdmin(targetId: string, currentUserId: string, ipAddress: string | null = null) {
     const target = await this.usersRepo.findById(targetId);
-    if (!target || (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)) {
+    if (!target || !isAdminAccountRole(target.role)) {
       throw new AppException('ADMIN_004');
     }
     if (targetId === currentUserId) throw new AppException('ADMIN_005');
@@ -117,7 +116,7 @@ export class AdminUsersService {
     if (
       !target ||
       target.deleted_at ||
-      (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)
+      !isAdminAccountRole(target.role)
     ) {
       throw new AppException('ADMIN_004');
     }
@@ -151,7 +150,7 @@ export class AdminUsersService {
 
   async activateAdmin(targetId: string, currentUserId: string, ipAddress: string | null = null) {
     const target = await this.usersRepo.findById(targetId);
-    if (!target || (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)) {
+    if (!target || !isAdminAccountRole(target.role)) {
       throw new AppException('ADMIN_004');
     }
 
@@ -178,11 +177,11 @@ export class AdminUsersService {
     ipAddress: string | null = null,
   ) {
     const target = await this.usersRepo.findById(targetId);
-    if (!target || (target.role !== UserRole.ADMIN && target.role !== UserRole.SUPER_ADMIN)) {
+    if (!target || !isAdminAccountRole(target.role)) {
       throw new AppException('ADMIN_004');
     }
     if (targetId === currentUserId) throw new AppException('ADMIN_012');
-    if (target.role === UserRole.SUPER_ADMIN && dto.role === UserRole.ADMIN) {
+    if (target.role === UserRole.SUPER_ADMIN && dto.role !== UserRole.SUPER_ADMIN) {
       const superAdminCount = await this.usersRepo.countSuperAdmins();
       if (superAdminCount <= 1) throw new AppException('ADMIN_013');
     }

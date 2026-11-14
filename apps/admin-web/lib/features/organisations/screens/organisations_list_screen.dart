@@ -14,6 +14,7 @@ import '../data/admin_organisations_repository.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 /// NurseNow hospital/rehab/clinic accounts — mirrors IndividualsListScreen
 /// exactly (same two admin block levers, same table shape).
@@ -336,7 +337,7 @@ class _OrganisationsListScreenState
   Widget build(BuildContext context) {
     return AppShell(
       current: AppShellSection.rehabHospitals,
-      bottomBar: const RecipientCartBar(),
+      bottomBar: const HideForReadOnly(child: RecipientCartBar()),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -403,12 +404,12 @@ class _OrganisationsListScreenState
             // screen.
             title: Row(
               children: [
-                Checkbox(
+                HideForReadOnly(child: Checkbox(
                   value: cart.containsKey(item.userId),
                   onChanged: (_) => ref
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
-                ),
+                )),
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -461,7 +462,7 @@ class _OrganisationsListScreenState
           sortAscending: _sortAscending,
           columns: [
             DataColumn(
-              label: Checkbox(
+              label: HideForReadOnly(child: Checkbox(
                 value: allSelected,
                 onChanged: (value) {
                   final notifier = ref.read(recipientSelectionCartProvider.notifier);
@@ -471,7 +472,7 @@ class _OrganisationsListScreenState
                     notifier.removeAll(_items.map((item) => item.userId));
                   }
                 },
-              ),
+              )),
             ),
             DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('org_number')),
@@ -491,12 +492,12 @@ class _OrganisationsListScreenState
                       // onTap, below.
                       cells: [
                         DataCell(
-                          Checkbox(
+                          HideForReadOnly(child: Checkbox(
                             value: cart.containsKey(item.userId),
                             onChanged: (_) => ref
                                 .read(recipientSelectionCartProvider.notifier)
                                 .toggle(_toRecipient(item)),
-                          ),
+                          )),
                         ),
                         DataCell(Text(item.createdAt.split('T').first),
                             onTap: () => _openDetail(item)),

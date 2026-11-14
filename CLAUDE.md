@@ -609,6 +609,13 @@ location) that didn't fit the Individual/admin jobs-table model.
   job (Salary starts empty) still gets the initial suggestion exactly as before.
   `AdminJobsRepository.create()`/`.update()` both gained a required `careDuration` parameter to
   match.
+- **Admin's job form has no Preferred Start Date, and offers the same "None" options as the patient form.** `_JobFormDialog` dropped the start-date field (and the
+  Preferred Start row in `JobReadOnlyDetailDialog`/the Jobs PDF); `CreateJobDto.start_date` is optional — a new admin posting stores today's date as a placeholder
+  (NOT NULL column), an edit keeps the stored one, a client that sends a date is honoured (same rule as patient postings). **Duty-start reminders therefore only fire when
+  `start_date` is later than the job's creation day (IST)** (`listAcceptedStartingBetween`) — a date on or before it is the placeholder; older admin jobs with a real date
+  keep their reminders. Toilet Assistance and Feeding/Medicine Assistance in the admin form also offer **None** first (UI-only sentinel, saved as `independent` /
+  `oral_feeding`, a stored value of either reads back as None) — identical to nursenow-app's edit card; both fields stay mandatory (unselected ≠ None). The caregiver
+  detail screen's "Currently accepted by" start date can still show a placeholder for a new admin job.
 - **Admin blocking** (`individual_profiles.is_job_posting_blocked` + `block_reason`, or full
   lockout via the existing `users.is_active` + `AUTH_004`, both admin-entered-reason): admin-web's
   **"Patients/Family"** sidebar tab (`/patients-family`, any admin) lists every individual account
@@ -1403,6 +1410,27 @@ the default "With open errors" view once everything of theirs is resolved.
   log in therefore won't appear; that would be a separate "failed attempts" report.
 - Call/WhatsApp go through `shared/widgets/contact_actions.dart` (`uriLauncher` is swappable so tests
   capture the URI instead of leaving the app).
+
+## Read-only Admin role (`read_only_admin`)
+
+A third back-office role beside `admin`/`super_admin`, created by a super admin from Admin Management ("Role" dropdown in Create Admin; `POST /admin/users` takes an
+optional `role`, default `admin` — omitted for a plain admin, so that request is unchanged). **It is additive: `admin` and `super_admin` behave exactly as before.**
+Migration 089 only widens `users_role_check`; the role falls into the `admin` bucket of `users_phone_app_bucket_key` (the CASE's ELSE) and logs in through the same
+email/password endpoint (`isAdminAccountRole`, `common/admin-roles.ts`).
+
+- **What it can do.** View everything an admin can **except** Settings (rate card, scope of work, duty requirements, app versions, maintenance, login/OTP settings,
+  audit-log retention, job settings), NurseNow/NurseJobs Messages and Push Notifications. Writes are limited to an allow-list: internal notes (caregiver/patient/
+  organisation/job), PIN reset (all three account types), resolve tickets, **approve** jobs (`PATCH /admin/jobs/:id/approve`) and approve an organisation requirement
+  (a **bare/empty** `PATCH /admin/organisation-requirements/:id`), and reports/Rejections/Error Logs/Insights/Audit Logs reads. It cannot post, edit, reject or close
+  jobs, accept/reject applicants, edit profiles, change caregiver status, block accounts, resolve error logs or send pushes.
+- **Enforcement is one place on the API**: `RolesGuard` lets it through wherever `admin` would pass, then `isAllowedForReadOnlyAdmin(method, routePattern, body)`
+  (`common/guards/read-only-admin.policy.ts`) decides — admin GETs allowed except the blocked-prefix list, writes refused (`AUTH_018`, 403) unless on the allow-list.
+  Routes that list only `super_admin` stay closed (`AUTH_007`). A **new admin GET is readable by default**; add a settings-like GET to `BLOCKED_READ_PREFIXES`, and a new
+  write it needs to `ALLOWED_WRITES`. The org-requirement approve is a bare PATCH because the guard runs before validation and sees the raw body — the client's usual
+  Approve sends every field, so `AdminOrganisationRequirementsRepository.approveWithoutChanges` (empty PATCH) is used when `isReadOnlyAdminProvider` is true.
+- **admin-web** only hides what would be refused: `isReadOnlyAdminProvider` / `HideForReadOnly` (buttons), `BlockedForReadOnly` (route wrapper for Settings, messages,
+  push, Admin Management in `router.dart`), sidebar items in `AppShell`. The API is the real gate; a missed button just shows the `AUTH_018` message.
+- **Deploy order:** apply migration 089 → deploy API → deploy admin-web. Creating the account before 089 fails on the role CHECK.
 
 ## Support Tickets ("Forgot PIN")
 

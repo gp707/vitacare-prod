@@ -5,6 +5,7 @@ import '../../features/auth/state/session_notifier.dart';
 import '../../features/auth/state/session_state.dart';
 import '../../features/dashboard/data/dashboard_repository.dart';
 import '../state/sidebar_badge_counts_notifier.dart';
+import '../state/read_only_admin.dart';
 import '../state/sidebar_collapsed_notifier.dart';
 
 enum AppShellSection {
@@ -36,13 +37,15 @@ enum AppShellSection {
 class AppShell extends ConsumerWidget {
   final AppShellSection current;
   final Widget child;
+
   /// Optional sticky bar pinned below [child] (e.g. RecipientCartBar) —
   /// rendered via Scaffold's own bottomNavigationBar slot so it floats
   /// above the content rather than scrolling with it, on both the
   /// permanent-sidebar and compact/Drawer layouts alike.
   final Widget? bottomBar;
 
-  const AppShell({super.key, required this.current, required this.child, this.bottomBar});
+  const AppShell(
+      {super.key, required this.current, required this.child, this.bottomBar});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,6 +54,7 @@ class AppShell extends ConsumerWidget {
         session is AdminSessionAuthenticated && session.isSuperAdmin;
     final badgeCounts = ref.watch(sidebarBadgeCountsProvider);
     final collapsed = ref.watch(sidebarCollapsedProvider);
+    final isReadOnly = ref.watch(isReadOnlyAdminProvider);
 
     if (context.isCompact) {
       return Scaffold(
@@ -73,6 +77,7 @@ class AppShell extends ConsumerWidget {
               child: _NavList(
                   current: current,
                   isSuperAdmin: isSuperAdmin,
+                  isReadOnly: isReadOnly,
                   ref: ref,
                   badgeCounts: badgeCounts)),
         ),
@@ -91,10 +96,12 @@ class AppShell extends ConsumerWidget {
             child: _NavList(
                 current: current,
                 isSuperAdmin: isSuperAdmin,
+                isReadOnly: isReadOnly,
                 ref: ref,
                 badgeCounts: badgeCounts,
                 collapsed: collapsed,
-                onToggleCollapsed: () => ref.read(sidebarCollapsedProvider.notifier).toggle()),
+                onToggleCollapsed: () =>
+                    ref.read(sidebarCollapsedProvider.notifier).toggle()),
           ),
           Expanded(child: child),
         ],
@@ -109,6 +116,9 @@ class AppShell extends ConsumerWidget {
 class _NavList extends StatelessWidget {
   final AppShellSection current;
   final bool isSuperAdmin;
+  // Read-only admins don't get Settings, the two Messages screens or Push
+  // Notifications (the API refuses them too).
+  final bool isReadOnly;
   final WidgetRef ref;
   final DashboardStats? badgeCounts;
   // Icon-rail mode (permanent sidebar only — the Drawer is never collapsed,
@@ -119,6 +129,7 @@ class _NavList extends StatelessWidget {
   const _NavList(
       {required this.current,
       required this.isSuperAdmin,
+      this.isReadOnly = false,
       required this.ref,
       required this.badgeCounts,
       this.collapsed = false,
@@ -150,7 +161,8 @@ class _NavList extends StatelessWidget {
                     const SizedBox.shrink()
                 else
                   Padding(
-                    padding: const EdgeInsets.only(left: AppSpacing.md, right: AppSpacing.xs),
+                    padding: const EdgeInsets.only(
+                        left: AppSpacing.md, right: AppSpacing.xs),
                     child: Row(
                       children: [
                         const Expanded(
@@ -166,7 +178,8 @@ class _NavList extends StatelessWidget {
                         if (onToggleCollapsed != null)
                           IconButton(
                             tooltip: 'Collapse sidebar',
-                            icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+                            icon: const Icon(Icons.chevron_left,
+                                color: AppColors.textSecondary),
                             onPressed: onToggleCollapsed,
                           ),
                       ],
@@ -232,30 +245,33 @@ class _NavList extends StatelessWidget {
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/rehab-hospitals', (r) => false),
                 ),
-                _NavItem(
-                  collapsed: collapsed,
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  selected: current == AppShellSection.settings,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/settings', (r) => false),
-                ),
-                _NavItem(
-                  collapsed: collapsed,
-                  icon: Icons.chat_bubble_outline,
-                  label: 'NurseNow Messages',
-                  selected: current == AppShellSection.nursenowMessages,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/nursenow-messages', (r) => false),
-                ),
-                _NavItem(
-                  collapsed: collapsed,
-                  icon: Icons.notifications_outlined,
-                  label: 'NurseJobs Messages',
-                  selected: current == AppShellSection.nursejobsMessages,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/nursejobs-messages', (r) => false),
-                ),
+                if (!isReadOnly)
+                  _NavItem(
+                    collapsed: collapsed,
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    selected: current == AppShellSection.settings,
+                    onTap: () => Navigator.of(context)
+                        .pushNamedAndRemoveUntil('/settings', (r) => false),
+                  ),
+                if (!isReadOnly)
+                  _NavItem(
+                    collapsed: collapsed,
+                    icon: Icons.chat_bubble_outline,
+                    label: 'NurseNow Messages',
+                    selected: current == AppShellSection.nursenowMessages,
+                    onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/nursenow-messages', (r) => false),
+                  ),
+                if (!isReadOnly)
+                  _NavItem(
+                    collapsed: collapsed,
+                    icon: Icons.notifications_outlined,
+                    label: 'NurseJobs Messages',
+                    selected: current == AppShellSection.nursejobsMessages,
+                    onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/nursejobs-messages', (r) => false),
+                  ),
                 _NavItem(
                   collapsed: collapsed,
                   icon: Icons.query_stats,
@@ -264,14 +280,15 @@ class _NavList extends StatelessWidget {
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/reports', (r) => false),
                 ),
-                _NavItem(
-                  collapsed: collapsed,
-                  icon: Icons.campaign_outlined,
-                  label: 'Push Notifications',
-                  selected: current == AppShellSection.pushNotifications,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/push-notifications', (r) => false),
-                ),
+                if (!isReadOnly)
+                  _NavItem(
+                    collapsed: collapsed,
+                    icon: Icons.campaign_outlined,
+                    label: 'Push Notifications',
+                    selected: current == AppShellSection.pushNotifications,
+                    onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                        '/push-notifications', (r) => false),
+                  ),
                 _NavItem(
                   collapsed: collapsed,
                   icon: Icons.history,
@@ -290,7 +307,7 @@ class _NavList extends StatelessWidget {
                 ),
                 if (isSuperAdmin)
                   _NavItem(
-                  collapsed: collapsed,
+                    collapsed: collapsed,
                     icon: Icons.shield,
                     label: 'Admin Management',
                     selected: current == AppShellSection.adminManagement,
@@ -302,7 +319,7 @@ class _NavList extends StatelessWidget {
           ),
         ),
         _NavItem(
-                  collapsed: collapsed,
+          collapsed: collapsed,
           icon: Icons.grid_view,
           label: 'Dashboard',
           selected: current == AppShellSection.dashboard,
@@ -310,7 +327,7 @@ class _NavList extends StatelessWidget {
               .pushNamedAndRemoveUntil('/dashboard', (r) => false),
         ),
         _NavItem(
-                  collapsed: collapsed,
+          collapsed: collapsed,
           icon: Icons.logout,
           label: 'Logout',
           selected: false,
@@ -363,7 +380,10 @@ class _NavItem extends StatelessWidget {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(icon, color: selected ? AppColors.primary : AppColors.textSecondary),
+                    Icon(icon,
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.textSecondary),
                     if (hasCount)
                       Positioned(
                         right: -4,
@@ -371,7 +391,8 @@ class _NavItem extends StatelessWidget {
                         child: Container(
                           width: 10,
                           height: 10,
-                          decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                          decoration: const BoxDecoration(
+                              color: AppColors.error, shape: BoxShape.circle),
                         ),
                       ),
                   ],

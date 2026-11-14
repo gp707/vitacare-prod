@@ -212,6 +212,11 @@ export class JobApplicationsRepository {
          -- A patient-posted job has no real start date any more (patients are not asked),
          -- so there is nothing true to remind the caregiver about.
          AND poster.role <> 'individual'
+         -- Admin postings no longer ask for a start date either: they get today's date on the
+         -- day they are created. A date on or before the creation day is that placeholder (a
+         -- job really starting the same day it was posted is too late for a reminder anyway),
+         -- so only jobs with a later date, i.e. a real one, are reminded about.
+         AND j.start_date > (j.created_at AT TIME ZONE 'Asia/Kolkata')::date
          AND j.start_date >= $1::date AND j.start_date <= $2::date`,
       [fromDate, toDate],
     );

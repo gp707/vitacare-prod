@@ -18,6 +18,8 @@ import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../data/admin_caregiver_models.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
+import '../../../shared/state/read_only_admin.dart';
 import '../../../shared/widgets/confirm_action.dart';
 
 /// Allowed status action buttons per SPEC.md 13.3 — every field (including
@@ -386,7 +388,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
-            child: _buildStatusOverride(),
+            child: HideForReadOnly(child: _buildStatusOverride()),
           ),
           const SizedBox(height: AppSpacing.md),
           const TabBar(
@@ -416,7 +418,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   Widget _buildActionButtons(AdminCaregiverDetail detail) {
     final buttons = <Widget>[];
-    final actions = _statusActions[detail.verificationStatus] ?? [];
+    // A read-only admin can't change a caregiver's status — only Reset PIN below.
+    final actions = ref.watch(isReadOnlyAdminProvider)
+        ? const <String>[]
+        : (_statusActions[detail.verificationStatus] ?? []);
     for (final action in actions) {
       if (action == 'rejected') {
         buttons.add(ActionHelp(
@@ -570,14 +575,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     icon: const Icon(Icons.close, size: 16),
                     label: const Text('Cancel'),
                   )
-                : ActionHelp(
-                  message: AdminHelp.editProfile,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _enterEditMode(detail),
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: const Text('Edit'),
+                : HideForReadOnly(
+                    child: ActionHelp(
+                      message: AdminHelp.editProfile,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _enterEditMode(detail),
+                        icon: const Icon(Icons.edit, size: 16),
+                        label: const Text('Edit'),
+                      ),
+                    ),
                   ),
-                ),
           ),
           const SizedBox(height: AppSpacing.sm),
           if (_editMode)
@@ -885,14 +892,16 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                     height: 20,
                     width: 20,
                     child: VitaLoadingIndicator(size: 20))
-                : ActionHelp(
-                  message: AdminHelp.addOtherDocument,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickAndUploadDocument(DocumentType.other),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add Other Document'),
+                : HideForReadOnly(
+                    child: ActionHelp(
+                      message: AdminHelp.addOtherDocument,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickAndUploadDocument(DocumentType.other),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Other Document'),
+                      ),
+                    ),
                   ),
-                ),
           ],
         ],
       ),
@@ -946,10 +955,12 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
               const SizedBox(
                   height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
             else
-              OutlinedButton.icon(
-                onPressed: onUpload,
-                icon: const Icon(Icons.upload_file, size: 16),
-                label: Text(url == null ? 'Upload' : 'Replace'),
+              HideForReadOnly(
+                child: OutlinedButton.icon(
+                  onPressed: onUpload,
+                  icon: const Icon(Icons.upload_file, size: 16),
+                  label: Text(url == null ? 'Upload' : 'Replace'),
+                ),
               ),
         ],
       ),

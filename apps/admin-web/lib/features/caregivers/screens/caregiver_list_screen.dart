@@ -13,6 +13,7 @@ import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 
 class CaregiverListScreen extends ConsumerStatefulWidget {
   final String? initialStatus;
@@ -131,7 +132,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       current: AppShellSection.caregivers,
-      bottomBar: const RecipientCartBar(),
+      bottomBar: const HideForReadOnly(child: RecipientCartBar()),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -319,12 +320,12 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             // screen.
             title: Row(
               children: [
-                Checkbox(
+                HideForReadOnly(child: Checkbox(
                   value: cart.containsKey(item.userId),
                   onChanged: (_) => ref
                       .read(recipientSelectionCartProvider.notifier)
                       .toggle(_toRecipient(item)),
-                ),
+                )),
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -373,7 +374,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
           sortAscending: _sortAscending,
           columns: [
             DataColumn(
-              label: Checkbox(
+              label: HideForReadOnly(child: Checkbox(
                 value: allSelected,
                 onChanged: (value) {
                   final notifier = ref.read(recipientSelectionCartProvider.notifier);
@@ -383,7 +384,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                     notifier.removeAll(_items.map((item) => item.userId));
                   }
                 },
-              ),
+              )),
             ),
             DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('caregiver_number')),
@@ -403,12 +404,12 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                   // instead uses DataCell's own per-cell onTap, below.
                   cells: [
                     DataCell(
-                      Checkbox(
+                      HideForReadOnly(child: Checkbox(
                         value: cart.containsKey(item.userId),
                         onChanged: (_) => ref
                             .read(recipientSelectionCartProvider.notifier)
                             .toggle(_toRecipient(item)),
-                      ),
+                      )),
                     ),
                     DataCell(Text(item.createdAt.split('T').first),
                         onTap: () => _openDetail(item)),

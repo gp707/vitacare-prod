@@ -11,6 +11,8 @@ import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_error_logs_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
+import '../../../shared/state/read_only_admin.dart';
 
 String _roleLabel(String? role) {
   switch (role) {
@@ -341,7 +343,7 @@ class _ErrorsTabState extends ConsumerState<_ErrorsTab> with AutomaticKeepAliveC
           userId: item.userId,
           caregiverProfileId: item.caregiverProfileId,
         ),
-        onResolve: item.isResolved ? null : () => _resolve(item),
+        onResolve: item.isResolved || ref.read(isReadOnlyAdminProvider) ? null : () => _resolve(item),
       ),
     );
   }
@@ -452,13 +454,13 @@ class _ErrorsTabState extends ConsumerState<_ErrorsTab> with AutomaticKeepAliveC
             ],
             actions: [
               if (item.hasCustomer) ContactButtons(phone: item.userPhone!),
-              if (!item.isResolved) ActionHelp(
+              if (!item.isResolved) HideForReadOnly(child: ActionHelp(
                 message: AdminHelp.resolveError,
                 child: TextButton(
                   onPressed: () => _resolve(item),
                   child: const Text('Resolve'),
                 ),
-              ),
+              )),
             ],
           );
         },
@@ -500,13 +502,13 @@ class _ErrorsTabState extends ConsumerState<_ErrorsTab> with AutomaticKeepAliveC
                         children: [
                           if (item.hasCustomer) ContactButtons(phone: item.userPhone!),
                           if (!item.isResolved)
-                            ActionHelp(
+                            HideForReadOnly(child: ActionHelp(
                               message: AdminHelp.resolveError,
                               child: TextButton(
                                 onPressed: () => _resolve(item),
                                 child: const Text('Resolve'),
                               ),
-                            ),
+                            )),
                         ],
                       )),
                     ],
@@ -678,13 +680,13 @@ class _AffectedUsersTabState extends ConsumerState<_AffectedUsersTab> with Autom
                 ),
               ),
               if (user.openCount > 0)
-                ActionHelp(
+                HideForReadOnly(child: ActionHelp(
                   message: AdminHelp.markContacted,
                   child: TextButton(
                     onPressed: () => _markContacted(user),
                     child: const Text('Mark contacted'),
                   ),
-                ),
+                )),
             ],
           );
         },
@@ -732,13 +734,13 @@ class _AffectedUsersTabState extends ConsumerState<_AffectedUsersTab> with Autom
                             ),
                           ),
                           if (user.openCount > 0)
-                            ActionHelp(
+                            HideForReadOnly(child: ActionHelp(
                               message: AdminHelp.markContacted,
                               child: TextButton(
                                 onPressed: () => _markContacted(user),
                                 child: const Text('Mark contacted'),
                               ),
-                            ),
+                            )),
                         ],
                       )),
                     ],

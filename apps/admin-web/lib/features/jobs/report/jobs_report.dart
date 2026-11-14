@@ -86,7 +86,6 @@ JobsReportEntry jobReportEntry(JobModel job) {
           ReportField('Salary', _salary(job)),
           ReportField('Hours care needed', _label(DutyType.displayNames, job.dutyType)),
           ReportField('Care needed for', _label(CareDuration.displayNames, job.careDuration)),
-          ReportField('Preferred start', _date(job.startDate)),
           ReportField('Posted', _date(job.postedAt)),
         ]),
         if (care != null)

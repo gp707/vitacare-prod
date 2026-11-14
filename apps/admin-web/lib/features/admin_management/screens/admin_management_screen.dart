@@ -49,6 +49,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
     final nameController = TextEditingController();
     final passwordController = TextEditingController();
     String? dialogError;
+    String role = 'admin';
 
     final created = await showDialog<bool>(
       context: context,
@@ -78,6 +79,27 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'Password'),
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String>(
+                  initialValue: role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    DropdownMenuItem(
+                        value: 'read_only_admin', child: Text('Read-only admin')),
+                  ],
+                  onChanged: (value) => setDialogState(() => role = value ?? 'admin'),
+                ),
+                if (role == 'read_only_admin') ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  const Text(
+                    'Can view everything except Settings, messages and push notifications. '
+                    'Can edit internal notes, reset PINs, resolve tickets, approve jobs and '
+                    'run reports. Cannot post, edit or reject jobs or edit accounts.',
+                    style: TextStyle(
+                        fontSize: AppTypography.caption, color: AppColors.textSecondary),
+                  ),
+                ],
                 if (dialogError != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   Text(dialogError!,
@@ -115,6 +137,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                         phone: '+91${phoneController.text.trim()}',
                         fullName: nameController.text.trim(),
                         password: passwordController.text,
+                        role: role,
                       );
                   if (context.mounted) Navigator.of(context).pop(true);
                 } on ApiException catch (e) {
@@ -290,6 +313,12 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
     );
   }
 
+  static String _roleLabel(String role) => switch (role) {
+        'super_admin' => 'super admin',
+        'read_only_admin' => 'read-only admin',
+        _ => role,
+      };
+
   Widget _buildList() {
     if (_admins.isEmpty) return const Center(child: Text('No admins found.'));
     return ListView.separated(
@@ -302,7 +331,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
             session is AdminSessionAuthenticated && session.userId == admin.userId;
         return ListTile(
           title: Text(admin.fullName),
-          subtitle: Text('${admin.email} · ${admin.phone} · ${admin.role}'),
+          subtitle: Text('${admin.email} · ${admin.phone} · ${_roleLabel(admin.role)}'),
           trailing: isSelf
               ? const Chip(label: Text('You'))
               : Row(
@@ -310,6 +339,8 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
                   children: [
                     if (admin.role == 'super_admin')
                       const Chip(label: Text('Super Admin')),
+                    if (admin.role == 'read_only_admin')
+                      const Chip(label: Text('Read-only')),
                     Chip(
                       label: Text(admin.isActive ? 'Active' : 'Deactivated'),
                       backgroundColor: admin.isActive
