@@ -1,3 +1,4 @@
+import { UserRole } from '@vitacare/shared-constants';
 import { OrganisationRequirementsService } from './organisation-requirements.service';
 
 describe('OrganisationRequirementsService', () => {
@@ -853,6 +854,36 @@ describe('OrganisationRequirementsService', () => {
       requirementsRepo.findById.mockResolvedValue(null);
       await expect(service.adminEditRequirement('admin-1', 'req-1', {}, null)).rejects.toMatchObject({
         code: 'GEN_002',
+      });
+    });
+
+    describe('as a read_only_admin', () => {
+      it('may approve a requirement that is pending review', async () => {
+        requirementsRepo.findById.mockResolvedValue(existing);
+        requirementsRepo.activate = jest.fn().mockResolvedValue({ ...existing, status: 'active' });
+        await expect(
+          service.adminEditRequirement('ro-1', 'req-1', {}, null, UserRole.READ_ONLY_ADMIN),
+        ).resolves.toBeDefined();
+        expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
+      });
+
+      it.each(['closed', 'active'])(
+        'cannot reopen or re-save a %s requirement (AUTH_018), and nothing is written or sent',
+        async (status) => {
+          requirementsRepo.findById.mockResolvedValue({ ...existing, status });
+          requirementsRepo.updateOwnFields.mockClear();
+          await expect(
+            service.adminEditRequirement('ro-1', 'req-1', {}, null, UserRole.READ_ONLY_ADMIN),
+          ).rejects.toMatchObject({ code: 'AUTH_018' });
+          expect(requirementsRepo.updateOwnFields).not.toHaveBeenCalled();
+        },
+      );
+
+      it('a plain admin can still reopen a closed requirement with a bare PATCH (unchanged)', async () => {
+        requirementsRepo.findById.mockResolvedValue({ ...existing, status: 'closed' });
+        requirementsRepo.activate = jest.fn().mockResolvedValue({ ...existing, status: 'active' });
+        await expect(service.adminEditRequirement('admin-1', 'req-1', {}, null)).resolves.toBeDefined();
+        expect(requirementsRepo.activate).toHaveBeenCalledWith('req-1');
       });
     });
 

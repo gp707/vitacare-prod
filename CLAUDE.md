@@ -1428,6 +1428,9 @@ email/password endpoint (`isAdminAccountRole`, `common/admin-roles.ts`).
   Routes that list only `super_admin` stay closed (`AUTH_007`). A **new admin GET is readable by default**; add a settings-like GET to `BLOCKED_READ_PREFIXES`, and a new
   write it needs to `ALLOWED_WRITES`. The org-requirement approve is a bare PATCH because the guard runs before validation and sees the raw body — the client's usual
   Approve sends every field, so `AdminOrganisationRequirementsRepository.approveWithoutChanges` (empty PATCH) is used when `isReadOnlyAdminProvider` is true.
+  The service narrows the two "approve" writes further, since the guard can't see current state: a caregiver may only go `pending_call → available`
+  (`AdminService.updateStatus`) and an organisation requirement may only be approved while `pending_review` (`adminEditRequirement`) — never reopening a closed one —
+  both `AUTH_018` otherwise.
 - **admin-web** only hides what would be refused: `isReadOnlyAdminProvider` / `HideForReadOnly` (buttons), `BlockedForReadOnly` (route wrapper for Settings, messages,
   push, Admin Management in `router.dart`), sidebar items in `AppShell`. The API is the real gate; a missed button just shows the `AUTH_018` message.
 - **Session length: 4 hours, no renewal.** A read-only admin's access token expires after `READ_ONLY_ADMIN_TOKEN_TTL` seconds (default 14400); its refresh token is capped

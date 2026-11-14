@@ -38,7 +38,7 @@ export class AdminOrganisationRequirementsController {
     @Body() dto: AdminEditOrganisationRequirementDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.requirementsService.adminEditRequirement(user.sub, id, dto, ip);
+    return this.requirementsService.adminEditRequirement(user.sub, id, dto, ip, user.role);
   }
 
   @Post(':id/remind')

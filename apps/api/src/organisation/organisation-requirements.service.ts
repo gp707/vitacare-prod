@@ -12,6 +12,7 @@ import {
   JobApplicationStatus,
   JobStatus,
   TypeOfNurse,
+  UserRole,
   VerificationStatus,
 } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
@@ -605,9 +606,17 @@ export class OrganisationRequirementsService {
     id: string,
     dto: AdminEditOrganisationRequirementDto,
     ipAddress: string | null,
+    actorRole?: UserRole,
   ) {
     const existing = await this.requirementsRepo.findById(id);
     if (!existing) throw new AppException('GEN_002');
+
+    // A read-only admin may only approve a requirement that is waiting for
+    // review — never reopen a closed (rejected or cancelled) one or re-save an
+    // active one. Their bare PATCH is otherwise indistinguishable from an edit.
+    if (actorRole === UserRole.READ_ONLY_ADMIN && existing.status !== JobStatus.PENDING_REVIEW) {
+      throw new AppException('AUTH_018');
+    }
 
     const typeOfNurse = dto.type_of_nurse ?? existing.type_of_nurse;
     const typeOfNurseOther =
