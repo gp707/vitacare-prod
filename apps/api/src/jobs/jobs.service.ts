@@ -8,7 +8,9 @@ import {
   City,
   DutyType,
   JobApplicationStatus,
+  Gender,
   JobStatus,
+  MedicalCondition,
   UserRole,
   VerificationStatus,
 } from '@vitacare/shared-constants';
@@ -68,6 +70,17 @@ const CITY_LABELS: Record<City, string> = {
 // toilet_assistance are hard-required on a care receiver; every other
 // field here uses its own inline fallback (?? false/[]/null) rather than
 // a shared defaults object.
+/**
+ * Pregnancy/Japa care is always for a female caregiver: whatever preference
+ * was submitted (or none), the posting is stored as `female`.
+ */
+export function preferredGenderFor(careReceiver: CareReceiverDto, requested?: Gender): Gender | undefined {
+  const isPregnancyJapa =
+    !!careReceiver.has_medical_condition &&
+    (careReceiver.medical_conditions ?? []).includes(MedicalCondition.PREGNANCY_JAPA);
+  return isPregnancyJapa ? Gender.FEMALE : requested;
+}
+
 export function applyCareReceiverDefaults(dto: CareReceiverDto): CreateCareReceiverInput {
   return {
     patient_name: dto.patient_name,
@@ -122,7 +135,7 @@ export class JobsService {
           start_date: dto.start_date,
           languages: dto.languages,
           salary_amount: dto.salary_amount,
-          preferred_gender: dto.preferred_gender,
+          preferred_gender: preferredGenderFor(dto.care_receiver, dto.preferred_gender),
           preferred_religion: dto.preferred_religion,
           care_duration: dto.care_duration,
           posted_by: adminId,
@@ -283,7 +296,7 @@ export class JobsService {
           start_date: dto.start_date,
           languages: dto.languages,
           salary_amount: dto.salary_amount,
-          preferred_gender: dto.preferred_gender,
+          preferred_gender: preferredGenderFor(dto.care_receiver, dto.preferred_gender),
           preferred_religion: dto.preferred_religion,
           care_duration: dto.care_duration,
           status: shouldActivate ? JobStatus.ACTIVE : undefined,

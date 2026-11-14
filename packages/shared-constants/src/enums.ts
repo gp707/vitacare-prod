@@ -104,6 +104,7 @@ export const MedicalCondition = {
   CANNULA_CARE: 'cannula_care',
   CATHETER_CARE: 'catheter_care',
   NEBULISATION_SUPPORT: 'nebulisation_support',
+  PREGNANCY_JAPA: 'pregnancy_japa',
   OTHER: 'other',
 } as const;
 export type MedicalCondition = (typeof MedicalCondition)[keyof typeof MedicalCondition];

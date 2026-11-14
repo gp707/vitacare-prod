@@ -301,6 +301,7 @@ class MedicalCondition {
   static const cannulaCare = 'cannula_care';
   static const catheterCare = 'catheter_care';
   static const nebulisationSupport = 'nebulisation_support';
+  static const pregnancyJapa = 'pregnancy_japa';
   static const other = 'other';
 
   static const all = [
@@ -322,6 +323,7 @@ class MedicalCondition {
     cannulaCare,
     catheterCare,
     nebulisationSupport,
+    pregnancyJapa,
     other,
   ];
 
@@ -344,6 +346,7 @@ class MedicalCondition {
     cannulaCare: 'Cannula care',
     catheterCare: 'Catheter care',
     nebulisationSupport: 'Nebulisation support',
+    pregnancyJapa: 'Pregnancy/Japa',
     other: 'Other',
   };
 }

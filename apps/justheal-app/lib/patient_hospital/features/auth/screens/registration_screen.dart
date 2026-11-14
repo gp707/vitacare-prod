@@ -401,7 +401,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// combination, so we say so up front rather than letting the family
   /// find out only after posting.
   bool get _showGenderMismatchWarning =>
-      _gender == Gender.male && _preferredGender == Gender.female;
+      _gender == Gender.male && _effectivePreferredGender == Gender.female;
 
   /// Purely advisory, never blocks submission — many nurses decline
   /// short-term (few days/weeks) assignments, so the family is warned up
@@ -469,6 +469,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   /// truly-empty state, which is what makes this field mandatory without
   /// needing a separate red-highlight check. Must be called inside
   /// setState.
+  // Pregnancy/Japa care is always by a female caregiver (and is always
+  // Critical Care — see deriveCareTier), so the Preferred Caregiver Gender
+  // field is forced to Female and locked while it is selected.
+  bool get _isPregnancyJapa => _medicalConditions.contains(MedicalCondition.pregnancyJapa);
+  String? get _effectivePreferredGender => _isPregnancyJapa ? Gender.female : _preferredGender;
+
   void _applyMedicalConditionSelection(List<String> next) {
     final added = next.where((c) => !_medicalConditions.contains(c));
     final removed = _medicalConditions.where((c) => !next.contains(c));
@@ -604,7 +610,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               careDuration: _careDuration!,
               languages:
                   _languages.contains(_noPreferenceLanguage) ? [] : _languages,
-              preferredGender: _preferredGender,
+              preferredGender: _effectivePreferredGender,
               preferredReligion: _preferredReligion,
               frequencyOfCare: _derivedFrequencyOfCare!,
               salaryAmount: _salaryController.text.trim(),
@@ -1154,18 +1160,24 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
+              key: ValueKey('preferredGender-$_isPregnancyJapa'),
               isExpanded: true,
-              initialValue: _preferredGender,
-              decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.people_outline),
+              initialValue: _effectivePreferredGender,
+              decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.people_outline),
                   labelText: 'Preferred Caregiver Gender',
-                  border: OutlineInputBorder()),
+                  helperText: _isPregnancyJapa
+                      ? 'Pregnancy/Japa care is always by a female caregiver.'
+                      : null,
+                  border: const OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(value: null, child: Text('No preference')),
                 DropdownMenuItem(value: Gender.male, child: Text('Male')),
                 DropdownMenuItem(value: Gender.female, child: Text('Female')),
               ],
-              onChanged: (value) => setState(() => _preferredGender = value),
+              onChanged: _isPregnancyJapa
+                  ? null
+                  : (value) => setState(() => _preferredGender = value),
             ),
             if (_showGenderMismatchWarning) ...[
               const SizedBox(height: AppSpacing.xs),

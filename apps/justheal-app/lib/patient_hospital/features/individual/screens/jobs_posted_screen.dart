@@ -32,6 +32,17 @@ const _noPreferenceLanguage = 'no_preference';
 const _noneMedicalCondition = 'none';
 const _noneMedicalConditionLabel = 'None';
 
+// UI-only "None" for Toilet Assistance / Feeding — same sentinels as
+// registration_screen.dart. Saved as ToiletAssistance.independent /
+// FeedingType.oralFeeding, so a stored value of either reads back as None.
+const _noneToiletAssistance = 'none';
+const _noneToiletAssistanceLabel = 'None';
+const _noneFeedingType = 'none';
+const _noneFeedingTypeLabel = 'None';
+
+String _toiletToUi(String stored) => stored == ToiletAssistance.independent ? _noneToiletAssistance : stored;
+String? _feedingToUi(String? stored) => stored == FeedingType.oralFeeding ? _noneFeedingType : stored;
+
 class _MandatoryField {
   final GlobalKey key;
   final bool isValid;
@@ -442,14 +453,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       _ageController.text = cr.age.toString();
       _gender = cr.gender;
       _weightController.text = cr.weightKg.toString();
-      _feedingType = cr.feedingType;
+      _feedingType = _feedingToUi(cr.feedingType);
       if (cr.hasMedicalCondition && cr.medicalConditions.isNotEmpty) {
         _medicalConditions
           ..clear()
           ..addAll(cr.medicalConditions);
       }
       _medicalConditionOtherController.text = cr.medicalConditionOther ?? '';
-      _toiletAssistance.addAll(cr.toiletAssistance);
+      _toiletAssistance.addAll(cr.toiletAssistance.map(_toiletToUi));
       _toiletAssistanceOtherController.text = cr.toiletAssistanceOther ?? '';
     } else {
       _patientNameController.clear();
@@ -563,29 +574,29 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _isToiletAssistanceDirty {
     final cr = widget.requirement.careReceiver;
     if (cr == null) return false;
-    return !setEquals(_toiletAssistance.toSet(), cr.toiletAssistance.toSet()) ||
+    return !setEquals(_toiletAssistance.toSet(), cr.toiletAssistance.map(_toiletToUi).toSet()) ||
         _toiletAssistanceOtherController.text != (cr.toiletAssistanceOther ?? '');
   }
 
   void _revertToiletAssistance() => setState(() {
         final cr = widget.requirement.careReceiver;
         _toiletAssistance.clear();
-        if (cr != null) _toiletAssistance.addAll(cr.toiletAssistance);
+        if (cr != null) _toiletAssistance.addAll(cr.toiletAssistance.map(_toiletToUi));
         _toiletAssistanceOtherController.text = cr?.toiletAssistanceOther ?? '';
         _refreshSuggestedSalary();
       });
 
   bool get _isFeedingTypeDirty {
     final cr = widget.requirement.careReceiver;
-    return cr != null && _feedingType != cr.feedingType;
+    return cr != null && _feedingType != _feedingToUi(cr.feedingType);
   }
 
   void _revertFeedingType() => setState(() {
-        _feedingType = widget.requirement.careReceiver?.feedingType;
+        _feedingType = _feedingToUi(widget.requirement.careReceiver?.feedingType);
         _refreshSuggestedSalary();
       });
 
-  bool get _isPreferredGenderDirty => _preferredGender != widget.requirement.preferredGender;
+  bool get _isPreferredGenderDirty => _effectivePreferredGender != widget.requirement.preferredGender;
 
   void _revertPreferredGender() => setState(() => _preferredGender = widget.requirement.preferredGender);
 
@@ -678,6 +689,13 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   /// with the field this card never edits (vitals monitoring) preserved
   /// from the original — so the derived tier always reflects the latest
   /// in-progress edits, not a stale snapshot from when first posted.
+  // The dropdown's "None" is never sent anywhere — it means the same as
+  // independent toileting / oral feeding.
+  String get _effectiveFeedingType =>
+      _feedingType == null || _feedingType == _noneFeedingType ? FeedingType.oralFeeding : _feedingType!;
+  List<String> get _effectiveToiletAssistance =>
+      _toiletAssistance.contains(_noneToiletAssistance) ? const [ToiletAssistance.independent] : _toiletAssistance;
+
   CareReceiverModel? get _careReceiverForTierDerivation {
     final cr = widget.requirement.careReceiver;
     if (cr == null) return null;
@@ -686,10 +704,10 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       age: cr.age,
       gender: cr.gender,
       weightKg: cr.weightKg,
-      feedingType: _feedingType ?? FeedingType.oralFeeding,
+      feedingType: _effectiveFeedingType,
       hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
       medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? [] : _medicalConditions,
-      toiletAssistance: _toiletAssistance,
+      toiletAssistance: _effectiveToiletAssistance,
       requiresVitalMonitoring: cr.requiresVitalMonitoring,
       vitalMonitoringTypes: cr.vitalMonitoringTypes,
     );
@@ -713,7 +731,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _isFeedingTypeValid => _feedingType != null;
   bool get _isSalaryValid => _salaryController.text.trim().isNotEmpty;
 
-  bool get _showGenderMismatchWarning => _gender == Gender.male && _preferredGender == Gender.female;
+  bool get _showGenderMismatchWarning => _gender == Gender.male && _effectivePreferredGender == Gender.female;
   bool get _showShortTermDurationWarning =>
       _careDuration == CareDuration.fewDays || _careDuration == CareDuration.fewWeeks;
 
@@ -744,6 +762,12 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
         _MandatoryField(_salaryKey, _isSalaryValid),
       ];
+
+  // Pregnancy/Japa care is always by a female caregiver (and is always
+  // Critical Care — see deriveCareTier), so the Preferred Caregiver Gender
+  // field is forced to Female and locked while it is selected.
+  bool get _isPregnancyJapa => _medicalConditions.contains(MedicalCondition.pregnancyJapa);
+  String? get _effectivePreferredGender => _isPregnancyJapa ? Gender.female : _preferredGender;
 
   void _applyMedicalConditionSelection(List<String> next) {
     final added = next.where((c) => !_medicalConditions.contains(c));
@@ -855,11 +879,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
               age: _age!,
               gender: _gender!,
               weightKg: _weightKg!,
-              feedingType: _feedingType,
+              feedingType: _feedingType == null ? null : _effectiveFeedingType,
               hasMedicalCondition: !_medicalConditions.contains(_noneMedicalCondition),
               medicalConditions: _medicalConditions.contains(_noneMedicalCondition) ? null : _medicalConditions,
               medicalConditionOther: _medicalConditionOtherController.text.trim(),
-              toiletAssistance: _toiletAssistance.isEmpty ? null : _toiletAssistance,
+              toiletAssistance: _toiletAssistance.isEmpty ? null : _effectiveToiletAssistance,
               toiletAssistanceOther: _toiletAssistanceOtherController.text.trim(),
             ),
             city: _city!,
@@ -867,7 +891,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             dutyType: _dutyType!,
             careDuration: _careDuration!,
             languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
-            preferredGender: _preferredGender,
+            preferredGender: _effectivePreferredGender,
             preferredReligion: _preferredReligion,
             frequencyOfCare: _derivedFrequencyOfCare!,
             salaryAmount: _salaryController.text.trim(),
@@ -1359,9 +1383,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                               _showValidationErrors && !_isToiletAssistanceValid ? 'Please select toilet assistance' : null,
                           suffixIcon: _fieldControls('toiletAssistance', _isToiletAssistanceDirty, _revertToiletAssistance),
                         ),
-                        items: ToiletAssistance.all
-                            .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t)))
-                            .toList(),
+                        items: [
+                          const DropdownMenuItem(value: _noneToiletAssistance, child: Text(_noneToiletAssistanceLabel)),
+                          ...ToiletAssistance.all
+                              .map((t) => DropdownMenuItem(value: t, child: Text(ToiletAssistance.displayNames[t] ?? t))),
+                        ],
                         onChanged: (value) => setState(() {
                           _toiletAssistance
                             ..clear()
@@ -1392,9 +1418,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                               _showValidationErrors && !_isFeedingTypeValid ? 'Please select feeding/medicine assistance' : null,
                           suffixIcon: _fieldControls('feedingType', _isFeedingTypeDirty, _revertFeedingType),
                         ),
-                        items: FeedingType.all
-                            .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f)))
-                            .toList(),
+                        items: [
+                          const DropdownMenuItem(value: _noneFeedingType, child: Text(_noneFeedingTypeLabel)),
+                          ...FeedingType.all
+                              .map((f) => DropdownMenuItem(value: f, child: Text(FeedingType.displayNames[f] ?? f))),
+                        ],
                         onChanged: (value) => setState(() {
                           _feedingType = value;
                           _refreshSuggestedSalary();
@@ -1402,11 +1430,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                       ),
                       const SizedBox(height: AppSpacing.md),
                       DropdownButtonFormField<String>(
+                        key: ValueKey('preferredGender-$_isPregnancyJapa'),
                         isExpanded: true,
-                        initialValue: _preferredGender,
+                        initialValue: _effectivePreferredGender,
                         decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.people_outline),
                             labelText: 'Preferred Caregiver Gender',
+                            helperText:
+                                _isPregnancyJapa ? 'Pregnancy/Japa care is always by a female caregiver.' : null,
                             border: const OutlineInputBorder(),
                             suffixIcon: _fieldControls('preferredGender', _isPreferredGenderDirty, _revertPreferredGender)),
                         items: const [
@@ -1414,7 +1445,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                           DropdownMenuItem(value: Gender.male, child: Text('Male')),
                           DropdownMenuItem(value: Gender.female, child: Text('Female')),
                         ],
-                        onChanged: (value) => setState(() => _preferredGender = value),
+                        onChanged: _isPregnancyJapa ? null : (value) => setState(() => _preferredGender = value),
                       ),
                       if (_showGenderMismatchWarning) ...[
                         const SizedBox(height: AppSpacing.xs),

@@ -206,6 +206,23 @@ void main() {
           vitalMonitoringTypes: const [],
         );
 
+    test('Pregnancy/Japa is always criticalCare, even with independent toileting and oral feeding', () {
+      expect(
+        deriveCareTier(careReceiver(
+          hasMedicalCondition: true,
+          medicalConditions: const [MedicalCondition.pregnancyJapa],
+        )),
+        CareTier.criticalCare,
+      );
+    });
+
+    test('Pregnancy/Japa is ignored when hasMedicalCondition is false', () {
+      expect(
+        deriveCareTier(careReceiver(medicalConditions: const [MedicalCondition.pregnancyJapa])),
+        CareTier.companionCare,
+      );
+    });
+
     test('an independent patient with no medical needs derives to companionCare', () {
       expect(deriveCareTier(careReceiver()), CareTier.companionCare);
     });

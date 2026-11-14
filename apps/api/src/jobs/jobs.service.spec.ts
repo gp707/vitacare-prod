@@ -1,4 +1,4 @@
-import { JobsService } from './jobs.service';
+import { JobsService, preferredGenderFor } from './jobs.service';
 import { VerificationStatus } from '@vitacare/shared-constants';
 
 describe('JobsService', () => {
@@ -1275,5 +1275,21 @@ describe('JobsService', () => {
 
       expect(jobApplicationsRepo.findAcceptedForJob).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('preferredGenderFor', () => {
+  const base = { age: 70, gender: 'male', weight_kg: 60 } as never;
+  const withConditions = (conditions: string[], has = true) =>
+    ({ ...(base as object), has_medical_condition: has, medical_conditions: conditions }) as never;
+
+  it('forces female for Pregnancy/Japa whatever was requested', () => {
+    expect(preferredGenderFor(withConditions(['pregnancy_japa']), 'male' as never)).toBe('female');
+    expect(preferredGenderFor(withConditions(['pregnancy_japa']), undefined)).toBe('female');
+  });
+
+  it('leaves the requested preference alone otherwise', () => {
+    expect(preferredGenderFor(withConditions(['diabetes']), 'male' as never)).toBe('male');
+    expect(preferredGenderFor(withConditions(['pregnancy_japa'], false), undefined)).toBeUndefined();
   });
 });

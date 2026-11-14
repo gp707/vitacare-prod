@@ -13,7 +13,7 @@ import { IndividualProfilesRepository } from '../database/repositories/individua
 import { UsersRepository } from '../database/repositories/users.repository';
 import { CaregiverProfilesRepository } from '../database/repositories/caregiver-profiles.repository';
 import { AuditService } from '../audit/audit.service';
-import { JobsService, applyCareReceiverDefaults, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
+import { JobsService, applyCareReceiverDefaults, preferredGenderFor, DUTY_TYPE_TIMES } from '../jobs/jobs.service';
 import { CaregiverService } from '../caregiver/caregiver.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
 import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
@@ -107,7 +107,7 @@ export class IndividualService {
           start_date: dto.start_date ?? new Date().toISOString().slice(0, 10),
           languages: dto.languages,
           salary_amount: dto.salary_amount,
-          preferred_gender: dto.preferred_gender,
+          preferred_gender: preferredGenderFor(dto.care_receiver, dto.preferred_gender),
           preferred_religion: dto.preferred_religion,
           care_duration: dto.care_duration,
           posted_by: userId,
@@ -183,7 +183,7 @@ export class IndividualService {
           start_date: dto.start_date ?? existing.start_date,
           languages: dto.languages,
           salary_amount: dto.salary_amount,
-          preferred_gender: dto.preferred_gender,
+          preferred_gender: preferredGenderFor(dto.care_receiver, dto.preferred_gender),
           preferred_religion: dto.preferred_religion,
           care_duration: dto.care_duration,
           // status intentionally omitted — see doc comment above.

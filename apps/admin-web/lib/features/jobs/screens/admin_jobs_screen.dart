@@ -2127,7 +2127,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               startDate: startDate,
               languages: _effectiveLanguages,
               salaryAmount: _salaryController.text.trim(),
-              preferredGender: _preferredGender,
+              preferredGender: _effectivePreferredGender,
               preferredReligion: _preferredReligion,
               careDuration: _careDuration!,
             );
@@ -2141,7 +2141,7 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
               startDate: startDate,
               languages: _effectiveLanguages,
               salaryAmount: _salaryController.text.trim(),
-              preferredGender: _preferredGender,
+              preferredGender: _effectivePreferredGender,
               preferredReligion: _preferredReligion,
               careDuration: _careDuration!,
             );
@@ -2469,17 +2469,26 @@ class _JobFormDialogState extends ConsumerState<_JobFormDialog> {
         ),
       ];
 
+  // Pregnancy/Japa care is always by a female caregiver (and always Critical
+  // Care): the field is forced to Female and locked while it is selected.
+  bool get _isPregnancyJapa => _medicalConditions.contains(MedicalCondition.pregnancyJapa);
+  String? get _effectivePreferredGender => _isPregnancyJapa ? Gender.female : _preferredGender;
+
   List<Widget> _preferredGenderField() => [
         DropdownButtonFormField<String?>(
+          key: ValueKey('preferredGender-$_isPregnancyJapa'),
           isExpanded: true,
-          initialValue: _preferredGender,
-          decoration: const InputDecoration(labelText: 'Preferred Caregiver Gender'),
+          initialValue: _effectivePreferredGender,
+          decoration: InputDecoration(
+            labelText: 'Preferred Caregiver Gender',
+            helperText: _isPregnancyJapa ? 'Pregnancy/Japa care is always by a female caregiver.' : null,
+          ),
           items: const [
             DropdownMenuItem<String?>(value: null, child: Text('No preference')),
             DropdownMenuItem<String?>(value: Gender.male, child: Text('Male')),
             DropdownMenuItem<String?>(value: Gender.female, child: Text('Female')),
           ],
-          onChanged: (value) => setState(() => _preferredGender = value),
+          onChanged: _isPregnancyJapa ? null : (value) => setState(() => _preferredGender = value),
         ),
       ];
 
