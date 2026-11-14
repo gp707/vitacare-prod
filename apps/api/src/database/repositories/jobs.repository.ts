@@ -173,6 +173,8 @@ export interface UpdateJobInput {
 
 export interface ListJobsFilters {
   status?: JobStatus;
+  /** Leaves out closed jobs; ignored when `status` is set. */
+  exclude_closed?: boolean;
   city?: City;
   posted_by?: string;
   /** Patient's gender, on care_receivers — requires the cr join below. */
@@ -210,6 +212,8 @@ function buildJobsWhereClause(filters: ListJobsFilters): { clause: string; param
   if (filters.status) {
     params.push(filters.status);
     conditions.push(`j.status = $${params.length}`);
+  } else if (filters.exclude_closed) {
+    conditions.push(`j.status <> 'closed'`);
   }
   if (filters.city) {
     params.push(filters.city);
@@ -337,7 +341,7 @@ export class JobsRepository {
          LEFT JOIN individual_admin_notes ian ON ian.user_id = j.posted_by AND u.role = 'individual'
          LEFT JOIN job_admin_notes jan ON jan.job_id = j.id
          ${clause}
-         ORDER BY j.created_at DESC
+         ORDER BY (j.status = 'pending_review') DESC, j.posted_at DESC, j.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),

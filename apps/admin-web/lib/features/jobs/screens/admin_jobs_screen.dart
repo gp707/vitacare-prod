@@ -91,6 +91,7 @@ bool _isOrganisationPosterType(String? posterType) => OrganisationType.all.conta
 /// sharing a sort key. See _AdminJobsScreenState._mergedEntries.
 sealed class _JobsListEntry {
   DateTime get postedAt;
+  String get status;
   _SelectionKey get selectionKey;
   String get displayId;
 }
@@ -101,6 +102,9 @@ class _JobEntry extends _JobsListEntry {
 
   @override
   DateTime get postedAt => DateTime.parse(job.postedAt);
+
+  @override
+  String get status => job.status;
 
   @override
   _SelectionKey get selectionKey => _SelectionKey(id: job.id, type: 'job');
@@ -115,6 +119,9 @@ class _RequirementEntry extends _JobsListEntry {
 
   @override
   DateTime get postedAt => DateTime.parse(requirement.postedAt);
+
+  @override
+  String get status => requirement.status;
 
   @override
   _SelectionKey get selectionKey => _SelectionKey(id: requirement.id, type: 'organisation_requirement');
@@ -144,6 +151,10 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   List<AdminOrganisationRequirement> _requirements = [];
   bool _loading = true;
   bool _preparingReport = false;
+
+  /// Closed jobs are hidden until admin asks for them (an explicit Status
+  /// filter of Closed shows them regardless).
+  bool _showClosed = false;
   String? _errorMessage;
 
   // Super-admin-only permanent bulk delete — see AdminBulkDeleteService.
@@ -263,6 +274,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                   gender: _filterGender,
                   dutyType: _filterDutyType,
                   status: _filterStatus,
+                  excludeClosed: _filterStatus == null && !_showClosed,
                   language: _filterLanguage,
                   search: search,
                   postedMoreThanDaysAgo: _filterPostedMoreThanDaysAgo,
@@ -273,6 +285,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           ? ref.read(adminOrganisationRequirementsRepositoryProvider).list(
                 filters: OrganisationRequirementListFilters(
                   status: _filterStatus,
+                  excludeClosed: _filterStatus == null && !_showClosed,
                   postedBy: _filterOrgPostedBy,
                   organisationType: _isOrganisationPosterType(_filterPosterType)
                       ? _filterPosterType
@@ -867,7 +880,13 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       ..._jobs.map(_JobEntry.new),
       ..._requirements.map(_RequirementEntry.new),
     ];
-    entries.sort((a, b) => b.postedAt.compareTo(a.postedAt));
+    // Pending review first (they need an admin decision), then everything
+    // else; each group newest posted first.
+    int rank(_JobsListEntry e) => e.status == JobStatus.pendingReview ? 0 : 1;
+    entries.sort((a, b) {
+      final byRank = rank(a).compareTo(rank(b));
+      return byRank != 0 ? byRank : b.postedAt.compareTo(a.postedAt);
+    });
     return entries;
   }
 
@@ -1117,6 +1136,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
           onPressed: _applyFilters,
           icon: const Icon(Icons.filter_alt, size: 18),
           label: const Text('Apply Filters'),
+        ),
+        ActionHelp(
+          message: JobActionHelp.toggleClosed(showing: _showClosed),
+          child: OutlinedButton.icon(
+            key: const Key('toggle-closed-jobs'),
+            // Picking Status = Closed already shows closed jobs.
+            onPressed: _filterStatus == JobStatus.closed
+                ? null
+                : () {
+                    setState(() => _showClosed = !_showClosed);
+                    _load();
+                  },
+            icon: Icon(_showClosed ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
+            label: Text(_showClosed ? 'Hide closed jobs' : 'Show closed jobs'),
+          ),
         ),
       ],
     );

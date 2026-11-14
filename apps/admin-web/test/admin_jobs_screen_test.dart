@@ -614,6 +614,53 @@ Future<void> _confirm(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('closed jobs are hidden by default; the button shows them and hides them again', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+    expect(repo.lastListFilters!.excludeClosed, isTrue);
+    expect(find.text('Show closed jobs'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('toggle-closed-jobs')));
+    await tester.pumpAndSettle();
+    expect(repo.lastListFilters!.excludeClosed, isFalse);
+    expect(find.text('Hide closed jobs'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('toggle-closed-jobs')));
+    await tester.pumpAndSettle();
+    expect(repo.lastListFilters!.excludeClosed, isTrue);
+  });
+
+  testWidgets('choosing Status = Closed shows closed jobs without the toggle (it is disabled)', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job(status: 'closed')]);
+    await _pump(tester, repo);
+    await _selectFilterDropdown(tester, 'Status', 'Closed');
+    await tester.tap(find.text('Apply Filters'));
+    await tester.pumpAndSettle();
+    expect(repo.lastListFilters!.status, 'closed');
+    expect(repo.lastListFilters!.excludeClosed, isFalse);
+    expect(tester.widget<OutlinedButton>(find.byKey(const Key('toggle-closed-jobs'))).onPressed, isNull);
+  });
+
+  testWidgets('pending review jobs are listed first, then the rest newest posted first', (tester) async {
+    final repo = _FakeAdminJobsRepository([
+      _job(id: 'a', adminJobNumber: 601, status: 'active', postedAt: '2026-11-01T10:00:00Z'),
+      _job(id: 'b', adminJobNumber: 602, status: 'pending_review', postedAt: '2026-10-01T10:00:00Z'),
+      _job(id: 'c', adminJobNumber: 603, status: 'active', postedAt: '2026-11-10T10:00:00Z'),
+      _job(id: 'd', adminJobNumber: 604, status: 'pending_review', postedAt: '2026-10-20T10:00:00Z'),
+    ]);
+    await _pump(tester, repo);
+    // Tall enough that every row is built (the list only builds what fits).
+    await tester.binding.setSurfaceSize(const Size(1280, 4000));
+    await tester.pumpAndSettle();
+
+    double y(String id) => tester.getTopLeft(find.text(id)).dy;
+    // pending (newest first): 604, 602; then active (newest first): 603, 601
+    final order = ['ADMIN-JOB-604', 'ADMIN-JOB-602', 'ADMIN-JOB-603', 'ADMIN-JOB-601'];
+    for (var i = 0; i < order.length - 1; i++) {
+      expect(y(order[i]), lessThan(y(order[i + 1])), reason: '${order[i]} above ${order[i + 1]}');
+    }
+  });
+
   testWidgets('Download PDF is offered when jobs are listed, and works; it is disabled with nothing listed',
       (tester) async {
     final repo = _FakeAdminJobsRepository([_job()]);

@@ -1004,6 +1004,15 @@ describe('OrganisationRequirementsService', () => {
   });
 
   describe('listRequirementsForAdmin / getRequirementDetailForAdmin', () => {
+    it('passes exclude_closed through to the repository', async () => {
+      requirementsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
+      await service.listRequirementsForAdmin({ page: 1, limit: 20, exclude_closed: true } as any);
+      expect(requirementsRepo.listForAdmin).toHaveBeenCalledWith(
+        expect.objectContaining({ exclude_closed: true }),
+        expect.anything(),
+      );
+    });
+
     it('paginates and shapes meta correctly', async () => {
       requirementsRepo.listForAdmin.mockResolvedValue({ items: [{ id: 'req-1' }], total: 5 });
       const result = await service.listRequirementsForAdmin({ page: 1, limit: 20 } as any);

@@ -112,8 +112,12 @@ class OrganisationRequirementListFilters {
   final String? city;
   final String? search;
 
+  /// Leaves closed requirements out; the server ignores it when [status] is given.
+  final bool excludeClosed;
+
   const OrganisationRequirementListFilters({
     this.status,
+    this.excludeClosed = false,
     this.postedBy,
     this.organisationType,
     this.city,
@@ -123,6 +127,7 @@ class OrganisationRequirementListFilters {
   Map<String, dynamic> toQueryParameters() => {
         'limit': 100,
         if (status != null) 'status': status,
+        if (excludeClosed) 'exclude_closed': true,
         if (postedBy != null) 'posted_by': postedBy,
         if (organisationType != null) 'organisation_type': organisationType,
         if (city != null) 'city': city,

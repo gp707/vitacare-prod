@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { City, DutyType, Gender, JobStatus, Language, UserRole, Validation } from '@vitacare/shared-constants';
 
 export class ListJobsQueryDto {
@@ -68,4 +68,10 @@ export class ListJobsQueryDto {
   @IsInt({ message: 'GEN_005' })
   @Min(1, { message: 'GEN_005' })
   posted_more_than_days_ago?: number;
+
+  /** Leaves out closed jobs (ignored when `status` is given — an explicit status wins). */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean({ message: 'GEN_005' })
+  exclude_closed?: boolean;
 }

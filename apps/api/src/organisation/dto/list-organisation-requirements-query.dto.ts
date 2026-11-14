@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { City, JobStatus, OrganisationType } from '@vitacare/shared-constants';
 
 /** organisation_requirements.status reuses JobStatus's exact 3 values. */
@@ -7,6 +7,12 @@ export class ListOrganisationRequirementsQueryDto {
   @IsOptional()
   @IsIn(Object.values(JobStatus), { message: 'GEN_001' })
   status?: string;
+
+  /** Leaves out closed requirements (ignored when `status` is given). */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean({ message: 'GEN_005' })
+  exclude_closed?: boolean;
 
   /** Narrows to every requirement posted by one specific organisation
    *  account — used by admin-web's "View Jobs" redirect from a single

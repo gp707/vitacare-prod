@@ -735,6 +735,10 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Sorting on the account lists.** Caregivers, Patients/Family and Rehab/Hospitals accept `sort` + `order` (`asc`/`desc`, default `created_at` desc), whitelisted per list
   in the repository (never interpolated from input) with an id tiebreaker. admin-web: sort by clicking a column header (the arrow shows direction); only the narrow card layout, which has no
   headers, shows a "Sort by" control (`SortBar`). Sorting is server-side, so it orders all pages, not just the visible one.
+- **Jobs list default view.** admin-web's Jobs list shows **Pending Review first**, then the rest, each group **newest posted first** (`posted_at`; the API orders the
+  same way before its 100-row limit, the screen re-sorts the merged jobs + organisation requirements). **Closed jobs are hidden by default**: both list endpoints
+  take `exclude_closed=true` (ignored when an explicit `status` is given), and a "Show closed jobs / Hide closed jobs" button toggles it; choosing Status = Closed
+  shows them regardless (the button is then disabled).
 - **Notes on the job list.** `GET /admin/jobs` and `GET /admin/organisation-requirements` rows carry `notes` (patient's note for patient jobs, the organisation's for
   its requirements, the per-job note for admin-posted jobs). admin-web shows it in `InlineNotesPanel` in each row's right-hand column (below the content on
   narrow rows): editable in place, Save asks for confirmation, then the list reloads.

@@ -7,6 +7,10 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import '../../organisation_requirements/data/admin_organisation_requirements_repository.dart';
 import '../../organisation_requirements/widgets/requirement_widgets.dart' show requirementDisplayId;
 
+/// Where the app is downloaded; printed, and linked as a QR code, on every
+/// page of the report.
+const justHealPlayStoreUrl = 'https://play.google.com/store/apps/details?id=in.vitacasahealth.justheal';
+
 class ReportField {
   final String label;
   final String value;
@@ -164,13 +168,16 @@ Future<Uint8List> buildJobsReportPdf({
   required DateTime generatedAt,
   required ByteData regularFont,
   required ByteData boldFont,
+  bool compress = true,
 }) async {
   final regular = pw.Font.ttf(regularFont);
   final bold = pw.Font.ttf(boldFont);
   final doc = pw.Document(
     title: 'VitaCare jobs report',
     theme: pw.ThemeData.withFont(base: regular, bold: bold),
+    compress: compress,
   );
+  const pageMargin = 32.0;
   const muted = PdfColor.fromInt(0xFF5F6B7A);
   const rule = PdfColor.fromInt(0xFFD0D5DD);
 
@@ -206,16 +213,59 @@ Future<Uint8List> buildJobsReportPdf({
 
   doc.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.all(32),
+    margin: const pw.EdgeInsets.all(pageMargin),
     header: (context) => context.pageNumber == 1
         ? pw.SizedBox()
         : pw.Padding(
             padding: const pw.EdgeInsets.only(bottom: 8),
             child: pw.Text('VitaCare jobs report', style: const pw.TextStyle(fontSize: 9, color: muted))),
-    footer: (context) => pw.Align(
-        alignment: pw.Alignment.centerRight,
-        child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
-            style: const pw.TextStyle(fontSize: 9, color: muted))),
+    footer: (context) => pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 8),
+      child: pw.Column(children: [
+        // On every page: invites whoever reads the report to get the app.
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          decoration: pw.BoxDecoration(
+            color: const PdfColor.fromInt(0xFFE6F4F1),
+            border: pw.Border.all(color: const PdfColor.fromInt(0xFF1F8F7A), width: 1),
+            borderRadius: pw.BorderRadius.circular(6),
+          ),
+          child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+            pw.Expanded(
+              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('Download the JustHeal app',
+                    style: pw.TextStyle(font: bold, fontSize: 13, color: const PdfColor.fromInt(0xFF146B5B))),
+                pw.SizedBox(height: 2),
+                pw.Text('Scan the QR code or open the link on your phone.',
+                    style: const pw.TextStyle(fontSize: 9.5)),
+                pw.SizedBox(height: 2),
+                pw.UrlLink(
+                  destination: justHealPlayStoreUrl,
+                  child: pw.Text(justHealPlayStoreUrl,
+                      style: const pw.TextStyle(
+                          fontSize: 9, color: PdfColor.fromInt(0xFF1A56DB), decoration: pw.TextDecoration.underline)),
+                ),
+              ]),
+            ),
+            pw.SizedBox(width: 10),
+            pw.UrlLink(
+              destination: justHealPlayStoreUrl,
+              child: pw.BarcodeWidget(
+                barcode: pw.Barcode.qrCode(),
+                data: justHealPlayStoreUrl,
+                width: 58,
+                height: 58,
+              ),
+            ),
+          ]),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
+                style: const pw.TextStyle(fontSize: 9, color: muted))),
+      ]),
+    ),
     build: (context) => [
       pw.Text('VitaCare jobs report', style: pw.TextStyle(font: bold, fontSize: 18)),
       pw.SizedBox(height: 4),
@@ -223,7 +273,11 @@ Future<Uint8List> buildJobsReportPdf({
           style: const pw.TextStyle(fontSize: 10, color: muted)),
       pw.Text(filterSummary, style: const pw.TextStyle(fontSize: 10, color: muted)),
       pw.SizedBox(height: 12),
-      for (final e in entries) entry(e),
+      // A Wrap places whole children, so a card moves to the next page
+      // rather than splitting across two.
+      pw.Wrap(children: [
+        for (final e in entries) pw.SizedBox(width: PdfPageFormat.a4.width - 2 * pageMargin, child: entry(e)),
+      ]),
     ],
   ));
   return doc.save();

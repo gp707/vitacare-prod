@@ -104,6 +104,8 @@ export interface UpdateOwnOrganisationRequirementInput {
 
 export interface ListOrganisationRequirementsFilters {
   status?: string;
+  /** Leaves out closed requirements; ignored when `status` is set. */
+  exclude_closed?: boolean;
   posted_by?: string;
   organisation_type?: string;
   city?: string;
@@ -218,6 +220,8 @@ export class OrganisationRequirementsRepository {
     if (filters.status) {
       params.push(filters.status);
       conditions.push(`r.status = $${params.length}`);
+    } else if (filters.exclude_closed) {
+      conditions.push(`r.status <> 'closed'`);
     }
     if (filters.posted_by) {
       params.push(filters.posted_by);
@@ -252,7 +256,7 @@ export class OrganisationRequirementsRepository {
          JOIN users u ON u.id = r.posted_by
          LEFT JOIN organisation_admin_notes oan ON oan.user_id = r.posted_by
          ${clause}
-         ORDER BY r.created_at DESC
+         ORDER BY (r.status = 'pending_review') DESC, r.posted_at DESC, r.id
          LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
         listParams,
       ),

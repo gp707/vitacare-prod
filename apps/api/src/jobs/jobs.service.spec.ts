@@ -492,6 +492,15 @@ describe('JobsService', () => {
   });
 
   describe('listJobsForAdmin', () => {
+    it('passes exclude_closed through to the repository', async () => {
+      jobsRepo.listForAdmin.mockResolvedValue({ items: [], total: 0 });
+      await service.listJobsForAdmin({ page: 1, limit: 20, exclude_closed: true } as any);
+      expect(jobsRepo.listForAdmin).toHaveBeenCalledWith(
+        expect.objectContaining({ exclude_closed: true }),
+        expect.anything(),
+      );
+    });
+
     it('paginates and shapes meta correctly', async () => {
       jobsRepo.listForAdmin.mockResolvedValue({ items: [job], total: 25 });
       const result = await service.listJobsForAdmin({ page: 2, limit: 10 } as any);

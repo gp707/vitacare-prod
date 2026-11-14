@@ -154,6 +154,7 @@ export class JobsService {
     const { items, total } = await this.jobsRepo.listForAdmin(
       {
         status: query.status,
+        exclude_closed: query.exclude_closed,
         city: query.city,
         posted_by: query.posted_by,
         gender: query.gender,

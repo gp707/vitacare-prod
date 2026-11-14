@@ -124,4 +124,24 @@ void main() {
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
     expect(bytes.length, greaterThan(2000));
   });
+
+  test('every page of a multi-page report links to the app download (text link and QR link)', () async {
+    ByteData font(String name) =>
+        ByteData.sublistView(Uint8List.fromList(File('assets/fonts/$name').readAsBytesSync()));
+    final bytes = await buildJobsReportPdf(
+      entries: buildJobsReportEntries(jobs: List.generate(9, (_) => _patientJob()), requirements: []),
+      filterSummary: 'Filters: none (all jobs)',
+      generatedAt: DateTime(2026, 11, 14),
+      regularFont: font('Roboto-Regular.ttf'),
+      boldFont: font('Roboto-Bold.ttf'),
+      compress: false,
+    );
+    final text = String.fromCharCodes(bytes);
+    final pages = RegExp(r'/Type\s*/Page\b').allMatches(text).length;
+    expect(pages, greaterThanOrEqualTo(3), reason: 'enough jobs to span several pages');
+    final links = RegExp(RegExp.escape(justHealPlayStoreUrl)).allMatches(text).length;
+    // Two links per page (the printed URL and the QR code), plus the URL text itself.
+    expect(RegExp(r'/URI\s*\(' + RegExp.escape(justHealPlayStoreUrl)).allMatches(text).length, pages * 2);
+    expect(links, greaterThanOrEqualTo(pages * 2));
+  });
 }

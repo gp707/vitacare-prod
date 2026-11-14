@@ -74,6 +74,9 @@ class JobListFilters {
   /// Orthogonal to [status], same as every other filter here.
   final int? postedMoreThanDaysAgo;
 
+  /// Leaves closed jobs out; the server ignores it when [status] is given.
+  final bool excludeClosed;
+
   const JobListFilters({
     this.postedBy,
     this.postedByRole,
@@ -84,6 +87,7 @@ class JobListFilters {
     this.language,
     this.search,
     this.postedMoreThanDaysAgo,
+    this.excludeClosed = false,
   });
 
   Map<String, dynamic> toQueryParameters() => {
@@ -94,6 +98,7 @@ class JobListFilters {
         if (gender != null) 'gender': gender,
         if (dutyType != null) 'duty_type': dutyType,
         if (status != null) 'status': status,
+        if (excludeClosed) 'exclude_closed': true,
         if (language != null) 'language': language,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (postedMoreThanDaysAgo != null) 'posted_more_than_days_ago': postedMoreThanDaysAgo,
