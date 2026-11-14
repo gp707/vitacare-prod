@@ -109,6 +109,7 @@ export class AdminService {
       highest_qualification: item.highest_qualification,
       verification_status: item.verification_status,
       created_at: item.created_at,
+      notes: item.notes,
     }));
 
     const meta: PaginationMeta = {
@@ -240,7 +241,14 @@ export class AdminService {
     if (!profile) throw new AppException('PROFILE_019');
 
     const previousNotes = await this.notesRepo.findByProfileId(profileId);
-    await this.notesRepo.upsert(profileId, adminId, dto);
+    // A field left out of the request keeps its saved value (the list's inline
+    // editor sends only internal_notes); an explicit null clears it.
+    const merged = {
+      internal_notes: dto.internal_notes !== undefined ? dto.internal_notes : (previousNotes?.internal_notes ?? null),
+      availability_remarks:
+        dto.availability_remarks !== undefined ? dto.availability_remarks : (previousNotes?.availability_remarks ?? null),
+    };
+    await this.notesRepo.upsert(profileId, adminId, merged);
 
     await this.auditService.log({
       userId: adminId,
@@ -249,7 +257,7 @@ export class AdminService {
       entityType: 'admin_notes',
       entityId: profileId,
       beforeValue: previousNotes ? { ...previousNotes } : null,
-      afterValue: { ...dto },
+      afterValue: { ...merged },
       ipAddress,
     });
 

@@ -19,6 +19,7 @@ AdminCaregiverListItem _item({
   int? caregiverNumber = 500,
   String fullName = 'Ramesh Kumar',
   String verificationStatus = 'available',
+  String? notes,
 }) {
   return AdminCaregiverListItem(
     userId: userId,
@@ -31,12 +32,14 @@ AdminCaregiverListItem _item({
     highestQualification: 'rn_above_2_years',
     verificationStatus: verificationStatus,
     createdAt: '2026-08-01T10:00:00Z',
+    notes: notes,
   );
 }
 
 class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
   List<AdminCaregiverListItem> items;
   CaregiverListFilters? lastFilters;
+  final savedNotes = <String, String>{};
   _FakeAdminCaregiversRepository(this.items) : super(Dio());
 
   @override
@@ -47,6 +50,11 @@ class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
       meta: PaginationMeta(
           page: 1, limit: 20, total: items.length, totalPages: 1),
     );
+  }
+
+  @override
+  Future<void> upsertInternalNotes(String profileId, String notes) async {
+    savedNotes[profileId] = notes;
   }
 }
 
@@ -87,6 +95,28 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('shows each caregiver\'s note in the table and saves an edit in place after confirming',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(2200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = _FakeAdminCaregiversRepository([_item(notes: 'Prefers night shifts')]);
+    await _pump(tester, repo);
+
+    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('Prefers night shifts'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('inline-notes-field')), 'Prefers day shifts');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('inline-notes-save')));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, isEmpty);
+    await tester.tap(find.text('Save note'));
+    await tester.pumpAndSettle();
+    expect(repo.savedNotes, {'profile-1': 'Prefers day shifts'});
+  });
+
   testWidgets('clicking a column header sorts the list by it, and again reverses it', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1800, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));

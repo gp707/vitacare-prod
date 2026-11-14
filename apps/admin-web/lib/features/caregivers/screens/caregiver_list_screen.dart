@@ -9,6 +9,7 @@ import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../../../shared/widgets/recipient_cart_bar.dart';
 import '../../../shared/state/recipient_selection_cart.dart';
+import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
@@ -54,7 +55,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
 
   /// Sort key of each table column after the leading checkbox column;
   /// '' marks a column that can't be sorted.
-  static const _columnSortKeys = ['caregiver_number', 'full_name', 'phone', 'gender', 'age', 'highest_qualification', 'verification_status', 'created_at'];
+  static const _columnSortKeys = ['created_at', 'caregiver_number', 'full_name', 'phone', 'gender', 'age', 'highest_qualification', 'verification_status'];
 
   int? get _sortColumnIndex {
     final i = _columnSortKeys.indexOf(_sort);
@@ -345,6 +346,12 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                     '-',
               ),
               VitaListCard.kv('Registered', item.createdAt.split('T').first),
+              InlineNotesPanel(
+                key: ValueKey('notes-${item.profileId}'),
+                subject: 'this caregiver',
+                notes: item.notes,
+                onSave: (notes) => _saveNotes(item, notes),
+              ),
             ],
           );
         },
@@ -355,6 +362,9 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          // Rows grow with the notes box.
+          dataRowMinHeight: 72,
+          dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
           sortAscending: _sortAscending,
           columns: [
@@ -379,6 +389,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
             DataColumn(label: const Text('Qualification'), onSort: (_, __) => _sortBy('highest_qualification')),
             DataColumn(label: const Text('Status'), onSort: (_, __) => _sortBy('verification_status')),
             DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
+            const DataColumn(label: Text('Notes')),
           ],
           rows: _items
               .map(
@@ -410,6 +421,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                         onTap: () => _openDetail(item)),
                     DataCell(Text(item.createdAt.split('T').first),
                         onTap: () => _openDetail(item)),
+                    DataCell(_notesCell(item)),
                   ],
                 ),
               )
@@ -418,6 +430,27 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
       ),
     );
   }
+
+  Future<void> _saveNotes(AdminCaregiverListItem item, String notes) async {
+    await ref
+        .read(adminCaregiversRepositoryProvider)
+        .upsertInternalNotes(item.profileId, notes);
+    if (mounted) await _load();
+  }
+
+  Widget _notesCell(AdminCaregiverListItem item) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: SizedBox(
+          width: 300,
+          child: InlineNotesPanel(
+            key: ValueKey('notes-${item.profileId}'),
+            subject: 'this caregiver',
+            notes: item.notes,
+            compact: true,
+            onSave: (notes) => _saveNotes(item, notes),
+          ),
+        ),
+      );
 
   Widget _buildPager() {
     final meta = _meta!;

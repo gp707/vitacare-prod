@@ -322,6 +322,7 @@ describe('AdminService', () => {
       } as any);
       expect(notesRepo.upsert).toHaveBeenCalledWith('profile-1', 'admin-1', {
         internal_notes: 'Good',
+        availability_remarks: null,
       });
       expect(result).toEqual({ message: 'Notes saved' });
       expect(auditService.log).toHaveBeenCalledWith(
@@ -331,9 +332,29 @@ describe('AdminService', () => {
           action: 'admin_note_added',
           entityType: 'admin_notes',
           entityId: 'profile-1',
-          afterValue: { internal_notes: 'Good' },
+          afterValue: { internal_notes: 'Good', availability_remarks: null },
         }),
       );
+    });
+
+    it('keeps the saved availability remarks when only internal_notes is sent (inline list edit)', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      notesRepo.findByProfileId.mockResolvedValue({ internal_notes: 'old', availability_remarks: 'Weekends only' });
+      await service.upsertNotes('profile-1', 'admin-1', { internal_notes: 'new' } as any);
+      expect(notesRepo.upsert).toHaveBeenCalledWith('profile-1', 'admin-1', {
+        internal_notes: 'new',
+        availability_remarks: 'Weekends only',
+      });
+    });
+
+    it('clears a field that is sent as an explicit null', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      notesRepo.findByProfileId.mockResolvedValue({ internal_notes: 'old', availability_remarks: 'Weekends only' });
+      await service.upsertNotes('profile-1', 'admin-1', { internal_notes: 'old', availability_remarks: null } as any);
+      expect(notesRepo.upsert).toHaveBeenCalledWith('profile-1', 'admin-1', {
+        internal_notes: 'old',
+        availability_remarks: null,
+      });
     });
   });
 

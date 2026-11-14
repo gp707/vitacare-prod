@@ -45,14 +45,23 @@ class InlineNotesPanel extends StatefulWidget {
   final String? notes;
   final Future<void> Function(String notes) onSave;
 
-  const InlineNotesPanel({super.key, required this.subject, required this.notes, required this.onSave});
+  /// A smaller box without the heading, for a table cell.
+  final bool compact;
+
+  const InlineNotesPanel(
+      {super.key,
+      required this.subject,
+      required this.notes,
+      required this.onSave,
+      this.compact = false});
 
   @override
   State<InlineNotesPanel> createState() => _InlineNotesPanelState();
 }
 
 class _InlineNotesPanelState extends State<InlineNotesPanel> {
-  late final TextEditingController _controller = TextEditingController(text: widget.notes ?? '');
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.notes ?? '');
   bool _saving = false;
 
   String get _saved => (widget.notes ?? '').trim();
@@ -68,7 +77,8 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
   void didUpdateWidget(InlineNotesPanel old) {
     super.didUpdateWidget(old);
     // A refreshed list brings the saved note; never overwrite what admin is typing.
-    if (old.notes != widget.notes && !_dirty) _controller.text = widget.notes ?? '';
+    if (old.notes != widget.notes && !_dirty)
+      _controller.text = widget.notes ?? '';
   }
 
   @override
@@ -90,7 +100,8 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
       await widget.onSave(_controller.text.trim());
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save the note. Try again.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not save the note. Try again.')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -102,22 +113,25 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          const Icon(Icons.sticky_note_2_outlined, size: 16),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text('Internal note · ${widget.subject}',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
-          ),
-        ]),
-        const SizedBox(height: AppSpacing.xs),
+        if (!widget.compact)
+          Row(children: [
+            const Icon(Icons.sticky_note_2_outlined, size: 16),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text('Internal note · ${widget.subject}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: AppTypography.small)),
+            ),
+          ]),
+        if (!widget.compact) const SizedBox(height: AppSpacing.xs),
         TextField(
           key: const Key('inline-notes-field'),
           controller: _controller,
           enabled: !_saving,
-          minLines: 6,
-          maxLines: 12,
+          minLines: widget.compact ? 2 : 6,
+          maxLines: widget.compact ? 5 : 12,
           style: const TextStyle(fontSize: AppTypography.small),
           decoration: const InputDecoration(
             hintText: 'Add a note (only admins see this)',
@@ -134,7 +148,9 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
               children: [
                 TextButton(
                   key: const Key('inline-notes-cancel'),
-                  onPressed: _saving ? null : () => _controller.text = widget.notes ?? '',
+                  onPressed: _saving
+                      ? null
+                      : () => _controller.text = widget.notes ?? '',
                   child: const Text('Cancel'),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -142,7 +158,10 @@ class _InlineNotesPanelState extends State<InlineNotesPanel> {
                   key: const Key('inline-notes-save'),
                   onPressed: _saving ? null : _save,
                   child: _saving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Save'),
                 ),
               ],

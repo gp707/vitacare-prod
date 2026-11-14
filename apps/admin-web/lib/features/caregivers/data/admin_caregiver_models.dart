@@ -14,6 +14,9 @@ class AdminCaregiverListItem {
   final String verificationStatus;
   final String createdAt;
 
+  /// Admin's internal note (list endpoint only).
+  final String? notes;
+
   const AdminCaregiverListItem({
     required this.userId,
     required this.profileId,
@@ -25,6 +28,7 @@ class AdminCaregiverListItem {
     this.highestQualification,
     required this.verificationStatus,
     required this.createdAt,
+    this.notes,
   });
 
   factory AdminCaregiverListItem.fromJson(Map<String, dynamic> json) =>
@@ -39,6 +43,7 @@ class AdminCaregiverListItem {
         highestQualification: json['highest_qualification'] as String?,
         verificationStatus: json['verification_status'] as String,
         createdAt: json['created_at'] as String,
+        notes: json['notes'] as String?,
       );
 }
 

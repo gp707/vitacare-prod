@@ -41,6 +41,8 @@ export interface AdminCaregiverListItem {
   highest_qualification: Qualification | null;
   verification_status: VerificationStatus;
   created_at: Date;
+  /** Admin's internal note (admin_notes.internal_notes), shown inline in the list. */
+  notes: string | null;
 }
 
 export interface AdminCaregiverListFilters {
@@ -209,9 +211,11 @@ export class AdminCaregiversRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<AdminCaregiverListItem>(
         `SELECT cp.id AS profile_id, cp.user_id, cp.caregiver_number, u.full_name, u.phone, cp.gender, cp.age,
-                cp.highest_qualification, cp.verification_status, cp.created_at
+                cp.highest_qualification, cp.verification_status, cp.created_at,
+                an.internal_notes AS notes
          FROM caregiver_profiles cp
          JOIN users u ON u.id = cp.user_id
+         LEFT JOIN admin_notes an ON an.profile_id = cp.id
          ${clause}
          ORDER BY ${sortColumn} ${orderDirection}, cp.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,

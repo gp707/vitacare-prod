@@ -738,6 +738,9 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Notes on the job list.** `GET /admin/jobs` and `GET /admin/organisation-requirements` rows carry `notes` (patient's note for patient jobs, the organisation's for
   its requirements, the per-job note for admin-posted jobs). admin-web shows it in `InlineNotesPanel` in each row's right-hand column (below the content on
   narrow rows): editable in place, Save asks for confirmation, then the list reloads.
+- **Caregiver notes in the list.** `GET /admin/caregivers` rows carry `notes` (= `admin_notes.internal_notes`). admin-web's Caregivers table has a Notes column
+  (not sortable) with `InlineNotesPanel` (compact): edit in place, Save confirms, then the list reloads. It saves via `POST /admin/caregivers/:id/notes` with only
+  `internal_notes`; `AdminService.upsertNotes` keeps `availability_remarks` when the field is omitted (an explicit null clears it).
 - **Wrong-PIN lockout (`LoginThrottleService`, `auth/login-throttle.service.ts`).** After 7 wrong PINs within 15 minutes an account
   refuses PIN login (`AUTH_017`, 429, message names the minutes left) until 5 minutes after its latest wrong guess — a correct PIN is
   refused too while paused, and each further wrong guess restarts the pause. A correct PIN clears the count. In memory, keyed by

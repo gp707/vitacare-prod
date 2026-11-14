@@ -123,6 +123,17 @@ class AdminCaregiversRepository {
     }
   }
 
+  /// Saves only the internal note (the list's inline editor); the caregiver's
+  /// availability remarks are left as saved.
+  Future<void> upsertInternalNotes(String profileId, String notes) async {
+    try {
+      await _dio.post('/admin/caregivers/$profileId/notes',
+          data: {'internal_notes': notes});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Admin-initiated PIN reset — no old-code verification, same as the
   /// caregiver's own self-service change.
   Future<void> resetCode(String profileId, String code) async {
