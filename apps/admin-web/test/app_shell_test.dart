@@ -61,6 +61,22 @@ Future<void> _pumpShellAs(WidgetTester tester, String role, {DashboardStats? bad
 }
 
 void main() {
+  testWidgets('sidebar order: Jobs, Caregivers, Insights, Rejections first; Dashboard just above Logout', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpShellAs(tester, 'admin');
+
+    double y(String label) => tester.getTopLeft(find.text(label)).dy;
+    final top = ['Jobs', 'Caregivers', 'Insights', 'Rejections', 'Patients/Family'];
+    for (var i = 0; i < top.length - 1; i++) {
+      expect(y(top[i]), lessThan(y(top[i + 1])), reason: '${top[i]} should be above ${top[i + 1]}');
+    }
+    expect(y('Settings'), lessThan(y('Dashboard')));
+    expect(y('Dashboard'), lessThan(y('Logout')));
+    // Dashboard is the item directly above Logout.
+    expect(y('Logout') - y('Dashboard'), lessThan(80));
+  });
+
   testWidgets('shows Admin Management for a super_admin session',
       (tester) async {
     await _pumpShellAs(tester, 'super_admin');

@@ -66,6 +66,12 @@ class _OrganisationsListScreenState
     return i < 0 ? null : i + 1;
   }
 
+  /// The first [length] characters of [text], with the full text on hover.
+  Widget _shortWithHover(String text, int length) {
+    if (text.length <= length) return Text(text);
+    return Tooltip(message: text, child: Text('${text.substring(0, length)}…'));
+  }
+
   Future<void> _saveNotes(dynamic item, String notes) async {
     await ref.read(adminOrganisationsRepositoryProvider).upsertNotes(item.userId, notes);
     if (mounted) await _load();
@@ -445,6 +451,8 @@ class _OrganisationsListScreenState
         scrollDirection: Axis.horizontal,
         child: DataTable(
           // Rows grow with the notes box.
+          columnSpacing: 12,
+          horizontalMargin: 8,
           dataRowMinHeight: 72,
           dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
@@ -492,8 +500,10 @@ class _OrganisationsListScreenState
                             onTap: () => _openDetail(item)),
                         DataCell(Text(organisationDisplayId(item.orgNumber) ?? '-'),
                             onTap: () => _openDetail(item)),
-                        DataCell(Text(item.organisationName), onTap: () => _openDetail(item)),
-                        DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                        DataCell(_shortWithHover(item.organisationName, 20),
+                            onTap: () => _openDetail(item)),
+                        DataCell(_shortWithHover(item.fullName, 10),
+                            onTap: () => _openDetail(item)),
                         DataCell(PhoneWithContact(phone: item.phone)),
                         DataCell(
                             Text(_locationText(item)),

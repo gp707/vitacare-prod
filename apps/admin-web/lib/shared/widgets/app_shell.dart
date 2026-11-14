@@ -141,11 +141,12 @@ class _NavList extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _NavItem(
-                  icon: Icons.grid_view,
-                  label: 'Dashboard',
-                  selected: current == AppShellSection.dashboard,
+                  icon: Icons.work,
+                  label: 'Jobs',
+                  selected: current == AppShellSection.jobs,
+                  count: badgeCounts?.jobsPendingApproval,
                   onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/dashboard', (r) => false),
+                      .pushNamedAndRemoveUntil('/jobs', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.people,
@@ -156,19 +157,25 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/caregivers', (r) => false),
                 ),
                 _NavItem(
+                  icon: Icons.insights_outlined,
+                  label: 'Insights',
+                  selected: current == AppShellSection.insights,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/insights', (r) => false),
+                ),
+                _NavItem(
+                  icon: Icons.thumb_down_alt_outlined,
+                  label: 'Rejections',
+                  selected: current == AppShellSection.rejections,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/rejections', (r) => false),
+                ),
+                _NavItem(
                   icon: Icons.family_restroom,
                   label: 'Patients/Family',
                   selected: current == AppShellSection.patientsFamily,
                   onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
                       '/patients-family', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.work,
-                  label: 'Jobs',
-                  selected: current == AppShellSection.jobs,
-                  count: badgeCounts?.jobsPendingApproval,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/jobs', (r) => false),
                 ),
                 _NavItem(
                   icon: Icons.local_hospital,
@@ -214,13 +221,6 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/tickets', (r) => false),
                 ),
                 _NavItem(
-                  icon: Icons.thumb_down_alt_outlined,
-                  label: 'Rejections',
-                  selected: current == AppShellSection.rejections,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/rejections', (r) => false),
-                ),
-                _NavItem(
                   icon: Icons.history,
                   label: 'Audit Logs',
                   selected: current == AppShellSection.auditLogs,
@@ -233,13 +233,6 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.errorLogs,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/error-logs', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.insights_outlined,
-                  label: 'Insights',
-                  selected: current == AppShellSection.insights,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/insights', (r) => false),
                 ),
                 if (isSuperAdmin)
                   _NavItem(
@@ -259,6 +252,13 @@ class _NavList extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        _NavItem(
+          icon: Icons.grid_view,
+          label: 'Dashboard',
+          selected: current == AppShellSection.dashboard,
+          onTap: () => Navigator.of(context)
+              .pushNamedAndRemoveUntil('/dashboard', (r) => false),
         ),
         _NavItem(
           icon: Icons.logout,

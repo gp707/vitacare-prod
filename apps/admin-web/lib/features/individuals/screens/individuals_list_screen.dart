@@ -59,6 +59,12 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
     return i < 0 ? null : i + 1;
   }
 
+  /// The first [length] characters of [text], with the full text on hover.
+  Widget _shortWithHover(String text, int length) {
+    if (text.length <= length) return Text(text);
+    return Tooltip(message: text, child: Text('${text.substring(0, length)}…'));
+  }
+
   Future<void> _saveNotes(dynamic item, String notes) async {
     await ref.read(adminIndividualsRepositoryProvider).upsertNotes(item.userId, notes);
     if (mounted) await _load();
@@ -382,6 +388,8 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           // Rows grow with the notes box.
+          columnSpacing: 12,
+          horizontalMargin: 8,
           dataRowMinHeight: 72,
           dataRowMaxHeight: double.infinity,
           sortColumnIndex: _sortColumnIndex,
@@ -430,7 +438,8 @@ class _IndividualsListScreenState extends ConsumerState<IndividualsListScreen> {
                         DataCell(
                             Text(patientDisplayId(item.patientNumber) ?? '-'),
                             onTap: () => _openDetail(item)),
-                        DataCell(Text(item.fullName), onTap: () => _openDetail(item)),
+                        DataCell(_shortWithHover(item.fullName, 10),
+                            onTap: () => _openDetail(item)),
                         DataCell(PhoneWithContact(phone: item.phone)),
                         DataCell(_StatusCell(item: item), onTap: () => _openDetail(item)),
                         DataCell(_notesCell(item)),
