@@ -17,8 +17,8 @@ export class ListCaregiversQueryDto {
   limit: number = Validation.PAGINATION_DEFAULT_LIMIT;
 
   @IsOptional()
-  @IsIn(['created_at', 'full_name', 'age'], { message: 'GEN_005' })
-  sort: 'created_at' | 'full_name' | 'age' = 'created_at';
+  @IsIn(['created_at', 'full_name', 'age', 'caregiver_number', 'phone', 'gender', 'highest_qualification', 'verification_status'], { message: 'GEN_005' })
+  sort: 'created_at' | 'full_name' | 'age' | 'caregiver_number' | 'phone' | 'gender' | 'highest_qualification' | 'verification_status' = 'created_at';
 
   @IsOptional()
   @IsIn(['asc', 'desc'], { message: 'GEN_005' })

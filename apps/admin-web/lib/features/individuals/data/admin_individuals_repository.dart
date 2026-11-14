@@ -53,10 +53,18 @@ class AdminIndividualsListResult {
 class IndividualListFilters {
   final String? search;
   final String? blockStatus;
+  final String sort;
+  final String order;
 
-  const IndividualListFilters({this.search, this.blockStatus});
+  const IndividualListFilters(
+      {this.search,
+      this.blockStatus,
+      this.sort = 'created_at',
+      this.order = 'desc'});
 
   Map<String, dynamic> toQueryParameters() => {
+        'sort': sort,
+        'order': order,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (blockStatus != null) 'block_status': blockStatus,
       };

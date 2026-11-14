@@ -444,6 +444,7 @@ class Qualification {
   static const bscGnmUnregistered = 'bsc_gnm_unregistered';
   static const anmStudentBacklog = 'anm_student_backlog';
   static const gdaNonNursing = 'gda_non_nursing';
+  static const onlySchoolingNone = 'only_schooling_none';
 
   static const all = [
     rnAbove2Years,
@@ -452,6 +453,7 @@ class Qualification {
     bscGnmUnregistered,
     anmStudentBacklog,
     gdaNonNursing,
+    onlySchoolingNone,
   ];
 
   static const displayNames = {
@@ -460,7 +462,8 @@ class Qualification {
     registeredRecently: 'Registered Recently',
     bscGnmUnregistered: 'BSC / GNM Completed - Unregistered',
     anmStudentBacklog: 'ANM/Nursing Student/ Backlog',
-    gdaNonNursing: 'GDA / Non Nursing',
+    gdaNonNursing: 'GDA',
+    onlySchoolingNone: 'Only Schooling/None',
   };
 }
 

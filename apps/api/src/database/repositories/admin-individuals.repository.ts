@@ -19,6 +19,14 @@ export interface AdminIndividualListFilters {
   blockStatus?: 'active' | 'job_posting_blocked' | 'blocked';
 }
 
+export const INDIVIDUAL_SORT_COLUMNS = {
+  created_at: 'u.created_at',
+  patient_number: 'ip.patient_number',
+  full_name: 'u.full_name',
+  phone: 'u.phone',
+} as const;
+export type AdminIndividualSort = keyof typeof INDIVIDUAL_SORT_COLUMNS;
+
 function buildIndividualsWhereClause(filters: AdminIndividualListFilters): {
   clause: string;
   params: unknown[];
@@ -63,9 +71,11 @@ export class AdminIndividualsRepository {
 
   async listIndividuals(
     filters: AdminIndividualListFilters,
-    page: ListPage,
+    page: ListPage & { sort?: AdminIndividualSort; order?: 'asc' | 'desc' },
   ): Promise<{ items: AdminIndividualListItem[]; total: number }> {
     const { clause, params } = buildIndividualsWhereClause(filters);
+    const sortColumn = INDIVIDUAL_SORT_COLUMNS[page.sort ?? 'created_at'];
+    const orderDirection = (page.order ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
     const offset = (page.page - 1) * page.limit;
     const listParams = [...params, page.limit, offset];
     const limitPlaceholder = `$${listParams.length - 1}`;
@@ -78,7 +88,7 @@ export class AdminIndividualsRepository {
          FROM users u
          JOIN individual_profiles ip ON ip.user_id = u.id
          ${clause}
-         ORDER BY u.created_at DESC
+         ORDER BY ${sortColumn} ${orderDirection}, u.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),

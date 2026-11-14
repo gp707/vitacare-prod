@@ -73,11 +73,20 @@ class OrganisationListFilters {
   final String? blockStatus;
   final String? organisationType;
   final String? city;
+  final String sort;
+  final String order;
 
   const OrganisationListFilters(
-      {this.search, this.blockStatus, this.organisationType, this.city});
+      {this.search,
+      this.blockStatus,
+      this.organisationType,
+      this.city,
+      this.sort = 'created_at',
+      this.order = 'desc'});
 
   Map<String, dynamic> toQueryParameters() => {
+        'sort': sort,
+        'order': order,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (blockStatus != null) 'block_status': blockStatus,
         if (organisationType != null) 'organisation_type': organisationType,

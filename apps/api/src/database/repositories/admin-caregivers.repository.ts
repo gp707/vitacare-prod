@@ -55,7 +55,7 @@ export interface AdminCaregiverListFilters {
 }
 
 export interface AdminCaregiverListSort {
-  sort: 'created_at' | 'full_name' | 'age';
+  sort: 'created_at' | 'full_name' | 'age' | 'caregiver_number' | 'phone' | 'gender' | 'highest_qualification' | 'verification_status';
   order: 'asc' | 'desc';
   page: number;
   limit: number;
@@ -88,6 +88,11 @@ const SORT_COLUMNS: Record<AdminCaregiverListSort['sort'], string> = {
   created_at: 'cp.created_at',
   full_name: 'u.full_name',
   age: 'cp.age',
+  caregiver_number: 'cp.caregiver_number',
+  phone: 'u.phone',
+  gender: 'cp.gender',
+  highest_qualification: 'cp.highest_qualification',
+  verification_status: 'cp.verification_status',
 };
 
 function buildWhereClause(filters: AdminCaregiverListFilters): { clause: string; params: unknown[] } {
@@ -208,7 +213,7 @@ export class AdminCaregiversRepository {
          FROM caregiver_profiles cp
          JOIN users u ON u.id = cp.user_id
          ${clause}
-         ORDER BY ${sortColumn} ${orderDirection}
+         ORDER BY ${sortColumn} ${orderDirection}, cp.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),

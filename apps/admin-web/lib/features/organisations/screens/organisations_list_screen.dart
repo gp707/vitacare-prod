@@ -12,6 +12,7 @@ import '../../../shared/state/recipient_selection_cart.dart';
 import '../../jobs/screens/admin_jobs_screen.dart';
 import '../data/admin_organisations_repository.dart';
 import '../../../shared/widgets/action_help.dart';
+import '../../../shared/widgets/sort_bar.dart';
 
 /// NurseNow hospital/rehab/clinic accounts — mirrors IndividualsListScreen
 /// exactly (same two admin block levers, same table shape).
@@ -31,6 +32,8 @@ const _organisationCityOthers = 'others';
 class _OrganisationsListScreenState
     extends ConsumerState<OrganisationsListScreen> {
   int _page = 1;
+  String _sort = 'created_at';
+  bool _sortAscending = false;
   List<AdminOrganisationListItem> _items = [];
   PaginationMeta? _meta;
   bool _loading = true;
@@ -53,6 +56,30 @@ class _OrganisationsListScreenState
     super.dispose();
   }
 
+  /// Sort key of each table column after the leading checkbox column;
+  /// '' marks a column that can't be sorted.
+  static const _columnSortKeys = ['org_number', 'organisation_name', 'full_name', 'phone', 'city', '', 'created_at', ''];
+
+  int? get _sortColumnIndex {
+    final i = _columnSortKeys.indexOf(_sort);
+    return i < 0 ? null : i + 1;
+  }
+
+  void _setSort(String key, bool ascending) {
+    setState(() {
+      _sort = key;
+      _sortAscending = ascending;
+      _page = 1;
+    });
+    _load();
+  }
+
+  void _sortBy(String key) {
+    final (nextKey, ascending) = nextSort(
+        currentKey: _sort, currentAscending: _sortAscending, tappedKey: key);
+    _setSort(nextKey, ascending);
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -68,6 +95,8 @@ class _OrganisationsListScreenState
               blockStatus: _blockStatus,
               organisationType: _organisationType,
               city: _city,
+              sort: _sort,
+              order: _sortAscending ? 'asc' : 'desc',
             ),
           );
       if (mounted) {
@@ -290,7 +319,21 @@ class _OrganisationsListScreenState
                   style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.xs),
+              SortBar(
+                options: const [
+                  SortOption('created_at', 'Registered'),
+                  SortOption('org_number', 'ID'),
+                  SortOption('organisation_name', 'Organisation'),
+                  SortOption('full_name', 'Contact'),
+                  SortOption('phone', 'Phone'),
+                  SortOption('city', 'Location'),
+                ],
+                sortKey: _sort,
+                ascending: _sortAscending,
+                onChanged: _setSort,
+              ),
+              const SizedBox(height: AppSpacing.xs),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
@@ -371,6 +414,8 @@ class _OrganisationsListScreenState
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          sortColumnIndex: _sortColumnIndex,
+          sortAscending: _sortAscending,
           columns: [
             DataColumn(
               label: Checkbox(
@@ -385,13 +430,13 @@ class _OrganisationsListScreenState
                 },
               ),
             ),
-            const DataColumn(label: Text('ID')),
-            const DataColumn(label: Text('Organisation')),
-            const DataColumn(label: Text('Contact')),
-            const DataColumn(label: Text('Phone')),
-            const DataColumn(label: Text('Location')),
+            DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('org_number')),
+            DataColumn(label: const Text('Organisation'), onSort: (_, __) => _sortBy('organisation_name')),
+            DataColumn(label: const Text('Contact'), onSort: (_, __) => _sortBy('full_name')),
+            DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
+            DataColumn(label: const Text('Location'), onSort: (_, __) => _sortBy('city')),
             const DataColumn(label: Text('Status')),
-            const DataColumn(label: Text('Registered')),
+            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
             const DataColumn(label: Text('Actions')),
           ],
           rows: _items

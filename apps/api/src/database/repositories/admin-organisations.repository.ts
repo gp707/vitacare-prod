@@ -17,6 +17,17 @@ export interface AdminOrganisationListItem {
   created_at: Date;
 }
 
+export const ORGANISATION_SORT_COLUMNS = {
+  created_at: 'u.created_at',
+  org_number: 'op.org_number',
+  organisation_name: 'op.organisation_name',
+  organisation_type: 'op.organisation_type',
+  city: 'op.city',
+  full_name: 'u.full_name',
+  phone: 'u.phone',
+} as const;
+export type AdminOrganisationSort = keyof typeof ORGANISATION_SORT_COLUMNS;
+
 export interface AdminOrganisationListFilters {
   /** Matches organisation_name, contact full_name, phone, or the display id
    *  (ORG-<n>). */
@@ -78,9 +89,11 @@ export class AdminOrganisationsRepository {
 
   async listOrganisations(
     filters: AdminOrganisationListFilters,
-    page: ListPage,
+    page: ListPage & { sort?: AdminOrganisationSort; order?: 'asc' | 'desc' },
   ): Promise<{ items: AdminOrganisationListItem[]; total: number }> {
     const { clause, params } = buildOrganisationsWhereClause(filters);
+    const sortColumn = ORGANISATION_SORT_COLUMNS[page.sort ?? 'created_at'];
+    const orderDirection = (page.order ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
     const offset = (page.page - 1) * page.limit;
     const listParams = [...params, page.limit, offset];
     const limitPlaceholder = `$${listParams.length - 1}`;
@@ -94,7 +107,7 @@ export class AdminOrganisationsRepository {
          FROM users u
          JOIN organisation_profiles op ON op.user_id = u.id
          ${clause}
-         ORDER BY u.created_at DESC
+         ORDER BY ${sortColumn} ${orderDirection}, u.id
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
         listParams,
       ),

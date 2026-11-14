@@ -158,6 +158,7 @@ export const Qualification = {
   BSC_GNM_UNREGISTERED: 'bsc_gnm_unregistered',
   ANM_STUDENT_BACKLOG: 'anm_student_backlog',
   GDA_NON_NURSING: 'gda_non_nursing',
+  ONLY_SCHOOLING_NONE: 'only_schooling_none',
 } as const;
 export type Qualification = (typeof Qualification)[keyof typeof Qualification];
 

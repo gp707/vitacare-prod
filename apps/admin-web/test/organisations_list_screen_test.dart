@@ -118,6 +118,21 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('clicking a column header sorts the list by it, and again reverses it', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository([_item()]);
+    await _pump(tester, repo);
+    expect(repo.lastFilters!.sort, 'created_at');
+
+    await tester.tap(find.descendant(of: find.byType(DataTable), matching: find.text('Organisation')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters!.sort, 'organisation_name');
+    expect(repo.lastFilters!.order, 'asc');
+
+    await tester.tap(find.descendant(of: find.byType(DataTable), matching: find.text('Organisation')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters!.order, 'desc');
+  });
+
   testWidgets('lists organisation accounts with their status and location',
       (tester) async {
     await _pump(tester, _FakeAdminOrganisationsRepository([_item()]));

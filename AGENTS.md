@@ -1547,7 +1547,7 @@ hindu, muslim, christian, others
 bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon
 
 ### Qualifications
-rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_years ("Registered Nurse below 2 years experience"), registered_recently ("Registered Recently"), bsc_gnm_unregistered ("BSC / GNM Completed - Unregistered"), anm_student_backlog ("ANM/Nursing Student/ Backlog"), gda_non_nursing ("GDA / Non Nursing")
+rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_years ("Registered Nurse below 2 years experience"), registered_recently ("Registered Recently"), bsc_gnm_unregistered ("BSC / GNM Completed - Unregistered"), anm_student_backlog ("ANM/Nursing Student/ Backlog"), gda_non_nursing ("GDA" — key kept from when it was "GDA / Non Nursing"), only_schooling_none ("Only Schooling/None")
 
 ### Gender
 male, female, other

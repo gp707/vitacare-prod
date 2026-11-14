@@ -58,6 +58,19 @@ describe('AdminOrganisationsService', () => {
     });
   });
 
+  describe('listOrganisations sorting', () => {
+    it('passes sort and order to the repository', async () => {
+      organisationsRepo.listOrganisations.mockResolvedValue({ items: [], total: 0 });
+      await service.listOrganisations({ page: 1, limit: 20, sort: 'organisation_name', order: 'asc' } as any);
+      expect(organisationsRepo.listOrganisations).toHaveBeenCalledWith(expect.anything(), {
+        page: 1,
+        limit: 20,
+        sort: 'organisation_name',
+        order: 'asc',
+      });
+    });
+  });
+
   describe('getOrganisationDetail', () => {
     it('throws GEN_002 when not found', async () => {
       organisationsRepo.findDetailByUserId.mockResolvedValue(null);

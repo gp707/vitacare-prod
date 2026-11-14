@@ -9,6 +9,7 @@ import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../../../shared/widgets/recipient_cart_bar.dart';
 import '../../../shared/state/recipient_selection_cart.dart';
+import '../../../shared/widgets/sort_bar.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
 
@@ -30,6 +31,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   String? _language;
   String? _city;
   int _page = 1;
+  String _sort = 'created_at';
+  bool _sortAscending = false;
 
   List<AdminCaregiverListItem> _items = [];
   PaginationMeta? _meta;
@@ -49,6 +52,30 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     super.dispose();
   }
 
+  /// Sort key of each table column after the leading checkbox column;
+  /// '' marks a column that can't be sorted.
+  static const _columnSortKeys = ['caregiver_number', 'full_name', 'phone', 'gender', 'age', 'highest_qualification', 'verification_status', 'created_at'];
+
+  int? get _sortColumnIndex {
+    final i = _columnSortKeys.indexOf(_sort);
+    return i < 0 ? null : i + 1;
+  }
+
+  void _setSort(String key, bool ascending) {
+    setState(() {
+      _sort = key;
+      _sortAscending = ascending;
+      _page = 1;
+    });
+    _load();
+  }
+
+  void _sortBy(String key) {
+    final (nextKey, ascending) = nextSort(
+        currentKey: _sort, currentAscending: _sortAscending, tappedKey: key);
+    _setSort(nextKey, ascending);
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -65,6 +92,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
               gender: _gender,
               languages: _language == null ? null : [_language!],
               city: _city,
+              sort: _sort,
+              order: _sortAscending ? 'asc' : 'desc',
               page: _page,
             ),
           );
@@ -110,7 +139,23 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                   style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.xs),
+              SortBar(
+                options: const [
+                  SortOption('created_at', 'Registered'),
+                  SortOption('caregiver_number', 'ID'),
+                  SortOption('full_name', 'Name'),
+                  SortOption('phone', 'Phone'),
+                  SortOption('gender', 'Gender'),
+                  SortOption('age', 'Age'),
+                  SortOption('highest_qualification', 'Qualification'),
+                  SortOption('verification_status', 'Status'),
+                ],
+                sortKey: _sort,
+                ascending: _sortAscending,
+                onChanged: _setSort,
+              ),
+              const SizedBox(height: AppSpacing.xs),
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
@@ -306,6 +351,8 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          sortColumnIndex: _sortColumnIndex,
+          sortAscending: _sortAscending,
           columns: [
             DataColumn(
               label: Checkbox(
@@ -320,14 +367,14 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                 },
               ),
             ),
-            const DataColumn(label: Text('ID')),
-            const DataColumn(label: Text('Name')),
-            const DataColumn(label: Text('Phone')),
-            const DataColumn(label: Text('Gender')),
-            const DataColumn(label: Text('Age')),
-            const DataColumn(label: Text('Qualification')),
-            const DataColumn(label: Text('Status')),
-            const DataColumn(label: Text('Registered')),
+            DataColumn(label: const Text('ID'), onSort: (_, __) => _sortBy('caregiver_number')),
+            DataColumn(label: const Text('Name'), onSort: (_, __) => _sortBy('full_name')),
+            DataColumn(label: const Text('Phone'), onSort: (_, __) => _sortBy('phone')),
+            DataColumn(label: const Text('Gender'), onSort: (_, __) => _sortBy('gender')),
+            DataColumn(label: const Text('Age'), onSort: (_, __) => _sortBy('age')),
+            DataColumn(label: const Text('Qualification'), onSort: (_, __) => _sortBy('highest_qualification')),
+            DataColumn(label: const Text('Status'), onSort: (_, __) => _sortBy('verification_status')),
+            DataColumn(label: const Text('Registered'), onSort: (_, __) => _sortBy('created_at')),
           ],
           rows: _items
               .map(

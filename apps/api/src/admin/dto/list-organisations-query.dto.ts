@@ -16,6 +16,17 @@ export class ListOrganisationsQueryDto {
   @Max(Validation.PAGINATION_MAX_LIMIT, { message: 'GEN_005' })
   limit: number = Validation.PAGINATION_DEFAULT_LIMIT;
 
+  @IsOptional()
+  @IsIn(['created_at', 'org_number', 'organisation_name', 'organisation_type', 'city', 'full_name', 'phone'], {
+    message: 'GEN_005',
+  })
+  sort: 'created_at' | 'org_number' | 'organisation_name' | 'organisation_type' | 'city' | 'full_name' | 'phone' =
+    'created_at';
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'], { message: 'GEN_005' })
+  order: 'asc' | 'desc' = 'desc';
+
   /** Matches organisation_name, contact full_name, phone, or the display id
    *  (ORG-<n>). */
   @IsOptional()

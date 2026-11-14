@@ -33,7 +33,7 @@ export class AdminOrganisationsService {
         organisationType: query.organisation_type,
         city: query.city,
       },
-      { page: query.page, limit: query.limit },
+      { page: query.page, limit: query.limit, sort: query.sort, order: query.order },
     );
     const meta: PaginationMeta = {
       page: query.page,

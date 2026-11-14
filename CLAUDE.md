@@ -732,6 +732,9 @@ location) that didn't fit the Individual/admin jobs-table model.
   same with the *patient's* note (`individual_admin_notes`, same one as on Patients/Family — one job per patient): `GET /admin/jobs/:id`
   returns it and `POST /admin/jobs/:id/notes` saves it there (an older per-job note only shows until the patient has one). Only
   admin-posted jobs keep a per-job note (`job_admin_notes`).
+- **Sorting on the account lists.** Caregivers, Patients/Family and Rehab/Hospitals accept `sort` + `order` (`asc`/`desc`, default `created_at` desc), whitelisted per list
+  in the repository (never interpolated from input) with an id tiebreaker. admin-web: click a column header, or use the "Sort by" control (`SortBar`) above the list, which
+  also covers the narrow card layout. Sorting is server-side, so it orders all pages, not just the visible one.
 - **Notes on the job list.** `GET /admin/jobs` and `GET /admin/organisation-requirements` rows carry `notes` (patient's note for patient jobs, the organisation's for
   its requirements, the per-job note for admin-posted jobs). admin-web shows it in `InlineNotesPanel` in each row's right-hand column (below the content on
   narrow rows): editable in place, Save asks for confirmation, then the list reloads.
@@ -1709,7 +1712,7 @@ hindu, muslim, christian, others
 bangalore, mumbai, hyderabad, chennai, pune, delhi, gurgaon
 
 ### Qualifications
-rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_years ("Registered Nurse below 2 years experience"), registered_recently ("Registered Recently"), bsc_gnm_unregistered ("BSC / GNM Completed - Unregistered"), anm_student_backlog ("ANM/Nursing Student/ Backlog"), gda_non_nursing ("GDA / Non Nursing")
+rn_above_2_years ("Registered Nurse above 2 years of experience"), rn_below_2_years ("Registered Nurse below 2 years experience"), registered_recently ("Registered Recently"), bsc_gnm_unregistered ("BSC / GNM Completed - Unregistered"), anm_student_backlog ("ANM/Nursing Student/ Backlog"), gda_non_nursing ("GDA" — key kept from when it was "GDA / Non Nursing"), only_schooling_none ("Only Schooling/None")
 
 ### Gender
 male, female, other

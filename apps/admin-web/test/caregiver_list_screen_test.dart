@@ -36,10 +36,12 @@ AdminCaregiverListItem _item({
 
 class _FakeAdminCaregiversRepository extends AdminCaregiversRepository {
   List<AdminCaregiverListItem> items;
+  CaregiverListFilters? lastFilters;
   _FakeAdminCaregiversRepository(this.items) : super(Dio());
 
   @override
   Future<CaregiverListResult> list(CaregiverListFilters filters) async {
+    lastFilters = filters;
     return CaregiverListResult(
       items: items,
       meta: PaginationMeta(
@@ -85,6 +87,24 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('clicking a column header sorts the list by it, and again reverses it', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1800, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = _FakeAdminCaregiversRepository([_item()]);
+    await _pump(tester, repo);
+    expect(repo.lastFilters!.sort, 'created_at');
+    expect(repo.lastFilters!.order, 'desc');
+
+    await tester.tap(find.descendant(of: find.byType(DataTable), matching: find.text('Age')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters!.sort, 'age');
+    expect(repo.lastFilters!.order, 'asc');
+
+    await tester.tap(find.descendant(of: find.byType(DataTable), matching: find.text('Age')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters!.order, 'desc');
+  });
+
   testWidgets('the Phone column has one-click Call and WhatsApp buttons', (tester) async {
     final launched = <Uri>[];
     final original = uriLauncher;

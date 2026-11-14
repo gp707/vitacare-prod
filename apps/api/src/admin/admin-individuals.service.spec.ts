@@ -50,6 +50,19 @@ describe('AdminIndividualsService', () => {
     });
   });
 
+  describe('listIndividuals sorting', () => {
+    it('passes sort and order to the repository', async () => {
+      individualsRepo.listIndividuals.mockResolvedValue({ items: [], total: 0 });
+      await service.listIndividuals({ page: 1, limit: 20, sort: 'full_name', order: 'asc' } as any);
+      expect(individualsRepo.listIndividuals).toHaveBeenCalledWith(expect.anything(), {
+        page: 1,
+        limit: 20,
+        sort: 'full_name',
+        order: 'asc',
+      });
+    });
+  });
+
   describe('getIndividualDetail', () => {
     it('throws GEN_002 when not found', async () => {
       individualsRepo.findDetailByUserId.mockResolvedValue(null);

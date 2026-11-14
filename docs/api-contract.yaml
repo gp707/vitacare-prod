@@ -270,6 +270,7 @@ components:
         - bsc_gnm_unregistered
         - anm_student_backlog
         - gda_non_nursing
+        - only_schooling_none
 
     VerificationStatus:
       type: string
