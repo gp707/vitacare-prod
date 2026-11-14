@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
@@ -10,6 +11,8 @@ import '../../auth/state/session_state.dart';
 import '../../organisation_requirements/data/admin_organisation_requirements_repository.dart';
 import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../data/admin_jobs_repository.dart';
+import '../report/jobs_report.dart';
+import '../../../shared/download/download_file.dart';
 import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
 import '../../../shared/widgets/action_help.dart';
@@ -140,6 +143,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   List<JobModel> _jobs = [];
   List<AdminOrganisationRequirement> _requirements = [];
   bool _loading = true;
+  bool _preparingReport = false;
   String? _errorMessage;
 
   // Super-admin-only permanent bulk delete — see AdminBulkDeleteService.
@@ -310,6 +314,57 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   }
 
   void _applyFilters() => _load();
+
+  /// What the list is currently narrowed to, in words, for the report header.
+  String _filterSummary() {
+    final parts = <String>[
+      if (_filterPosterType != null)
+        'Posted by: ${_filterPosterType == UserRole.individual ? 'Patients' : (OrganisationType.displayNames[_filterPosterType] ?? _filterPosterType!)}',
+      if (_filterPostedByLabel != null) 'Poster: $_filterPostedByLabel',
+      if (_filterCity != null) 'City: ${City.displayNames[_filterCity] ?? _filterCity!}',
+      if (_filterGender != null) "Patient's gender: $_filterGender",
+      if (_filterDutyType != null) 'Duty time: ${DutyType.displayNames[_filterDutyType] ?? _filterDutyType!}',
+      if (_filterStatus != null) 'Status: $_filterStatus',
+      if (_filterLanguage != null) 'Language: ${Language.displayNames[_filterLanguage] ?? _filterLanguage!}',
+      if (_filterPostedMoreThanDaysAgo != null) 'Posted more than $_filterPostedMoreThanDaysAgo days ago',
+      if (_searchController.text.trim().isNotEmpty) 'Search: "${_searchController.text.trim()}"',
+    ];
+    return parts.isEmpty ? 'Filters: none (all jobs)' : 'Filters: ${parts.join('  ·  ')}';
+  }
+
+  /// A PDF of exactly the jobs listed below (same filters and search), with
+  /// pay, patient condition and location — never the internal notes.
+  Future<void> _downloadReport() async {
+    final listed = _mergedEntries;
+    if (listed.isEmpty || _preparingReport) return;
+    setState(() => _preparingReport = true);
+    try {
+      final entries = [
+        for (final e in listed)
+          switch (e) {
+            _JobEntry(:final job) => jobReportEntry(job),
+            _RequirementEntry(:final requirement) => requirementReportEntry(requirement),
+          },
+      ];
+      final now = DateTime.now();
+      final bytes = await buildJobsReportPdf(
+        entries: entries,
+        filterSummary: _filterSummary(),
+        generatedAt: now,
+        regularFont: await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+        boldFont: await rootBundle.load('assets/fonts/Roboto-Bold.ttf'),
+      );
+      final date = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      await downloadFile('vitacare-jobs-report-$date.pdf', bytes, 'application/pdf');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not prepare the PDF. Try again.')));
+      }
+    } finally {
+      if (mounted) setState(() => _preparingReport = false);
+    }
+  }
 
   Future<void> _openCreateDialog() async {
     final created = await showDialog<bool>(
@@ -1132,6 +1187,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                       style:
                           TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  ActionHelp(
+                    message: JobActionHelp.downloadReport,
+                    child: OutlinedButton.icon(
+                      key: const Key('download-jobs-report'),
+                      onPressed: _loading || _mergedEntries.isEmpty || _preparingReport
+                          ? null
+                          : _downloadReport,
+                      icon: _preparingReport
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Download PDF'),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),

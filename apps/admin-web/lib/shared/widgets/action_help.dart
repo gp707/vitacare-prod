@@ -36,6 +36,10 @@ class JobActionHelp {
       'rejecting an accepted caregiver reopens the job.\n'
       'Nothing changes until you pick someone.';
 
+  static const downloadReport = 'Download a PDF of the jobs listed below, with the same filters and search.\n'
+      'It has location, salary and patient condition for each job. It does not include internal notes, '
+      'the patient\'s name, or the poster\'s name and phone, so it is safe to share.';
+
   static const notes = 'View, add or edit your internal note.\n'
       'Only admins see it. It is never shown to the poster or to caregivers.';
 

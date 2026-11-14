@@ -69,6 +69,8 @@ export interface JobListItemForAdmin extends JobRecord {
    *  patient-posted job (else any older per-job note), the per-job note for an
    *  admin-posted one. Null when there is none. */
   notes: string | null;
+  /** The patient's care needs (care_receivers row), for the admin Jobs report. */
+  care_receiver: Record<string, unknown>;
 }
 
 /** The caregiver's own application to this job, if any — includes the
@@ -326,6 +328,7 @@ export class JobsRepository {
       this.db.query<JobListItemForAdmin>(
         `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name, u.phone AS posted_by_phone,
                 COALESCE(NULLIF(btrim(ian.notes), ''), NULLIF(btrim(jan.notes), '')) AS notes,
+                to_jsonb(cr) AS care_receiver,
                 ${applicantSummarySql('job_applications', 'job_id', 'j')}
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id

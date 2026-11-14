@@ -21,6 +21,8 @@ dependencies:
     path: ../../packages/vitacare_shared
   vitacare_ui:
     path: ../../packages/vitacare_ui
+  pdf: ^3.13.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +31,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Embedded in the Jobs PDF report (the rupee sign is not in the PDF built-in fonts).
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf

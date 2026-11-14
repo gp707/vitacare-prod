@@ -614,6 +614,22 @@ Future<void> _confirm(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('Download PDF is offered when jobs are listed, and works; it is disabled with nothing listed',
+      (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()]);
+    await _pump(tester, repo);
+    final button = find.byKey(const Key('download-jobs-report'));
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Could not prepare the PDF. Try again.'), findsNothing);
+  });
+
+  testWidgets('Download PDF is disabled when no jobs match', (tester) async {
+    await _pump(tester, _FakeAdminJobsRepository([]));
+    expect(tester.widget<OutlinedButton>(find.byKey(const Key('download-jobs-report'))).onPressed, isNull);
+  });
+
   testWidgets('saving a note from a row keeps the list where it was scrolled (no jump to the top)',
       (tester) async {
     final repo = _FakeAdminJobsRepository([
