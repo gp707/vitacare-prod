@@ -9,6 +9,7 @@ import '../../audit_logs/screens/audit_logs_screen.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 import '../../../shared/widgets/confirm_action.dart';
+import '../../../shared/widgets/inline_notes_panel.dart';
 
 /// "{role} — {name} · {phone}", tolerating either name or phone being
 /// absent — mirrors admin_jobs_screen.dart's own _PosterLine/
@@ -41,6 +42,7 @@ class RequirementRow extends StatelessWidget {
   /// Only supplied for a pending_review requirement — same one-click
   /// activation admin-posted jobs' own Approve button offers.
   final VoidCallback onNotes;
+  final Future<void> Function(String notes) onSaveNotes;
   final VoidCallback? onApprove;
 
   /// Only supplied for a pending_review requirement — declines it, same as
@@ -62,6 +64,7 @@ class RequirementRow extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onNotes,
+    required this.onSaveNotes,
     required this.onApprove,
     required this.onReject,
     required this.onRemind,
@@ -82,132 +85,139 @@ class RequirementRow extends StatelessWidget {
             border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(AppSpacing.sm),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(requirementDisplayId(requirement),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  RequirementStatusBadge(status: requirement.status),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(requirement.organisationName ?? '',
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              InkWell(
-                onTap: () => Navigator.of(context).pushNamed(
-                    '/organisation-detail',
-                    arguments: requirement.postedBy),
-                child: Text(
-                  _posterValueText(
-                    role: 'Posted by',
-                    name: requirement.contactPersonName,
-                    phone: requirement.organisationPhone,
-                  ),
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontSize: AppTypography.small,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
+          child: NotesSideLayout(
+            panel: InlineNotesPanel(
+              subject: 'this organisation',
+              notes: requirement.notes,
+              onSave: onSaveNotes,
+            ),
+            main: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(requirementDisplayId(requirement),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    RequirementStatusBadge(status: requirement.status),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(requirement.organisationName ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                InkWell(
+                  onTap: () => Navigator.of(context).pushNamed(
+                      '/organisation-detail',
+                      arguments: requirement.postedBy),
+                  child: Text(
+                    _posterValueText(
+                      role: 'Posted by',
+                      name: requirement.contactPersonName,
+                      phone: requirement.organisationPhone,
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: AppTypography.small,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
-              ),
-              if (requirement.rejectionReason != null)
-                Text('Reason: ${requirement.rejectionReason}',
-                    style: const TextStyle(color: AppColors.error)),
-              const SizedBox(height: AppSpacing.xs),
-              Wrap(
-                spacing: AppSpacing.xs,
-                children: [
-                  Text(TypeOfNurse.displayNames[requirement.typeOfNurse] ??
-                      requirement.typeOfNurse),
-                  if (requirement.experienceRequired != null)
+                if (requirement.rejectionReason != null)
+                  Text('Reason: ${requirement.rejectionReason}',
+                      style: const TextStyle(color: AppColors.error)),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  children: [
+                    Text(TypeOfNurse.displayNames[requirement.typeOfNurse] ??
+                        requirement.typeOfNurse),
+                    if (requirement.experienceRequired != null)
+                      Text(
+                        '· ${ExperienceRequired.displayNames[requirement.experienceRequired] ?? requirement.experienceRequired}',
+                      ),
+                    if (requirement.employmentType != null)
+                      Text(
+                        '· ${EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType}',
+                      ),
                     Text(
-                      '· ${ExperienceRequired.displayNames[requirement.experienceRequired] ?? requirement.experienceRequired}',
-                    ),
-                  if (requirement.employmentType != null)
-                    Text(
-                      '· ${EmploymentType.displayNames[requirement.employmentType] ?? requirement.employmentType}',
-                    ),
-                  Text(
-                      '· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
-                  Text('· ${requirement.foodProvided ? 'Food' : 'No food'}'),
-                  Text('· Vacancies: ${requirement.numberOfVacancies}'),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                children: [
-                  ActionHelp(
-                    message: JobActionHelp.applicants,
-                    child: TextButton(
-                        onPressed: onViewApplicants,
-                        child: const Text('Applicants')),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
-                    child: ApplicantSummaryLine(
-                        summary: requirement.applicantSummary),
-                  ),
-                  ActionHelp(
-                    message: JobActionHelp.editRequirement(
-                        pendingReview:
-                            requirement.status == JobStatus.pendingReview,
-                        closed: requirement.status == JobStatus.closed),
-                    child: TextButton(
-                        onPressed: onEdit, child: const Text('Edit')),
-                  ),
-                  ActionHelp(
-                    message: JobActionHelp.notesOrganisation,
-                    child: TextButton.icon(
-                      onPressed: onNotes,
-                      icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
-                      label: const Text('Notes'),
-                    ),
-                  ),
-                  if (onRemind != null)
+                        '· ${requirement.accommodationProvided ? 'Accommodation' : 'No accommodation'}'),
+                    Text('· ${requirement.foodProvided ? 'Food' : 'No food'}'),
+                    Text('· Vacancies: ${requirement.numberOfVacancies}'),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  children: [
                     ActionHelp(
-                      message: JobActionHelp.remindRequirement,
-                      child: TextButton.icon(
-                        onPressed: onRemind,
-                        icon: const Icon(Icons.notifications_active_outlined,
-                            size: 16),
-                        label: const Text('Remind'),
-                      ),
-                    ),
-                  if (onMovePendingReview != null)
-                    ActionHelp(
-                      message: JobActionHelp.movePendingReview,
-                      child: TextButton.icon(
-                        onPressed: onMovePendingReview,
-                        icon: const Icon(Icons.undo, size: 16),
-                        label: const Text('Move to Pending Review'),
-                      ),
-                    ),
-                  if (onApprove != null)
-                    ActionHelp(
-                      message: JobActionHelp.approve,
-                      child: TextButton.icon(
-                        onPressed: onApprove,
-                        style: TextButton.styleFrom(
-                            foregroundColor: AppColors.success),
-                        icon: const Icon(Icons.check, size: 16),
-                        label: const Text('Approve'),
-                      ),
-                    ),
-                  if (onReject != null)
-                    ActionHelp(
-                      message: JobActionHelp.reject,
+                      message: JobActionHelp.applicants,
                       child: TextButton(
-                          onPressed: onReject, child: const Text('Reject')),
+                          onPressed: onViewApplicants,
+                          child: const Text('Applicants')),
                     ),
-                ],
-              ),
-            ],
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
+                      child: ApplicantSummaryLine(
+                          summary: requirement.applicantSummary),
+                    ),
+                    ActionHelp(
+                      message: JobActionHelp.editRequirement(
+                          pendingReview:
+                              requirement.status == JobStatus.pendingReview,
+                          closed: requirement.status == JobStatus.closed),
+                      child: TextButton(
+                          onPressed: onEdit, child: const Text('Edit')),
+                    ),
+                    ActionHelp(
+                      message: JobActionHelp.notesOrganisation,
+                      child: TextButton.icon(
+                        onPressed: onNotes,
+                        icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
+                        label: const Text('Notes'),
+                      ),
+                    ),
+                    if (onRemind != null)
+                      ActionHelp(
+                        message: JobActionHelp.remindRequirement,
+                        child: TextButton.icon(
+                          onPressed: onRemind,
+                          icon: const Icon(Icons.notifications_active_outlined,
+                              size: 16),
+                          label: const Text('Remind'),
+                        ),
+                      ),
+                    if (onMovePendingReview != null)
+                      ActionHelp(
+                        message: JobActionHelp.movePendingReview,
+                        child: TextButton.icon(
+                          onPressed: onMovePendingReview,
+                          icon: const Icon(Icons.undo, size: 16),
+                          label: const Text('Move to Pending Review'),
+                        ),
+                      ),
+                    if (onApprove != null)
+                      ActionHelp(
+                        message: JobActionHelp.approve,
+                        child: TextButton.icon(
+                          onPressed: onApprove,
+                          style: TextButton.styleFrom(
+                              foregroundColor: AppColors.success),
+                          icon: const Icon(Icons.check, size: 16),
+                          label: const Text('Approve'),
+                        ),
+                      ),
+                    if (onReject != null)
+                      ActionHelp(
+                        message: JobActionHelp.reject,
+                        child: TextButton(
+                            onPressed: onReject, child: const Text('Reject')),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

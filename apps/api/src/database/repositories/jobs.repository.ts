@@ -65,6 +65,10 @@ export interface JobListItemForAdmin extends JobRecord {
   posted_by_role: string;
   posted_by_name: string;
   posted_by_phone: string;
+  /** Admin's internal note shown on the row: the patient's own note for a
+   *  patient-posted job (else any older per-job note), the per-job note for an
+   *  admin-posted one. Null when there is none. */
+  notes: string | null;
 }
 
 /** The caregiver's own application to this job, if any — includes the
@@ -321,11 +325,14 @@ export class JobsRepository {
     const [listResult, countResult] = await Promise.all([
       this.db.query<JobListItemForAdmin>(
         `SELECT j.*, u.role AS posted_by_role, u.full_name AS posted_by_name, u.phone AS posted_by_phone,
+                COALESCE(NULLIF(btrim(ian.notes), ''), NULLIF(btrim(jan.notes), '')) AS notes,
                 ${applicantSummarySql('job_applications', 'job_id', 'j')}
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
          JOIN users u ON u.id = j.posted_by
          LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by
+         LEFT JOIN individual_admin_notes ian ON ian.user_id = j.posted_by AND u.role = 'individual'
+         LEFT JOIN job_admin_notes jan ON jan.job_id = j.id
          ${clause}
          ORDER BY j.created_at DESC
          LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,

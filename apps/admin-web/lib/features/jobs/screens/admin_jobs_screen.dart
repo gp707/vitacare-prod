@@ -14,6 +14,7 @@ import '../widgets/job_detail_dialog.dart';
 import '../widgets/job_read_only_detail_dialog.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/admin_notes_dialog.dart';
+import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/applicant_summary_line.dart';
 import '../../../shared/widgets/confirm_action.dart';
 
@@ -722,9 +723,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     );
   }
 
-  Future<void> _notesForJob(JobModel job) {
+  Future<void> _saveJobNotes(JobModel job, String notes) async {
+    await ref.read(adminJobsRepositoryProvider).upsertNotes(job.id, notes);
+    if (mounted) await _load();
+  }
+
+  Future<void> _saveRequirementNotes(AdminOrganisationRequirement r, String notes) async {
+    await ref.read(adminOrganisationsRepositoryProvider).upsertNotes(r.postedBy, notes);
+    if (mounted) await _load();
+  }
+
+  Future<void> _notesForJob(JobModel job) async {
     final repo = ref.read(adminJobsRepositoryProvider);
-    return showAdminNotesDialog(
+    await showAdminNotesDialog(
       context,
       title: 'Notes · ${jobDisplayId(job)}',
       hint: job.postedByRole == 'individual'
@@ -733,19 +744,22 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       load: () async => (await repo.getDetail(job.id)).$1.notes,
       save: (notes) => repo.upsertNotes(job.id, notes),
     );
+    // The row shows the note, so refresh it once the dialog closes.
+    if (mounted) await _load();
   }
 
   /// An organisation has many jobs, so its note is the organisation's own
   /// (same one as on its Rehab/Hospitals page).
-  Future<void> _notesForRequirement(AdminOrganisationRequirement r) {
+  Future<void> _notesForRequirement(AdminOrganisationRequirement r) async {
     final repo = ref.read(adminOrganisationsRepositoryProvider);
-    return showAdminNotesDialog(
+    await showAdminNotesDialog(
       context,
       title: 'Notes · ${r.organisationName ?? 'Organisation'}',
       hint: 'Internal notes about this organisation (shown on all its jobs)',
       load: () async => (await repo.getDetail(r.postedBy)).notes,
       save: (notes) => repo.upsertNotes(r.postedBy, notes),
     );
+    if (mounted) await _load();
   }
 
   Future<void> _viewRequirementApplicants(
@@ -1173,6 +1187,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                                 : null,
                             onViewApplications: () => _viewApplications(job),
                             onNotes: () => _notesForJob(job),
+                            onSaveNotes: (notes) => _saveJobNotes(job, notes),
                             onEdit: () => _openEditDialog(job),
                           ),
                         _RequirementEntry(:final requirement) => RequirementRow(
@@ -1200,6 +1215,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                             onViewApplicants: () =>
                                 _viewRequirementApplicants(requirement),
                             onNotes: () => _notesForRequirement(requirement),
+                            onSaveNotes: (notes) => _saveRequirementNotes(requirement, notes),
                           ),
                       };
                       final session = ref.watch(sessionProvider);
@@ -1247,6 +1263,7 @@ class _JobRow extends StatelessWidget {
   final VoidCallback onViewApplications;
   final VoidCallback onEdit;
   final VoidCallback onNotes;
+  final Future<void> Function(String notes) onSaveNotes;
 
   const _JobRow({
     required this.job,
@@ -1259,6 +1276,7 @@ class _JobRow extends StatelessWidget {
     required this.onViewApplications,
     required this.onEdit,
     required this.onNotes,
+    required this.onSaveNotes,
   });
 
   @override
@@ -1443,13 +1461,20 @@ class _JobRow extends StatelessWidget {
           ),
           // Buttons always sit below the job's details, like an organisation
           // requirement's row (RequirementRow), on every screen width.
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              content,
-              const SizedBox(height: AppSpacing.sm),
-              actions,
-            ],
+          child: NotesSideLayout(
+            main: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                content,
+                const SizedBox(height: AppSpacing.sm),
+                actions,
+              ],
+            ),
+            panel: InlineNotesPanel(
+              subject: job.postedByRole == UserRole.individual ? 'this patient' : 'this job',
+              notes: job.notes,
+              onSave: onSaveNotes,
+            ),
           ),
         ),
       ),

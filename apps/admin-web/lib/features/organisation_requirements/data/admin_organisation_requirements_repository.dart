@@ -36,6 +36,9 @@ class AdminOrganisationRequirement {
   /// posted job.
   final String? contactPersonName;
   final String? organisationPhone;
+
+  /// The organisation's internal note (list endpoint only).
+  final String? notes;
   /// List responses only: applicant tally with who rejected.
   final ApplicantSummary? applicantSummary;
 
@@ -61,6 +64,7 @@ class AdminOrganisationRequirement {
     this.area,
     this.contactPersonName,
     this.organisationPhone,
+    this.notes,
     this.applicantSummary,
   });
 
@@ -87,6 +91,7 @@ class AdminOrganisationRequirement {
         area: json['area'] as String?,
         contactPersonName: json['contact_person_name'] as String?,
         organisationPhone: json['organisation_phone'] as String?,
+        notes: json['notes'] as String?,
         applicantSummary: json['applicant_summary'] == null
             ? null
             : ApplicantSummary.fromJson(json['applicant_summary'] as Map<String, dynamic>),

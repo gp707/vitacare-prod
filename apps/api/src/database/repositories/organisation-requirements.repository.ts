@@ -53,6 +53,8 @@ export interface OrganisationRequirementListItemForAdmin extends OrganisationReq
   applicant_summary: ApplicantSummary;
   contact_person_name: string;
   organisation_phone: string;
+  /** The organisation account's internal note (shared by all its jobs). */
+  notes: string | null;
 }
 
 /** GET /caregiver/organisation-requirements' shape — mirrors
@@ -243,10 +245,12 @@ export class OrganisationRequirementsRepository {
       this.db.query<OrganisationRequirementListItemForAdmin>(
         `SELECT r.*, op.organisation_name, op.organisation_type, op.city, op.area,
                 op.contact_person_name, u.phone AS organisation_phone,
+                NULLIF(btrim(oan.notes), '') AS notes,
                 ${applicantSummarySql('organisation_requirement_applications', 'requirement_id', 'r')}
          FROM organisation_requirements r
          JOIN organisation_profiles op ON op.user_id = r.posted_by
          JOIN users u ON u.id = r.posted_by
+         LEFT JOIN organisation_admin_notes oan ON oan.user_id = r.posted_by
          ${clause}
          ORDER BY r.created_at DESC
          LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
