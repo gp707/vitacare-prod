@@ -267,7 +267,7 @@ class _FieldLine extends StatelessWidget {
 ///
 /// Collapsed by default: with many jobs in the list, cards full of identical
 /// tag sections were hard to tell apart at a glance. Only the header (job
-/// number, urgency, salary, start date, duty type + city, posted date) shows
+/// number, urgency, salary, duty type + city, posted date) shows
 /// up front; the patient/requirement detail is a tap away, one card at a
 /// time, so scanning the list stays fast.
 class JobDetailCard extends ConsumerWidget {
@@ -314,7 +314,7 @@ class JobDetailCard extends ConsumerWidget {
 }
 
 /// The header content every job listing shows up front — display id,
-/// salary, start date, duty type + city, posted date — shared between
+/// salary, duty type + city, posted date — shared between
 /// the collapsed [JobDetailCard] (a preview, so a caregiver can
 /// decide whether to open the full page) and [JobFullDetailScreen] (a
 /// self-contained full page, so it doesn't read as missing the basics
@@ -365,24 +365,16 @@ class _JobHeaderContent extends ConsumerWidget {
             ],
           ],
         ),
-        if (job.salaryAmount != null || job.startDate != null) ...[
+        // The start date is not shown on the card for now, so the salary
+        // takes the whole row.
+        if (job.salaryAmount != null) ...[
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
-              if (job.salaryAmount != null)
-                Expanded(
-                    child: SalaryBadge(
-                        amount: job.salaryAmount!,
-                        frequencyOfCare: job.frequencyOfCare)),
-              if (job.salaryAmount != null && job.startDate != null)
-                const SizedBox(width: AppSpacing.xs),
-              if (job.startDate != null)
-                Expanded(
-                  child: BlinkingStartDateBadge(
-                    label:
-                        'Start ${formatStartDate(DateTime.parse(job.startDate!))}',
-                  ),
-                ),
+              Expanded(
+                  child: SalaryBadge(
+                      amount: job.salaryAmount!,
+                      frequencyOfCare: job.frequencyOfCare)),
             ],
           ),
         ],
