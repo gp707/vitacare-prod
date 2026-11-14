@@ -5,6 +5,7 @@ import '../../features/auth/state/session_notifier.dart';
 import '../../features/auth/state/session_state.dart';
 import '../../features/dashboard/data/dashboard_repository.dart';
 import '../state/sidebar_badge_counts_notifier.dart';
+import '../state/sidebar_collapsed_notifier.dart';
 
 enum AppShellSection {
   dashboard,
@@ -49,6 +50,7 @@ class AppShell extends ConsumerWidget {
     final isSuperAdmin =
         session is AdminSessionAuthenticated && session.isSuperAdmin;
     final badgeCounts = ref.watch(sidebarBadgeCountsProvider);
+    final collapsed = ref.watch(sidebarCollapsedProvider);
 
     if (context.isCompact) {
       return Scaffold(
@@ -84,13 +86,15 @@ class AppShell extends ConsumerWidget {
       body: Row(
         children: [
           Container(
-            width: 220,
+            width: collapsed ? 64 : 220,
             color: AppColors.surface,
             child: _NavList(
                 current: current,
                 isSuperAdmin: isSuperAdmin,
                 ref: ref,
-                badgeCounts: badgeCounts),
+                badgeCounts: badgeCounts,
+                collapsed: collapsed,
+                onToggleCollapsed: () => ref.read(sidebarCollapsedProvider.notifier).toggle()),
           ),
           Expanded(child: child),
         ],
@@ -107,12 +111,18 @@ class _NavList extends StatelessWidget {
   final bool isSuperAdmin;
   final WidgetRef ref;
   final DashboardStats? badgeCounts;
+  // Icon-rail mode (permanent sidebar only — the Drawer is never collapsed,
+  // and passes no toggle).
+  final bool collapsed;
+  final VoidCallback? onToggleCollapsed;
 
   const _NavList(
       {required this.current,
       required this.isSuperAdmin,
       required this.ref,
-      required this.badgeCounts});
+      required this.badgeCounts,
+      this.collapsed = false,
+      this.onToggleCollapsed});
 
   @override
   Widget build(BuildContext context) {
@@ -129,18 +139,42 @@ class _NavList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: AppSpacing.lg),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text(
-                    'VitaCare Admin',
-                    style: TextStyle(
-                        fontSize: AppTypography.title,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary),
+                if (collapsed)
+                  if (onToggleCollapsed != null)
+                    IconButton(
+                      tooltip: 'Expand sidebar',
+                      icon: const Icon(Icons.menu, color: AppColors.primary),
+                      onPressed: onToggleCollapsed,
+                    )
+                  else
+                    const SizedBox.shrink()
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(left: AppSpacing.md, right: AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'VitaCare Admin',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: AppTypography.title,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary),
+                          ),
+                        ),
+                        if (onToggleCollapsed != null)
+                          IconButton(
+                            tooltip: 'Collapse sidebar',
+                            icon: const Icon(Icons.chevron_left, color: AppColors.textSecondary),
+                            onPressed: onToggleCollapsed,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
                 const SizedBox(height: AppSpacing.xl),
                 _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.work,
                   label: 'Jobs',
                   selected: current == AppShellSection.jobs,
@@ -149,6 +183,7 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/jobs', (r) => false),
                 ),
                 _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.people,
                   label: 'Caregivers',
                   selected: current == AppShellSection.caregivers,
@@ -157,6 +192,7 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/caregivers', (r) => false),
                 ),
                 _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.insights_outlined,
                   label: 'Insights',
                   selected: current == AppShellSection.insights,
@@ -164,6 +200,7 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/insights', (r) => false),
                 ),
                 _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.thumb_down_alt_outlined,
                   label: 'Rejections',
                   selected: current == AppShellSection.rejections,
@@ -171,48 +208,7 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/rejections', (r) => false),
                 ),
                 _NavItem(
-                  icon: Icons.family_restroom,
-                  label: 'Patients/Family',
-                  selected: current == AppShellSection.patientsFamily,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/patients-family', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.local_hospital,
-                  label: 'Rehab/Hospitals',
-                  selected: current == AppShellSection.rehabHospitals,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/rehab-hospitals', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.chat_bubble_outline,
-                  label: 'NurseNow Messages',
-                  selected: current == AppShellSection.nursenowMessages,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/nursenow-messages', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.notifications_outlined,
-                  label: 'NurseJobs Messages',
-                  selected: current == AppShellSection.nursejobsMessages,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/nursejobs-messages', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.query_stats,
-                  label: 'Reports',
-                  selected: current == AppShellSection.reports,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/reports', (r) => false),
-                ),
-                _NavItem(
-                  icon: Icons.campaign_outlined,
-                  label: 'Push Notifications',
-                  selected: current == AppShellSection.pushNotifications,
-                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/push-notifications', (r) => false),
-                ),
-                _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.confirmation_number_outlined,
                   label: 'Tickets',
                   selected: current == AppShellSection.tickets,
@@ -221,6 +217,63 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/tickets', (r) => false),
                 ),
                 _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.family_restroom,
+                  label: 'Patients/Family',
+                  selected: current == AppShellSection.patientsFamily,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/patients-family', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.local_hospital,
+                  label: 'Rehab/Hospitals',
+                  selected: current == AppShellSection.rehabHospitals,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/rehab-hospitals', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.settings,
+                  label: 'Settings',
+                  selected: current == AppShellSection.settings,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/settings', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.chat_bubble_outline,
+                  label: 'NurseNow Messages',
+                  selected: current == AppShellSection.nursenowMessages,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/nursenow-messages', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.notifications_outlined,
+                  label: 'NurseJobs Messages',
+                  selected: current == AppShellSection.nursejobsMessages,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/nursejobs-messages', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.query_stats,
+                  label: 'Reports',
+                  selected: current == AppShellSection.reports,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/reports', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.campaign_outlined,
+                  label: 'Push Notifications',
+                  selected: current == AppShellSection.pushNotifications,
+                  onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/push-notifications', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.history,
                   label: 'Audit Logs',
                   selected: current == AppShellSection.auditLogs,
@@ -228,6 +281,7 @@ class _NavList extends StatelessWidget {
                       .pushNamedAndRemoveUntil('/audit-logs', (r) => false),
                 ),
                 _NavItem(
+                  collapsed: collapsed,
                   icon: Icons.error_outline,
                   label: 'Error Logs',
                   selected: current == AppShellSection.errorLogs,
@@ -236,24 +290,19 @@ class _NavList extends StatelessWidget {
                 ),
                 if (isSuperAdmin)
                   _NavItem(
+                  collapsed: collapsed,
                     icon: Icons.shield,
                     label: 'Admin Management',
                     selected: current == AppShellSection.adminManagement,
                     onTap: () => Navigator.of(context)
                         .pushNamedAndRemoveUntil('/admins', (r) => false),
                   ),
-                _NavItem(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  selected: current == AppShellSection.settings,
-                  onTap: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/settings', (r) => false),
-                ),
               ],
             ),
           ),
         ),
         _NavItem(
+                  collapsed: collapsed,
           icon: Icons.grid_view,
           label: 'Dashboard',
           selected: current == AppShellSection.dashboard,
@@ -261,6 +310,7 @@ class _NavList extends StatelessWidget {
               .pushNamedAndRemoveUntil('/dashboard', (r) => false),
         ),
         _NavItem(
+                  collapsed: collapsed,
           icon: Icons.logout,
           label: 'Logout',
           selected: false,
@@ -285,6 +335,8 @@ class _NavItem extends StatelessWidget {
   // label — null while badgeCounts hasn't loaded yet, 0 (or null) hides
   // the badge entirely rather than showing an empty/zero pill.
   final int? count;
+  // Icon-only rail mode: label moves into a tooltip, badge becomes a dot.
+  final bool collapsed;
 
   const _NavItem({
     required this.icon,
@@ -292,10 +344,44 @@ class _NavItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.count,
+    this.collapsed = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (collapsed) {
+      final hasCount = count != null && count! > 0;
+      return Tooltip(
+        message: hasCount ? '$label ($count)' : label,
+        child: Material(
+          color: selected ? AppColors.primaryLight : Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 48,
+              child: Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(icon, color: selected ? AppColors.primary : AppColors.textSecondary),
+                    if (hasCount)
+                      Positioned(
+                        right: -4,
+                        top: -2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Material(
       color: selected ? AppColors.primaryLight : Colors.transparent,
       child: ListTile(

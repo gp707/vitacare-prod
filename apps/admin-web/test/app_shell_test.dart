@@ -67,7 +67,7 @@ void main() {
     await _pumpShellAs(tester, 'admin');
 
     double y(String label) => tester.getTopLeft(find.text(label)).dy;
-    final top = ['Jobs', 'Caregivers', 'Insights', 'Rejections', 'Patients/Family'];
+    final top = ['Jobs', 'Caregivers', 'Insights', 'Rejections', 'Tickets', 'Patients/Family', 'Rehab/Hospitals', 'Settings', 'NurseNow Messages'];
     for (var i = 0; i < top.length - 1; i++) {
       expect(y(top[i]), lessThan(y(top[i + 1])), reason: '${top[i]} should be above ${top[i + 1]}');
     }
@@ -75,6 +75,31 @@ void main() {
     expect(y('Dashboard'), lessThan(y('Logout')));
     // Dashboard is the item directly above Logout.
     expect(y('Logout') - y('Dashboard'), lessThan(80));
+  });
+
+  testWidgets('sidebar collapses to an icon rail and expands again, remembering the choice', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpShellAs(tester, 'admin', badgeCounts: _stats(openTicketsCount: 3));
+
+    expect(find.text('Jobs'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget); // numeric badge while expanded
+
+    await tester.tap(find.byTooltip('Collapse sidebar'));
+    await tester.pump();
+    expect(find.text('Jobs'), findsNothing);
+    expect(find.text('VitaCare Admin'), findsNothing);
+    expect(find.byIcon(Icons.work), findsOneWidget); // icon still there
+    expect(find.byTooltip('Tickets (3)'), findsOneWidget); // label + count in the tooltip
+    expect(tester.getSize(find.byIcon(Icons.work).first).width, lessThan(64));
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('sidebar_collapsed'), isTrue);
+
+    await tester.tap(find.byTooltip('Expand sidebar'));
+    await tester.pump();
+    expect(find.text('Jobs'), findsOneWidget);
+    expect(prefs.getBool('sidebar_collapsed'), isFalse);
   });
 
   testWidgets('shows Admin Management for a super_admin session',
