@@ -40,6 +40,7 @@ const ALLOWED_WRITES: ReadonlyArray<{ method: string; pattern: RegExp }> = [
 ];
 
 const ORG_REQUIREMENT_PATCH = /^\/admin\/organisation-requirements\/:id$/;
+const CAREGIVER_STATUS_PATCH = /^\/admin\/caregivers\/:id\/status$/;
 
 /** Trims a route pattern/path to start at `/admin` and drops any query string. */
 export function normalizeAdminPath(routePath: string): string | null {
@@ -65,6 +66,14 @@ export function isAllowedForReadOnlyAdmin(method: string, routePath: string, bod
   }
 
   if (ALLOWED_WRITES.some((rule) => rule.method === m && rule.pattern.test(path))) return true;
+
+  // Approving a caregiver is the one status change allowed: the request must ask
+  // for `available` (the service additionally requires the caregiver to be in
+  // `pending_call`, so this can never unassign, assign or reject anyone).
+  if (m === 'PATCH' && CAREGIVER_STATUS_PATCH.test(path)) {
+    const status = typeof body === 'object' && body !== null ? (body as { status?: unknown }).status : undefined;
+    return status === 'available';
+  }
 
   // An organisation requirement is approved by a bare PATCH with no fields
   // (see CLAUDE.md "Admin's own edit mirrors…"); a PATCH that carries any

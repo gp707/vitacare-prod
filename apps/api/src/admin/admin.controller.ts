@@ -63,7 +63,7 @@ export class AdminController {
     @Body() dto: UpdateCaregiverStatusDto,
     @ClientIp() ip: string | null,
   ) {
-    return this.adminService.updateStatus(id, user.sub, dto, ip);
+    return this.adminService.updateStatus(id, user.sub, dto, ip, user.role);
   }
 
   @Post('caregivers/:id/notes')

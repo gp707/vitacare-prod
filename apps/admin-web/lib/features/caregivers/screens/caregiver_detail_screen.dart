@@ -418,9 +418,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
 
   Widget _buildActionButtons(AdminCaregiverDetail detail) {
     final buttons = <Widget>[];
-    // A read-only admin can't change a caregiver's status — only Reset PIN below.
+    // A read-only admin can only approve a caregiver waiting for review — no
+    // Reject, no assigning/unassigning (the API enforces the same), plus Reset PIN below.
     final actions = ref.watch(isReadOnlyAdminProvider)
-        ? const <String>[]
+        ? (detail.verificationStatus == VerificationStatus.pendingCall ? const ['available'] : const <String>[])
         : (_statusActions[detail.verificationStatus] ?? []);
     for (final action in actions) {
       if (action == 'rejected') {

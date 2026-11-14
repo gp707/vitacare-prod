@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, DocumentType, UserRole, Validation } from '@vitacare/shared-constants';
+import { AuditAction, Config, DocumentType, UserRole, Validation, VerificationStatus } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { PaginationMeta } from '../common/dto/pagination.dto';
 import { AdminCaregiversRepository, DashboardStats } from '../database/repositories/admin-caregivers.repository';
@@ -187,9 +187,19 @@ export class AdminService {
     adminId: string,
     dto: UpdateCaregiverStatusDto,
     ipAddress: string | null = null,
+    actorRole?: UserRole,
   ) {
     const profile = await this.caregiversRepo.getDetailById(profileId);
     if (!profile) throw new AppException('PROFILE_019');
+
+    // A read-only admin can approve a caregiver waiting for review and nothing
+    // else — never assign, unassign, mark unavailable or reject.
+    if (
+      actorRole === UserRole.READ_ONLY_ADMIN &&
+      !(dto.status === VerificationStatus.AVAILABLE && profile.verification_status === VerificationStatus.PENDING_CALL)
+    ) {
+      throw new AppException('AUTH_018');
+    }
 
     await this.caregiversRepo.updateStatus(
       profileId,

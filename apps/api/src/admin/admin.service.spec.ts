@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { AdminService } from './admin.service';
-import { VerificationStatus } from '@vitacare/shared-constants';
+import { UserRole, VerificationStatus } from '@vitacare/shared-constants';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -252,6 +252,34 @@ describe('AdminService', () => {
       caregiversRepo.getDetailById.mockResolvedValue({ ...detail, verification_status: current });
       const result = await service.updateStatus('profile-1', 'admin-1', { status: target } as any);
       expect(result.verification_status).toBe(target);
+    });
+
+    describe('as a read_only_admin', () => {
+      it('may approve a caregiver who is waiting for review (pending_call -> available)', async () => {
+        caregiversRepo.getDetailById.mockResolvedValue({ ...detail, verification_status: VerificationStatus.PENDING_CALL });
+        const result = await service.updateStatus(
+          'profile-1', 'ro-1', { status: 'available' } as any, null, UserRole.READ_ONLY_ADMIN,
+        );
+        expect(result.verification_status).toBe('available');
+      });
+
+      it.each([
+        [VerificationStatus.ASSIGNED, 'available'], // unassign
+        [VerificationStatus.UNAVAILABLE, 'available'],
+        [VerificationStatus.REJECTED, 'available'],
+        [VerificationStatus.AVAILABLE, 'assigned'],
+        [VerificationStatus.AVAILABLE, 'unavailable'],
+        [VerificationStatus.PENDING_CALL, 'rejected'],
+        [VerificationStatus.PENDING_CALL, 'assigned'],
+        [VerificationStatus.AVAILABLE, 'pending_call'],
+      ])('refuses %s -> %s with AUTH_018 and changes nothing', async (current, target) => {
+        caregiversRepo.getDetailById.mockResolvedValue({ ...detail, verification_status: current });
+        caregiversRepo.updateStatus.mockClear();
+        await expect(
+          service.updateStatus('profile-1', 'ro-1', { status: target } as any, null, UserRole.READ_ONLY_ADMIN),
+        ).rejects.toMatchObject({ code: 'AUTH_018' });
+        expect(caregiversRepo.updateStatus).not.toHaveBeenCalled();
+      });
     });
 
     it('sends a push notification for available/rejected, not other statuses', async () => {

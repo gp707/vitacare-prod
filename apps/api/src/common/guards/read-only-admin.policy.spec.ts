@@ -71,11 +71,12 @@ describe('read-only admin policy', () => {
       ['DELETE', '/admin/jobs/:id'],
       ['DELETE', '/admin/organisation-requirements/:id'],
       ['PATCH', '/admin/jobs/:id/pending-review'],
+      ['PATCH', '/admin/organisation-requirements/:id/pending-review'],
+      ['PUT', '/admin/individuals/:id'], // patient profile details
       ['POST', '/admin/jobs/:id/remind'],
       ['PATCH', '/admin/jobs/:jobId/applications/:applicationId'],
       ['PATCH', '/admin/organisation-requirements/:id/reject'],
       ['PATCH', '/admin/organisation-requirements/:requirementId/applications/:applicationId'],
-      ['PATCH', '/admin/caregivers/:id/status'],
       ['PUT', '/admin/caregivers/:id'],
       ['POST', '/admin/caregivers/:id/selfie'],
       ['POST', '/admin/caregivers/:id/documents'], // upload / replace a current document
@@ -83,6 +84,8 @@ describe('read-only admin policy', () => {
       ['PUT', '/admin/individuals/:id'],
       ['PUT', '/admin/organisations/:id'],
       ['PATCH', '/admin/individuals/:id/block'],
+      ['PATCH', '/admin/individuals/:id/unblock'],
+      ['PATCH', '/admin/organisations/:id/block'],
       ['PATCH', '/admin/organisations/:id/unblock'],
       ['POST', '/admin/push-notifications'],
       ['PATCH', '/admin/error-logs/:id/resolve'],
@@ -90,6 +93,16 @@ describe('read-only admin policy', () => {
       ['PATCH', '/admin/app-versions/:platform'],
     ])('refuses %s %s', (method, path) => {
       expect(allowed(method, `${P}${path}`)).toBe(false);
+    });
+
+    it('allows approving a caregiver (status: available) but no other caregiver status change', () => {
+      const path = `${P}/admin/caregivers/:id/status`;
+      expect(allowed('PATCH', path, { status: 'available' })).toBe(true);
+      for (const status of ['assigned', 'unavailable', 'rejected', 'pending_call']) {
+        expect(allowed('PATCH', path, { status })).toBe(false);
+      }
+      expect(allowed('PATCH', path, {})).toBe(false);
+      expect(allowed('PATCH', path, undefined)).toBe(false);
     });
 
     it('allows approving an organisation requirement with an empty PATCH, but not editing one', () => {
