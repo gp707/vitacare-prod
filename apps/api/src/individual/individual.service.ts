@@ -103,7 +103,8 @@ export class IndividualService {
           frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
-          start_date: dto.start_date,
+          // Patients are no longer asked for one; today's date fills the NOT NULL column.
+          start_date: dto.start_date ?? new Date().toISOString().slice(0, 10),
           languages: dto.languages,
           salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,
@@ -179,7 +180,7 @@ export class IndividualService {
           frequency_of_care: dto.frequency_of_care,
           start_time: start,
           end_time: end,
-          start_date: dto.start_date,
+          start_date: dto.start_date ?? existing.start_date,
           languages: dto.languages,
           salary_amount: dto.salary_amount,
           preferred_gender: dto.preferred_gender,

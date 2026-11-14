@@ -37,9 +37,12 @@ export class CreateIndividualRequirementDto {
   @IsIn(Object.values(DutyType), { message: 'GEN_001' })
   duty_type!: DutyType;
 
-  @IsNotEmpty({ message: 'GEN_001' })
+  /** Patients are no longer asked for a start date. Create stores today's date as a
+   *  placeholder (the column is NOT NULL); edit leaves the stored date alone when omitted.
+   *  Older app builds still send one, which is kept. */
+  @IsOptional()
   @IsDateString({}, { message: 'GEN_001' })
-  start_date!: string;
+  start_date?: string;
 
   /** How long the engagement is expected to last — also what
    *  frequency_of_care is derived from client-side (few_days/few_weeks ->

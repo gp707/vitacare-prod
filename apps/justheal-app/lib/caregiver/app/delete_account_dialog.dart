@@ -6,6 +6,10 @@ import '../core/network/api_exception.dart';
 import '../core/providers.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
+/// The "Delete My Account" button is hidden for now (the feature is kept, not
+/// removed). Set to true to show it again on the Profile screen.
+const bool kShowDeleteAccount = false;
+
 /// "Delete My Account" on the Profile screen — irreversible, so this
 /// re-collects the PIN as a re-auth step (same convention as a real
 /// password re-entry before a destructive action) before calling the

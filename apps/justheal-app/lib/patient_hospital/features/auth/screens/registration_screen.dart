@@ -157,12 +157,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   String? _city;
   final _areaController = TextEditingController();
   String? _dutyType;
-  // Defaults to the next day rather than starting unset — a patient who
-  // never touches this field still ends up with a sensible real date
-  // (never null at submission), so it's never part of the mandatory-field
-  // highlight-and-scroll sweep below. Tapping the field still opens the
-  // picker and overrides this with whatever they actually choose.
-  DateTime? _startDate = DateTime.now().add(const Duration(days: 1));
   String? _careDuration;
   // Defaults to "No Preference" — a real, deliberate choice, not an unset
   // field (see _noPreferenceLanguage above).
@@ -188,7 +182,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _cityKey = GlobalKey();
   final _areaKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
-  final _startDateKey = GlobalKey();
   final _careDurationKey = GlobalKey();
   final _toiletAssistanceKey = GlobalKey();
   final _feedingTypeKey = GlobalKey();
@@ -338,7 +331,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool get _isAreaValid =>
       _isOrganisation || _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _isOrganisation || _dutyType != null;
-  bool get _isStartDateValid => _isOrganisation || _startDate != null;
   bool get _isCareDurationValid => _isOrganisation || _careDuration != null;
   bool get _isToiletAssistanceValid =>
       _isOrganisation || _toiletAssistance.isNotEmpty;
@@ -434,7 +426,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       _isCityValid &&
       _isAreaValid &&
       _isDutyTypeValid &&
-      _isStartDateValid &&
       _isCareDurationValid &&
       _isToiletAssistanceValid &&
       _isFeedingTypeValid &&
@@ -463,7 +454,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           _MandatoryField(_cityKey, _isCityValid),
           _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
           _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
-          _MandatoryField(_startDateKey, _isStartDateValid),
           _MandatoryField(_careDurationKey, _isCareDurationValid),
           _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
           _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
@@ -471,19 +461,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         ],
         _MandatoryField(_termsKey, _isTermsValid),
       ];
-
-  Future<void> _pickStartDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? now,
-      firstDate: now,
-      // At most 90 days out — the calendar simply doesn't open past that
-      // month, rather than allowing a pick and rejecting it afterward.
-      lastDate: now.add(const Duration(days: 90)),
-    );
-    if (picked != null) setState(() => _startDate = picked);
-  }
 
   /// "None" is mutually exclusive with every real condition: picking it
   /// clears any real selections, and picking a real condition clears
@@ -624,8 +601,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               city: _city!,
               area: _areaController.text.trim(),
               dutyType: _dutyType!,
-              startDate:
-                  '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
               careDuration: _careDuration!,
               languages:
                   _languages.contains(_noPreferenceLanguage) ? [] : _languages,
@@ -1050,55 +1025,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 ),
                 DutyRequirementsInfoButton(dutyType: _dutyType),
               ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            KeyedSubtree(
-              key: _startDateKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 16,
-                        color: _showValidationErrors && !_isStartDateValid
-                            ? AppColors.error
-                            : AppColors.primaryDark,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          'Preferred Start Date (Mandatory)',
-                          style: SectionBox.fieldGroupLabelStyle.copyWith(
-                            color: _showValidationErrors && !_isStartDateValid
-                                ? AppColors.error
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  OutlinedButton.icon(
-                    onPressed: _pickStartDate,
-                    icon: const Icon(Icons.calendar_today, size: 16),
-                    label: Text(
-                      _startDate == null
-                          ? 'Select date'
-                          : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
-                    ),
-                  ),
-                  if (_showValidationErrors && !_isStartDateValid)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
-                      child: Text('Select a preferred start date',
-                          style: TextStyle(
-                              color: AppColors.error,
-                              fontSize: AppTypography.small)),
-                    ),
-                ],
-              ),
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(

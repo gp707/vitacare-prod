@@ -207,7 +207,11 @@ export class JobApplicationsRepository {
        JOIN jobs j ON j.id = ja.job_id
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id
+       JOIN users poster ON poster.id = j.posted_by
        WHERE ja.status = 'accepted' AND u.is_active = true AND u.deleted_at IS NULL
+         -- A patient-posted job has no real start date any more (patients are not asked),
+         -- so there is nothing true to remind the caregiver about.
+         AND poster.role <> 'individual'
          AND j.start_date >= $1::date AND j.start_date <= $2::date`,
       [fromDate, toDate],
     );

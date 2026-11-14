@@ -9,6 +9,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:nursenow_app/patient_hospital/core/individual_messages/individual_messages_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/network/api_exception.dart';
+import 'package:nursenow_app/patient_hospital/app/delete_account_dialog.dart' show kShowDeleteAccount;
 import 'package:nursenow_app/patient_hospital/core/providers.dart';
 import 'package:nursenow_app/patient_hospital/core/storage/local_storage.dart';
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifier.dart';
@@ -228,6 +229,13 @@ Future<void> _pumpOrganisation(WidgetTester tester, _FakeOrganisationRepository 
 }
 
 void main() {
+  testWidgets('the Delete My Account button is hidden for now (the feature is kept behind kShowDeleteAccount)',
+      (tester) async {
+    await _pump(tester, _FakeIndividualRepository());
+    expect(find.text('Delete My Account'), findsNothing);
+    expect(kShowDeleteAccount, isFalse);
+  });
+
   testWidgets('shows the account name and phone (read-only) with a pointer to the Help button', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 

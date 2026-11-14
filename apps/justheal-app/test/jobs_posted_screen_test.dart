@@ -199,7 +199,7 @@ class _FakeIndividualRepository extends IndividualRepository {
     required String area,
     String? description,
     required String dutyType,
-    required String startDate,
+    String? startDate,
     required String careDuration,
     required List<String> languages,
     String? preferredGender,
@@ -295,6 +295,13 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
 }
 
 void main() {
+  testWidgets("the patient's requirement card no longer has a Preferred Start Date field", (tester) async {
+    await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
+
+    expect(find.textContaining('Preferred Start Date'), findsNothing);
+    expect(find.textContaining('start date'), findsNothing);
+  });
+
   testWidgets('shows an empty state with no posting CTA when there are no requirements yet', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 

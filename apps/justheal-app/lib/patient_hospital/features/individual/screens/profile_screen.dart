@@ -146,24 +146,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // the AppBar logo 3 times logs out instead (see
                   // VitaAppBarTitle's own doc comment, a deliberate
                   // hidden-feature request).
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: TextButton.icon(
-                      onPressed: () =>
-                          _deleteAccount(authenticated.isOrganisation),
-                      icon: Icon(Icons.delete_forever,
-                          size: 13,
-                          color:
-                              AppColors.textSecondary.withValues(alpha: 0.6)),
-                      label: Text(
-                        'Delete My Account',
-                        style: TextStyle(
-                          color: AppColors.textSecondary.withValues(alpha: 0.6),
-                          fontSize: AppTypography.caption,
+                  if (kShowDeleteAccount)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            _deleteAccount(authenticated.isOrganisation),
+                        icon: Icon(Icons.delete_forever,
+                            size: 13,
+                            color:
+                                AppColors.textSecondary.withValues(alpha: 0.6)),
+                        label: Text(
+                          'Delete My Account',
+                          style: TextStyle(
+                            color:
+                                AppColors.textSecondary.withValues(alpha: 0.6),
+                            fontSize: AppTypography.caption,
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

@@ -221,6 +221,9 @@ location) that didn't fit the Individual/admin jobs-table model.
   the error shown and can simply tap "Post Requirement" again — `RegistrationScreen._submit()`
   checks `sessionProvider` first and skips straight to the create-requirement call if the account
   is already authenticated, rather than attempting to re-register (which would just 409).
+- **Patients are no longer asked for a start date** (registration and the requirement card). `start_date` is optional on `POST /individual/requirements` and
+  `PATCH .../:jobId`: create stores today's date as a placeholder (the column is NOT NULL), edit keeps the stored date, and an older app that still sends one is honoured.
+  Duty-start reminders skip patient-posted jobs (their date is not real); admin-posted jobs keep them. The caregiver job card no longer shows a start date either.
 - **Posting flow:** `POST /individual/requirements` takes the same shape as admin's job-posting
   form (About Patient + city/area/duty_type/start_date/languages/preferred_gender/
   preferred_religion), created with `status: 'pending_review'` (admin still reviews for
@@ -1471,6 +1474,11 @@ elsewhere in this doc).
   so a reinstall needs a fresh login.
 
 ## Account Deletion
+
+**Hidden in the app for now (2026-11):** the "Delete My Account" button is not shown on any Profile screen (`kShowDeleteAccount = false` in each tree's
+`delete_account_dialog.dart`; set it to `true` to bring it back). The dialog, the three `DELETE .../account` endpoints and the anonymize-in-place logic below are all
+still in place. **Google Play requires an in-app way to delete an account (plus a web link in the Data safety form) for any app that lets users create one**, so
+check this before the next store review.
 
 A self-service "Delete My Account" option on the Profile screen of all three account types
 (caregiver, individual, organisation) — built for Play Store's account-deletion requirement

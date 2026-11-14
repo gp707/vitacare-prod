@@ -367,7 +367,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   String? _city;
   final _areaController = TextEditingController();
   String? _dutyType;
-  DateTime? _startDate;
   String? _careDuration;
   final List<String> _languages = [_noPreferenceLanguage];
   String? _preferredGender;
@@ -391,7 +390,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   final _cityKey = GlobalKey();
   final _areaKey = GlobalKey();
   final _dutyTypeKey = GlobalKey();
-  final _startDateKey = GlobalKey();
   final _careDurationKey = GlobalKey();
   final _toiletAssistanceKey = GlobalKey();
   final _feedingTypeKey = GlobalKey();
@@ -465,7 +463,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     _city = job.city;
     _areaController.text = job.area ?? '';
     _dutyType = job.dutyType;
-    _startDate = job.startDate == null ? null : DateTime.tryParse(job.startDate!);
     _careDuration = job.careDuration;
     if (job.languages.isNotEmpty) {
       _languages
@@ -555,15 +552,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _isDutyTypeDirty => _dutyType != widget.requirement.dutyType;
 
   void _revertDutyType() => setState(() => _dutyType = widget.requirement.dutyType);
-
-  bool get _isStartDateDirty {
-    final original = widget.requirement.startDate == null ? null : DateTime.tryParse(widget.requirement.startDate!);
-    return _startDate != original;
-  }
-
-  void _revertStartDate() => setState(() {
-        _startDate = widget.requirement.startDate == null ? null : DateTime.tryParse(widget.requirement.startDate!);
-      });
 
   bool get _isCareDurationDirty => _careDuration != widget.requirement.careDuration;
 
@@ -720,7 +708,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _isCityValid => _city != null;
   bool get _isAreaValid => _areaController.text.trim().isNotEmpty;
   bool get _isDutyTypeValid => _dutyType != null;
-  bool get _isStartDateValid => _startDate != null;
   bool get _isCareDurationValid => _careDuration != null;
   bool get _isToiletAssistanceValid => _toiletAssistance.isNotEmpty;
   bool get _isFeedingTypeValid => _feedingType != null;
@@ -739,7 +726,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       _isCityValid &&
       _isAreaValid &&
       _isDutyTypeValid &&
-      _isStartDateValid &&
       _isCareDurationValid &&
       _isToiletAssistanceValid &&
       _isFeedingTypeValid &&
@@ -753,25 +739,11 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         _MandatoryField(_cityKey, _isCityValid),
         _MandatoryField(_areaKey, _isAreaValid, focusNode: _areaFocusNode),
         _MandatoryField(_dutyTypeKey, _isDutyTypeValid),
-        _MandatoryField(_startDateKey, _isStartDateValid),
         _MandatoryField(_careDurationKey, _isCareDurationValid),
         _MandatoryField(_toiletAssistanceKey, _isToiletAssistanceValid),
         _MandatoryField(_feedingTypeKey, _isFeedingTypeValid),
         _MandatoryField(_salaryKey, _isSalaryValid),
       ];
-
-  Future<void> _pickStartDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? now,
-      firstDate: now,
-      // At most 90 days out — same cap as the registration form's own
-      // Preferred Start Date picker.
-      lastDate: now.add(const Duration(days: 90)),
-    );
-    if (picked != null) setState(() => _startDate = picked);
-  }
 
   void _applyMedicalConditionSelection(List<String> next) {
     final added = next.where((c) => !_medicalConditions.contains(c));
@@ -893,8 +865,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             city: _city!,
             area: _areaController.text.trim(),
             dutyType: _dutyType!,
-            startDate:
-                '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
             careDuration: _careDuration!,
             languages: _languages.contains(_noPreferenceLanguage) ? [] : _languages,
             preferredGender: _preferredGender,
@@ -1317,53 +1287,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                           ),
                           DutyRequirementsInfoButton(dutyType: _dutyType),
                         ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      KeyedSubtree(
-                        key: _startDateKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 16,
-                                  color: _showValidationErrors && !_isStartDateValid
-                                      ? AppColors.error
-                                      : AppColors.primaryDark,
-                                ),
-                                const SizedBox(width: AppSpacing.xs),
-                                Flexible(
-                                  child: Text(
-                                    'Preferred Start Date (Mandatory)',
-                                    style: SectionBox.fieldGroupLabelStyle.copyWith(
-                                      color: _showValidationErrors && !_isStartDateValid ? AppColors.error : null,
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (_isStartDateDirty) _fieldControls('startDate', true, _revertStartDate)!,
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            OutlinedButton.icon(
-                              onPressed: _pickStartDate,
-                              icon: const Icon(Icons.calendar_today, size: 16),
-                              label: Text(
-                                _startDate == null
-                                    ? 'Select date'
-                                    : '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}',
-                              ),
-                            ),
-                            if (_showValidationErrors && !_isStartDateValid)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 4),
-                                child: Text('Select a preferred start date',
-                                    style: TextStyle(color: AppColors.error, fontSize: AppTypography.small)),
-                              ),
-                          ],
-                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       DropdownButtonFormField<String>(

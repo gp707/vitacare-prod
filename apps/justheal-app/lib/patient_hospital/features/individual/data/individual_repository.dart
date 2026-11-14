@@ -74,7 +74,9 @@ class IndividualRepository {
     required String area,
     String? description,
     required String dutyType,
-    required String startDate,
+    /// Patients are no longer asked for a start date; the API fills a placeholder on
+    /// create and keeps the stored one on edit when this is null.
+    String? startDate,
     required String careDuration,
     required List<String> languages,
     String? preferredGender,
@@ -89,7 +91,7 @@ class IndividualRepository {
         'area': area,
         if (description != null && description.isNotEmpty) 'description': description,
         'duty_type': dutyType,
-        'start_date': startDate,
+        if (startDate != null) 'start_date': startDate,
         'care_duration': careDuration,
         'languages': languages,
         if (preferredGender != null) 'preferred_gender': preferredGender,
@@ -117,7 +119,9 @@ class IndividualRepository {
     required String area,
     String? description,
     required String dutyType,
-    required String startDate,
+    /// Patients are no longer asked for a start date; the API fills a placeholder on
+    /// create and keeps the stored one on edit when this is null.
+    String? startDate,
     required String careDuration,
     required List<String> languages,
     String? preferredGender,
@@ -132,7 +136,7 @@ class IndividualRepository {
         'area': area,
         if (description != null && description.isNotEmpty) 'description': description,
         'duty_type': dutyType,
-        'start_date': startDate,
+        if (startDate != null) 'start_date': startDate,
         'care_duration': careDuration,
         'languages': languages,
         if (preferredGender != null) 'preferred_gender': preferredGender,

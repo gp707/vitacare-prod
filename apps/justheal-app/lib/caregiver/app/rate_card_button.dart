@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import 'home_care_only_notice.dart';
 import '../core/providers.dart';
 import '../core/rate_card/rate_card_repository.dart';
 import 'scope_of_work_button.dart' show tierIcon;
@@ -115,11 +116,7 @@ class _RateCardDialogState extends State<_RateCardDialog> {
         children: [
           Text('Salary Guidance'),
           SizedBox(height: AppSpacing.xs),
-          Text(
-            'Applicable Only For Home Care Jobs',
-            style: TextStyle(
-                fontSize: AppTypography.small, fontWeight: FontWeight.w600),
-          ),
+          HomeCareOnlyNotice(),
         ],
       ),
       content: SizedBox(

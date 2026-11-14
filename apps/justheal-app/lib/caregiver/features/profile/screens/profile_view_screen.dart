@@ -310,7 +310,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             // Logout button here either — tapping the AppBar logo 3 times
             // logs out instead (see VitaAppBarTitle's own doc comment, a
             // deliberate hidden-feature request).
-            if (!_loading && _errorMessage == null && _profile != null)
+            if (kShowDeleteAccount && !_loading && _errorMessage == null && _profile != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                 child: TextButton.icon(

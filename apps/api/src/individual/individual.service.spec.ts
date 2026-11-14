@@ -173,6 +173,32 @@ describe('IndividualService', () => {
       expect(result.id).toBe('job-1');
     });
 
+    it("stores today's date as the placeholder start date when the patient is not asked for one", async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      jobsRepo.findLiveByPostedBy.mockResolvedValue(null);
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+      jobsRepo.create.mockResolvedValue({ id: 'job-1', duty_type: 'live_in', city: 'bangalore', status: 'pending_review' });
+      const { start_date: _omitted, ...withoutStartDate } = dto;
+
+      await service.createRequirement('user-1', withoutStartDate as any, null);
+
+      expect(jobsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ start_date: new Date().toISOString().slice(0, 10) }),
+        expect.anything(),
+      );
+    });
+
+    it('keeps a start date an older app build still sends', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      jobsRepo.findLiveByPostedBy.mockResolvedValue(null);
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+      jobsRepo.create.mockResolvedValue({ id: 'job-1', duty_type: 'live_in', city: 'bangalore', status: 'pending_review' });
+
+      await service.createRequirement('user-1', dto, null);
+
+      expect(jobsRepo.create).toHaveBeenCalledWith(expect.objectContaining({ start_date: '2026-09-01' }), expect.anything());
+    });
+
     it("syncs the account's own profile name (users.full_name) to the patient's name entered on this posting", async () => {
       individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
       jobsRepo.findLiveByPostedBy.mockResolvedValue(null);
@@ -234,6 +260,36 @@ describe('IndividualService', () => {
 
       expect(jobApplicationsRepo.hasActiveApplicationForJob).not.toHaveBeenCalled();
       expect(result.id).toBe('job-1');
+    });
+
+    it('leaves the stored start date alone when the edit does not send one', async () => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        care_receiver_id: 'cr-1',
+        start_date: '2026-09-01',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        area: 'Koramangala',
+        languages: ['hindi', 'english'],
+      });
+      db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+      jobsRepo.update.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        status: 'active',
+        start_date: '2026-09-01',
+        duty_type: 'day_duty',
+        city: 'bangalore',
+        area: 'Koramangala',
+        languages: ['hindi', 'english'],
+      });
+      const { start_date: _omitted, ...withoutStartDate } = editDto;
+
+      await service.editRequirement('user-1', 'job-1', withoutStartDate as any, null);
+
+      expect(jobsRepo.update).toHaveBeenCalledWith('job-1', expect.objectContaining({ start_date: '2026-09-01' }), expect.anything());
     });
 
     it('tells applicants when the patient changes something they care about (the start date here)', async () => {
