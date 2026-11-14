@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'tab_back_scope.dart';
 import '../features/auth/screens/splash_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/registration_screen.dart';
@@ -40,9 +41,9 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
       final args = ModalRoute.of(context)?.settings.arguments;
       return RegistrationScreen(startAsOrganisation: args == true);
     },
-    '/home': (context) => const JobsPostedScreen(),
-    '/profile': (context) => const ProfileScreen(),
-    '/org-home': (context) => const RequirementsPostedScreen(),
+    '/home': (context) => const TabBackScope(backRoute: '/profile', child: JobsPostedScreen()),
+    '/profile': (context) => const TabBackScope(child: ProfileScreen()),
+    '/org-home': (context) => const TabBackScope(backRoute: '/profile', child: RequirementsPostedScreen()),
     '/org-post-requirement': (context) => const PostOrganisationRequirementScreen(),
     ...buildCaregiverRoutes(),
   };

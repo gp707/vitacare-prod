@@ -727,7 +727,9 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
     return showAdminNotesDialog(
       context,
       title: 'Notes · ${jobDisplayId(job)}',
-      hint: 'Internal notes about this job (never shown to the poster or caregivers)',
+      hint: job.postedByRole == 'individual'
+          ? 'Internal notes about this patient (same note as on their Patients/Family page, never shown to them or caregivers)'
+          : 'Internal notes about this job (never shown to the poster or caregivers)',
       load: () async => (await repo.getDetail(job.id)).$1.notes,
       save: (notes) => repo.upsertNotes(job.id, notes),
     );

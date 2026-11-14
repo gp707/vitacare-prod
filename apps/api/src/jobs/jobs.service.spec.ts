@@ -12,6 +12,7 @@ describe('JobsService', () => {
   let adminCaregiversRepo: any;
   let usersRepo: any;
   let jobAdminNotesRepo: any;
+  let individualAdminNotesRepo: any;
   let auditService: any;
   let fcmService: any;
 
@@ -88,6 +89,7 @@ describe('JobsService', () => {
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
     usersRepo = { findById: jest.fn() };
     jobAdminNotesRepo = { findByJobId: jest.fn(), upsert: jest.fn() };
+    individualAdminNotesRepo = { findByUserId: jest.fn(), upsert: jest.fn() };
     auditService = { log: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
     notificationsService = {
@@ -113,6 +115,7 @@ describe('JobsService', () => {
       adminCaregiversRepo,
       usersRepo,
       jobAdminNotesRepo,
+      individualAdminNotesRepo,
       auditService,
       fcmService,
       notificationsService,
@@ -561,6 +564,26 @@ describe('JobsService', () => {
       });
     });
 
+    it("shows the patient's own note on a patient's job, ahead of any older per-job note", async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobId.mockResolvedValue([]);
+      usersRepo.findById.mockResolvedValue({ role: 'individual', full_name: 'Asha', phone: '+919876543210' });
+      jobAdminNotesRepo.findByJobId.mockResolvedValue({ notes: 'old per-job note' });
+      individualAdminNotesRepo.findByUserId.mockResolvedValue({ notes: 'patient note' });
+      const result = await service.getJobDetailForAdmin('job-1');
+      expect(result.notes).toBe('patient note');
+    });
+
+    it('falls back to an older per-job note until the patient has a note of their own', async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobId.mockResolvedValue([]);
+      usersRepo.findById.mockResolvedValue({ role: 'individual', full_name: 'Asha', phone: '+919876543210' });
+      jobAdminNotesRepo.findByJobId.mockResolvedValue({ notes: 'old per-job note' });
+      individualAdminNotesRepo.findByUserId.mockResolvedValue(null);
+      const result = await service.getJobDetailForAdmin('job-1');
+      expect(result.notes).toBe('old per-job note');
+    });
+
     it('defaults notes to null when none have been saved', async () => {
       jobsRepo.findById.mockResolvedValue(job);
       jobApplicationsRepo.findByJobId.mockResolvedValue([]);
@@ -595,6 +618,23 @@ describe('JobsService', () => {
         }),
       );
       expect(result).toEqual({ message: 'Notes saved' });
+    });
+
+    it("saves a patient job's note on the patient and audit-logs it against them", async () => {
+      jobsRepo.findById.mockResolvedValue(job);
+      usersRepo.findById.mockResolvedValue({ role: 'individual' });
+      individualAdminNotesRepo.findByUserId.mockResolvedValue({ notes: 'old' });
+      await service.upsertNotes('job-1', 'admin-1', 'new', null);
+      expect(individualAdminNotesRepo.upsert).toHaveBeenCalledWith(job.posted_by, 'admin-1', 'new');
+      expect(jobAdminNotesRepo.upsert).not.toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetUserId: job.posted_by,
+          entityType: 'individual_admin_notes',
+          beforeValue: { notes: 'old' },
+          afterValue: { notes: 'new' },
+        }),
+      );
     });
   });
 

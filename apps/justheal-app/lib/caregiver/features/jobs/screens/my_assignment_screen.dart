@@ -12,6 +12,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
+import '../../../app/tab_back_scope.dart';
 import '../widgets/job_progress_stepper.dart';
 import '../widgets/job_status_chip.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
@@ -401,7 +402,16 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     return DefaultTabController(
       length: 3,
       initialIndex: initialTabIndex,
-      child: Scaffold(
+      child: Builder(builder: (tabContext) => TabBackScope(
+        backRoute: '/caregiver/jobs',
+        // Past -> Selected -> Applied, then Back leaves for Jobs.
+        onBackFirst: () {
+          final tabs = DefaultTabController.of(tabContext);
+          if (tabs.index == 0) return false;
+          tabs.animateTo(tabs.index - 1);
+          return true;
+        },
+        child: Scaffold(
         appBar: VitaAppBar(
           title: 'My Jobs',
           onTripleTap: () => logoutAndNavigateToLogin(context, ref),
@@ -423,7 +433,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                   ],
                 ),
         ),
-      ),
+      ))),
     );
   }
 

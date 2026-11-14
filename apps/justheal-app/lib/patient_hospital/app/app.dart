@@ -34,7 +34,11 @@ class SessionWatcher extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen<SessionState>(sessionProvider, (previous, next) {
-      if (next is SessionUnauthenticated) {
+      // Only a signed-in session ending (logout, AUTH_004/005) kicks the user
+      // out here. Loading/error -> unauthenticated is the cold-start check,
+      // which SplashScreen resolves itself (including restoring a caregiver
+      // session); redirecting now would remove the splash mid-restore.
+      if (next is SessionUnauthenticated && previous is SessionAuthenticated) {
         navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
       }
     });

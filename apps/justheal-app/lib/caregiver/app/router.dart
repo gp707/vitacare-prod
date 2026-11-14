@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'tab_back_scope.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/registration/screens/registration_screen.dart';
 import '../features/registration/screens/pending_call_screen.dart';
@@ -30,8 +31,8 @@ Map<String, WidgetBuilder> buildCaregiverRoutes() {
     '/caregiver/login': (context) => const LoginScreen(),
     '/caregiver/register': (context) => const RegistrationScreen(),
     '/caregiver/pending-call': (context) => const PendingCallScreen(),
-    '/caregiver/profile': (context) => const ProfileViewScreen(),
-    '/caregiver/jobs': (context) => const JobsScreen(),
+    '/caregiver/profile': (context) => const TabBackScope(child: ProfileViewScreen()),
+    '/caregiver/jobs': (context) => const TabBackScope(backRoute: '/caregiver/profile', child: JobsScreen()),
     '/caregiver/my-jobs': (context) => const MyAssignmentScreen(),
   };
 }

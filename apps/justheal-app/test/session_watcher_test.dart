@@ -65,6 +65,19 @@ void main() {
     expect(find.text('Some Authenticated Screen'), findsNothing);
   });
 
+  testWidgets(
+      'does not redirect when the cold-start check resolves to unauthenticated (a caregiver-only device has no '
+      'individual token) — SplashScreen restores the caregiver session itself', (tester) async {
+    final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())));
+    await _pump(tester, localStorage, notifier);
+
+    notifier.state = const SessionUnauthenticated();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Some Authenticated Screen'), findsOneWidget);
+    expect(find.text('Login Page'), findsNothing);
+  });
+
   testWidgets('does not navigate anywhere when the session stays authenticated (e.g. a profile refresh)',
       (tester) async {
     final notifier = SessionNotifier(localStorage, IndividualRepository(Dio()), OrganisationRepository(Dio()), FcmService(IndividualRepository(Dio()), OrganisationRepository(Dio())))

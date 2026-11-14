@@ -728,8 +728,10 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Organisation notes also show on each of that organisation's jobs.** An organisation posts many requirements, so there is no
   per-requirement note: admin-web's `RequirementReadOnlyDialog` embeds the organisation account's own note
   (`organisation_admin_notes`, loaded via `GET /admin/organisations/:id`, saved via `POST /admin/organisations/:id/notes`) — the
-  same single value as on the Rehab/Hospitals detail screen, editable from either. No new field or endpoint. Patient jobs keep
-  their own per-job note (`job_admin_notes`).
+  same single value as on the Rehab/Hospitals detail screen, editable from either. No new field or endpoint. Patient-posted jobs do the
+  same with the *patient's* note (`individual_admin_notes`, same one as on Patients/Family — one job per patient): `GET /admin/jobs/:id`
+  returns it and `POST /admin/jobs/:id/notes` saves it there (an older per-job note only shows until the patient has one). Only
+  admin-posted jobs keep a per-job note (`job_admin_notes`).
 - **Wrong-PIN lockout (`LoginThrottleService`, `auth/login-throttle.service.ts`).** After 7 wrong PINs within 15 minutes an account
   refuses PIN login (`AUTH_017`, 429, message names the minutes left) until 5 minutes after its latest wrong guess — a correct PIN is
   refused too while paused, and each further wrong guess restarts the pause. A correct PIN clears the count. In memory, keyed by

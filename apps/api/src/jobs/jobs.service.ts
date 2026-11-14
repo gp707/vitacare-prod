@@ -25,6 +25,7 @@ import { CaregiverProfilesRepository } from '../database/repositories/caregiver-
 import { AdminCaregiversRepository } from '../database/repositories/admin-caregivers.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { JobAdminNotesRepository } from '../database/repositories/job-admin-notes.repository';
+import { IndividualAdminNotesRepository } from '../database/repositories/individual-admin-notes.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CareReceiverDto, CreateJobDto } from './dto/create-job.dto';
@@ -95,6 +96,7 @@ export class JobsService {
     private readonly adminCaregiversRepo: AdminCaregiversRepository,
     private readonly usersRepo: UsersRepository,
     private readonly jobAdminNotesRepo: JobAdminNotesRepository,
+    private readonly individualAdminNotesRepo: IndividualAdminNotesRepository,
     private readonly auditService: AuditService,
     private readonly fcmService: FcmService,
     private readonly notificationsService: NotificationsService,
@@ -179,12 +181,17 @@ export class JobsService {
   async getJobDetailForAdmin(jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
-    const [careReceiver, applications, poster, adminNotes] = await Promise.all([
+    const [careReceiver, applications, poster, jobNotes] = await Promise.all([
       this.careReceiversRepo.findById(job.care_receiver_id),
       this.jobApplicationsRepo.findByJobId(jobId),
       this.usersRepo.findById(job.posted_by),
       this.jobAdminNotesRepo.findByJobId(jobId),
     ]);
+    // A patient's job and the patient are the same note (one job per
+    // patient); the older per-job note only shows until the patient has one.
+    const patientNotes =
+      poster?.role === UserRole.INDIVIDUAL ? await this.individualAdminNotesRepo.findByUserId(job.posted_by) : null;
+    const adminNotes = patientNotes ?? jobNotes;
     return {
       ...job,
       care_receiver: careReceiver,
@@ -201,6 +208,26 @@ export class JobsService {
   async upsertNotes(jobId: string, adminId: string, notes: string | null, ipAddress: string | null) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job) throw new AppException('GEN_002');
+
+    // Patient-posted job: the note is the patient's own (same one as on the
+    // Patients/Family page), so it is saved there. Admin-posted jobs keep a
+    // per-job note.
+    const poster = await this.usersRepo.findById(job.posted_by);
+    if (poster?.role === UserRole.INDIVIDUAL) {
+      const previousPatient = await this.individualAdminNotesRepo.findByUserId(job.posted_by);
+      await this.individualAdminNotesRepo.upsert(job.posted_by, adminId, notes);
+      await this.auditService.log({
+        userId: adminId,
+        targetUserId: job.posted_by,
+        action: AuditAction.ADMIN_NOTE_ADDED,
+        entityType: 'individual_admin_notes',
+        entityId: job.posted_by,
+        beforeValue: { notes: previousPatient?.notes ?? null },
+        afterValue: { notes },
+        ipAddress,
+      });
+      return { message: 'Notes saved' };
+    }
 
     const previous = await this.jobAdminNotesRepo.findByJobId(jobId);
     await this.jobAdminNotesRepo.upsert(jobId, adminId, notes);
