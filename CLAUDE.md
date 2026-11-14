@@ -733,8 +733,8 @@ location) that didn't fit the Individual/admin jobs-table model.
   returns it and `POST /admin/jobs/:id/notes` saves it there (an older per-job note only shows until the patient has one). Only
   admin-posted jobs keep a per-job note (`job_admin_notes`).
 - **Sorting on the account lists.** Caregivers, Patients/Family and Rehab/Hospitals accept `sort` + `order` (`asc`/`desc`, default `created_at` desc), whitelisted per list
-  in the repository (never interpolated from input) with an id tiebreaker. admin-web: click a column header, or use the "Sort by" control (`SortBar`) above the list, which
-  also covers the narrow card layout. Sorting is server-side, so it orders all pages, not just the visible one.
+  in the repository (never interpolated from input) with an id tiebreaker. admin-web: sort by clicking a column header (the arrow shows direction); only the narrow card layout, which has no
+  headers, shows a "Sort by" control (`SortBar`). Sorting is server-side, so it orders all pages, not just the visible one.
 - **Notes on the job list.** `GET /admin/jobs` and `GET /admin/organisation-requirements` rows carry `notes` (patient's note for patient jobs, the organisation's for
   its requirements, the per-job note for admin-posted jobs). admin-web shows it in `InlineNotesPanel` in each row's right-hand column (below the content on
   narrow rows): editable in place, Save asks for confirmation, then the list reloads.

@@ -140,22 +140,26 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
               const SizedBox(height: AppSpacing.md),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.xs),
-              SortBar(
-                options: const [
-                  SortOption('created_at', 'Registered'),
-                  SortOption('caregiver_number', 'ID'),
-                  SortOption('full_name', 'Name'),
-                  SortOption('phone', 'Phone'),
-                  SortOption('gender', 'Gender'),
-                  SortOption('age', 'Age'),
-                  SortOption('highest_qualification', 'Qualification'),
-                  SortOption('verification_status', 'Status'),
-                ],
-                sortKey: _sort,
-                ascending: _sortAscending,
-                onChanged: _setSort,
-              ),
-              const SizedBox(height: AppSpacing.xs),
+              // Wide layouts sort by clicking the table's column headers; the
+              // narrow card layout has no headers, so it gets this control.
+              if (context.isMobile) ...[
+                SortBar(
+                  options: const [
+                    SortOption('created_at', 'Registered'),
+                    SortOption('caregiver_number', 'ID'),
+                    SortOption('full_name', 'Name'),
+                    SortOption('phone', 'Phone'),
+                    SortOption('gender', 'Gender'),
+                    SortOption('age', 'Age'),
+                    SortOption('highest_qualification', 'Qualification'),
+                    SortOption('verification_status', 'Status'),
+                  ],
+                  sortKey: _sort,
+                  ascending: _sortAscending,
+                  onChanged: _setSort,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
               if (_loading)
                 const Expanded(child: Center(child: VitaLoadingIndicator()))
               else if (_errorMessage != null)
