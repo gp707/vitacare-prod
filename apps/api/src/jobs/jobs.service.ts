@@ -588,7 +588,7 @@ export class JobsService {
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.markCompleted(application.id, closeReason, client);
       await this.jobsRepo.reopen(jobId, client);
-      const remaining = await this.jobApplicationsRepo.countAcceptedByProfileId(profile.id, client);
+      const remaining = await this.profilesRepo.countAcceptedWork(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
         await this.profilesRepo.markAvailable(profile.id, client);
@@ -681,6 +681,7 @@ export class JobsService {
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
     if (!caregiverDetail) throw new AppException('PROFILE_019');
 
+    let remainingAccepted = 0;
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client, dto.reason);
       if (isAccepting) {
@@ -694,13 +695,19 @@ export class JobsService {
         );
       } else if (isUndoAccept) {
         await this.jobsRepo.reopen(jobId, client);
-        await this.adminCaregiversRepo.updateStatus(
-          application.profile_id,
-          VerificationStatus.AVAILABLE,
-          null,
-          adminId,
-          client,
-        );
+        // A caregiver can hold several accepted jobs/requirements at once;
+        // only free them once none remain (the one just rejected is already
+        // no longer 'accepted' at this point — decide() ran above).
+        remainingAccepted = await this.profilesRepo.countAcceptedWork(application.profile_id, client);
+        if (remainingAccepted === 0) {
+          await this.adminCaregiversRepo.updateStatus(
+            application.profile_id,
+            VerificationStatus.AVAILABLE,
+            null,
+            adminId,
+            client,
+          );
+        }
       }
     });
 
@@ -721,7 +728,9 @@ export class JobsService {
       afterValue: {
         status: dto.status,
         ...(isAccepting ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
-        ...(isUndoAccept ? { job_status: 'active', caregiver_status: 'available' } : {}),
+        ...(isUndoAccept
+          ? { job_status: 'active', caregiver_status: remainingAccepted === 0 ? 'available' : 'assigned' }
+          : {}),
         // Present on a patient's/organisation's own reject (mandatory there,
         // JOB_012) — never on admin's own reject, which stays reason-optional.
         ...(dto.reason ? { reason: dto.reason } : {}),

@@ -326,6 +326,7 @@ export class OrganisationRequirementsService {
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
     if (!caregiverDetail) throw new AppException('PROFILE_019');
 
+    let remainingAccepted = 0;
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.decide(applicationId, dto.status, actorId, client, dto.reason);
       if (isAccepting) {
@@ -337,13 +338,18 @@ export class OrganisationRequirementsService {
           client,
         );
       } else if (isUndoAccept) {
-        await this.adminCaregiversRepo.updateStatus(
-          application.profile_id,
-          VerificationStatus.AVAILABLE,
-          null,
-          actorId,
-          client,
-        );
+        // Only free the caregiver once no accepted job/requirement remains
+        // (the one just rejected is no longer 'accepted' — decide() ran above).
+        remainingAccepted = await this.caregiverProfilesRepo.countAcceptedWork(application.profile_id, client);
+        if (remainingAccepted === 0) {
+          await this.adminCaregiversRepo.updateStatus(
+            application.profile_id,
+            VerificationStatus.AVAILABLE,
+            null,
+            actorId,
+            client,
+          );
+        }
       }
     });
 
@@ -364,7 +370,7 @@ export class OrganisationRequirementsService {
       afterValue: {
         status: dto.status,
         ...(isAccepting ? { caregiver_status: 'assigned' } : {}),
-        ...(isUndoAccept ? { caregiver_status: 'available' } : {}),
+        ...(isUndoAccept ? { caregiver_status: remainingAccepted === 0 ? 'available' : 'assigned' } : {}),
         // Reason is optional on an organisation's own reject (unlike
         // Individual's mandatory JOB_012 rule — see "NurseNow" in
         // CLAUDE.md) — logged whenever one was actually given, same as
@@ -457,7 +463,7 @@ export class OrganisationRequirementsService {
     let stillAssigned = false;
     await this.db.withTransaction(async (client) => {
       await this.applicationsRepo.markCompleted(application.id, closeReason, client);
-      const remaining = await this.applicationsRepo.countAcceptedByProfileId(profile.id, client);
+      const remaining = await this.caregiverProfilesRepo.countAcceptedWork(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
         await this.caregiverProfilesRepo.markAvailable(profile.id, client);

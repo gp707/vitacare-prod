@@ -85,7 +85,7 @@ describe('JobsService', () => {
       update: jest.fn().mockResolvedValue(careReceiver),
       findById: jest.fn().mockResolvedValue(careReceiver),
     };
-    profilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
+    profilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn(), countAcceptedWork: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
     usersRepo = { findById: jest.fn() };
     jobAdminNotesRepo = { findByJobId: jest.fn(), upsert: jest.fn() };
@@ -923,7 +923,7 @@ describe('JobsService', () => {
     it('marks the application completed and drops the caregiver back to available when no other accepted jobs remain', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       const result = await service.completeJob('user-1', 'job-1', {}, null);
 
@@ -935,7 +935,7 @@ describe('JobsService', () => {
     it('always reopens the job to active — a caregiver-initiated close is a self-rejection, not a statement the need is over', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.completeJob('user-1', 'job-1', {}, null);
 
@@ -945,7 +945,7 @@ describe('JobsService', () => {
     it('leaves the caregiver assigned when another accepted job remains', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(1);
+      profilesRepo.countAcceptedWork.mockResolvedValue(1);
 
       const result = await service.completeJob('user-1', 'job-1', {}, null);
 
@@ -956,7 +956,7 @@ describe('JobsService', () => {
     it('defaults close_reason to no_reason when omitted, and persists a specific one when provided', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.completeJob('user-1', 'job-1', { close_reason: 'duty_complete' }, null);
 
@@ -966,7 +966,7 @@ describe('JobsService', () => {
     it('treats a blank/whitespace-only close_reason the same as omitted — defaults to no_reason', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.completeJob('user-1', 'job-1', { close_reason: '   ' }, null);
 
@@ -976,7 +976,7 @@ describe('JobsService', () => {
     it('audit-logs the completion with the resulting verification_status', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(1);
+      profilesRepo.countAcceptedWork.mockResolvedValue(1);
 
       await service.completeJob('user-1', 'job-1', {}, '127.0.0.1');
 
@@ -1001,7 +1001,7 @@ describe('JobsService', () => {
     it('targets the posting patient in the audit log when the job was posted by a NurseNow individual', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'individual-user-1' });
       usersRepo.findById.mockResolvedValue({ id: 'individual-user-1', role: 'individual' });
 
@@ -1016,7 +1016,7 @@ describe('JobsService', () => {
     it('tells the posting patient that the caregiver closed out and the job is open again', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'individual-user-1', patient_job_number: 512 });
       usersRepo.findById.mockResolvedValue({ id: 'individual-user-1', role: 'individual' });
 
@@ -1028,7 +1028,7 @@ describe('JobsService', () => {
     it('does not target anyone in the audit log for an admin-posted job', async () => {
       profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobApplicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'admin-user-1' });
       usersRepo.findById.mockResolvedValue({ id: 'admin-user-1', role: 'admin' });
 
@@ -1156,6 +1156,7 @@ describe('JobsService', () => {
     it('rejecting a previously-accepted application reopens the job and un-assigns the caregiver', async () => {
       jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
 
@@ -1174,6 +1175,17 @@ describe('JobsService', () => {
         'admin-1',
         expect.anything(),
       );
+    });
+
+    it('rejecting one accepted application keeps the caregiver assigned while they still hold other accepted work', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      profilesRepo.countAcceptedWork.mockResolvedValue(1);
+
+      await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
+
+      expect(jobsRepo.reopen).toHaveBeenCalledWith('job-1', expect.anything());
+      expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
     });
 
     it('throws JOB_007 when accepting an already-accepted application', async () => {

@@ -46,7 +46,7 @@ describe('OrganisationRequirementsService', () => {
       findAssignedByProfileId: jest.fn(),
       hasAnyApplicationForRequirement: jest.fn(),
     };
-    caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn() };
+    caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn(), countAcceptedWork: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
     organisationProfilesRepo = { findByUserId: jest.fn(), findByUserIdWithPhone: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
@@ -595,11 +595,22 @@ describe('OrganisationRequirementsService', () => {
     it('rejecting a previously-accepted application un-assigns the caregiver without touching the requirement\'s own status', async () => {
       applicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
       adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'rejected' } as any, null);
 
       expect(requirementsRepo.reopen).not.toHaveBeenCalled();
       expect(adminCaregiversRepo.updateStatus).toHaveBeenCalledWith('profile-1', 'available', null, 'admin-1', {});
+    });
+
+    it('rejecting one accepted application keeps the caregiver assigned while they still hold other accepted work', async () => {
+      applicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(1);
+
+      await service.decideApplication('admin-1', 'req-1', 'app-1', { status: 'rejected' } as any, null);
+
+      expect(adminCaregiversRepo.updateStatus).not.toHaveBeenCalled();
     });
 
     it('rejects a still-applied application with no requirement/caregiver side effects, reason passed through', async () => {
@@ -763,7 +774,7 @@ describe('OrganisationRequirementsService', () => {
     it('marks the application completed and drops the caregiver back to available when no other accepted requirements remain', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       const result = await service.completeRequirement('user-1', 'req-1', {}, null);
 
@@ -775,7 +786,7 @@ describe('OrganisationRequirementsService', () => {
     it('defaults close_reason to no_reason when omitted, and persists a specific one when provided', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.completeRequirement('user-1', 'req-1', { close_reason: 'need_to_go_hometown' }, null);
 
@@ -785,7 +796,7 @@ describe('OrganisationRequirementsService', () => {
     it('never touches the requirement\'s own status — it was never closed by acceptance in the first place', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
 
       await service.completeRequirement('user-1', 'req-1', {}, null);
 
@@ -795,7 +806,7 @@ describe('OrganisationRequirementsService', () => {
     it('leaves the caregiver assigned when another accepted requirement remains', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(1);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(1);
 
       const result = await service.completeRequirement('user-1', 'req-1', {}, null);
 
@@ -806,7 +817,7 @@ describe('OrganisationRequirementsService', () => {
     it('tells the organisation the caregiver closed out, without claiming the requirement reopened', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-user-1', requirement_number: 507 });
 
       await service.completeRequirement('user-1', 'req-1', {}, null);
@@ -817,7 +828,7 @@ describe('OrganisationRequirementsService', () => {
     it('targets the posting organisation in the audit log', async () => {
       caregiverProfilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
       applicationsRepo.findByRequirementAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      applicationsRepo.countAcceptedByProfileId.mockResolvedValue(0);
+      caregiverProfilesRepo.countAcceptedWork.mockResolvedValue(0);
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-user-1' });
 
       await service.completeRequirement('user-1', 'req-1', {}, null);

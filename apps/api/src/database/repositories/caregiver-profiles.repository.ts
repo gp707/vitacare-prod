@@ -211,6 +211,20 @@ export class CaregiverProfilesRepository {
     );
   }
 
+  /** How many jobs AND organisation requirements this caregiver is still
+   *  actively accepted onto. A caregiver stays `assigned` while this is > 0
+   *  and may only drop back to `available` once it reaches 0 — whichever
+   *  single engagement just ended (rejected, undone, completed). */
+  async countAcceptedWork(profileId: string, client?: PoolClient): Promise<number> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<{ count: string }>(
+      `SELECT (SELECT COUNT(*) FROM job_applications WHERE profile_id = $1 AND status = 'accepted')
+            + (SELECT COUNT(*) FROM organisation_requirement_applications WHERE profile_id = $1 AND status = 'accepted') AS count`,
+      [profileId],
+    );
+    return Number(result.rows[0].count);
+  }
+
   /** After a poster's account (and its jobs) is deleted: puts caregivers
    *  that were `assigned` back to `available` unless they still hold an
    *  accepted job or organisation requirement elsewhere. */
