@@ -2164,7 +2164,7 @@ class _ApplicantTile extends StatelessWidget {
             onPressed: onSetAgreement,
             style: _compactButtonStyle,
             icon: const Icon(Icons.handshake_outlined, size: 14),
-            label: const Text('Add agreed salary & start date'),
+            label: const Text('Add agreed salary & cycle start date'),
           ),
         ),
       );
@@ -2186,7 +2186,7 @@ class _ApplicantTile extends StatelessWidget {
                 color: _isAccepted ? AppColors.success : AppColors.textSecondary),
           ),
           Text(
-            'Starts ${formatLongDate(startDate)}',
+            'Cycle starts ${formatLongDate(startDate)}',
             style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
           ),
           const SizedBox(height: AppSpacing.xs),

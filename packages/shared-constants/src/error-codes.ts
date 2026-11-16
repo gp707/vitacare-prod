@@ -105,6 +105,9 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_030: { status: 400, message: 'Only a requirement with an accepted caregiver can be permanently cancelled' },
   JOB_031: { status: 400, message: 'This requirement is already live' },
   JOB_032: { status: 400, message: 'You are already accepted on this job' },
+  JOB_033: { status: 400, message: 'That salary cycle has not ended yet, or does not exist' },
+  JOB_034: { status: 400, message: 'That salary cycle is already marked as paid' },
+  JOB_035: { status: 400, message: 'The payment date cannot be in the future or before the cycle starts' },
 
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },

@@ -134,15 +134,10 @@ export const leaveCancelled = (displayId: string, date: string): PushMessage => 
   route: PushRoutes.caregiverMyJobs,
 });
 
-export const salaryPaused = (displayId: string, from: string): PushMessage => ({
-  title: 'Salary paused',
-  body: `${displayId}: the family paused salary from ${formatAgreedDate(from)}. Days until it is resumed count as leave.`,
-  route: PushRoutes.caregiverMyJobs,
-});
-
-export const salaryResumed = (displayId: string, on: string): PushMessage => ({
-  title: 'Salary resumed',
-  body: `${displayId}: salary resumed from ${formatAgreedDate(on)}.`,
+/** The family marked a salary cycle as paid. */
+export const salaryPaid = (displayId: string, cycleStart: string, cycleEnd: string, amount: number, paidOn: string): PushMessage => ({
+  title: 'Salary paid',
+  body: `${displayId}: salary of ₹${amount} for ${formatAgreedDate(cycleStart)} to ${formatAgreedDate(cycleEnd)} was paid on ${formatAgreedDate(paidOn)}. See the calculation in MyJobs.`,
   route: PushRoutes.caregiverMyJobs,
 });
 

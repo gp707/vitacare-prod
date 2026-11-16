@@ -164,7 +164,6 @@ JobApplicationModel _application({
   String? agreedSalaryUnit,
   String? agreedStartDate,
   List<String> leaveDates = const [],
-  List<Map<String, dynamic>> pauses = const [],
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -187,7 +186,6 @@ JobApplicationModel _application({
     'agreed_salary_unit': agreedSalaryUnit,
     'agreed_start_date': agreedStartDate,
     'leave_dates': leaveDates,
-    'pauses': pauses,
   });
 }
 
@@ -214,9 +212,10 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? madeLiveJobId;
   String? permanentlyCancelledJobId;
   final List<List<String>> markedLeaves = [];
+  List<SalaryCycleModel> cycles = [];
+  final List<List<String>> paidCycles = []; // [cycleStart, paidOn]
+  ApiException? payError;
   final List<String> cancelledLeaves = [];
-  int pauseCalls = 0;
-  int resumeCalls = 0;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}, this.reactivateError})
       : super(Dio());
@@ -294,13 +293,20 @@ class _FakeIndividualRepository extends IndividualRepository {
   Future<void> markLeaves(String jobId, String applicationId, List<String> dates) async => markedLeaves.add(dates);
 
   @override
+  Future<List<SalaryCycleModel>> getSalaryCycles(String jobId, String applicationId) async => cycles;
+
+  @override
+  Future<void> markSalaryCyclePaid(String jobId, String applicationId, String cycleStart, String paidOn) async {
+    if (payError != null) throw payError!;
+    paidCycles.add([cycleStart, paidOn]);
+  }
+
+  @override
   Future<void> cancelLeave(String jobId, String applicationId, String date) async => cancelledLeaves.add(date);
 
   @override
-  Future<void> pauseSalary(String jobId, String applicationId) async => pauseCalls++;
 
   @override
-  Future<void> resumeSalary(String jobId, String applicationId) async => resumeCalls++;
 
   @override
   Future<CaregiverProfileModel> getApplicantProfile(String jobId, String applicationId) async {
@@ -1514,7 +1520,7 @@ void main() {
 
 
   group('agreed salary and start date', () {
-    testWidgets('an accepted caregiver with nothing agreed yet shows an "Add agreed salary & start date" button',
+    testWidgets('an accepted caregiver with nothing agreed yet shows an "Add agreed salary & cycle start date" button',
         (tester) async {
       await _pump(
         tester,
@@ -1523,7 +1529,7 @@ void main() {
           applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
         ),
       );
-      expect(find.text('Add agreed salary & start date'), findsOneWidget);
+      expect(find.text('Add agreed salary & cycle start date'), findsOneWidget);
     });
 
     testWidgets('a caregiver with no salary yet shows "Salary not set yet" and the add button in their own card', (tester) async {
@@ -1552,7 +1558,7 @@ void main() {
       );
       expect(find.text('₹800 per day'), findsOneWidget);
       expect(find.textContaining('20 Nov 2026'), findsOneWidget);
-      expect(find.text('Add agreed salary & start date'), findsNothing);
+      expect(find.text('Add agreed salary & cycle start date'), findsNothing);
     });
 
     testWidgets("the patient's own unit choice wins over the job's frequency", (tester) async {
@@ -1578,7 +1584,7 @@ void main() {
           applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
         ),
       );
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
 
       expect(find.text('Per day'), findsOneWidget);
@@ -1592,7 +1598,7 @@ void main() {
         applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
       );
       await _pump(tester, repo);
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
 
       await tester.tap(find.text('Per day'));
@@ -1711,14 +1717,14 @@ void main() {
           applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
         ),
       );
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
 
-      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.text('Confirm salary and cycle start date'), findsOneWidget);
       expect(find.textContaining('care staff, not house maids'), findsOneWidget);
       expect(find.textContaining('treated the way you treat your own family members'), findsOneWidget);
       expect(find.text('Agreed Salary (₹ per day)'), findsOneWidget);
-      expect(find.text('Start date'), findsOneWidget);
+      expect(find.text('Cycle start date'), findsOneWidget);
       expect(find.text('Fill later'), findsOneWidget);
     });
 
@@ -1728,15 +1734,15 @@ void main() {
         applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
       );
       await _pump(tester, repo);
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
       await tester.tap(find.text('Save & send to caregiver'));
       await _settle(tester);
 
       expect(find.text('Enter the agreed salary in rupees'), findsOneWidget);
-      expect(find.text('Pick the start date'), findsOneWidget);
+      expect(find.text('Pick the cycle start date'), findsOneWidget);
       expect(repo.agreementSalary, isNull);
-      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.text('Confirm salary and cycle start date'), findsOneWidget);
     });
 
     testWidgets('Fill later closes the popup without saving', (tester) async {
@@ -1745,14 +1751,14 @@ void main() {
         applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
       );
       await _pump(tester, repo);
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
       await tester.tap(find.text('Fill later'));
       await _settle(tester);
 
-      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(find.text('Confirm salary and cycle start date'), findsNothing);
       expect(repo.agreementSalary, isNull);
-      expect(find.text('Add agreed salary & start date'), findsOneWidget);
+      expect(find.text('Add agreed salary & cycle start date'), findsOneWidget);
     });
 
     testWidgets('saving sends the salary and the picked date for that caregiver', (tester) async {
@@ -1761,7 +1767,7 @@ void main() {
         applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
       );
       await _pump(tester, repo);
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
 
       await tester.enterText(find.byType(TextField), '900');
@@ -1776,7 +1782,7 @@ void main() {
       expect(repo.agreementApplicationId, 'app-1');
       expect(repo.agreementSalary, 900);
       expect(repo.agreementStartDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
-      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(find.text('Confirm salary and cycle start date'), findsNothing);
       expect(find.text('Sent to Test Caregiver.'), findsOneWidget);
     });
 
@@ -1786,7 +1792,7 @@ void main() {
         applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
       )..agreementError = const ApiException(message: 'The start date cannot be in the past', code: 'JOB_023');
       await _pump(tester, repo);
-      await tester.tap(find.text('Add agreed salary & start date'));
+      await tester.tap(find.text('Add agreed salary & cycle start date'));
       await _settle(tester);
       await tester.enterText(find.byType(TextField), '900');
       await tester.tap(find.text('Select a date'));
@@ -1797,7 +1803,7 @@ void main() {
       await _settle(tester);
 
       expect(find.text('The start date cannot be in the past'), findsOneWidget);
-      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.text('Confirm salary and cycle start date'), findsOneWidget);
     });
 
     testWidgets('accepting a candidate opens the popup right away', (tester) async {
@@ -1812,7 +1818,7 @@ void main() {
       await _settle(tester);
 
       expect(repo.decidedStatus, 'accepted');
-      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.text('Confirm salary and cycle start date'), findsOneWidget);
     });
   });
 
@@ -1894,7 +1900,6 @@ void main() {
 
     _FakeIndividualRepository repoWith({
       List<String> leave = const [],
-      List<Map<String, dynamic>> pauses = const [],
       bool withAgreement = true,
       int startOffset = -2,
       String unit = 'daily',
@@ -1910,7 +1915,6 @@ void main() {
                 agreedSalaryUnit: withAgreement ? unit : null,
                 agreedStartDate: withAgreement ? iso(startOffset) : null,
                 leaveDates: leave,
-                pauses: pauses,
               ),
             ],
           },
@@ -1943,7 +1947,6 @@ void main() {
     testWidgets('they are not offered before an agreement exists', (tester) async {
       await _pump(tester, repoWith(withAgreement: false));
       expect(find.byKey(const Key('mark-leave')), findsNothing);
-      expect(find.byKey(const Key('pause-salary')), findsNothing);
     });
 
     testWidgets('the salary banner counts only the days worked and names the leave days', (tester) async {
@@ -1961,12 +1964,6 @@ void main() {
       expect(find.text('₹12,000'), findsOneWidget);
     });
 
-    testWidgets('while paused the banner says so and the paused days earn nothing', (tester) async {
-      await _pump(tester, repoWith(pauses: [{'from': iso(-1), 'to': null}], startOffset: -2));
-      expect(find.byKey(const Key('card-paused-tag')), findsOneWidget);
-      // Worked: start(-2) and -1 are before... pause from -1 onward: only day -2 is worked => 1 day.
-      expect(find.text('₹1,000'), findsOneWidget);
-    });
   });
 
   group('rejected candidates are collapsed until tapped', () {
@@ -2257,13 +2254,12 @@ void main() {
       agreedStartDate: isoFromNow(-2),
     );
 
-    testWidgets('each caregiver card has one "Salary & leaves" button, and the leave and pause controls are not on this screen', (tester) async {
+    testWidgets('each caregiver card has one "Salary & leaves" button, and the leave controls are not on this screen', (tester) async {
       await _pump(tester, repoWith([agreed]));
       // The big amber banner is gone; each caregiver's card has one Salary & leaves button.
       expect(find.byKey(const Key('salary-due-banner')), findsNothing);
       expect(find.byKey(const Key('open-salary-app-1')), findsOneWidget);
       expect(find.byKey(const Key('mark-leave')), findsNothing);
-      expect(find.byKey(const Key('pause-salary')), findsNothing);
       expect(find.byKey(const Key('edit-agreement')), findsNothing);
     });
 
@@ -2277,7 +2273,7 @@ void main() {
 
     testWidgets('a caregiver with nothing agreed yet shows the add button, not the salary button', (tester) async {
       await _pump(tester, repoWith([_application(status: 'accepted')]));
-      expect(find.text('Add agreed salary & start date'), findsOneWidget);
+      expect(find.text('Add agreed salary & cycle start date'), findsOneWidget);
       expect(find.byKey(const Key('open-salary-tile')), findsNothing);
     });
 
@@ -2319,7 +2315,6 @@ void main() {
       String unit = 'daily',
       String? start,
       List<String> leave = const [],
-      List<Map<String, dynamic>> pauses = const [],
     }) =>
         _application(
           id: 'app-1',
@@ -2330,7 +2325,6 @@ void main() {
           agreedSalaryUnit: salary == null ? null : unit,
           agreedStartDate: salary == null ? null : (start ?? isoFromNow(-2)),
           leaveDates: leave,
-          pauses: pauses,
         );
 
     Future<_FakeIndividualRepository> open(
@@ -2351,7 +2345,7 @@ void main() {
       expect(find.text('Accepted'), findsOneWidget);
       expect(find.text('+919876543210'), findsOneWidget);
       expect(find.text('₹1,000 per day'), findsOneWidget);
-      expect(find.text('Starts 17 Nov 2026'), findsOneWidget);
+      expect(find.text('Cycle starts 17 Nov 2026'), findsOneWidget);
     });
 
     testWidgets('a monthly salary reads per month', (tester) async {
@@ -2373,11 +2367,11 @@ void main() {
       expect(find.text('Leave days'), findsNothing);
     });
 
-    testWidgets('Edit salary and start date opens the sheet pre-filled and re-sends the agreement', (tester) async {
+    testWidgets('Edit salary and cycle start date opens the sheet pre-filled and re-sends the agreement', (tester) async {
       final repo = await open(tester, app());
       await tester.tap(find.byKey(const Key('edit-agreement')));
       await _settle(tester);
-      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.text('Confirm salary and cycle start date'), findsOneWidget);
       expect(find.text('1000'), findsOneWidget);
       await tester.enterText(find.byType(TextField), '1200');
       await tester.tap(find.text('Save & send to caregiver'));
@@ -2459,61 +2453,22 @@ void main() {
       expect(repo.markedLeaves, isEmpty);
     });
 
-    testWidgets('Pause salary asks first and explains that days count as leave', (tester) async {
-      final repo = await open(tester, app());
-      await tester.tap(find.byKey(const Key('pause-salary')));
-      await _settle(tester);
-      expect(find.textContaining('every day counts as leave and is not paid'), findsOneWidget);
-      expect(repo.pauseCalls, 0);
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause salary').last);
-      await _settle(tester);
-      expect(repo.pauseCalls, 1);
-    });
-
-    testWidgets('declining the pause confirmation pauses nothing', (tester) async {
-      final repo = await open(tester, app());
-      await tester.tap(find.byKey(const Key('pause-salary')));
-      await _settle(tester);
-      await tester.tap(find.text('Not now'));
-      await _settle(tester);
-      expect(repo.pauseCalls, 0);
-    });
-
-    testWidgets('while paused it says so and offers Resume instead of Pause; resume asks first', (tester) async {
-      final repo = await open(tester, app(pauses: [{'from': isoFromNow(-1), 'to': null}]));
-      expect(find.byKey(const Key('paused-note')), findsOneWidget);
-      expect(find.byKey(const Key('salary-paused-note')), findsOneWidget);
-      expect(find.byKey(const Key('pause-salary')), findsNothing);
-      await tester.tap(find.byKey(const Key('resume-salary')));
-      await _settle(tester);
-      expect(repo.resumeCalls, 0);
-      await tester.tap(find.widgetWithText(FilledButton, 'Resume salary').last);
-      await _settle(tester);
-      expect(repo.resumeCalls, 1);
-    });
-
     testWidgets('a rejected caregiver: a read-only record of what was agreed, with no way to change it', (tester) async {
       await open(
         tester,
         app(
           status: 'rejected',
           leave: [isoFromNow(-5)],
-          pauses: [
-            {'from': isoFromNow(-10), 'to': isoFromNow(-8)},
-          ],
         ),
       );
       expect(find.text('No longer on this job (rejected)'), findsOneWidget);
       expect(find.byKey(const Key('salary-past-note')), findsOneWidget);
       expect(find.text('₹1,000 per day'), findsOneWidget);
       expect(find.byKey(Key('leave-chip-${isoFromNow(-5)}')), findsOneWidget);
-      expect(find.textContaining('Paused '), findsOneWidget);
-      // read-only: no edit, no next salary, no leave/pause controls, no cancel x on the chip
+      // read-only: no edit, no next salary, no leave controls, no cancel x on the chip
       expect(find.byKey(const Key('edit-agreement')), findsNothing);
       expect(find.byKey(const Key('salary-due-banner')), findsNothing);
       expect(find.byKey(const Key('mark-leave')), findsNothing);
-      expect(find.byKey(const Key('pause-salary')), findsNothing);
-      expect(find.byKey(const Key('resume-salary')), findsNothing);
       expect(
         find.descendant(of: find.byKey(Key('leave-chip-${isoFromNow(-5)}')), matching: find.byIcon(Icons.close)),
         findsNothing,
@@ -2681,6 +2636,124 @@ void main() {
       );
       await _pump(tester, repo, home: CaregiverSalaryScreen(requirement: requirement, applicationId: 'app-1'));
       expect(find.byKey(const Key('whatsapp-tap')), findsOneWidget);
+    });
+  });
+
+  group('salary history on the caregiver\'s salary page', () {
+    String iso(int offset) {
+      final d = DateTime.now().add(Duration(days: offset));
+      return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    SalaryCycleModel cycle(String status, {int startOffset = -28, String? paidOn, List<String> leave = const [], int rate = 1000}) {
+      final worked = 14 - leave.length;
+      return SalaryCycleModel(
+        cycleStart: iso(startOffset),
+        cycleEnd: iso(startOffset + 13),
+        rate: rate,
+        unit: 'daily',
+        leaveDates: leave,
+        workedDays: worked,
+        amount: rate * worked,
+        status: status,
+        paidOn: paidOn,
+      );
+    }
+
+    Future<_FakeIndividualRepository> open(WidgetTester tester, List<SalaryCycleModel> cycles, {String status = 'accepted'}) async {
+      final requirement = _requirement(status: 'closed');
+      final repo = _FakeIndividualRepository(
+        requirements: [requirement],
+        applicationsByJobId: {
+          'job-1': [
+            _application(
+              id: 'app-1',
+              status: status,
+              fullName: 'Asha Accepted',
+              agreedSalary: 1000,
+              agreedSalaryUnit: 'daily',
+              agreedStartDate: iso(-28),
+            ),
+          ],
+        },
+      )..cycles = cycles;
+      await _pump(tester, repo, home: CaregiverSalaryScreen(requirement: requirement, applicationId: 'app-1'));
+      return repo;
+    }
+
+    testWidgets('lists every cycle with its rate, leave, calculation and amount, paid ones with their payment date', (tester) async {
+      final paid = cycle('paid', startOffset: -28, paidOn: iso(-13), leave: [iso(-20)], rate: 900);
+      final due = cycle('due', startOffset: -14);
+      final current = cycle('current', startOffset: 0);
+      await open(tester, [current, due, paid]);
+      expect(find.byKey(const Key('salary-history')), findsOneWidget);
+      expect(find.byKey(Key('cycle-${paid.cycleStart}')), findsOneWidget);
+      expect(find.byKey(Key('cycle-${due.cycleStart}')), findsOneWidget);
+      expect(find.byKey(Key('cycle-${current.cycleStart}')), findsOneWidget);
+      expect(find.byKey(Key('cycle-status-${paid.cycleStart}')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(Key('cycle-status-${paid.cycleStart}'))).data, startsWith('Paid on '));
+      expect(tester.widget<Text>(find.byKey(Key('cycle-status-${due.cycleStart}'))).data, 'Due - not paid yet');
+      expect(tester.widget<Text>(find.byKey(Key('cycle-status-${current.cycleStart}'))).data, 'Current cycle');
+      // a paid cycle shows its own (old) rate and leave, not today's
+      expect(tester.widget<Text>(find.byKey(Key('cycle-calc-${paid.cycleStart}'))).data, '\u20b9900/day \u00d7 13 days = \u20b911,700');
+      expect(tester.widget<Text>(find.byKey(Key('cycle-leave-${paid.cycleStart}'))).data, startsWith('Leave (1):'));
+      expect(tester.widget<Text>(find.byKey(Key('cycle-leave-${due.cycleStart}'))).data, 'No leave in this cycle');
+    });
+
+    testWidgets('only a due cycle has Mark as paid', (tester) async {
+      final due = cycle('due', startOffset: -14);
+      await open(tester, [cycle('current', startOffset: 0), due, cycle('paid', startOffset: -28, paidOn: iso(-13))]);
+      expect(find.byKey(Key('mark-paid-${due.cycleStart}')), findsOneWidget);
+      expect(find.text('Mark as paid'), findsOneWidget);
+    });
+
+    testWidgets('Mark as paid asks for the payment date, then records it', (tester) async {
+      final due = cycle('due', startOffset: -14);
+      final repo = await open(tester, [due]);
+      await tester.tap(find.byKey(Key('mark-paid-${due.cycleStart}')));
+      await _settle(tester);
+      expect(find.textContaining('was paid'), findsOneWidget); // the picker's help text names the amount
+      expect(repo.paidCycles, isEmpty);
+      await tester.tap(find.widgetWithText(TextButton, 'Mark as paid'));
+      await _settle(tester);
+      expect(repo.paidCycles.single.first, due.cycleStart);
+      expect(repo.paidCycles.single.last, iso(0));
+    });
+
+    testWidgets('cancelling the date picker marks nothing', (tester) async {
+      final due = cycle('due', startOffset: -14);
+      final repo = await open(tester, [due]);
+      await tester.tap(find.byKey(Key('mark-paid-${due.cycleStart}')));
+      await _settle(tester);
+      await tester.tap(find.text('Cancel'));
+      await _settle(tester);
+      expect(repo.paidCycles, isEmpty);
+    });
+
+    testWidgets('a server error is shown and nothing is recorded', (tester) async {
+      final due = cycle('due', startOffset: -14);
+      final repo = await open(tester, [due]);
+      repo.payError = const ApiException(message: 'That salary cycle is already marked as paid', code: 'JOB_034');
+      await tester.tap(find.byKey(Key('mark-paid-${due.cycleStart}')));
+      await _settle(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Mark as paid'));
+      await _settle(tester);
+      expect(find.text('That salary cycle is already marked as paid'), findsOneWidget);
+      expect(repo.paidCycles, isEmpty);
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('a caregiver no longer on the job keeps a read-only history, with no Mark as paid', (tester) async {
+      final paid = cycle('paid', startOffset: -28, paidOn: iso(-13));
+      final due = cycle('due', startOffset: -14);
+      await open(tester, [due, paid], status: 'rejected');
+      expect(find.byKey(Key('cycle-${paid.cycleStart}')), findsOneWidget);
+      expect(find.text('Mark as paid'), findsNothing);
+    });
+
+    testWidgets('with no cycles yet it says when the first one ends', (tester) async {
+      await open(tester, []);
+      expect(find.byKey(const Key('no-cycles')), findsOneWidget);
     });
   });
 }

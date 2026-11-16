@@ -11,7 +11,7 @@ void main() {
     ));
     expect(find.text('Agreed with the family'), findsOneWidget);
     expect(find.text('Salary: ₹800 per day'), findsOneWidget);
-    expect(find.text('Start date: 20 Nov 2026'), findsOneWidget);
+    expect(find.text('Cycle start date: 20 Nov 2026'), findsOneWidget);
   });
 
   test('formatDate falls back to the raw text for something that is not a date', () {
@@ -105,8 +105,8 @@ void main() {
     });
   });
 
-  group('what the caregiver sees about leave and pauses', () {
-    Widget box({List<String> leave = const [], List<PausePeriod> pauses = const []}) => MaterialApp(
+  group('what the caregiver sees about leave', () {
+    Widget box({List<String> leave = const []}) => MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
               child: AgreedTermsBox(
@@ -114,7 +114,6 @@ void main() {
                 perUnit: 'day',
                 startDate: '2026-11-20',
                 leaveDates: leave,
-                pauses: pauses,
               ),
             ),
           ),
@@ -133,17 +132,6 @@ void main() {
       expect(find.text('Wed 25 Nov'), findsOneWidget);
     });
 
-    testWidgets('a salary pause is shown in red with the date it started', (tester) async {
-      await tester.pumpWidget(box(pauses: [const PausePeriod(from: '2026-11-25')]));
-      expect(find.textContaining('Salary paused since 25 Nov 2026'), findsOneWidget);
-      expect(find.textContaining('count as leave and are not paid'), findsOneWidget);
-    });
-
-    testWidgets('a finished pause shows its dates and how many days were unpaid', (tester) async {
-      await tester.pumpWidget(box(pauses: [const PausePeriod(from: '2026-11-25', to: '2026-11-28')]));
-      expect(find.text('Paused 25 Nov 2026 to 28 Nov 2026 (3 days, not paid)'), findsOneWidget);
-      expect(find.textContaining('Salary paused since'), findsNothing);
-    });
   });
 
   group('SalaryDueBanner with leave (caregiver)', () {
@@ -164,21 +152,6 @@ void main() {
       expect(find.text('for 12 working days'), findsOneWidget);
       expect(find.text('₹1,000/day × 12 days = ₹12,000'), findsOneWidget);
       expect(find.text('On leave (2 of 14 days): Tue 24 Nov, Wed 25 Nov'), findsOneWidget);
-    });
-
-    testWidgets('says when salary is paused', (tester) async {
-      final due = nextSalaryDue(
-        salary: 1000,
-        unit: 'daily',
-        startDate: '2026-11-18',
-        today: today,
-        pauses: [const PausePeriod(from: '2026-11-25')],
-      )!;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: SalaryDueBanner(entries: [SalaryDueEntry(label: 'X', due: due)], caption: 'c')),
-      ));
-      expect(find.text('Salary paused since 25 Nov 2026'), findsOneWidget);
-      expect(find.text('₹7,000'), findsOneWidget);
     });
 
     testWidgets('a long run of leave is shortened to six days plus a count', (tester) async {

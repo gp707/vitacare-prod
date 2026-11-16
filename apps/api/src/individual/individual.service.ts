@@ -23,6 +23,9 @@ import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { SetAgreementDto } from './dto/set-agreement.dto';
 import { MarkLeaveDto } from './dto/mark-leave.dto';
+import { MarkCyclePaidDto } from './dto/mark-cycle-paid.dto';
+import { SalaryCyclesService } from '../jobs/salary-cycles.service';
+import { SalaryCyclePaymentsRepository } from '../database/repositories/salary-cycle-payments.repository';
 import { JobApplicationLeavesRepository } from '../database/repositories/job-application-leaves.repository';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
@@ -43,6 +46,8 @@ export class IndividualService {
     private readonly fcmService: FcmService,
     private readonly notificationsService: NotificationsService,
     private readonly leavesRepo: JobApplicationLeavesRepository,
+    private readonly salaryCycles: SalaryCyclesService,
+    private readonly salaryPaymentsRepo: SalaryCyclePaymentsRepository,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -739,30 +744,62 @@ export class IndividualService {
     return { message: 'Leave cancelled', ...(await this.leavesRepo.getState(applicationId)) };
   }
 
-  /** Pauses salary from today (IST). Every day from then until it is resumed
-   *  counts as leave. JOB_026 when it is already paused. */
-  async pauseSalary(userId: string, jobId: string, applicationId: string, ipAddress: string | null) {
-    const { job, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
-    const from = IndividualService.istDay();
-    if (!(await this.leavesRepo.openPause(applicationId, from))) throw new AppException('JOB_026');
-    if (caregiver) {
-      void this.notificationsService.leaveChanged(caregiver.user_id, { kind: 'paused', displayId: jobDisplayId(job), from });
-    }
-    await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'salary_paused', from }, ipAddress);
-    return { message: 'Salary paused', ...(await this.leavesRepo.getState(applicationId)) };
+  // ── Salary cycles: the cycle-by-cycle record and "mark as paid" ──────────
+
+  /** Every salary cycle of this caregiver on this job, newest first: paid ones as
+   *  they were frozen, plus (while still accepted) the unpaid ones worked out now. */
+  async listSalaryCycles(userId: string, jobId: string, applicationId: string) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    const application = await this.jobApplicationsRepo.findById(applicationId);
+    if (!application || application.job_id !== jobId) throw new AppException('JOB_006');
+    return { cycles: await this.salaryCycles.listForApplication(application) };
   }
 
-  /** Resumes salary from today (IST): today is a working day again. JOB_027
-   *  when salary was not paused. */
-  async resumeSalary(userId: string, jobId: string, applicationId: string, ipAddress: string | null) {
-    const { job, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
-    const on = IndividualService.istDay();
-    if (!(await this.leavesRepo.closePause(applicationId, on))) throw new AppException('JOB_027');
-    if (caregiver) {
-      void this.notificationsService.leaveChanged(caregiver.user_id, { kind: 'resumed', displayId: jobDisplayId(job), on });
+  /** Marks one ended cycle as paid: freezes its dates, rate, leave days, days
+   *  worked and amount with the payment date (default today, IST), and tells the
+   *  caregiver. JOB_033 = no such ended cycle, JOB_034 = already paid, JOB_035 =
+   *  payment date in the future or before the cycle began. */
+  async markSalaryCyclePaid(
+    userId: string,
+    jobId: string,
+    applicationId: string,
+    cycleStart: string,
+    dto: MarkCyclePaidDto,
+    ipAddress: string | null,
+  ) {
+    const { job, application, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
+    if (!IndividualService.isRealDate(cycleStart)) throw new AppException('GEN_001');
+    const today = IndividualService.istDay();
+    const cycles = await this.salaryCycles.listForApplication(application);
+    const cycle = cycles.find((c) => c.cycle_start === cycleStart);
+    if (!cycle || cycle.status === 'current') throw new AppException('JOB_033');
+    if (cycle.status === 'paid') throw new AppException('JOB_034');
+    const paidOn = dto.paid_on ?? today;
+    if (!IndividualService.isRealDate(paidOn) || paidOn > today || paidOn < cycle.cycle_start) {
+      throw new AppException('JOB_035');
     }
-    await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'salary_resumed', on }, ipAddress);
-    return { message: 'Salary resumed', ...(await this.leavesRepo.getState(applicationId)) };
+    const saved = await this.salaryPaymentsRepo.insert(applicationId, { ...cycle, paid_on: paidOn }, userId);
+    if (!saved) throw new AppException('JOB_034');
+    if (caregiver) {
+      void this.notificationsService.salaryCyclePaid(caregiver.user_id, {
+        displayId: jobDisplayId(job),
+        cycleStart: cycle.cycle_start,
+        cycleEnd: cycle.cycle_end,
+        amount: cycle.amount,
+        paidOn,
+      });
+    }
+    await this.auditService.log({
+      userId,
+      targetUserId: caregiver?.user_id,
+      action: AuditAction.JOB_SALARY_PAID,
+      entityType: 'job_applications',
+      entityId: applicationId,
+      afterValue: { cycle_start: cycle.cycle_start, cycle_end: cycle.cycle_end, amount: cycle.amount, paid_on: paidOn },
+      ipAddress,
+    });
+    return { message: 'Salary marked as paid', cycles: await this.salaryCycles.listForApplication(application) };
   }
 
   /** The popup shown to the patient/family right after they accept a

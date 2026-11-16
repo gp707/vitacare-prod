@@ -10,7 +10,7 @@ import 'agreement_dialog.dart';
 import 'leave_days_dialog.dart';
 
 /// The actions a patient can take on one caregiver's salary: the agreed salary and
-/// start date, leave days, and pausing salary. Used by the main screen (the popup
+/// cycle start date, leave days and marking cycles paid. Used by the main screen (the popup
 /// right after accepting) and by the caregiver's own salary page. Each returns true
 /// when it changed something, so the caller knows to reload.
 
@@ -41,7 +41,7 @@ Future<bool> openAgreementFlow(
   return saved;
 }
 
-/// Runs one leave/pause call; a server error is shown as a banner.
+/// Runs one leave call; a server error is shown as a banner.
 Future<bool> _run(BuildContext context, Future<void> Function() action, String successMessage) async {
   try {
     await action();
@@ -129,37 +129,32 @@ Future<bool> cancelLeaveFlow(
   );
 }
 
-Future<bool> pauseSalaryFlow(
+/// Marks one ended cycle as paid. The date picker doubles as the confirmation: it
+/// starts on today, can go back to the first day of the cycle, never forward.
+Future<bool> markCyclePaidFlow(
   BuildContext context,
   WidgetRef ref, {
   required String jobId,
   required JobApplicationModel application,
+  required SalaryCycleModel cycle,
 }) async {
-  final ok = await _confirm(
-    context,
-    'Pause salary?',
-    'From today until you resume, every day counts as leave and is not paid. '
-        '${application.fullName} will be told.',
-    'Pause salary',
+  Analytics.tap('individual', 'requirement_posted', 'mark_cycle_paid');
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final start = DateTime.tryParse(cycle.cycleStart) ?? today;
+  final first = DateTime(start.year, start.month, start.day);
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: today,
+    firstDate: first.isAfter(today) ? today : first,
+    lastDate: today,
+    helpText: 'Date \u20b9${formatRupees(cycle.amount)} was paid',
+    confirmText: 'Mark as paid',
   );
-  if (!ok || !context.mounted) return false;
-  Analytics.tap('individual', 'requirement_posted', 'pause_salary');
-  return _run(context, () => _repo(ref).pauseSalary(jobId, application.id), 'Salary paused.');
-}
-
-Future<bool> resumeSalaryFlow(
-  BuildContext context,
-  WidgetRef ref, {
-  required String jobId,
-  required JobApplicationModel application,
-}) async {
-  final ok = await _confirm(
+  if (picked == null || !context.mounted) return false;
+  return _run(
     context,
-    'Resume salary?',
-    'Today counts as a working day again. ${application.fullName} will be told.',
-    'Resume salary',
+    () => _repo(ref).markSalaryCyclePaid(jobId, application.id, cycle.cycleStart, toIsoDate(picked)),
+    'Marked as paid. ${application.fullName} will be told.',
   );
-  if (!ok || !context.mounted) return false;
-  Analytics.tap('individual', 'requirement_posted', 'resume_salary');
-  return _run(context, () => _repo(ref).resumeSalary(jobId, application.id), 'Salary resumed.');
 }

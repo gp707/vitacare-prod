@@ -37,7 +37,6 @@ class CaregiverSummaryCard extends StatelessWidget {
         unit: application.agreedSalaryUnit ?? defaultUnit,
         startDate: application.agreedStartDate,
         leaveDates: application.leaveDates,
-        pauses: application.pauses,
       );
 
   @override
@@ -113,7 +112,7 @@ class CaregiverSummaryCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title, color: AppColors.success),
             ),
             Text(
-              started ? 'Working since ${formatLongDate(startDate)}' : 'Starts ${formatLongDate(startDate)}',
+              started ? 'Cycle started ${formatLongDate(startDate)}' : 'Cycle starts ${formatLongDate(startDate)}',
               key: Key('card-start-${application.id}'),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
@@ -136,7 +135,7 @@ class CaregiverSummaryCard extends StatelessWidget {
                 children: [
                   const Text('Salary not set yet', style: TextStyle(fontWeight: FontWeight.bold)),
                   const Text(
-                    'Agree the salary and start date with this caregiver, then add them here.',
+                    'Agree the salary and cycle start date with this caregiver, then add them here.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.xs),
@@ -144,7 +143,7 @@ class CaregiverSummaryCard extends StatelessWidget {
                     key: Key('card-add-agreement-${application.id}'),
                     onPressed: onAddAgreement,
                     icon: const Icon(Icons.handshake_outlined, size: 16),
-                    label: const Text('Add agreed salary & start date'),
+                    label: const Text('Add agreed salary & cycle start date'),
                   ),
                 ],
               ),
@@ -259,15 +258,6 @@ class _NextSalary extends StatelessWidget {
               ),
             ],
           ),
-          if (due.isPaused && due.pausedFrom != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            _Tag(
-              key: const Key('card-paused-tag'),
-              icon: Icons.pause_circle_outline,
-              text: 'Salary paused since ${formatLongDate(toIsoDate(due.pausedFrom!))}',
-              color: Colors.red.shade800,
-            ),
-          ],
           if (hasLeave) ...[
             const SizedBox(height: AppSpacing.xs),
             _Tag(

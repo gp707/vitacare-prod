@@ -532,6 +532,25 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **The agreed-salary popup is a bottom sheet, not a centred dialog.** `showAgreementDialog` uses `showModalBottomSheet(isScrollControlled: true)` with the
   sheet padded by `MediaQuery.viewInsets.bottom` and scrollable, so the on-screen (number) keyboard never covers the salary field or Save. The salary page's
   button reads "Edit salary and start date" (or "Add agreed salary & start date" when none).
+- **Pause salary was removed (2026-11-16); "start date" is now the "cycle start date".** (SUPERSEDES every mention of pause/resume above.) The salary page, caregiver
+  card, banners and caregiver-app no longer offer or show a salary pause; `POST .../pause` and `.../resume`, `IndividualService.pauseSalary/resumeSalary`, the
+  `salaryPaused`/`salaryResumed` pushes and `PausePeriod` (shared Dart) are gone, and `nextSalaryDue` only subtracts marked leave days. Leave days stay. Left in place
+  on purpose: the `job_application_pauses` table (2 old closed rows, none open), `pausesSql`/`closeOpenPause` (harmless; the API may still return `pauses`, apps ignore it)
+  and error codes JOB_026/027 (unused). Older app builds that still show Pause get a 404 from the removed endpoints. The agreed "start date" is labelled **Cycle start date**
+  everywhere (agreement sheet, salary page, cards, caregiver's Agreed box): salary is due every 14 days from it, as a rolling window the patient can change any time
+  ("Edit salary and cycle start date"); the field/API names (`agreed_start_date`) are unchanged.
+- **Salary cycle history and "Mark as paid" (migration 095 — written, validated in a rolled-back transaction, NOT yet applied to prod; apply before deploying this backend).**
+  Every 14-day cycle from the **cycle start date** is a record: dates, rate, leave days inside it, days worked, amount, and paid/due/current. `salary_cycle_payments`
+  holds only **paid** cycles, frozen at the moment the patient marks them paid (own rate + leave snapshot, so later rate/start-date/leave edits never rewrite history);
+  unpaid cycles are worked out on the fly by `apps/api/src/common/salary-cycles.ts` (`listSalaryCycles`) from the current agreement — the one server-side copy of the
+  cycle maths (the apps' "next salary due" banner uses `salary_due.dart`). Cycle k covers start+14k .. +13 (inclusive), due the day after it ends; a cycle overlapping a paid
+  one is skipped, so moving the start date never duplicates history. Only an `accepted` caregiver gets unpaid cycles; a rejected/closed one keeps just the paid record.
+  `SalaryCyclesService` (`jobs/`) is shared by both sides. Endpoints: patient `GET /individual/requirements/:jobId/applications/:applicationId/salary-cycles` and
+  `POST .../salary-cycles/:cycleStart/paid` (`MarkCyclePaidDto { paid_on? }`, default today IST; `JOB_033` not an ended cycle, `JOB_034` already paid, `JOB_035` bad payment date;
+  audit `job_salary_paid`, which migration 095 adds to the `audit_logs.action` CHECK); caregiver `GET /caregiver/jobs/:id/salary-cycles`. Marking paid pushes the caregiver
+  ("Salary paid", `salaryPaid` template, opens MyJobs). No "undo paid" yet. A past unpaid cycle uses today's rate, not the rate at that time (only paid cycles freeze it).
+  Patient: `SalaryHistoryCard` on `CaregiverSalaryScreen` (due cycles get **Mark as paid**, a date picker defaulting to today); caregiver: collapsible `SalaryHistory` under
+  the Agreed box on MyJobs (read-only). `SalaryCycleModel` is in `vitacare_shared/salary_due.dart`; `SalaryCycleTile` is duplicated per tree.
 - **WhatsApp next to every caregiver phone number (patient and organisation flows).** `PhoneContactRow` (`widgets/call_tap.dart`) shows the number (tap =
   `tel:` dialer) and a green **WhatsApp** chip (`WhatsAppTap`, opens `https://wa.me/<digits with country code>` through `phoneLauncherProvider`; if it can't
   open, a banner shows the number to message by hand). Used on the patient's accepted-caregiver card, candidate tiles, the caregiver salary page header,

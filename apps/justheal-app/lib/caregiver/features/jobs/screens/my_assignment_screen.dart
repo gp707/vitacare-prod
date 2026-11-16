@@ -17,6 +17,7 @@ import '../../../app/tab_back_scope.dart';
 import '../widgets/job_progress_stepper.dart';
 import '../widgets/job_status_chip.dart';
 import '../widgets/salary_due_banner.dart';
+import '../widgets/salary_history.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
 /// "My Jobs" — every job/requirement this caregiver has ever gone for,
@@ -350,7 +351,6 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         unit: application?.agreedSalaryUnit ?? (job.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
         startDate: application?.agreedStartDate,
         leaveDates: application?.leaveDates ?? const [],
-        pauses: application?.pauses ?? const [],
       );
       if (due != null) entries.add(SalaryDueEntry(label: jobDisplayId(job), due: due));
     }
@@ -362,7 +362,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     final salary = application?.agreedSalary;
     final startDate = application?.agreedStartDate;
     if (salary == null || startDate == null) return null;
-    return AgreedTermsBox(
+    final box = AgreedTermsBox(
       salary: salary,
       perUnit: switch (application?.agreedSalaryUnit) {
         'daily' => 'day',
@@ -371,7 +371,17 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       },
       startDate: startDate,
       leaveDates: application?.leaveDates ?? const [],
-      pauses: application?.pauses ?? const [],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        box,
+        const SizedBox(height: AppSpacing.sm),
+        SalaryHistory(
+          key: Key('salary-history-${job.id}'),
+          load: () => ref.read(jobsRepositoryProvider).getSalaryCycles(job.id),
+        ),
+      ],
     );
   }
 

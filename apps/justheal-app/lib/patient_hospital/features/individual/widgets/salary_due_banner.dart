@@ -80,7 +80,7 @@ class _EntryLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final due = entry.due;
-    // The working is done on the days actually worked: leave and paused days earn nothing.
+    // The working is done on the days actually worked: leave days earn nothing.
     final rateText = due.unit == 'daily'
         ? '₹${formatRupees(due.rate)}/day × ${due.workedDays} days'
         : '₹${formatRupees(due.rate)}/month × ${due.workedDays} ÷ $salaryMonthDays days';
@@ -129,15 +129,6 @@ class _EntryLines extends StatelessWidget {
               // How it was worked out, ending in the same figure.
               Text('$rateText = ₹${formatRupees(due.amount)}',
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
-              if (due.isPaused && due.pausedFrom != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
-                  child: Text(
-                    'Salary paused since ${formatLongDate(toIsoDate(due.pausedFrom!))}',
-                    key: const Key('salary-paused-note'),
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade800),
-                  ),
-                ),
               if (hasLeave)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),

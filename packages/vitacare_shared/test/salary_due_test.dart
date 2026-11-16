@@ -5,6 +5,7 @@ DateTime d(int y, int m, int day) => DateTime(y, m, day, 15, 30); // time of day
 
 void main() {
   leaveTests();
+  salaryCycleTests();
   group('salaryForPeriod', () {
     test('a daily rate is paid for 14 days', () {
       expect(salaryForPeriod(rate: 1000, unit: 'daily'), 14000);
@@ -99,16 +100,15 @@ void main() {
 void leaveTests() {
   DateTime day(int y, int m, int d) => DateTime(y, m, d, 12);
 
-  group('nextSalaryDue with leave days and pauses', () {
+  group('nextSalaryDue with leave days', () {
     // Start 2026-11-18: first period covers 18 Nov .. 1 Dec (14 days), due 2 Dec.
-    SalaryDue due({List<String> leave = const [], List<PausePeriod> pauses = const [], String unit = 'daily', int rate = 1000, DateTime? today}) =>
+    SalaryDue due({List<String> leave = const [], String unit = 'daily', int rate = 1000, DateTime? today}) =>
         nextSalaryDue(
           salary: rate,
           unit: unit,
           startDate: '2026-11-18',
           today: today ?? day(2026, 11, 20),
           leaveDates: leave,
-          pauses: pauses,
         )!;
 
     test('with no leave, nothing changes', () {
@@ -116,7 +116,6 @@ void leaveTests() {
       expect(d.workedDays, 14);
       expect(d.leaveDays, isEmpty);
       expect(d.amount, 14000);
-      expect(d.isPaused, isFalse);
     });
 
     test('a daily rate is paid only for the days worked', () {
@@ -142,49 +141,6 @@ void leaveTests() {
       final d = due(leave: ['2026-11-26', '2026-11-24', '2026-11-24']);
       expect(d.leaveDays.map((x) => x.day).toList(), [24, 26]);
     });
-
-    test('an open pause makes every day from then to the end of the period leave', () {
-      // Paused on 25 Nov: 18..24 Nov worked = 7 days, 25 Nov..1 Dec = 7 days leave.
-      final d = due(pauses: [const PausePeriod(from: '2026-11-25')]);
-      expect(d.isPaused, isTrue);
-      expect(d.pausedFrom, DateTime.utc(2026, 11, 25));
-      expect(d.workedDays, 7);
-      expect(d.amount, 7000);
-    });
-
-    test('a resumed pause only covers the days it was on, the resume day is a working day', () {
-      // Paused 25 Nov, resumed 28 Nov: 25, 26, 27 Nov are leave.
-      final d = due(pauses: [const PausePeriod(from: '2026-11-25', to: '2026-11-28')]);
-      expect(d.isPaused, isFalse);
-      expect(d.leaveDays.map((x) => x.day).toList(), [25, 26, 27]);
-      expect(d.workedDays, 11);
-    });
-
-    test('a day that is both marked as leave and inside a pause counts once', () {
-      final d = due(leave: ['2026-11-26'], pauses: [const PausePeriod(from: '2026-11-25', to: '2026-11-28')]);
-      expect(d.leaveDays.length, 3);
-      expect(d.workedDays, 11);
-    });
-
-    test('a pause that started in an earlier period and is still open leaves nothing payable', () {
-      final d = nextSalaryDue(
-        salary: 1000,
-        unit: 'daily',
-        startDate: '2026-11-18',
-        today: day(2026, 12, 10),
-        pauses: [const PausePeriod(from: '2026-11-25')],
-      )!;
-      // This period is 2 Dec..15 Dec, entirely inside the open pause.
-      expect(d.workedDays, 0);
-      expect(d.amount, 0);
-      expect(d.isPaused, isTrue);
-    });
-
-    test('a pause that starts after this period does not affect it', () {
-      final d = due(pauses: [const PausePeriod(from: '2026-12-10')]);
-      expect(d.workedDays, 14);
-      expect(d.isPaused, isTrue);
-    });
   });
 
   group('helpers', () {
@@ -196,18 +152,44 @@ void leaveTests() {
     test('isoDatesBetween crosses a month end', () {
       expect(isoDatesBetween(DateTime(2026, 11, 29), DateTime(2026, 12, 2)).length, 4);
     });
-    test('PausePeriod.covers treats the resume day as a working day', () {
-      const p = PausePeriod(from: '2026-11-25', to: '2026-11-28');
-      expect(p.covers('2026-11-24'), isFalse);
-      expect(p.covers('2026-11-25'), isTrue);
-      expect(p.covers('2026-11-27'), isTrue);
-      expect(p.covers('2026-11-28'), isFalse);
-    });
     test('parsers are tolerant of missing data', () {
       expect(parseLeaveDates(null), isEmpty);
       expect(parseLeaveDates(['2026-11-26', '2026-11-24']), ['2026-11-24', '2026-11-26']);
-      expect(parsePauses(null), isEmpty);
-      expect(parsePauses([{'from': '2026-11-25', 'to': null}]).single.isOpen, isTrue);
+    });
+  });
+}
+
+void salaryCycleTests() {
+  group('SalaryCycleModel', () {
+    test('reads the API shape and its status helpers', () {
+      final c = SalaryCycleModel.fromJson({
+        'cycle_start': '2026-11-18',
+        'cycle_end': '2026-12-01',
+        'rate': 1000,
+        'rate_unit': 'daily',
+        'leave_dates': ['2026-11-25', '2026-11-24'],
+        'worked_days': 12,
+        'amount': 12000,
+        'status': 'paid',
+        'paid_on': '2026-12-02',
+      });
+      expect(c.isPaid, isTrue);
+      expect(c.isDue, isFalse);
+      expect(c.leaveDates, ['2026-11-24', '2026-11-25']);
+      expect(c.paidOn, '2026-12-02');
+    });
+
+    test('spells out the calculation for a day rate and a month rate', () {
+      const daily = SalaryCycleModel(cycleStart: 'a', cycleEnd: 'b', rate: 1000, unit: 'daily', workedDays: 12, amount: 12000, status: 'due');
+      const monthly = SalaryCycleModel(cycleStart: 'a', cycleEnd: 'b', rate: 30000, unit: 'monthly', workedDays: 12, amount: 12000, status: 'current');
+      expect(daily.calculation, '₹1,000/day × 12 days = ₹12,000');
+      expect(monthly.calculation, '₹30,000/month × 12 ÷ 30 days = ₹12,000');
+      expect(monthly.isCurrent, isTrue);
+    });
+
+    test('parseSalaryCycles tolerates missing data', () {
+      expect(parseSalaryCycles(null), isEmpty);
+      expect(parseSalaryCycles([]), isEmpty);
     });
   });
 }

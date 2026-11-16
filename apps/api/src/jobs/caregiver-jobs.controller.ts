@@ -7,6 +7,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientIp } from '../common/decorators/client-ip.decorator';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { JobsService } from './jobs.service';
+import { SalaryCyclesService } from './salary-cycles.service';
 import { ListCaregiverJobsQueryDto } from './dto/list-caregiver-jobs-query.dto';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { CompleteJobDto } from './dto/complete-job.dto';
@@ -15,7 +16,10 @@ import { CompleteJobDto } from './dto/complete-job.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.CAREGIVER)
 export class CaregiverJobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly salaryCyclesService: SalaryCyclesService,
+  ) {}
 
   // Viewable at any verification status — browsing motivates onboarding.
   // Only applying is gated (see apply()).
@@ -37,6 +41,13 @@ export class CaregiverJobsController {
   @Get('history')
   getHistory(@CurrentUser() user: JwtPayload) {
     return this.jobsService.listMyJobHistory(user.sub);
+  }
+
+  // The caregiver's own cycle-by-cycle salary record for one job: every cycle
+  // (paid ones frozen as they were, plus unpaid ones worked out now).
+  @Get(':id/salary-cycles')
+  getSalaryCycles(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.salaryCyclesService.listForCaregiver(user.sub, id);
   }
 
   @Post(':id/apply')

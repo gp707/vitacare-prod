@@ -5,7 +5,7 @@
 ///   * per month: rate x 14 / 30 (a fixed 30-day month, so the figure is the same
 ///                every cycle and easy to explain to both sides)
 ///
-/// Leave days and pauses (set by the patient) reduce the days worked in the
+/// Leave days (set by the patient) reduce the days worked in the
 /// period, and the pay with them: a per-day rate is paid for the days worked, a
 /// per-month rate for `worked ÷ 30` of the month.
 ///
@@ -14,31 +14,9 @@
 const int salaryPeriodDays = 14;
 const int salaryMonthDays = 30;
 
-/// A stretch of paused salary: every day from [from] until [to] (exclusive — the
-/// day it was resumed is a working day) counts as leave. [to] is null while the
-/// salary is still paused. Dates are the API's YYYY-MM-DD.
-class PausePeriod {
-  final String from;
-  final String? to;
-  const PausePeriod({required this.from, this.to});
-
-  factory PausePeriod.fromJson(Map<String, dynamic> json) =>
-      PausePeriod(from: json['from'] as String, to: json['to'] as String?);
-
-  bool get isOpen => to == null;
-
-  /// Whether [day] (YYYY-MM-DD) falls in this pause.
-  bool covers(String day) => day.compareTo(from) >= 0 && (to == null || day.compareTo(to!) < 0);
-}
-
 /// Parses the API's `leave_dates` (a list of YYYY-MM-DD) tolerantly.
 List<String> parseLeaveDates(Object? json) =>
     json is List ? (json.map((e) => e.toString()).toList()..sort()) : const <String>[];
-
-/// Parses the API's `pauses` (a list of {from, to}) tolerantly.
-List<PausePeriod> parsePauses(Object? json) => json is List
-    ? json.map((e) => PausePeriod.fromJson(e as Map<String, dynamic>)).toList()
-    : const <PausePeriod>[];
 
 /// YYYY-MM-DD for a date.
 String toIsoDate(DateTime d) => _iso(d);
@@ -71,15 +49,10 @@ class SalaryDue {
   final String unit;
   /// The first day of the 14-day period this payment covers.
   final DateTime periodStart;
-  /// Days in this period that earn nothing: marked leave plus paused days
-  /// (sorted, each once).
+  /// Days in this period that earn nothing: marked leave (sorted, each once).
   final List<DateTime> leaveDays;
   /// Days actually worked in the period: 14 minus [leaveDays].
   final int workedDays;
-  /// True while salary is paused (a pause with no end yet).
-  final bool isPaused;
-  /// The first day of the open pause, when [isPaused].
-  final DateTime? pausedFrom;
 
   const SalaryDue({
     required this.dueDate,
@@ -90,8 +63,6 @@ class SalaryDue {
     required this.periodStart,
     this.leaveDays = const [],
     this.workedDays = salaryPeriodDays,
-    this.isPaused = false,
-    this.pausedFrom,
   });
 
   bool get isDueToday => daysLeft == 0;
@@ -110,7 +81,6 @@ SalaryDue? nextSalaryDue({
   required String? startDate,
   DateTime? today,
   List<String> leaveDates = const [],
-  List<PausePeriod> pauses = const [],
 }) {
   if (salary == null || salary <= 0 || startDate == null || (unit != 'daily' && unit != 'monthly')) return null;
   final start = DateTime.tryParse(startDate);
@@ -128,17 +98,15 @@ SalaryDue? nextSalaryDue({
   final due = startDay.add(Duration(days: salaryPeriodDays * periods));
   final periodStart = due.subtract(const Duration(days: salaryPeriodDays));
 
-  // Leave days (marked, or inside a pause) in this period earn nothing.
+  // Leave days in this period earn nothing.
   final marked = leaveDates.toSet();
   final leaveDays = <DateTime>[];
   for (var i = 0; i < salaryPeriodDays; i++) {
     final day = periodStart.add(Duration(days: i));
     final iso = _iso(day);
-    if (marked.contains(iso) || pauses.any((p) => p.covers(iso))) leaveDays.add(day);
+    if (marked.contains(iso)) leaveDays.add(day);
   }
   final worked = salaryPeriodDays - leaveDays.length;
-  final openPause = pauses.where((p) => p.isOpen).toList();
-  final pausedFrom = openPause.isEmpty ? null : DateTime.tryParse(openPause.first.from);
   return SalaryDue(
     dueDate: due,
     daysLeft: due.difference(todayDay).inDays,
@@ -148,8 +116,6 @@ SalaryDue? nextSalaryDue({
     periodStart: periodStart,
     leaveDays: leaveDays,
     workedDays: worked,
-    isPaused: openPause.isNotEmpty,
-    pausedFrom: pausedFrom == null ? null : DateTime.utc(pausedFrom.year, pausedFrom.month, pausedFrom.day),
   );
 }
 
@@ -194,3 +160,61 @@ String formatLongDate(String isoDate) {
 /// "today", "tomorrow" or "in 12 days".
 String dueInWords(int daysLeft) =>
     daysLeft <= 0 ? 'today' : (daysLeft == 1 ? 'tomorrow' : 'in $daysLeft days');
+
+/// One 14-day salary cycle of a caregiver on a job, as the API's salary-cycles
+/// endpoints return it (newest first). A paid cycle is frozen exactly as it was
+/// when the family marked it paid (its own rate and leave days); the others are
+/// worked out from the current agreement.
+class SalaryCycleModel {
+  /// First and last day of the cycle (YYYY-MM-DD, both inclusive).
+  final String cycleStart;
+  final String cycleEnd;
+  final int rate;
+  /// 'daily' or 'monthly'.
+  final String unit;
+  final List<String> leaveDates;
+  final int workedDays;
+  final int amount;
+  /// 'paid', 'due' (ended, not yet paid) or 'current' (still running).
+  final String status;
+  /// The day it was paid (YYYY-MM-DD) when [status] is 'paid'.
+  final String? paidOn;
+
+  const SalaryCycleModel({
+    required this.cycleStart,
+    required this.cycleEnd,
+    required this.rate,
+    required this.unit,
+    this.leaveDates = const [],
+    required this.workedDays,
+    required this.amount,
+    required this.status,
+    this.paidOn,
+  });
+
+  bool get isPaid => status == 'paid';
+  bool get isDue => status == 'due';
+  bool get isCurrent => status == 'current';
+
+  factory SalaryCycleModel.fromJson(Map<String, dynamic> json) => SalaryCycleModel(
+        cycleStart: json['cycle_start'] as String,
+        cycleEnd: json['cycle_end'] as String,
+        rate: (json['rate'] as num).toInt(),
+        unit: json['rate_unit'] as String,
+        leaveDates: parseLeaveDates(json['leave_dates']),
+        workedDays: (json['worked_days'] as num).toInt(),
+        amount: (json['amount'] as num).toInt(),
+        status: json['status'] as String,
+        paidOn: json['paid_on'] as String?,
+      );
+
+  /// "₹1,000/day × 12 days = ₹12,000" or "₹30,000/month × 12 ÷ 30 days = ₹12,000".
+  String get calculation => unit == 'daily'
+      ? '₹${formatRupees(rate)}/day × $workedDays days = ₹${formatRupees(amount)}'
+      : '₹${formatRupees(rate)}/month × $workedDays ÷ $salaryMonthDays days = ₹${formatRupees(amount)}';
+}
+
+/// Parses the API's `cycles` list tolerantly.
+List<SalaryCycleModel> parseSalaryCycles(Object? json) => json is List
+    ? json.map((e) => SalaryCycleModel.fromJson(e as Map<String, dynamic>)).toList()
+    : const <SalaryCycleModel>[];

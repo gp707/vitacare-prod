@@ -51,32 +51,6 @@ export class JobApplicationLeavesRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  /** Starts a pause on [from]. False when one is already open. */
-  async openPause(applicationId: string, from: string): Promise<boolean> {
-    const result = await this.db.query(
-      `INSERT INTO job_application_pauses (application_id, paused_from)
-       SELECT $1, $2::date
-       WHERE NOT EXISTS (SELECT 1 FROM job_application_pauses WHERE application_id = $1 AND resumed_on IS NULL)
-       ON CONFLICT DO NOTHING
-       RETURNING id`,
-      [applicationId, from],
-    );
-    return (result.rowCount ?? 0) > 0;
-  }
-
-  /** Ends the open pause on [on] (that day is a working day again). False when
-   *  nothing was paused. */
-  async closePause(applicationId: string, on: string): Promise<boolean> {
-    const result = await this.db.query(
-      `UPDATE job_application_pauses
-       SET resumed_on = GREATEST($2::date, paused_from)
-       WHERE application_id = $1 AND resumed_on IS NULL
-       RETURNING id`,
-      [applicationId, on],
-    );
-    return (result.rowCount ?? 0) > 0;
-  }
-
   async getState(applicationId: string): Promise<LeaveState> {
     const result = await this.db.query<LeaveState>(
       `SELECT ${leaveDatesSql('ja')} AS leave_dates, ${pausesSql('ja')} AS pauses

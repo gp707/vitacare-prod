@@ -43,6 +43,16 @@ class JobsRepository {
     }
   }
 
+  /// This caregiver's cycle-by-cycle salary record for one job, newest first.
+  Future<List<SalaryCycleModel>> getSalaryCycles(String jobId) async {
+    try {
+      final res = await _dio.get(ApiRoutes.caregiverJobSalaryCycles(jobId));
+      return parseSalaryCycles((res.data['data'] as Map<String, dynamic>)['cycles']);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Every application this caregiver has ever made, regardless of the
   /// job's current status — unlike listActiveJobs (active jobs only) and
   /// getAssignedJobs (accepted/completed only), this is the only call that

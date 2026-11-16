@@ -525,6 +525,7 @@ class AuditAction {
   static const errorLogResolved = 'error_log_resolved';
   static const jobAgreementSet = 'job_agreement_set';
   static const jobLeaveUpdated = 'job_leave_updated';
+  static const jobSalaryPaid = 'job_salary_paid';
 
   static const all = [
     registration,
@@ -579,6 +580,7 @@ class AuditAction {
     errorLogResolved,
     jobAgreementSet,
     jobLeaveUpdated,
+    jobSalaryPaid,
   ];
 }
 

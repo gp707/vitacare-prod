@@ -8,14 +8,15 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/call_tap.dart';
 import '../widgets/salary_actions.dart';
+import '../widgets/salary_history_card.dart';
 import '../widgets/salary_due_banner.dart';
 
 /// One caregiver's salary and leave: what was agreed, the next salary due, the
-/// days marked as leave and any pause. Opened from the caregiver's tile on the
+/// days marked as leave. Opened from the caregiver's tile on the
 /// requirement screen.
 ///
 /// For the caregiver currently on the job everything can be changed here (edit the
-/// agreement, mark or cancel leave days, pause or resume salary). For one who is no
+/// agreement, mark or cancel leave days). For one who is no
 /// longer on the job (rejected, or closed duty) the same details stay as a read-only
 /// record of what was agreed.
 class CaregiverSalaryScreen extends ConsumerStatefulWidget {
@@ -30,6 +31,7 @@ class CaregiverSalaryScreen extends ConsumerStatefulWidget {
 
 class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
   JobApplicationModel? _application;
+  List<SalaryCycleModel> _cycles = const [];
   bool _loading = true;
   String? _error;
 
@@ -43,9 +45,17 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
     try {
       final applications = await ref.read(individualRepositoryProvider).listApplications(widget.requirement.id);
       final match = applications.where((a) => a.id == widget.applicationId).firstOrNull;
+      var cycles = const <SalaryCycleModel>[];
+      if (match != null && match.agreedSalary != null) {
+        // The history is extra: if it can't be loaded the rest of the page still works.
+        try {
+          cycles = await ref.read(individualRepositoryProvider).getSalaryCycles(widget.requirement.id, match.id);
+        } on ApiException catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _application = match;
+          _cycles = cycles;
           _error = match == null ? 'This caregiver could not be found.' : null;
         });
       }
@@ -106,6 +116,16 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
                         if (application.agreedSalary != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           _leaveCard(application),
+                        ],
+                        if (application.agreedSalary != null || _cycles.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          SalaryHistoryCard(
+                            cycles: _cycles,
+                            onMarkPaid: _isAccepted
+                                ? (cycle) => _act((a) => markCyclePaidFlow(context, ref,
+                                    jobId: _jobId, application: a, cycle: cycle))
+                                : null,
+                          ),
                         ],
                       ],
                     ),
@@ -168,7 +188,7 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
             key: const Key('agreed-salary'),
             style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold, color: AppColors.success),
           ),
-          Text('Starts ${formatLongDate(startDate)}', key: const Key('agreed-start')),
+          Text('Cycle starts ${formatLongDate(startDate)}', key: const Key('agreed-start')),
         ] else
           Text(
             _isAccepted ? 'No salary has been agreed yet.' : 'No salary was agreed with this caregiver.',
@@ -183,7 +203,7 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
               (a) => openAgreementFlow(context, ref, jobId: _jobId, requirement: widget.requirement, application: a),
             ),
             icon: Icon(has ? Icons.edit_outlined : Icons.add, size: 18),
-            label: Text(has ? 'Edit salary and start date' : 'Add agreed salary & start date'),
+            label: Text(has ? 'Edit salary and cycle start date' : 'Add agreed salary & cycle start date'),
           ),
         ],
       ],
@@ -199,7 +219,6 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
           (widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
       startDate: application.agreedStartDate,
       leaveDates: application.leaveDates,
-      pauses: application.pauses,
     );
     if (due == null) return const SizedBox.shrink();
     return SalaryDueBanner(
@@ -209,33 +228,13 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
     );
   }
 
-  // ── Leave days and pause ─────────────────────────────────────────────────
+  // ── Leave days ─────────────────────────────────────────────────
 
   Widget _leaveCard(JobApplicationModel application) {
-    final openPauses = application.pauses.where((p) => p.isOpen).toList();
-    final isPaused = openPauses.isNotEmpty;
-    final pastPauses = application.pauses.where((p) => !p.isOpen && p.to != p.from).toList();
     return _Card(
       title: 'Leave days',
       icon: Icons.event_busy_outlined,
       children: [
-        if (isPaused)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            child: Text(
-              'Salary paused since ${formatLongDate(openPauses.first.from)}. Days until you resume count as leave.',
-              key: const Key('paused-note'),
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade800),
-            ),
-          ),
-        for (final pause in pastPauses)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            child: Text(
-              'Paused ${formatLongDate(pause.from)} to ${formatLongDate(pause.to!)}',
-              style: TextStyle(color: Colors.deepOrange.shade800),
-            ),
-          ),
         if (application.leaveDates.isEmpty)
           const Text('No leave days marked.', key: Key('no-leave'), style: TextStyle(color: AppColors.textSecondary))
         else ...[
@@ -266,33 +265,14 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
         ],
         if (_isAccepted) ...[
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('mark-leave'),
-                  onPressed: () => _act((a) => markLeaveFlow(context, ref, jobId: _jobId, application: a)),
-                  icon: const Icon(Icons.event_busy_outlined, size: 18),
-                  label: const Text('Mark leave'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: isPaused
-                    ? FilledButton.icon(
-                        key: const Key('resume-salary'),
-                        onPressed: () => _act((a) => resumeSalaryFlow(context, ref, jobId: _jobId, application: a)),
-                        icon: const Icon(Icons.play_circle_outline, size: 18),
-                        label: const Text('Resume'),
-                      )
-                    : OutlinedButton.icon(
-                        key: const Key('pause-salary'),
-                        onPressed: () => _act((a) => pauseSalaryFlow(context, ref, jobId: _jobId, application: a)),
-                        icon: const Icon(Icons.pause_circle_outline, size: 18),
-                        label: const Text('Pause salary'),
-                      ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const Key('mark-leave'),
+              onPressed: () => _act((a) => markLeaveFlow(context, ref, jobId: _jobId, application: a)),
+              icon: const Icon(Icons.event_busy_outlined, size: 18),
+              label: const Text('Mark leave'),
+            ),
           ),
         ],
       ],

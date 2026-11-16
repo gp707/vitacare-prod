@@ -14,8 +14,7 @@ import {
   applicationAccepted,
   leaveCancelled,
   leaveMarked,
-  salaryPaused,
-  salaryResumed,
+  salaryPaid,
   applicationDeclined,
   caregiverApplied,
   caregiverClosedEngagement,
@@ -171,14 +170,22 @@ export class NotificationsService {
     );
   }
 
-  /** The family changed the caregiver's leave days or paused/resumed salary. */
+  /** The family marked one of the caregiver's salary cycles as paid. */
+  async salaryCyclePaid(
+    caregiverUserId: string,
+    paid: { displayId: string; cycleStart: string; cycleEnd: string; amount: number; paidOn: string },
+  ): Promise<void> {
+    await this.safe('salary paid', () =>
+      this.send(caregiverUserId, salaryPaid(paid.displayId, paid.cycleStart, paid.cycleEnd, paid.amount, paid.paidOn)),
+    );
+  }
+
+  /** The family changed the caregiver's leave days. */
   async leaveChanged(
     caregiverUserId: string,
     change:
       | { kind: 'marked'; displayId: string; dates: string[] }
-      | { kind: 'cancelled'; displayId: string; date: string }
-      | { kind: 'paused'; displayId: string; from: string }
-      | { kind: 'resumed'; displayId: string; on: string },
+      | { kind: 'cancelled'; displayId: string; date: string },
   ): Promise<void> {
     await this.safe('leave changed', () => {
       switch (change.kind) {
@@ -186,10 +193,6 @@ export class NotificationsService {
           return this.send(caregiverUserId, leaveMarked(change.displayId, change.dates));
         case 'cancelled':
           return this.send(caregiverUserId, leaveCancelled(change.displayId, change.date));
-        case 'paused':
-          return this.send(caregiverUserId, salaryPaused(change.displayId, change.from));
-        case 'resumed':
-          return this.send(caregiverUserId, salaryResumed(change.displayId, change.on));
       }
     });
   }
