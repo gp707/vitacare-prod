@@ -166,6 +166,43 @@ export const noApplicantsYet = (displayId: string, forOrganisation: boolean): Pu
         route: PushRoutes.individualHome,
       };
 
+// ── Daily "new caregivers" update ─────────────────────────────────────────
+
+/** Added to the real number of caregivers who joined in the last 24 hours
+ *  before it is shown in the daily push to patients and organisations. This
+ *  is a deliberate product decision (the shown figure is NOT the true count);
+ *  the real and displayed numbers are both recorded in daily_push_claims.detail.
+ *  Set to 0 to show the true number. */
+export const NEW_CAREGIVERS_DISPLAY_BONUS = 4;
+
+export const newCaregiversUpdate = (displayedCount: number, forOrganisation: boolean): PushMessage => {
+  const joined =
+    displayedCount === 1 ? '1 new caregiver joined' : `${displayedCount} new caregivers joined`;
+  return forOrganisation
+    ? {
+        title: 'New caregivers on JustHeal',
+        body: `${joined} in the last 24 hours. Post a requirement to reach them.`,
+        route: PushRoutes.organisationHome,
+      }
+    : {
+        title: 'New caregivers on JustHeal',
+        body: `${joined} in the last 24 hours. Check your requirement to connect with them.`,
+        route: PushRoutes.individualHome,
+      };
+};
+
+/** Daily push to caregivers: how many patients/families really joined in the
+ *  last 24 hours. This is the TRUE count (unlike newCaregiversUpdate) and is
+ *  never sent for 0 — the caller skips the day. */
+export const newPatientsUpdate = (count: number): PushMessage => ({
+  title: 'New patients on JustHeal',
+  body:
+    count === 1
+      ? '1 new patient joined JustHeal in the last 24 hours. Check Find Jobs for new requirements.'
+      : `${count} new patients joined JustHeal in the last 24 hours. Check Find Jobs for new requirements.`,
+  route: PushRoutes.caregiverJobs,
+});
+
 // ── Duty-start reminders ──────────────────────────────────────────────────
 
 export type DutyReminderStage = '2d' | '1d' | '12h';

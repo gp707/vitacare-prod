@@ -208,6 +208,38 @@ export class UsersRepository {
     return result.rows.map((row) => row.fcm_token);
   }
 
+  /** Every device of every active, non-deleted account with this role — used
+   *  by the daily "new caregivers" broadcast to patients/families and
+   *  organisations. */
+  async listFcmTokensByRole(role: string): Promise<string[]> {
+    const result = await this.db.query<{ fcm_token: string }>(
+      `SELECT t.token AS fcm_token FROM user_fcm_tokens t
+       JOIN users u ON u.id = t.user_id
+       WHERE u.role = $1 AND u.is_active = true AND u.deleted_at IS NULL`,
+      [role],
+    );
+    return result.rows.map((row) => row.fcm_token);
+  }
+
+  /** Patient/family (individual) accounts registered at or after [since]
+   *  (deleted ones excluded). */
+  async countIndividualsRegisteredSince(since: Date): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM users WHERE role = 'individual' AND deleted_at IS NULL AND created_at >= $1`,
+      [since],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  /** Caregiver accounts registered at or after [since] (deleted ones excluded). */
+  async countCaregiversRegisteredSince(since: Date): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM users WHERE role = 'caregiver' AND deleted_at IS NULL AND created_at >= $1`,
+      [since],
+    );
+    return Number(result.rows[0].count);
+  }
+
   /** Used by AdminPushNotificationsService to resolve a mixed bag of
    *  caregiver/individual/organisation recipient ids — role-agnostic,
    *  unlike listCaregiverFcmTokens(ByStatus). */

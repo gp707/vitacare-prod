@@ -72,6 +72,33 @@ export class FcmService implements OnModuleInit {
     });
   }
 
+  /** Fire-and-forget broadcast to an explicit token list with a `data.route`.
+   *  Sends in batches of 500 (FCM's multicast limit) and swallows+logs a
+   *  failed batch so one bad batch never stops the rest. Returns how many
+   *  tokens were handed to FCM. */
+  async broadcastToTokens(
+    tokens: string[],
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<number> {
+    let handed = 0;
+    for (let i = 0; i < tokens.length; i += 500) {
+      const batch = tokens.slice(i, i + 500);
+      try {
+        await getMessaging(this.app).sendEachForMulticast({
+          tokens: batch,
+          notification: { title, body },
+          ...(data ? { data } : {}),
+        });
+        handed += batch.length;
+      } catch (error) {
+        this.logger.error('Failed to send broadcast push batch', error);
+      }
+    }
+    return handed;
+  }
+
   /** New-job-posted broadcast (SPEC.md 6.6) — every caregiver who has ever
    *  opened the app gets notified, regardless of verification status
    *  (browsing jobs pre-approval is the point — CLAUDE.md's "motivates
