@@ -454,6 +454,19 @@ location) that didn't fit the Individual/admin jobs-table model.
   optional at the DTO level for exactly that reason; nursenow-app's reject dialog keeps its own
   Confirm button disabled until non-empty text is entered, so the mandatory-reason rule is also
   enforced client-side before the request is even made.
+- **Agreed salary + start date after accepting (patients only, migration 091).** Right after a patient/family accepts a
+  caregiver (which closes the job), nursenow-app's `JobsPostedScreen._accept` opens `showAgreementDialog` (a "Confirm salary and
+  start date" popup with the care-staff-not-house-maids message and exactly 2 fields, Agreed Salary and Start date). Saving calls
+  `PUT /individual/requirements/:jobId/applications/:applicationId/agreement` (`SetAgreementDto`: integer rupees 1-1,000,000 + a
+  YYYY-MM-DD date; `IndividualService.setAgreement`), stored on `job_applications.agreed_salary/agreed_start_date/agreed_at`. The
+  salary unit is NOT sent: it follows the job's `frequency_of_care` (per day / per month). Only while the application is still
+  `accepted` (`JOB_022`, the guard is in the `UPDATE` itself) and the date is today or later in IST (`JOB_023`). It is audit-logged
+  (`AuditAction.JOB_AGREEMENT_SET`, migration 091 widens the `audit_logs.action` CHECK) and pushed to the caregiver
+  (`agreementSet` template, opens MyJobs). **"Fill later"** closes the popup; the accepted candidate's tile then shows an
+  "Add agreed salary & start date" button (and "Edit" once set). Every new decision on an application (`JobApplicationsRepository.decide`
+  - accept or reject) clears the agreement; a `completed` row keeps it. Caregiver side: `my_application` carries `agreed_salary` /
+  `agreed_start_date` and caregiver-app's Selected card shows an "Agreed with the family" box (`AgreedTermsBox`). Admin accepts and
+  organisation requirements are deliberately unchanged (no popup, no fields). Migration 091 must be applied before this backend.
 - **Post a Requirement / Register forms use the same "always-tappable submit, highlight-and-scroll
   on invalid" pattern as admin-web's job-posting form** (see "Naming Conventions"/admin-web's
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a

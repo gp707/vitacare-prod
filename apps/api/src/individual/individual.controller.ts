@@ -10,6 +10,7 @@ import { IndividualService } from './individual.service';
 import { CreateIndividualRequirementDto } from './dto/create-individual-requirement.dto';
 import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { SetAgreementDto } from './dto/set-agreement.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
@@ -133,5 +134,17 @@ export class IndividualController {
     @ClientIp() ip: string | null,
   ) {
     return this.individualService.decideMyApplication(user.sub, jobId, applicationId, dto, ip);
+  }
+
+  @Put('requirements/:jobId/applications/:applicationId/agreement')
+  @HttpCode(HttpStatus.OK)
+  setAgreement(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: SetAgreementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.setAgreement(user.sub, jobId, applicationId, dto, ip);
   }
 }

@@ -93,6 +93,25 @@ export const applicationAccepted = (displayId: string): PushMessage => ({
   route: PushRoutes.caregiverMyJobs,
 });
 
+/** "2026-11-20" -> "20 Nov 2026" (no timezone maths: the value is a plain date). */
+export function formatAgreedDate(isoDate: string): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
+/** The patient/family confirmed the agreed salary and start date after accepting. */
+export const agreementSet = (
+  displayId: string,
+  agreedSalary: number,
+  perUnit: 'day' | 'month',
+  agreedStartDate: string,
+): PushMessage => ({
+  title: 'Agreed salary and start date',
+  body: `${displayId}: ₹${agreedSalary} per ${perUnit}, starting ${formatAgreedDate(agreedStartDate)}. Details are in MyJobs.`,
+  route: PushRoutes.caregiverMyJobs,
+});
+
 export const applicationDeclined = (displayId: string, reason?: string | null): PushMessage => ({
   title: 'Application update',
   body: reason ? `${displayId}: the employer declined. ${reason}` : `${displayId}: the employer declined your application.`,

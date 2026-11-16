@@ -94,6 +94,8 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_019: { status: 400, message: 'Only a pending-review requirement can be approved' },
   JOB_020: { status: 400, message: 'Invalid close reason value' },
   JOB_021: { status: 400, message: 'Already pending review' },
+  JOB_022: { status: 400, message: 'The agreed salary and start date can only be set for an accepted caregiver' },
+  JOB_023: { status: 400, message: 'The start date cannot be in the past' },
 
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },

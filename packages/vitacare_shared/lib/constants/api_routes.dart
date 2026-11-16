@@ -32,6 +32,8 @@ class ApiRoutes {
       '/individual/requirements/$jobId/applications';
   static String individualRequirementApplicationDecide(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId';
+  static String individualRequirementApplicationAgreement(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId/agreement';
   static String individualRequirementApplicantProfile(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId/profile';
 

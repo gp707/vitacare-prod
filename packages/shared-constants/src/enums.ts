@@ -224,6 +224,8 @@ export const AuditAction = {
   // registration/login.
   ACCOUNT_DELETED: 'account_deleted',
   ERROR_LOG_RESOLVED: 'error_log_resolved',
+  // The patient/family confirming agreed salary + start date after accepting a caregiver.
+  JOB_AGREEMENT_SET: 'job_agreement_set',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

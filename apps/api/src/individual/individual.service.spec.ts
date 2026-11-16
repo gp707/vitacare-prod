@@ -49,6 +49,7 @@ describe('IndividualService', () => {
     jobApplicationsRepo = {
       findByJobId: jest.fn(),
       findById: jest.fn(),
+      setAgreement: jest.fn(),
       hasActiveApplicationForJob: jest.fn().mockResolvedValue(false),
       findActiveForJob: jest.fn().mockResolvedValue([]),
       decide: jest.fn(),
@@ -74,7 +75,7 @@ describe('IndividualService', () => {
     jobsService = { decideApplication: jest.fn() };
     auditService = { log: jest.fn() };
     caregiverService = { getApplicantProfile: jest.fn() };
-    caregiverProfilesRepo = { markAvailable: jest.fn(), releaseIfNoAcceptedWork: jest.fn() };
+    caregiverProfilesRepo = { markAvailable: jest.fn(), releaseIfNoAcceptedWork: jest.fn(), findFullById: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
 
     notificationsService = {
@@ -84,6 +85,7 @@ describe('IndividualService', () => {
       jobApplied: jest.fn(),
       organisationRequirementApplied: jest.fn(),
       applicationDecided: jest.fn(),
+      agreementSet: jest.fn(),
       jobUpdated: jest.fn(),
       jobCancelled: jest.fn(),
       jobNoLongerOpen: jest.fn(),
@@ -1167,6 +1169,87 @@ describe('IndividualService', () => {
       const dto2 = { status: 'rejected', reason: 'Schedule does not match' } as any;
       await service.decideMyApplication('user-1', 'job-1', 'app-1', dto2, '127.0.0.1');
       expect(jobsService.decideApplication).toHaveBeenCalledWith('user-1', 'job-1', 'app-1', dto2, '127.0.0.1');
+    });
+  });
+
+  describe('setAgreement', () => {
+    const tomorrow = () => new Date(Date.now() + 5.5 * 3600 * 1000 + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const dto = () => ({ agreed_salary: 800, agreed_start_date: tomorrow() }) as any;
+
+    beforeEach(() => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1',
+        posted_by: 'user-1',
+        frequency_of_care: 'daily',
+        patient_job_number: 548,
+        admin_job_number: null,
+      });
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'accepted' });
+      jobApplicationsRepo.setAgreement.mockResolvedValue({ agreed_salary: 800, agreed_start_date: tomorrow() });
+      caregiverProfilesRepo.findFullById.mockResolvedValue({ id: 'prof-1', user_id: 'cg-user' });
+    });
+
+    it('saves the agreement, tells the caregiver (per day for a daily job) and audit-logs it', async () => {
+      const result = await service.setAgreement('user-1', 'job-1', 'app-1', dto(), '1.1.1.1');
+      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 800, tomorrow());
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', {
+        displayId: 'PAT-JOB-548',
+        agreedSalary: 800,
+        perUnit: 'day',
+        agreedStartDate: tomorrow(),
+      });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'job_agreement_set', userId: 'user-1', targetUserId: 'cg-user', entityId: 'app-1' }),
+      );
+      expect(result).toMatchObject({ agreed_salary: 800 });
+    });
+
+    it('says per month for a monthly job', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', frequency_of_care: 'monthly', patient_job_number: 548 });
+      await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', expect.objectContaining({ perUnit: 'month' }));
+    });
+
+    it('accepts today as the start date', async () => {
+      const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+      await expect(
+        service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: today } as any, null),
+      ).resolves.toBeDefined();
+    });
+
+    it('throws GEN_002 for a job that is not yours', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
+      await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'GEN_002' });
+      expect(jobApplicationsRepo.setAgreement).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_006 when the application is on another job', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'other-job', status: 'accepted' });
+      await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_006' });
+    });
+
+    it('throws JOB_022 unless the caregiver is currently accepted', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'rejected' });
+      await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+      expect(jobApplicationsRepo.setAgreement).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_022 when the application stopped being accepted before the write (race)', async () => {
+      jobApplicationsRepo.setAgreement.mockResolvedValue(null);
+      await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+      expect(notificationsService.agreementSet).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_023 for a start date in the past', async () => {
+      await expect(
+        service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: '2020-01-01' } as any, null),
+      ).rejects.toMatchObject({ code: 'JOB_023' });
+    });
+
+    it('rejects an impossible calendar date', async () => {
+      await expect(
+        service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: '2099-02-31' } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_001' });
     });
   });
 });

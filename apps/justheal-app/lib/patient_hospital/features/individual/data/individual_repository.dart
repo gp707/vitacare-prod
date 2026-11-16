@@ -238,6 +238,20 @@ class IndividualRepository {
     }
   }
 
+  /// The salary and start date agreed with the caregiver just accepted — saved
+  /// and sent to them as a push. [startDate] is YYYY-MM-DD. The unit (per day /
+  /// per month) is the job's own frequency of care, so it isn't sent.
+  Future<void> setAgreement(String jobId, String applicationId, {required int salary, required String startDate}) async {
+    try {
+      await _dio.put(
+        ApiRoutes.individualRequirementApplicationAgreement(jobId, applicationId),
+        data: {'agreed_salary': salary, 'agreed_start_date': startDate},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// No re-review/verification pipeline to trigger, unlike caregiver-app's
   /// equivalent — an individual account has none.
   Future<void> updatePhone(String phone) async {

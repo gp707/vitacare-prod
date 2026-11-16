@@ -16,6 +16,12 @@ export interface JobApplicationRecord {
   reapplied_at: Date | null;
   decline_reason: string | null;
   close_reason: string | null;
+  /** What the patient/family confirmed right after accepting (migration 091):
+   *  rupees (per day or per month, following the job's frequency_of_care) and a
+   *  YYYY-MM-DD start date. Null until set; cleared by every new decision. */
+  agreed_salary: number | null;
+  agreed_start_date: string | null;
+  agreed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -137,7 +143,9 @@ export class JobApplicationsRepository {
     const runner: QueryRunner = client ?? this.db;
     if (status === JobApplicationStatus.REJECTED) {
       await runner.query(
-        `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW(),
+         agreed_salary = NULL, agreed_start_date = NULL, agreed_at = NULL
+       WHERE id = $1`,
         [id, status, adminId, declineReason ?? null],
       );
       return;
@@ -145,10 +153,31 @@ export class JobApplicationsRepository {
     await runner.query(
       // A (re-)acceptance starts a fresh duty-reminder cycle (migration 088).
       `UPDATE job_applications SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW(),
-         duty_reminder_2d_at = NULL, duty_reminder_1d_at = NULL, duty_reminder_12h_at = NULL
+         duty_reminder_2d_at = NULL, duty_reminder_1d_at = NULL, duty_reminder_12h_at = NULL,
+         agreed_salary = NULL, agreed_start_date = NULL, agreed_at = NULL
        WHERE id = $1`,
       [id, status, adminId],
     );
+  }
+
+  /** Records the agreed salary/start date — only while the application is
+   *  still `accepted` (the guard is in the UPDATE itself, so a concurrent
+   *  reject can't be overwritten). Returns null when nothing matched. */
+  async setAgreement(
+    id: string,
+    agreedSalary: number,
+    agreedStartDate: string,
+    client?: PoolClient,
+  ): Promise<JobApplicationRecord | null> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<JobApplicationRecord>(
+      `UPDATE job_applications
+       SET agreed_salary = $2, agreed_start_date = $3::date, agreed_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND status = 'accepted'
+       RETURNING *`,
+      [id, agreedSalary, agreedStartDate],
+    );
+    return result.rows[0] ?? null;
   }
 
   /** The caregivers (account ids) with an application in one of [statuses] on

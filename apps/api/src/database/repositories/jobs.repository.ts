@@ -98,6 +98,10 @@ export interface MyApplicationSummary {
    *  for closing this job (CaregiverCloseReason), defaults to 'no_reason'
    *  server-side rather than staying null. */
   close_reason: string | null;
+  /** Set by the patient/family after accepting (migration 091); only ever
+   *  non-null while status is 'accepted' or later 'completed'. */
+  agreed_salary: number | null;
+  agreed_start_date: string | null;
 }
 
 export interface JobWithMyApplication extends JobRecord {
@@ -477,7 +481,9 @@ export class JobsRepository {
              'reapplied_at', ja.reapplied_at,
              'decided_by_admin', ja.decided_by IS NOT NULL,
              'decline_reason', ja.decline_reason,
-             'close_reason', ja.close_reason
+             'close_reason', ja.close_reason,
+             'agreed_salary', ja.agreed_salary,
+             'agreed_start_date', ja.agreed_start_date
            ) END AS my_application
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
@@ -513,7 +519,9 @@ export class JobsRepository {
            'reapplied_at', ja.reapplied_at,
            'decided_by_admin', ja.decided_by IS NOT NULL,
            'decline_reason', ja.decline_reason,
-           'close_reason', ja.close_reason
+           'close_reason', ja.close_reason,
+             'agreed_salary', ja.agreed_salary,
+             'agreed_start_date', ja.agreed_start_date
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja
@@ -549,7 +557,9 @@ export class JobsRepository {
            'reapplied_at', ja.reapplied_at,
            'decided_by_admin', ja.decided_by IS NOT NULL,
            'decline_reason', ja.decline_reason,
-           'close_reason', ja.close_reason
+           'close_reason', ja.close_reason,
+             'agreed_salary', ja.agreed_salary,
+             'agreed_start_date', ja.agreed_start_date
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja

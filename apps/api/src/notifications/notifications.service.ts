@@ -10,6 +10,7 @@ import {
   PushRoutes,
   accountBlocked,
   accountUnblocked,
+  agreementSet,
   applicationAccepted,
   applicationDeclined,
   caregiverApplied,
@@ -149,6 +150,19 @@ export class NotificationsService {
         decision.accepted
           ? applicationAccepted(decision.displayId)
           : applicationDeclined(decision.displayId, decision.reason),
+      ),
+    );
+  }
+
+  /** The patient/family confirmed the agreed salary and start date. */
+  async agreementSet(
+    caregiverUserId: string,
+    agreement: { displayId: string; agreedSalary: number; perUnit: 'day' | 'month'; agreedStartDate: string },
+  ): Promise<void> {
+    await this.safe('agreement set', () =>
+      this.send(
+        caregiverUserId,
+        agreementSet(agreement.displayId, agreement.agreedSalary, agreement.perUnit, agreement.agreedStartDate),
       ),
     );
   }

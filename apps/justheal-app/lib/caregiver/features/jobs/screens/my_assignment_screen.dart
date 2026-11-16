@@ -10,6 +10,7 @@ import '../../../app/messages_bell.dart';
 import '../../../app/route_for_status.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../widgets/agreed_terms_box.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 import '../../../app/tab_back_scope.dart';
@@ -337,6 +338,18 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
   }
 
+  Widget? _agreementFor(JobModel job) {
+    final application = job.myApplication;
+    final salary = application?.agreedSalary;
+    final startDate = application?.agreedStartDate;
+    if (salary == null || startDate == null) return null;
+    return AgreedTermsBox(
+      salary: salary,
+      perUnit: job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
+      startDate: startDate,
+    );
+  }
+
   List<JobModel> get _appliedJobs =>
       _activeJobs.where((j) => j.myApplication?.status == JobApplicationStatus.applied).toList();
   List<OrganisationRequirementModel> get _appliedRequirements =>
@@ -513,6 +526,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                 onDuty: (jobStepperStage(applicationStatus: JobApplicationStatus.accepted, startDate: job.startDate) ?? 1) >= 2,
               ),
               timeline: job.myApplication != null ? ApplicationTimeline(job.myApplication!) : null,
+              agreement: _agreementFor(job),
               contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!) : null,
               actionLabel: 'Close Duty',
               busy: _busyId.contains(job.id),
@@ -667,6 +681,8 @@ class _ApplicationCard extends StatelessWidget {
   final JobCardStatus status;
   final Widget? timeline;
   final Widget? contactCard;
+  /// "Agreed with the family" box (Selected tab, jobs only), once the patient has set it.
+  final Widget? agreement;
   final String? actionLabel;
   final bool busy;
   final VoidCallback? onAction;
@@ -677,6 +693,7 @@ class _ApplicationCard extends StatelessWidget {
     required this.status,
     this.timeline,
     this.contactCard,
+    this.agreement,
     this.actionLabel,
     this.busy = false,
     this.onAction,
@@ -708,6 +725,10 @@ class _ApplicationCard extends StatelessWidget {
           if (timeline != null) ...[
             const SizedBox(height: AppSpacing.sm),
             timeline!,
+          ],
+          if (agreement != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            agreement!,
           ],
           if (contactCard != null) ...[
             const SizedBox(height: AppSpacing.md),

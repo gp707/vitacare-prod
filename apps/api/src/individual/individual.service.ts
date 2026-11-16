@@ -2,7 +2,7 @@ import { JOB_APPLICANT_FIELDS, jobDisplayId } from '../notifications/notificatio
 import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuditAction, Config, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
+import { AuditAction, Config, FrequencyOfCare, JobApplicationStatus, JobStatus, UserRole } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { FcmService } from '../fcm/fcm.service';
@@ -21,6 +21,7 @@ import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
+import { SetAgreementDto } from './dto/set-agreement.dto';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
 
@@ -582,5 +583,62 @@ export class IndividualService {
       throw new AppException('JOB_012');
     }
     return this.jobsService.decideApplication(userId, jobId, applicationId, dto, ipAddress);
+  }
+
+  /** The popup shown to the patient/family right after they accept a
+   *  caregiver: the salary and start date they agreed on, sent to the
+   *  caregiver as a push and shown on their Selected card. Only while that
+   *  application is still `accepted` (JOB_022); the start date can't be in
+   *  the past (JOB_023, compared on the IST calendar day). Can be set again
+   *  to correct it. */
+  async setAgreement(
+    userId: string,
+    jobId: string,
+    applicationId: string,
+    dto: SetAgreementDto,
+    ipAddress: string | null,
+  ) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    const application = await this.jobApplicationsRepo.findById(applicationId);
+    if (!application || application.job_id !== jobId) throw new AppException('JOB_006');
+    if (application.status !== JobApplicationStatus.ACCEPTED) throw new AppException('JOB_022');
+
+    // A real calendar date (rejects 2026-02-31), today or later in IST.
+    const parsed = new Date(`${dto.agreed_start_date}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dto.agreed_start_date) {
+      throw new AppException('GEN_001');
+    }
+    const istToday = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    if (dto.agreed_start_date < istToday) throw new AppException('JOB_023');
+
+    const updated = await this.jobApplicationsRepo.setAgreement(applicationId, dto.agreed_salary, dto.agreed_start_date);
+    if (!updated) throw new AppException('JOB_022');
+
+    const caregiver = await this.caregiverProfilesRepo.findFullById(application.profile_id);
+    if (caregiver) {
+      void this.notificationsService.agreementSet(caregiver.user_id, {
+        displayId: jobDisplayId(job),
+        agreedSalary: dto.agreed_salary,
+        perUnit: job.frequency_of_care === FrequencyOfCare.DAILY ? 'day' : 'month',
+        agreedStartDate: dto.agreed_start_date,
+      });
+    }
+
+    await this.auditService.log({
+      userId,
+      targetUserId: caregiver?.user_id,
+      action: AuditAction.JOB_AGREEMENT_SET,
+      entityType: 'job_applications',
+      entityId: applicationId,
+      afterValue: { agreed_salary: dto.agreed_salary, agreed_start_date: dto.agreed_start_date },
+      ipAddress,
+    });
+
+    return {
+      message: 'Agreed salary and start date saved',
+      agreed_salary: updated.agreed_salary,
+      agreed_start_date: updated.agreed_start_date,
+    };
   }
 }

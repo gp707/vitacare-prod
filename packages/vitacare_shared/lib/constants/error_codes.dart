@@ -77,6 +77,8 @@ class ErrorCodes {
     'JOB_019': 'Only a pending-review requirement can be approved',
     'JOB_020': 'Invalid close reason value',
     'JOB_021': 'Already pending review',
+    'JOB_022': 'The agreed salary and start date can only be set for an accepted caregiver',
+    'JOB_023': 'The start date cannot be in the past',
     'PUSH_001': 'This notification has already been sent, failed, or cancelled',
     'TICKET_001': 'This ticket has already been resolved',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',

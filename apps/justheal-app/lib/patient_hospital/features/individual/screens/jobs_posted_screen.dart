@@ -11,6 +11,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import '../data/individual_repository.dart';
+import '../widgets/agreement_dialog.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
@@ -113,9 +114,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   Future<void> _accept(String jobId, String applicationId) async {
     Analytics.tap('individual', 'requirement_posted', 'accept_candidate');
     setState(() => _decidingApplicationId.add(applicationId));
+    var accepted = false;
     try {
       await ref.read(individualRepositoryProvider).decideApplication(
           jobId, applicationId, JobApplicationStatus.accepted);
+      accepted = true;
       await _load();
     } on ApiException catch (e) {
       if (mounted) {
@@ -123,6 +126,39 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
       }
     } finally {
       if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
+    }
+    // Right after the job closes: ask for the agreed salary and start date,
+    // which are sent to the caregiver. "Fill later" leaves an
+    // "Add agreed salary & start date" button on the accepted candidate.
+    if (accepted && mounted) await _openAgreement(jobId, applicationId);
+  }
+
+  /// The "confirm salary and start date" popup for one accepted candidate
+  /// (also reachable from the button on their tile while it is still empty,
+  /// or to correct it).
+  Future<void> _openAgreement(String jobId, String applicationId) async {
+    final requirement = _requirements.where((r) => r.id == jobId).firstOrNull;
+    final application = (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
+        .where((a) => a.id == applicationId)
+        .firstOrNull;
+    if (requirement == null || application == null || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'agreement_open');
+    final saved = await showAgreementDialog(
+      context,
+      caregiverName: application.fullName,
+      perUnit: requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
+      initialSalary: application.agreedSalary,
+      initialStartDate: application.agreedStartDate,
+      onSubmit: (salary, startDate) => ref
+          .read(individualRepositoryProvider)
+          .setAgreement(jobId, applicationId, salary: salary, startDate: startDate),
+    );
+    if (!saved || !mounted) return;
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sent to ${application.fullName}.')),
+      );
     }
   }
 
@@ -267,6 +303,8 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _rejectWithReason(requirement.id, applicationId),
       onViewProfile: (applicationId) =>
           _viewProfile(requirement.id, applicationId),
+      onSetAgreement: (applicationId) =>
+          _openAgreement(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
       onReactivate: () => _reactivateRequirement(requirement),
       onSaved: _load,
@@ -339,6 +377,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
+  final void Function(String applicationId) onSetAgreement;
   final VoidCallback onCancel;
   final VoidCallback onReactivate;
   final VoidCallback onSaved;
@@ -350,6 +389,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onSetAgreement,
     required this.onCancel,
     required this.onReactivate,
     required this.onSaved,
@@ -1130,6 +1170,8 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onAccept: widget.onAccept,
                 onReject: widget.onReject,
                 onViewProfile: widget.onViewProfile,
+                onSetAgreement: widget.onSetAgreement,
+                perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
@@ -1786,6 +1828,8 @@ class _ApplicantsSection extends StatelessWidget {
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
+  final void Function(String applicationId) onSetAgreement;
+  final String perUnit;
 
   const _ApplicantsSection({
     required this.applications,
@@ -1793,6 +1837,8 @@ class _ApplicantsSection extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onSetAgreement,
+    required this.perUnit,
   });
 
   @override
@@ -1870,6 +1916,8 @@ class _ApplicantsSection extends StatelessWidget {
               onAccept: () => onAccept(application.id),
               onReject: () => onReject(application.id),
               onViewProfile: () => onViewProfile(application.id),
+              onSetAgreement: () => onSetAgreement(application.id),
+              perUnit: perUnit,
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
@@ -1887,6 +1935,8 @@ class _ApplicantTile extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
+  final VoidCallback onSetAgreement;
+  final String perUnit;
 
   const _ApplicantTile({
     required this.application,
@@ -1896,6 +1946,8 @@ class _ApplicantTile extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onSetAgreement,
+    required this.perUnit,
   });
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
@@ -1909,6 +1961,42 @@ class _ApplicantTile extends StatelessWidget {
   /// self-action apart from the patient's own decision.
   bool get _isRejectedByCaregiver =>
       _isRejected && application.decidedBy == null;
+
+  /// The salary and start date confirmed with this caregiver, or — while it is
+  /// still empty — the button that opens the same popup shown after accepting.
+  Widget _buildAgreement() {
+    final salary = application.agreedSalary;
+    final startDate = application.agreedStartDate;
+    if (salary == null || startDate == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.xs),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: onSetAgreement,
+            style: _compactButtonStyle,
+            icon: const Icon(Icons.handshake_outlined, size: 14),
+            label: const Text('Add agreed salary & start date'),
+          ),
+        ),
+      );
+    }
+    final parsed = DateTime.tryParse(startDate);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Agreed: ₹$salary per $perUnit · starts ${parsed != null ? _formatDate(parsed) : startDate}',
+              style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.success),
+            ),
+          ),
+          TextButton(onPressed: onSetAgreement, child: const Text('Edit')),
+        ],
+      ),
+    );
+  }
 
   String get _statusLabel {
     if (_isAccepted) return 'Accepted';
@@ -2010,6 +2098,7 @@ class _ApplicantTile extends StatelessWidget {
           Text(application.phone,
               style: const TextStyle(color: AppColors.textSecondary)),
           _ApplicantTimeline(application),
+          if (_isAccepted && !isDeciding) _buildAgreement(),
           if (isDeciding)
             const Padding(
               padding: EdgeInsets.only(top: AppSpacing.xs),

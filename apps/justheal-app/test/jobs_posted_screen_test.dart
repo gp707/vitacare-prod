@@ -149,6 +149,8 @@ JobApplicationModel _application({
   String updatedAt = '2026-08-01T10:00:00Z',
   String? reappliedAt,
   String? closeReason,
+  int? agreedSalary,
+  String? agreedStartDate,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -167,6 +169,8 @@ JobApplicationModel _application({
     'updated_at': updatedAt,
     'reapplied_at': reappliedAt,
     'close_reason': closeReason ?? (status == 'completed' ? 'no_reason' : null),
+    'agreed_salary': agreedSalary,
+    'agreed_start_date': agreedStartDate,
   });
 }
 
@@ -184,6 +188,11 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? cancelledJobId;
   String? reactivatedJobId;
   ApiException? reactivateError;
+  String? agreementJobId;
+  String? agreementApplicationId;
+  int? agreementSalary;
+  String? agreementStartDate;
+  ApiException? agreementError;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}, this.reactivateError})
       : super(Dio());
@@ -233,6 +242,15 @@ class _FakeIndividualRepository extends IndividualRepository {
     decidedApplicationId = applicationId;
     decidedStatus = status;
     decidedReason = reason;
+  }
+
+  @override
+  Future<void> setAgreement(String jobId, String applicationId, {required int salary, required String startDate}) async {
+    if (agreementError != null) throw agreementError!;
+    agreementJobId = jobId;
+    agreementApplicationId = applicationId;
+    agreementSalary = salary;
+    agreementStartDate = startDate;
   }
 
   @override
@@ -1422,4 +1440,159 @@ void main() {
     expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
   });
 
+
+  group('agreed salary and start date', () {
+    testWidgets('an accepted caregiver with nothing agreed yet shows an "Add agreed salary & start date" button',
+        (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      expect(find.text('Add agreed salary & start date'), findsOneWidget);
+    });
+
+    testWidgets('an accepted caregiver with an agreement shows it in the job\'s own unit (per day for a daily job)',
+        (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'daily')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'accepted', agreedSalary: 800, agreedStartDate: '2026-11-20')],
+          },
+        ),
+      );
+      expect(find.textContaining('Agreed: ₹800 per day'), findsOneWidget);
+      expect(find.text('Add agreed salary & start date'), findsNothing);
+    });
+
+    testWidgets('a monthly job shows the agreed salary per month', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'accepted', agreedSalary: 24000, agreedStartDate: '2026-11-20')],
+          },
+        ),
+      );
+      expect(find.textContaining('Agreed: ₹24000 per month'), findsOneWidget);
+    });
+
+    testWidgets('tapping the add button opens the popup with the care-staff message and both fields',
+        (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.textContaining('care staff, not house maids'), findsOneWidget);
+      expect(find.textContaining('treated the way you treat your own family members'), findsOneWidget);
+      expect(find.text('Agreed Salary (₹ per day)'), findsOneWidget);
+      expect(find.text('Start date'), findsOneWidget);
+      expect(find.text('Fill later'), findsOneWidget);
+    });
+
+    testWidgets('Save with empty fields flags both and sends nothing', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(find.text('Enter the agreed salary in rupees'), findsOneWidget);
+      expect(find.text('Pick the start date'), findsOneWidget);
+      expect(repo.agreementSalary, isNull);
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('Fill later closes the popup without saving', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+      await tester.tap(find.text('Fill later'));
+      await _settle(tester);
+
+      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(repo.agreementSalary, isNull);
+      expect(find.text('Add agreed salary & start date'), findsOneWidget);
+    });
+
+    testWidgets('saving sends the salary and the picked date for that caregiver', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+
+      await tester.enterText(find.byType(TextField), '900');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(repo.agreementJobId, 'job-1');
+      expect(repo.agreementApplicationId, 'app-1');
+      expect(repo.agreementSalary, 900);
+      expect(repo.agreementStartDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(find.text('Sent to Test Caregiver.'), findsOneWidget);
+    });
+
+    testWidgets('a server error is shown inside the popup and it stays open', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      )..agreementError = const ApiException(message: 'The start date cannot be in the past', code: 'JOB_023');
+      await _pump(tester, repo);
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+      await tester.enterText(find.byType(TextField), '900');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(find.text('The start date cannot be in the past'), findsOneWidget);
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('accepting a candidate opens the popup right away', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {'job-1': [_application(status: 'applied')]},
+      );
+      await _pump(tester, repo);
+      // The fake does not change the stored status, so make the next load report it accepted.
+      repo.applicationsByJobId = {'job-1': [_application(status: 'accepted')]};
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await _settle(tester);
+
+      expect(repo.decidedStatus, 'accepted');
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+  });
 }

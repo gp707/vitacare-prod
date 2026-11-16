@@ -47,6 +47,11 @@ class MyApplicationModel {
   /// reason for closing this job/requirement (CaregiverCloseReason),
   /// defaults to 'no_reason' server-side rather than staying null.
   final String? closeReason;
+  /// What the patient/family confirmed right after accepting: rupees (per day or
+  /// per month, following the job's frequency of care) and a YYYY-MM-DD start
+  /// date. Null until they fill it in.
+  final int? agreedSalary;
+  final String? agreedStartDate;
 
   const MyApplicationModel({
     required this.status,
@@ -58,6 +63,8 @@ class MyApplicationModel {
     required this.decidedByAdmin,
     this.declineReason,
     this.closeReason,
+    this.agreedSalary,
+    this.agreedStartDate,
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -70,6 +77,8 @@ class MyApplicationModel {
         decidedByAdmin: json['decided_by_admin'] as bool,
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
+        agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
+        agreedStartDate: json['agreed_start_date'] as String?,
       );
 }
 
@@ -280,6 +289,10 @@ class JobApplicationModel {
   /// to the job/requirement poster here, same as MyApplicationModel shows
   /// it to the caregiver themselves.
   final String? closeReason;
+  /// The agreed salary / start date the patient confirmed after accepting
+  /// (null until filled in) — see MyApplicationModel.agreedSalary.
+  final int? agreedSalary;
+  final String? agreedStartDate;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -298,6 +311,8 @@ class JobApplicationModel {
     this.reappliedAt,
     this.declineReason,
     this.closeReason,
+    this.agreedSalary,
+    this.agreedStartDate,
     required this.updatedAt,
   });
 
@@ -317,6 +332,8 @@ class JobApplicationModel {
         reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
+        agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
+        agreedStartDate: json['agreed_start_date'] as String?,
         updatedAt: json['updated_at'] as String,
       );
 }
