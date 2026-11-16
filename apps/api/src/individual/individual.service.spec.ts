@@ -1272,7 +1272,12 @@ describe('IndividualService', () => {
       expect(notificationsService.agreementSet).not.toHaveBeenCalled();
     });
 
-    it('throws JOB_023 for a start date in the past', async () => {
+    it('allows a cycle start date in the past (salary already running)', async () => {
+      await service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString().slice(0, 10) } as any, null);
+      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalled();
+    });
+
+    it('throws JOB_023 for a cycle start date more than a year in the past', async () => {
       await expect(
         service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: '2020-01-01' } as any, null),
       ).rejects.toMatchObject({ code: 'JOB_023' });

@@ -95,7 +95,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_020: { status: 400, message: 'Invalid close reason value' },
   JOB_021: { status: 400, message: 'Already pending review' },
   JOB_022: { status: 400, message: 'The agreed salary and start date can only be set for an accepted caregiver' },
-  JOB_023: { status: 400, message: 'The start date cannot be in the past' },
+  JOB_023: { status: 400, message: 'The cycle start date cannot be more than a year in the past' },
   JOB_024: { status: 400, message: 'Set the agreed salary and start date first' },
   JOB_025: { status: 400, message: 'Leave days must be on or after the agreed start date, and within the next year' },
   JOB_026: { status: 400, message: 'Salary is already paused' },

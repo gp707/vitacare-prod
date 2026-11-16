@@ -15,7 +15,7 @@ export class SetAgreementDto {
   @IsIn([FrequencyOfCare.DAILY, FrequencyOfCare.MONTHLY])
   agreed_salary_unit?: typeof FrequencyOfCare.DAILY | typeof FrequencyOfCare.MONTHLY;
 
-  /** YYYY-MM-DD; today or later (JOB_023), checked in the service. */
+  /** YYYY-MM-DD; may be in the past, but not more than a year back (JOB_023), checked in the service. */
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   agreed_start_date!: string;
 }

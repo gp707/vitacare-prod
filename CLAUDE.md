@@ -551,6 +551,8 @@ location) that didn't fit the Individual/admin jobs-table model.
   ("Salary paid", `salaryPaid` template, opens MyJobs). No "undo paid" yet. A past unpaid cycle uses today's rate, not the rate at that time (only paid cycles freeze it).
   Patient: `SalaryHistoryCard` on `CaregiverSalaryScreen` (due cycles get **Mark as paid**, a date picker defaulting to today); caregiver: collapsible `SalaryHistory` under
   the Agreed box on MyJobs (read-only). `SalaryCycleModel` is in `vitacare_shared/salary_due.dart`; `SalaryCycleTile` is duplicated per tree.
+- **The cycle start date may be in the past (up to 1 year back; `JOB_023` beyond that).** `IndividualService.setAgreement` no longer requires today-or-later, and the agreement
+  sheet's date picker opens on the chosen date and goes back a year. A past start simply produces earlier cycles at once (some already due, ready to Mark as paid).
 - **WhatsApp next to every caregiver phone number (patient and organisation flows).** `PhoneContactRow` (`widgets/call_tap.dart`) shows the number (tap =
   `tel:` dialer) and a green **WhatsApp** chip (`WhatsAppTap`, opens `https://wa.me/<digits with country code>` through `phoneLauncherProvider`; if it can't
   open, a banner shows the number to message by hand). Used on the patient's accepted-caregiver card, candidate tiles, the caregiver salary page header,

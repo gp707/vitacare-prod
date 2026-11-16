@@ -821,13 +821,13 @@ export class IndividualService {
     if (!application || application.job_id !== jobId) throw new AppException('JOB_006');
     if (application.status !== JobApplicationStatus.ACCEPTED) throw new AppException('JOB_022');
 
-    // A real calendar date (rejects 2026-02-31), today or later in IST.
+    // A real calendar date (rejects 2026-02-31). The cycle start date may be in the past
+    // (salary already running), but not more than a year back.
     const parsed = new Date(`${dto.agreed_start_date}T00:00:00Z`);
     if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dto.agreed_start_date) {
       throw new AppException('GEN_001');
     }
-    const istToday = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    if (dto.agreed_start_date < istToday) throw new AppException('JOB_023');
+    if (dto.agreed_start_date < IndividualService.istDay(-365)) throw new AppException('JOB_023');
 
     // The patient's own choice; an older app build omits it, so follow the job.
     const salaryUnit =

@@ -78,7 +78,7 @@ class ErrorCodes {
     'JOB_020': 'Invalid close reason value',
     'JOB_021': 'Already pending review',
     'JOB_022': 'The agreed salary and start date can only be set for an accepted caregiver',
-    'JOB_023': 'The start date cannot be in the past',
+    'JOB_023': 'The cycle start date cannot be more than a year in the past',
     'JOB_024': 'Set the agreed salary and start date first',
     'JOB_025': 'Leave days must be on or after the agreed start date, and within the next year',
     'JOB_026': 'Salary is already paused',
