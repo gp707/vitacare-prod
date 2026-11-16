@@ -1437,4 +1437,95 @@ describe('IndividualService', () => {
       });
     });
   });
+
+  describe('makeLiveAgain', () => {
+    beforeEach(() => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null,
+        permanently_cancelled_at: null, patient_job_number: 548,
+      });
+      jobsRepo.activate = jest.fn().mockResolvedValue({ id: 'job-1', status: 'active', preferred_gender: null });
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+    });
+
+    it('puts the closed job back live, tells caregivers, audit-logs it, and never touches the accepted caregiver', async () => {
+      const job = await service.makeLiveAgain('user-1', 'job-1', '1.1.1.1');
+      expect(jobsRepo.activate).toHaveBeenCalledWith('job-1');
+      expect(fcmService.sendToAllCaregivers).toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ afterValue: expect.objectContaining({ made_live_again: true }) }));
+      expect(job.status).toBe('active');
+      expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_031 when the job is already live', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active', cancelled_at: null, rejection_reason: null, permanently_cancelled_at: null });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_031' });
+    });
+
+    it('throws JOB_029 once permanently cancelled', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null, permanently_cancelled_at: new Date() });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_029' });
+      expect(jobsRepo.activate).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_015 for a cancelled or admin-rejected requirement', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date(), rejection_reason: null, permanently_cancelled_at: null });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
+    });
+
+    it('throws JOB_010 while the account is blocked from posting', async () => {
+      individualProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: true });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_010' });
+    });
+
+    it('throws GEN_002 for a job that is not yours', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else', status: 'closed' });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+  });
+
+  describe('permanentlyCancelRequirement', () => {
+    beforeEach(() => {
+      jobsRepo.findById.mockResolvedValue({
+        id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null,
+        permanently_cancelled_at: null, patient_job_number: 548,
+      });
+      jobApplicationsRepo.findAcceptedForJob = jest.fn().mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      jobsRepo.permanentlyCancel = jest.fn().mockResolvedValue({ id: 'job-1', status: 'closed' });
+    });
+
+    it('closes the job for good, leaves every accepted caregiver alone, tells only the waiting candidates', async () => {
+      jobApplicationsRepo.listApplicantUsers.mockResolvedValue([{ user_id: 'w1', status: 'applied' }]);
+      const result = await service.permanentlyCancelRequirement('user-1', 'job-1', '1.1.1.1');
+      expect(jobsRepo.permanentlyCancel).toHaveBeenCalledWith('job-1');
+      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied']);
+      expect(notificationsService.jobNoLongerOpen).toHaveBeenCalledWith([{ user_id: 'w1', status: 'applied' }], 'PAT-JOB-548');
+      // The accepted caregiver is not rejected, un-assigned or otherwise touched:
+      expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ afterValue: expect.objectContaining({ permanently_cancelled: true }) }));
+      expect(result).toMatchObject({ permanently_cancelled: true, status: 'closed' });
+    });
+
+    it('throws JOB_030 when no caregiver is accepted', async () => {
+      jobApplicationsRepo.findAcceptedForJob.mockResolvedValue(null);
+      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_030' });
+      expect(jobsRepo.permanentlyCancel).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_029 when it was already permanently cancelled', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null, permanently_cancelled_at: new Date() });
+      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_029' });
+    });
+
+    it('throws JOB_015 for a cancelled or admin-rejected requirement', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date(), rejection_reason: null, permanently_cancelled_at: null });
+      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
+    });
+
+    it('throws GEN_002 for a job that is not yours', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
+      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
+    });
+  });
 });

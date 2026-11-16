@@ -101,6 +101,10 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_026: { status: 400, message: 'Salary is already paused' },
   JOB_027: { status: 400, message: 'Salary is not paused' },
   JOB_028: { status: 400, message: 'That day is not marked as leave' },
+  JOB_029: { status: 400, message: 'This requirement was already permanently cancelled' },
+  JOB_030: { status: 400, message: 'Only a requirement with an accepted caregiver can be permanently cancelled' },
+  JOB_031: { status: 400, message: 'This requirement is already live' },
+  JOB_032: { status: 400, message: 'You are already accepted on this job' },
 
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },

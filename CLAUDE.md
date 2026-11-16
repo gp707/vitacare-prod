@@ -425,7 +425,7 @@ location) that didn't fit the Individual/admin jobs-table model.
   applicant, whichever status they're in (`applied`/`accepted`/`rejected`/`completed`) — nothing is
   hidden or dropped from view once decided, including a candidate this account itself rejected, one
   the caregiver self-withdrew from (`rejected` with `decided_by IS NULL`), or one whose engagement
-  the caregiver marked complete. **Only one candidate can be `accepted` at a time** —
+  the caregiver marked complete. **(SUPERSEDED: several candidates can now be `accepted` on one job — the one-at-a-time rule below, `JOB_016`, was removed; see "Several accepted caregivers per job" further down.)** **Only one candidate can be `accepted` at a time** —
   `JobsService.decideApplication` enforces this server-side (`JOB_016`, `apps/api/src/jobs/
   jobs.service.ts`, via `JobApplicationsRepository.findAcceptedForJob`) by blocking an accept on
   any application other than the currently-accepted one; while someone is accepted, every other
@@ -486,10 +486,19 @@ location) that didn't fit the Individual/admin jobs-table model.
   button (`https://wa.me/<digits incl. country code>`, no prefilled text) sit right under the name, same URLs as caregiver-app's
   `JobPosterContactCard`. If the device can't open the dialer/WhatsApp, an error banner shows the number to dial by hand.
   Organisation's own applicant tile (`requirements_posted_screen.dart`) was not given tappable name/number (not asked for).
-- **Leave days and pausing salary (patients only, migration 093).** Under the agreed-salary line on the accepted caregiver's tile
-  (nursenow-app, `JobsPostedScreen`) the patient gets **Mark leave** (a date-range picker, up to 31 days at a time, any day from the
-  agreed start date to a year ahead), **Pause salary / Resume salary**, and a **chip per marked day** whose x **cancels that one day**
-  (after a confirm). Endpoints (`IndividualController`/`IndividualService`): `POST .../applications/:applicationId/leaves`
+- **Leave days and pausing salary (patients only, migration 093) live on each caregiver's own salary page.** Salary is per caregiver: every
+  candidate tile with a salary has a **Salary & leaves** button (`Key('open-salary-tile')`), and the amber banner at the top of
+  nursenow-app's `JobsPostedScreen` is a summary (due date, real amount, working) with one **Salary & leaves** button per caregiver
+  (`SalaryDueEntry.onOpen`), both opening `CaregiverSalaryScreen` (`screens/caregiver_salary_screen.dart`). The page shows who/status,
+  the **agreed salary** (+ **Edit salary & date**, or **Add** if none), the **next salary due**, and **Leave days**: a chip per marked day
+  whose x cancels that day (after a confirm), **Mark leave** (a calendar where the patient taps **specific days** — never a range, the days need not be adjacent, and
+  can span months; `widgets/leave_days_dialog.dart`; up to 31 days at a time, any day from the start date to a year ahead; days already marked show as
+  leave and aren't offered again) and **Pause salary / Resume**. The actions are shared functions in `widgets/salary_actions.dart` (`openAgreementFlow`,
+  `markLeaveFlow`, `cancelLeaveFlow`, `pauseSalaryFlow`, `resumeSalaryFlow`). **A caregiver no longer on the job (rejected, or closed duty)
+  keeps their salary record**: the tile shows "Agreed (past): ₹…" and the same page opens **read-only** (no edit, no next-salary banner, no
+  leave/pause controls, chips without the cancel x). That needs the server to keep the data on reject: `JobApplicationsRepository.decide`
+  now KEEPS `agreed_*`, leave days and pauses on a reject and only closes an open pause (`closeOpenPause`; also done in `markCompleted`);
+  they are cleared only on a fresh (re-)accept, which starts a new engagement. Endpoints (`IndividualController`/`IndividualService`): `POST .../applications/:applicationId/leaves`
   (`MarkLeaveDto { dates[] }`), `DELETE .../leaves/:date`, `POST .../pause`, `POST .../resume`; all need an accepted caregiver whose
   agreement is set (`JOB_022`/`JOB_024`), are audit-logged (`AuditAction.JOB_LEAVE_UPDATED`) and push the caregiver
   (`leaveChanged` -> `leaveMarked`/`leaveCancelled`/`salaryPaused`/`salaryResumed` templates, open MyJobs). Errors: `JOB_025` (day before the start
@@ -504,6 +513,36 @@ location) that didn't fit the Individual/admin jobs-table model.
   the real amount large, the working ending in "= ₹…", "On leave (n of 14 days): …" and "Salary paused since …"; the caregiver's
   "Agreed with the family" box lists leave days as orange chips, any pause in red and finished pauses with their dates.
   Migrations 091, 092 and 093 must be applied before this backend.
+- **Patient screen UX (nursenow-app `JobsPostedScreen`).** (1) **Rejected candidates are collapsed** behind one "Rejected candidates (n)" row
+  (`Key('rejected-toggle')`) until tapped; applied, accepted and *completed* (closed by caregiver) candidates always show, and the total
+  count still includes everyone. (2) There is **no explanatory banner** above the candidates (the old "You have accepted a candidate. Reject
+  them to be able to make the job live again." note was removed). (3) The salary banner is one calm amber block (large amount, working, a
+  "Salary & leaves" button); the yellow Rate-Card guidance block is hidden once a salary is agreed (kept in the tree via
+  `Visibility(maintainState: true)` so mandatory-field validation can still scroll to it); rejected tiles are grey (red stays on the ✕ and
+  label), Reject is a tonal button, Patient Details / Care Preferences have a neutral outline, activity-log times read "14 Nov 2026, 6:32 PM".
+  `dart format` must NOT be run on this file (hand-formatted at ~120 columns; formatting rewrites ~800 lines).
+- **"Your caregivers" cards replace the salary banner on `JobsPostedScreen`.** A patient can have several accepted caregivers, each with their own
+  salary, start date, leave and pauses, so the amber banner is gone from the top of the screen. Instead each accepted caregiver has a roomy
+  `CaregiverSummaryCard` (`widgets/caregiver_summary_card.dart`) under a "Your caregivers (n)" heading, soonest next-salary first and
+  "Salary not set yet" last: name/status, phone, agreed salary, "Working since…/Starts…", the next salary with the real amount, leave/paused tags,
+  a **Salary & leaves** button (opens that caregiver's `CaregiverSalaryScreen`), View Profile, Reject and the activity log
+  (`widgets/applicant_timeline.dart`). Accepted caregivers are not repeated in the candidates list ("No other candidates waiting." when only
+  accepted ones exist). `SalaryDueBanner` is now used only on the caregiver's salary page and in caregiver-app.
+- **Several accepted caregivers per job; "Make it live again" and "Permanently cancel" (migration 094).** The one-accepted-at-a-time rule is gone:
+  `JobsService.decideApplication` no longer throws `JOB_016` (code kept, unused), so each Accept closes the job again and a patient can accept
+  more caregivers; the patient UI offers Accept to every candidate not already accepted (not once permanently cancelled) and Reject to applied and
+  accepted ones. Because a job can now be live with accepted caregivers, `JobsService.applyToJob` refuses an already-accepted caregiver
+  (`JOB_032`, for apply or decline) so their acceptance can't be overwritten. The card's ⋮ menu, while a caregiver is accepted, replaces "Cancel
+  the Job" (which would reject people): **Make it live again** (only while the job is closed; `POST /individual/requirements/:jobId/make-live`,
+  `IndividualService.makeLiveAgain`: `activate()` + a "New Job" push, **nobody is rejected**; `JOB_031` already live, `JOB_029` permanently
+  cancelled, `JOB_015` cancelled/rejected, `JOB_010` blocked; the app confirms first) and **Permanently cancel** (`POST .../permanent-cancel`,
+  `permanentlyCancelRequirement`: sets `jobs.permanently_cancelled_at` and closes the job, **accepted caregivers are untouched**, waiting
+  candidates are told it's closed; needs an accepted caregiver `JOB_030`; `JOB_029` already; the app confirms: "will not go live again, cannot be
+  undone, accepted caregivers stay accepted"). A permanently cancelled job is never reopened automatically: `JobsRepository.reopen()` is guarded
+  (`permanently_cancelled_at IS NULL`, returns whether it reopened), so rejecting its caregiver or a caregiver's Close Duty leaves it closed (the
+  poster is not told "open again"); only admin's `activate()` clears the flag. Status pill: "Permanently cancelled — caregiver assigned"; both menu
+  items then show disabled. A live job with nobody accepted still shows "Cancel the Job" (reversible, rejects candidates); a cancelled one shows
+  "Make Active Again". Migrations 093 and 094 must be applied before this backend.
 - **Post a Requirement / Register forms use the same "always-tappable submit, highlight-and-scroll
   on invalid" pattern as admin-web's job-posting form** (see "Naming Conventions"/admin-web's
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a

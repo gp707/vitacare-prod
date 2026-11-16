@@ -61,8 +61,13 @@ class SectionBox extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.06),
-        border: Border.all(color: AppColors.error, width: 2.5),
+        // The compact boxes (Patient Details / Care Preferences on the patient's own
+        // requirement card) are plain information, so they get a calm outline;
+        // red is kept for the registration forms' own boxes.
+        color: compact ? Colors.white : AppColors.success.withValues(alpha: 0.06),
+        border: compact
+            ? Border.all(color: AppColors.border, width: 1.5)
+            : Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
       child: Column(

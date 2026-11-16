@@ -150,6 +150,9 @@ class JobModel {
   /// requirement — distinct from [rejectionReason] (admin) and a plain
   /// close (filled). See [isCancelled].
   final String? cancelledAt;
+  /// Set when the patient permanently cancels: the job never goes live again, but the
+  /// caregivers already accepted are untouched. See [isPermanentlyCancelled].
+  final String? permanentlyCancelledAt;
   /// Only present on admin-facing responses (via a users join) — the
   /// poster's role/name, e.g. 'individual' for a NurseNow patient/family
   /// posting vs 'admin'/'super_admin' for admin's own. Null on
@@ -195,6 +198,7 @@ class JobModel {
     this.jobPoster,
     this.rejectionReason,
     this.cancelledAt,
+    this.permanentlyCancelledAt,
     this.postedByRole,
     this.postedByName,
     this.postedByPhone,
@@ -235,6 +239,7 @@ class JobModel {
             : JobPosterModel.fromJson(json['job_poster'] as Map<String, dynamic>),
         rejectionReason: json['rejection_reason'] as String?,
         cancelledAt: json['cancelled_at'] as String?,
+        permanentlyCancelledAt: json['permanently_cancelled_at'] as String?,
         postedByRole: json['posted_by_role'] as String?,
         postedByName: json['posted_by_name'] as String?,
         postedByPhone: json['posted_by_phone'] as String?,
@@ -249,6 +254,7 @@ class JobModel {
   /// — always implies [status] is 'closed', but distinct from a plain
   /// close (filled) or an admin rejection ([rejectionReason] set).
   bool get isCancelled => cancelledAt != null;
+  bool get isPermanentlyCancelled => permanentlyCancelledAt != null;
 }
 
 /// Human-friendly display id for a job — "ADMIN-JOB-<n>" or "PAT-JOB-<n>"

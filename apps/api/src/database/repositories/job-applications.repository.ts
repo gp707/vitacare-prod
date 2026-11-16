@@ -147,13 +147,15 @@ export class JobApplicationsRepository {
   ): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     if (status === JobApplicationStatus.REJECTED) {
+      // The agreed salary, start date, leave days and pauses are KEPT as the record of
+      // what was agreed with a caregiver who is no longer on the job (the patient can
+      // still open their salary page). An open pause ends here, so it doesn't run on.
       await runner.query(
-        `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW(),
-         agreed_salary = NULL, agreed_salary_unit = NULL, agreed_start_date = NULL, agreed_at = NULL
+        `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW()
        WHERE id = $1`,
         [id, status, adminId, declineReason ?? null],
       );
-      await this.clearLeavesAndPauses(id, runner);
+      await this.closeOpenPause(id, runner);
       return;
     }
     await runner.query(
@@ -167,9 +169,20 @@ export class JobApplicationsRepository {
     await this.clearLeavesAndPauses(id, runner);
   }
 
-  /** Leave days and salary pauses belong to one engagement: a new decision on
-   *  the application (re-accepted or rejected) starts or ends that engagement,
-   *  so they go with it (migration 093). */
+  /** Ends a still-open salary pause today (IST) — used when the engagement ends
+   *  (rejected or the caregiver closes duty) so a pause never runs on afterwards. */
+  private async closeOpenPause(id: string, runner: QueryRunner): Promise<void> {
+    await runner.query(
+      `UPDATE job_application_pauses
+       SET resumed_on = GREATEST((NOW() AT TIME ZONE 'Asia/Kolkata')::date, paused_from)
+       WHERE application_id = $1 AND resumed_on IS NULL`,
+      [id],
+    );
+  }
+
+  /** Leave days and salary pauses belong to one engagement: a fresh (re-)acceptance
+   *  starts a new engagement, so the previous one's go with it (migration 093).
+   *  A rejection does NOT clear them — see decide(). */
   private async clearLeavesAndPauses(id: string, runner: QueryRunner): Promise<void> {
     await runner.query(`DELETE FROM job_application_leaves WHERE application_id = $1`, [id]);
     await runner.query(`DELETE FROM job_application_pauses WHERE application_id = $1`, [id]);
@@ -319,6 +332,8 @@ export class JobApplicationsRepository {
       `UPDATE job_applications SET status = 'completed', completed_at = NOW(), close_reason = $2, updated_at = NOW() WHERE id = $1`,
       [id, closeReason],
     );
+    // Duty is closed: an open salary pause ends today instead of running on.
+    await this.closeOpenPause(id, runner);
   }
 
   /** How many jobs this caregiver is still actively accepted onto — used

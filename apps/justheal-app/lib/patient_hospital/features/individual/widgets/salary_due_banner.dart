@@ -7,7 +7,10 @@ class SalaryDueEntry {
   /// e.g. the job's display id ("PAT-JOB-548") or the caregiver's name.
   final String label;
   final SalaryDue due;
-  const SalaryDueEntry({required this.label, required this.due});
+  /// Opens this caregiver's own salary page (agreement, leave days, pause). Null hides
+  /// the button.
+  final VoidCallback? onOpen;
+  const SalaryDueEntry({required this.label, required this.due, this.onOpen});
 }
 
 /// "Salary due Fri 4 Dec 2026 (in 18 days)" with the prorated amount for the
@@ -142,6 +145,20 @@ class _EntryLines extends StatelessWidget {
                     'On leave (${due.leaveDays.length} of $salaryPeriodDays days): $shownLeave$moreLeave',
                     key: const Key('salary-leave-note'),
                     style: TextStyle(fontWeight: FontWeight.w600, color: Colors.deepOrange.shade800),
+                  ),
+                ),
+              if (entry.onOpen != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const Key('open-salary'),
+                      onPressed: entry.onOpen,
+                      style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
+                      icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                      label: const Text('Salary & leaves'),
+                    ),
                   ),
                 ),
             ],

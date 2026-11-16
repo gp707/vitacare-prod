@@ -173,6 +173,25 @@ class IndividualRepository {
   /// requirement this account itself cancelled (JOB_017 otherwise, e.g. an
   /// admin-rejected one). Re-broadcasts the "New Job" push and restarts
   /// the apply-by urgency window, same as a repost.
+  /// Puts a closed job (a caregiver is accepted) back in front of caregivers. Nobody
+  /// already accepted or applied is rejected.
+  Future<void> makeLiveAgain(String jobId) async {
+    try {
+      await _dio.post(ApiRoutes.individualRequirementMakeLive(jobId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Closes the job for good. Caregivers already accepted are not touched.
+  Future<void> permanentlyCancelRequirement(String jobId) async {
+    try {
+      await _dio.post(ApiRoutes.individualRequirementPermanentCancel(jobId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<JobModel> reactivateRequirement(String jobId) async {
     try {
       final res = await _dio.post(ApiRoutes.individualRequirementReactivate(jobId));

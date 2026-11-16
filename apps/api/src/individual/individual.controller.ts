@@ -182,6 +182,18 @@ export class IndividualController {
     return this.individualService.resumeSalary(user.sub, jobId, applicationId, ip);
   }
 
+  @Post('requirements/:jobId/make-live')
+  @HttpCode(HttpStatus.OK)
+  makeLiveAgain(@CurrentUser() user: JwtPayload, @Param('jobId') jobId: string, @ClientIp() ip: string | null) {
+    return this.individualService.makeLiveAgain(user.sub, jobId, ip);
+  }
+
+  @Post('requirements/:jobId/permanent-cancel')
+  @HttpCode(HttpStatus.OK)
+  permanentlyCancel(@CurrentUser() user: JwtPayload, @Param('jobId') jobId: string, @ClientIp() ip: string | null) {
+    return this.individualService.permanentlyCancelRequirement(user.sub, jobId, ip);
+  }
+
   @Put('requirements/:jobId/applications/:applicationId/agreement')
   @HttpCode(HttpStatus.OK)
   setAgreement(

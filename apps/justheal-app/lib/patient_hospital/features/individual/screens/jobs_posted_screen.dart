@@ -11,11 +11,13 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import '../data/individual_repository.dart';
-import '../widgets/agreement_dialog.dart';
+import '../widgets/salary_actions.dart';
+import '../widgets/applicant_timeline.dart';
+import '../widgets/caregiver_summary_card.dart';
 import '../widgets/call_tap.dart';
+import 'caregiver_salary_screen.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
-import '../widgets/salary_due_banner.dart';
 import '../widgets/section_box.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
@@ -135,150 +137,33 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (accepted && mounted) await _openAgreement(jobId, applicationId);
   }
 
-  // ── Leave days and salary pause ───────────────────────────────────────────
+  // ── Salary: the agreement popup after Accept, and each caregiver's own page ──
 
-  JobApplicationModel? _applicationFor(String jobId, String applicationId) =>
-      (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
-          .where((a) => a.id == applicationId)
-          .firstOrNull;
-
-  /// Runs one leave/pause call, then reloads so the tile and the salary banner
-  /// show the new state; a server error is shown as a banner.
-  Future<void> _runLeaveAction(Future<void> Function() action, String successMessage) async {
-    try {
-      await action();
-      await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
-    } on ApiException catch (e) {
-      if (mounted) showVitaErrorBanner(context, e.message);
-    }
-  }
-
-  Future<bool> _confirm(String title, String message, String confirmLabel, {String cancelLabel = 'Not now'}) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text(cancelLabel)),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(confirmLabel)),
-        ],
-      ),
-    );
-    return confirmed ?? false;
-  }
-
-  /// Pick one day or a range of days to mark as leave (up to 31 at a time).
-  Future<void> _markLeave(String jobId, String applicationId) async {
-    final application = _applicationFor(jobId, applicationId);
-    if (application == null || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'mark_leave');
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final agreedStart = DateTime.tryParse(application.agreedStartDate ?? '') ?? today;
-    final firstDate = DateTime(agreedStart.year, agreedStart.month, agreedStart.day);
-    final lastDate = today.add(const Duration(days: 365));
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: firstDate,
-      lastDate: lastDate.isBefore(firstDate) ? firstDate : lastDate,
-      helpText: 'Select the leave days',
-      saveText: 'Mark leave',
-    );
-    if (range == null || !mounted) return;
-    final dates = isoDatesBetween(range.start, range.end);
-    if (dates.length > 31) {
-      showVitaErrorBanner(context, 'Pick at most 31 days at a time.');
-      return;
-    }
-    await _runLeaveAction(
-      () => ref.read(individualRepositoryProvider).markLeaves(jobId, applicationId, dates),
-      dates.length == 1
-          ? 'Leave marked for ${formatDayMonth(dates.first)}. ${application.fullName} has been told.'
-          : '${dates.length} leave days marked. ${application.fullName} has been told.',
-    );
-  }
-
-  /// Cancels one marked day: it is a working day again.
-  Future<void> _cancelLeave(String jobId, String applicationId, String date) async {
-    final application = _applicationFor(jobId, applicationId);
-    if (application == null || !mounted) return;
-    final ok = await _confirm(
-      'Cancel leave on ${formatDayMonth(date)}?',
-      'It becomes a working day again and is paid. ${application.fullName} will be told.',
-      'Cancel leave',
-      cancelLabel: 'Keep leave',
-    );
-    if (!ok || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'cancel_leave');
-    await _runLeaveAction(
-      () => ref.read(individualRepositoryProvider).cancelLeave(jobId, applicationId, date),
-      'Leave on ${formatDayMonth(date)} cancelled.',
-    );
-  }
-
-  Future<void> _pauseSalary(String jobId, String applicationId) async {
-    final application = _applicationFor(jobId, applicationId);
-    if (application == null || !mounted) return;
-    final ok = await _confirm(
-      'Pause salary?',
-      'From today until you resume, every day counts as leave and is not paid. '
-          '${application.fullName} will be told.',
-      'Pause salary',
-    );
-    if (!ok || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'pause_salary');
-    await _runLeaveAction(
-      () => ref.read(individualRepositoryProvider).pauseSalary(jobId, applicationId),
-      'Salary paused.',
-    );
-  }
-
-  Future<void> _resumeSalary(String jobId, String applicationId) async {
-    final application = _applicationFor(jobId, applicationId);
-    if (application == null || !mounted) return;
-    final ok = await _confirm(
-      'Resume salary?',
-      'Today counts as a working day again. ${application.fullName} will be told.',
-      'Resume salary',
-    );
-    if (!ok || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'resume_salary');
-    await _runLeaveAction(
-      () => ref.read(individualRepositoryProvider).resumeSalary(jobId, applicationId),
-      'Salary resumed.',
-    );
-  }
-
-  /// The "confirm salary and start date" popup for one accepted candidate
-  /// (also reachable from the button on their tile while it is still empty,
-  /// or to correct it).
+  /// The popup to confirm / edit the agreed salary and start date (also shown right
+  /// after accepting a caregiver). Reloads on save.
   Future<void> _openAgreement(String jobId, String applicationId) async {
     final requirement = _requirements.where((r) => r.id == jobId).firstOrNull;
     final application = (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
         .where((a) => a.id == applicationId)
         .firstOrNull;
     if (requirement == null || application == null || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'agreement_open');
-    final saved = await showAgreementDialog(
-      context,
-      caregiverName: application.fullName,
-      defaultUnit: requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly',
-      initialSalary: application.agreedSalary,
-      initialSalaryUnit: application.agreedSalaryUnit,
-      initialStartDate: application.agreedStartDate,
-      onSubmit: (salary, salaryUnit, startDate) => ref
-          .read(individualRepositoryProvider)
-          .setAgreement(jobId, applicationId, salary: salary, salaryUnit: salaryUnit, startDate: startDate),
+    final saved = await openAgreementFlow(context, ref,
+        jobId: jobId, requirement: requirement, application: application);
+    if (saved && mounted) await _load();
+  }
+
+  /// One caregiver's salary and leave page. Reloads on return, since the patient may
+  /// have changed the agreement, marked leave or paused salary there.
+  Future<void> _openSalaryPage(String jobId, String applicationId) async {
+    final requirement = _requirements.where((r) => r.id == jobId).firstOrNull;
+    if (requirement == null || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'open_salary_page');
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CaregiverSalaryScreen(requirement: requirement, applicationId: applicationId),
+      ),
     );
-    if (!saved || !mounted) return;
-    await _load();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sent to ${application.fullName}.')),
-      );
-    }
+    if (mounted) await _load();
   }
 
   /// A reason is mandatory (JOB_012 is the server-side backstop) — the
@@ -354,6 +239,83 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// something already rejected/cancelled). Confirmed first since it's
   /// irreversible and, when candidates are involved, notifies them by
   /// rejecting their application.
+  /// "Make it live again" (offered while a caregiver is accepted and the job is
+  /// closed): the job goes back in front of caregivers so more can apply. Nobody
+  /// already accepted or applied is rejected.
+  Future<void> _makeLiveAgain(JobModel requirement) async {
+    Analytics.tap('individual', 'requirement_posted', 'make_live_again');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Make it live again?'),
+        content: const Text(
+          'Caregivers will see this job again and can apply. '
+          'Caregivers you have already accepted stay accepted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Make it live'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(individualRepositoryProvider).makeLiveAgain(requirement.id);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The job is live again.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) showVitaErrorBanner(context, e.message);
+    }
+  }
+
+  /// "Permanently cancel": the job is closed for good and never goes live again.
+  /// Caregivers already accepted are NOT touched.
+  Future<void> _permanentlyCancel(JobModel requirement) async {
+    Analytics.tap('individual', 'requirement_posted', 'permanently_cancel');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permanently cancel this job?'),
+        content: const Text(
+          'The job will not go live again, and this cannot be undone. '
+          'Caregivers you have already accepted are not affected and stay accepted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep the job'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Permanently cancel', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(individualRepositoryProvider).permanentlyCancelRequirement(requirement.id);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The job was permanently cancelled. Your accepted caregivers are not affected.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) showVitaErrorBanner(context, e.message);
+    }
+  }
+
   Future<void> _cancelRequirement(JobModel requirement) async {
     Analytics.tap('individual', 'requirement_posted', 'cancel_requirement');
     final confirmed = await showDialog<bool>(
@@ -412,24 +374,50 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// history (see "Registration IS posting" in CLAUDE.md), so there is no
   /// reason to hide anything behind a toggle — every requirement found is
   /// always shown directly.
-  /// The accepted caregiver's next salary due, for each live requirement whose
-  /// agreement is filled in.
-  List<SalaryDueEntry> _salaryDueEntries() {
-    final entries = <SalaryDueEntry>[];
+  /// "Your caregivers": one card per accepted caregiver. A patient can have several, each
+  /// with their own salary, start date, next payment and leave. The caregiver whose salary
+  /// is due soonest comes first; one with no salary set yet comes last.
+  List<Widget> _caregiverCards() {
+    final items = <({JobModel requirement, JobApplicationModel application, String defaultUnit, SalaryDue? due})>[];
     for (final requirement in _requirements) {
+      final defaultUnit = requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly';
       for (final application in _applicationsByJobId[requirement.id] ?? const <JobApplicationModel>[]) {
         if (application.status != JobApplicationStatus.accepted) continue;
-        final due = nextSalaryDue(
-          salary: application.agreedSalary,
-          unit: application.agreedSalaryUnit ?? (requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
-          startDate: application.agreedStartDate,
-          leaveDates: application.leaveDates,
-          pauses: application.pauses,
-        );
-        if (due != null) entries.add(SalaryDueEntry(label: 'To ${application.fullName}', due: due));
+        items.add((
+          requirement: requirement,
+          application: application,
+          defaultUnit: defaultUnit,
+          due: CaregiverSummaryCard.dueFor(application, defaultUnit),
+        ));
       }
     }
-    return entries;
+    if (items.isEmpty) return const [];
+    items.sort((a, b) {
+      if (a.due == null && b.due == null) return a.application.fullName.compareTo(b.application.fullName);
+      if (a.due == null) return 1;
+      if (b.due == null) return -1;
+      return a.due!.dueDate.compareTo(b.due!.dueDate);
+    });
+    return [
+      Text(
+        'Your caregivers (${items.length})',
+        key: const Key('your-caregivers'),
+        style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: AppSpacing.md),
+      for (final item in items) ...[
+        CaregiverSummaryCard(
+          application: item.application,
+          defaultUnit: item.defaultUnit,
+          isDeciding: _decidingApplicationId.contains(item.application.id),
+          onOpenSalary: () => _openSalaryPage(item.requirement.id, item.application.id),
+          onAddAgreement: () => _openAgreement(item.requirement.id, item.application.id),
+          onViewProfile: () => _viewProfile(item.requirement.id, item.application.id),
+          onReject: () => _rejectWithReason(item.requirement.id, item.application.id),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    ];
   }
 
   Widget _buildCard(JobModel requirement) {
@@ -444,13 +432,10 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onSetAgreement: (applicationId) =>
           _openAgreement(requirement.id, applicationId),
-      leaveActions: _LeaveActions(
-        markLeave: (applicationId) => _markLeave(requirement.id, applicationId),
-        cancelLeave: (applicationId, date) => _cancelLeave(requirement.id, applicationId, date),
-        pause: (applicationId) => _pauseSalary(requirement.id, applicationId),
-        resume: (applicationId) => _resumeSalary(requirement.id, applicationId),
-      ),
+      onOpenSalary: (applicationId) => _openSalaryPage(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
+      onMakeLive: () => _makeLiveAgain(requirement),
+      onPermanentCancel: () => _permanentlyCancel(requirement),
       onReactivate: () => _reactivateRequirement(requirement),
       onSaved: _load,
     );
@@ -474,16 +459,8 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
               : ListView(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
-                    // Next salary due to the accepted caregiver (every 2 weeks
-                    // from the agreed start date).
-                    if (_salaryDueEntries().isNotEmpty) ...[
-                      SalaryDueBanner(
-                        entries: _salaryDueEntries(),
-                        caption: 'Pay the caregiver directly, every 2 weeks. JustHeal does not handle payments.',
-                        margin: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
+                    // Each accepted caregiver, with their own salary and leave.
+                    ..._caregiverCards(),
                     if (_error != null)
                       Text(_error!,
                           style: const TextStyle(color: AppColors.error)),
@@ -512,34 +489,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
 String _capitalize(String s) =>
     s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-String _formatDate(DateTime date) =>
-    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-// Seconds are included (not just hours:minutes) so two actions taken within
-// the same minute — e.g. a caregiver rejecting right after another applied —
-// still display in a visibly distinguishable, correctly ordered sequence.
-// The underlying DateTime already carries full precision from the backend
-// (Postgres timestamptz); this only affects what's shown, not how anything
-// is sorted (sorting already compares full DateTime/ISO values).
-String _formatDateTime(DateTime date) =>
-    '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
-    '${date.second.toString().padLeft(2, '0')}';
-
-/// What the patient can do about an accepted caregiver's leave and pay, bundled
-/// so it passes down the card -> applicants -> tile chain as one value.
-class _LeaveActions {
-  final void Function(String applicationId) markLeave;
-  final void Function(String applicationId, String date) cancelLeave;
-  final void Function(String applicationId) pause;
-  final void Function(String applicationId) resume;
-
-  const _LeaveActions({
-    required this.markLeave,
-    required this.cancelLeave,
-    required this.pause,
-    required this.resume,
-  });
-}
 
 class _RequirementCard extends ConsumerStatefulWidget {
   final JobModel requirement;
@@ -549,8 +498,10 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
-  final _LeaveActions leaveActions;
+  final void Function(String applicationId) onOpenSalary;
   final VoidCallback onCancel;
+  final VoidCallback onMakeLive;
+  final VoidCallback onPermanentCancel;
   final VoidCallback onReactivate;
   final VoidCallback onSaved;
 
@@ -562,8 +513,10 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.leaveActions,
+    required this.onOpenSalary,
     required this.onCancel,
+    required this.onMakeLive,
+    required this.onPermanentCancel,
     required this.onReactivate,
     required this.onSaved,
   });
@@ -1151,6 +1104,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       case JobStatus.closed:
         if (widget.requirement.isCancelled) return 'Cancelled';
         if (widget.requirement.rejectionReason != null) return 'Rejected';
+        if (widget.requirement.isPermanentlyCancelled) {
+          return _hasAcceptedApplicant ? 'Permanently cancelled — caregiver assigned' : 'Permanently cancelled';
+        }
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
         return widget.requirement.status;
@@ -1192,13 +1148,34 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     // is cancelled — cancelling an already-cancelled one makes no sense,
     // but bringing it back does.
     final menuActions = <_MenuAction>[
-      if (widget.requirement.isCancelled)
+      if (widget.requirement.isPermanentlyCancelled) ...[
+        // Permanently cancelled: nothing can put it back, and nothing here touches the
+        // caregivers already accepted.
+        _MenuAction(label: 'Make it live again (Unavailable)', enabled: false, onSelected: widget.onMakeLive),
+        _MenuAction(label: 'Permanently cancelled', enabled: false, onSelected: widget.onPermanentCancel),
+      ] else if (widget.requirement.isCancelled)
         _MenuAction(
           label: 'Make Active Again',
           enabled: _canReactivate,
           onSelected: widget.onReactivate,
         )
-      else
+      else if (_hasAcceptedApplicant && _canCancel) ...[
+        // A caregiver is accepted. "Cancel the Job" would reject them, which is not what
+        // the patient wants here: either put the job back up (nobody is rejected) while
+        // it is closed, or close it for good (nobody is rejected either).
+        if (widget.requirement.status == JobStatus.closed)
+          _MenuAction(
+            label: 'Make it live again',
+            enabled: true,
+            onSelected: widget.onMakeLive,
+          ),
+        _MenuAction(
+          label: 'Permanently cancel',
+          enabled: true,
+          destructive: true,
+          onSelected: widget.onPermanentCancel,
+        ),
+      ] else
         _MenuAction(
           label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
           enabled: _canCancel,
@@ -1344,7 +1321,8 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onReject: widget.onReject,
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
-                leaveActions: widget.leaveActions,
+                onOpenSalary: widget.onOpenSalary,
+                permanentlyCancelled: widget.requirement.isPermanentlyCancelled,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
@@ -1690,7 +1668,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  Container(
+                  // Once a salary has been agreed with the accepted caregiver, this
+                  // guidance only competes with the real figure in the salary banner at
+                  // the top, so it is hidden (kept in the tree: validation scrolls to it).
+                  Visibility(
+                    visible: !widget.applications.any(
+                        (a) => a.status == JobApplicationStatus.accepted && a.agreedSalary != null),
+                    maintainState: true,
+                    child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
@@ -1759,6 +1744,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                         ],
                       ],
                     ),
+                  ),
                   ),
                 ],
               ),
@@ -1996,15 +1982,17 @@ class _FieldLine extends StatelessWidget {
 /// that acceptance is undone. Rejecting (declining an undecided candidate,
 /// or undoing an acceptance) always requires a reason — see
 /// _rejectWithReason.
-class _ApplicantsSection extends StatelessWidget {
+class _ApplicantsSection extends StatefulWidget {
   final List<JobApplicationModel> applications;
   final Set<String> decidingApplicationId;
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
-  final _LeaveActions leaveActions;
+  final void Function(String applicationId) onOpenSalary;
   final String perUnit;
+  /// Whether the job was permanently cancelled (nobody else can be accepted).
+  final bool permanentlyCancelled;
 
   const _ApplicantsSection({
     required this.applications,
@@ -2013,21 +2001,55 @@ class _ApplicantsSection extends StatelessWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.leaveActions,
+    required this.onOpenSalary,
     required this.perUnit,
+    required this.permanentlyCancelled,
   });
 
   @override
+  State<_ApplicantsSection> createState() => _ApplicantsSectionState();
+}
+
+class _ApplicantsSectionState extends State<_ApplicantsSection> {
+  /// Rejected candidates are collapsed behind one row until the patient taps it.
+  bool _showRejected = false;
+
+  /// One candidate's tile plus the gap under it.
+  List<Widget> _tile(JobApplicationModel application, bool hasAccepted) {
+    return [
+      _ApplicantTile(
+        application: application,
+        isDeciding: widget.decidingApplicationId.contains(application.id),
+        // Several caregivers can be accepted on one job, so anyone not already
+        // accepted can be accepted — "Accept Anyway" for a previously rejected or
+        // completed candidate. Not once the job is permanently cancelled.
+        canAccept: application.status != JobApplicationStatus.accepted && !widget.permanentlyCancelled,
+        // An undecided candidate can always be declined; an accepted one can always
+        // be rejected (ending that engagement).
+        canReject: application.status == JobApplicationStatus.applied ||
+            application.status == JobApplicationStatus.accepted,
+        onAccept: () => widget.onAccept(application.id),
+        onReject: () => widget.onReject(application.id),
+        onViewProfile: () => widget.onViewProfile(application.id),
+        onSetAgreement: () => widget.onSetAgreement(application.id),
+        onOpenSalary: () => widget.onOpenSalary(application.id),
+        perUnit: widget.perUnit,
+      ),
+      const SizedBox(height: AppSpacing.sm),
+    ];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final hasAccepted =
-        applications.any((a) => a.status == JobApplicationStatus.accepted);
-    final awaitingCount = applications
+    final hasAccepted = widget.applications
+        .any((a) => a.status == JobApplicationStatus.accepted);
+    final awaitingCount = widget.applications
         .where((a) => a.status == JobApplicationStatus.applied)
         .length;
 
     // Accepted candidate first (the one engagement that matters most right
     // now), then everyone else by most recent activity.
-    final sorted = List<JobApplicationModel>.of(applications)
+    final sorted = List<JobApplicationModel>.of(widget.applications)
       ..sort((a, b) {
         final aAccepted = a.status == JobApplicationStatus.accepted;
         final bAccepted = b.status == JobApplicationStatus.accepted;
@@ -2035,68 +2057,78 @@ class _ApplicantsSection extends StatelessWidget {
         return b.updatedAt.compareTo(a.updatedAt);
       });
 
+    final rejected =
+        sorted.where((a) => a.status == JobApplicationStatus.rejected).toList();
+    final waiting = sorted.where((a) => a.status == JobApplicationStatus.applied).toList();
+    final completedOnes = sorted.where((a) => a.status == JobApplicationStatus.completed).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-            '${applications.length} candidate${applications.length == 1 ? '' : 's'} applied in total',
+            '${widget.applications.length} candidate${widget.applications.length == 1 ? '' : 's'} applied in total',
             style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: AppSpacing.sm),
-        if (applications.isEmpty)
+        if (widget.applications.isEmpty)
           const Text('No applicants yet.',
               style: TextStyle(color: AppColors.textSecondary))
         else ...[
-          if (hasAccepted)
-            const Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Text(
-                'You have accepted a candidate. Reject them to be able to accept someone else.',
-                style: TextStyle(
-                    color: AppColors.primaryDark, fontWeight: FontWeight.w600),
-              ),
-            )
-          else if (awaitingCount > 0)
+          if (awaitingCount > 0)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Text(
                 awaitingCount == 1
                     ? '1 candidate awaiting your decision'
                     : '$awaitingCount candidates awaiting your decision',
-                style: const TextStyle(
-                    color: AppColors.primaryDark, fontWeight: FontWeight.w600),
+                style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
               ),
             ),
-          for (final application in sorted) ...[
-            _ApplicantTile(
-              application: application,
-              isDeciding: decidingApplicationId.contains(application.id),
-              // A completed engagement (the caregiver closed the job
-              // themselves after finishing the work) can still be
-              // re-accepted — "Accept Anyway", same as a previously
-              // rejected candidate — since completeJob already reopens the
-              // job to active server-side, there's nothing left to undo
-              // first. Anyone already accepted obviously can't be accepted
-              // again via this button (see _isAccepted below — Reject-to-
-              // undo is the only action offered for them instead), and
-              // while someone else is accepted, no one else is offered
-              // Accept at all.
-              canAccept: !hasAccepted,
-              // An undecided candidate is only actionable (accept OR
-              // reject) while no one else is accepted — once someone is,
-              // the rest are simply on hold, not something you need to
-              // actively decline. The currently-accepted candidate's own
-              // Reject (undo) always stays available regardless.
-              canReject: (application.status == JobApplicationStatus.applied &&
-                      !hasAccepted) ||
-                  application.status == JobApplicationStatus.accepted,
-              onAccept: () => onAccept(application.id),
-              onReject: () => onReject(application.id),
-              onViewProfile: () => onViewProfile(application.id),
-              onSetAgreement: () => onSetAgreement(application.id),
-              leaveActions: leaveActions,
-              perUnit: perUnit,
+          // Accepted caregivers are the cards at the top of the screen, so they are not repeated here.
+          if (waiting.isEmpty && rejected.isEmpty && completedOnes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text('No other candidates waiting.', key: Key('no-other-candidates'), style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          for (final application in [...waiting, ...completedOnes]) ..._tile(application, hasAccepted),
+          // Rejected candidates stay one tap away (their profile and phone are never
+          // hidden), but are tucked behind a single row so they don't crowd the screen.
+          if (rejected.isNotEmpty) ...[
+            InkWell(
+              key: const Key('rejected-toggle'),
+              onTap: () => setState(() => _showRejected = !_showRejected),
+              borderRadius: BorderRadius.circular(AppSpacing.sm),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.textSecondary.withValues(alpha: 0.05),
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(AppSpacing.sm),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel_outlined,
+                        size: 18, color: AppColors.textSecondary),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'Rejected candidates (${rejected.length})',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary),
+                      ),
+                    ),
+                    Icon(_showRejected ? Icons.expand_less : Icons.expand_more,
+                        color: AppColors.textSecondary),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
+            if (_showRejected)
+              for (final application in rejected)
+                ..._tile(application, hasAccepted),
           ],
         ],
       ],
@@ -2113,7 +2145,7 @@ class _ApplicantTile extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
   final VoidCallback onSetAgreement;
-  final _LeaveActions leaveActions;
+  final VoidCallback onOpenSalary;
   final String perUnit;
 
   const _ApplicantTile({
@@ -2125,7 +2157,7 @@ class _ApplicantTile extends StatelessWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.leaveActions,
+    required this.onOpenSalary,
     required this.perUnit,
   });
 
@@ -2141,12 +2173,14 @@ class _ApplicantTile extends StatelessWidget {
   bool get _isRejectedByCaregiver =>
       _isRejected && application.decidedBy == null;
 
-  /// The salary and start date confirmed with this caregiver, or — while it is
-  /// still empty — the button that opens the same popup shown after accepting.
+  /// What was agreed with this caregiver, with a button to their salary page. While
+  /// nothing is agreed yet (accepted caregiver), the button that opens the same popup
+  /// shown after accepting. A caregiver no longer on the job keeps their past details.
   Widget _buildAgreement() {
     final salary = application.agreedSalary;
     final startDate = application.agreedStartDate;
     if (salary == null || startDate == null) {
+      if (!_isAccepted) return const SizedBox.shrink();
       return Padding(
         padding: const EdgeInsets.only(top: AppSpacing.xs),
         child: Align(
@@ -2170,103 +2204,23 @@ class _ApplicantTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Agreed: ₹${formatRupees(salary)} per $unit · starts ${formatLongDate(startDate)}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.success),
-                ),
-              ),
-              TextButton(onPressed: onSetAgreement, child: const Text('Edit')),
-            ],
+          Text(
+            _isAccepted ? 'Agreed: ₹${formatRupees(salary)} per $unit' : 'Agreed (past): ₹${formatRupees(salary)} per $unit',
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: _isAccepted ? AppColors.success : AppColors.textSecondary),
           ),
-          _buildLeaveControls(),
-        ],
-      ),
-    );
-  }
-
-  /// Leave days and the pause switch, shown under the agreed salary once it is
-  /// set: day chips (tap the x to cancel a marked day), a pause note, and the
-  /// Mark leave / Pause salary buttons.
-  Widget _buildLeaveControls() {
-    final openPause = application.pauses.where((p) => p.isOpen).toList();
-    final isPaused = openPause.isNotEmpty;
-    final closedPauses = application.pauses.where((p) => !p.isOpen && p.to != p.from).toList();
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isPaused)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text(
-                'Salary paused since ${formatLongDate(openPause.first.from)}. Days until you resume count as leave.',
-                key: const Key('paused-note'),
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade800),
-              ),
-            ),
-          for (final pause in closedPauses)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text(
-                'Paused ${formatLongDate(pause.from)} to ${formatLongDate(pause.to!)}',
-                style: TextStyle(color: Colors.deepOrange.shade800, fontSize: AppTypography.small),
-              ),
-            ),
-          if (application.leaveDates.isNotEmpty) ...[
-            Text('Marked as leave (tap x to cancel a day)',
-                style: TextStyle(fontSize: AppTypography.small, color: Colors.deepOrange.shade800, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: 0,
-              children: [
-                for (final date in application.leaveDates)
-                  InputChip(
-                    key: Key('leave-chip-$date'),
-                    label: Text(formatDayMonth(date), style: const TextStyle(fontSize: AppTypography.small)),
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: Colors.deepOrange.shade50,
-                    side: BorderSide(color: Colors.deepOrange.shade400),
-                    deleteIcon: const Icon(Icons.close, size: 16),
-                    deleteButtonTooltipMessage: 'Cancel leave on ${formatDayMonth(date)}',
-                    onDeleted: () => leaveActions.cancelLeave(application.id, date),
-                  ),
-              ],
-            ),
-          ],
+          Text(
+            'Starts ${formatLongDate(startDate)}',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: [
-              OutlinedButton.icon(
-                key: const Key('mark-leave'),
-                onPressed: () => leaveActions.markLeave(application.id),
-                style: _compactButtonStyle,
-                icon: const Icon(Icons.event_busy, size: 14),
-                label: const Text('Mark leave'),
-              ),
-              if (isPaused)
-                FilledButton.icon(
-                  key: const Key('resume-salary'),
-                  onPressed: () => leaveActions.resume(application.id),
-                  style: _compactButtonStyle,
-                  icon: const Icon(Icons.play_circle_outline, size: 14),
-                  label: const Text('Resume salary'),
-                )
-              else
-                OutlinedButton.icon(
-                  key: const Key('pause-salary'),
-                  onPressed: () => leaveActions.pause(application.id),
-                  style: _compactButtonStyle,
-                  icon: const Icon(Icons.pause_circle_outline, size: 14),
-                  label: const Text('Pause salary'),
-                ),
-            ],
+          OutlinedButton.icon(
+            key: const Key('open-salary-tile'),
+            onPressed: onOpenSalary,
+            style: _compactButtonStyle,
+            icon: const Icon(Icons.account_balance_wallet_outlined, size: 14),
+            label: const Text('Salary & leaves'),
           ),
         ],
       ),
@@ -2298,7 +2252,7 @@ class _ApplicantTile extends StatelessWidget {
             : _isApplied
                 ? AppColors.warning.withValues(alpha: 0.08)
                 : (_isRejected
-                    ? AppColors.error.withValues(alpha: 0.06)
+                    ? AppColors.textSecondary.withValues(alpha: 0.05)
                     : null),
         // Amber/highlighted with a wider border — a candidate waiting on a
         // decision stands out from a plain grey/green/red decided tile at
@@ -2306,7 +2260,7 @@ class _ApplicantTile extends StatelessWidget {
         border: Border.all(
           color: _isApplied
               ? AppColors.warning
-              : (_statusColor == AppColors.textSecondary
+              : ((_statusColor == AppColors.textSecondary || _isRejected)
                   ? AppColors.border
                   : _statusColor),
           width: _isApplied ? 2 : 1,
@@ -2373,7 +2327,7 @@ class _ApplicantTile extends StatelessWidget {
           ),
           // Agreed salary / start date (or the button to add them) sits right
           // under the name + Accepted row so it is the first thing seen.
-          if (_isAccepted && !isDeciding) _buildAgreement(),
+          if (!isDeciding && (_isAccepted || application.agreedSalary != null)) _buildAgreement(),
           // The phone number and profile stay visible no matter the
           // outcome — rejected (by either side) or completed candidates
           // are never hidden, so the patient/family can always look them
@@ -2396,7 +2350,7 @@ class _ApplicantTile extends StatelessWidget {
               ),
             ),
           ),
-          _ApplicantTimeline(application),
+          ApplicantTimeline(application),
           if (isDeciding)
             const Padding(
               padding: EdgeInsets.only(top: AppSpacing.xs),
@@ -2456,8 +2410,8 @@ class _ApplicantTile extends StatelessWidget {
                           FilledButton.icon(
                             onPressed: onReject,
                             style: _compactButtonStyle.copyWith(
-                              backgroundColor: WidgetStateProperty.all(AppColors.error),
-                              foregroundColor: WidgetStateProperty.all(Colors.white),
+                              backgroundColor: WidgetStateProperty.all(AppColors.error.withValues(alpha: 0.1)),
+                              foregroundColor: WidgetStateProperty.all(AppColors.error),
                             ),
                             icon: const Icon(Icons.close, size: 14),
                             label: const Text('Reject'),
@@ -2488,125 +2442,3 @@ final _compactButtonStyle = ButtonStyle(
   visualDensity: VisualDensity.compact,
 );
 
-/// The candidate's full action history on this application — every
-/// transition with who did it and exactly when, newest first (the current
-/// status is the one worth seeing without scrolling). `decidedByName`, when
-/// present, names exactly who accepted/rejected — the patient/family
-/// themselves, or an admin who intervened on their behalf via admin-web —
-/// rather than a vague "you"/"the employer". A caregiver-initiated close
-/// or self-withdrawal (`decidedBy == null`) is always the caregiver's own
-/// doing, so those lines never need a name.
-class _ApplicantTimeline extends StatefulWidget {
-  final JobApplicationModel application;
-
-  const _ApplicantTimeline(this.application);
-
-  @override
-  State<_ApplicantTimeline> createState() => _ApplicantTimelineState();
-}
-
-class _ApplicantTimelineState extends State<_ApplicantTimeline> {
-  static const _fontSize = AppTypography.small;
-
-  // Collapsed by default — each applicant tile's log is independent state,
-  // one instance of this widget per candidate, so expanding one never
-  // affects any other candidate's own tile.
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final application = widget.application;
-    final entries = <MapEntry<DateTime, String>>[];
-    if (application.appliedAt != null) {
-      final at = DateTime.parse(application.appliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Applied: ${_formatDateTime(at)}'));
-    }
-    if (application.acceptedAt != null) {
-      final at = DateTime.parse(application.acceptedAt!).toLocal();
-      final by = application.decidedByName != null
-          ? ' by ${application.decidedByName}'
-          : '';
-      entries.add(MapEntry(at, 'Accepted$by: ${_formatDateTime(at)}'));
-    }
-    // Shown whenever completedAt is set, regardless of the application's
-    // CURRENT status — e.g. still shown as history after the candidate is
-    // later accepted again ("Accept Anyway") or re-applies, neither of
-    // which clear completedAt any more (see
-    // OrganisationRequirementApplicationsRepository.upsert/decide).
-    if (application.completedAt != null) {
-      final at = DateTime.parse(application.completedAt!).toLocal();
-      var text = 'Closed by Caregiver: ${_formatDateTime(at)}';
-      if (application.closeReason != null) {
-        text = '$text\nReason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}';
-      }
-      entries.add(MapEntry(at, text));
-    }
-    // Shown whenever rejectedAt is set, regardless of the application's
-    // CURRENT status — same reasoning as completedAt above, so a
-    // previously-declined-then-accepted-anyway (or re-applied) candidate's
-    // rejection stays visible as history instead of silently vanishing.
-    if (application.rejectedAt != null) {
-      final at = DateTime.parse(application.rejectedAt!).toLocal();
-      final label = application.decidedByName != null
-          ? 'Rejected by ${application.decidedByName}'
-          : 'Rejected by Caregiver';
-      var text = '$label: ${_formatDateTime(at)}';
-      if (application.declineReason != null &&
-          application.declineReason!.isNotEmpty) {
-        text = '$text\nReason: ${application.declineReason!}';
-      }
-      entries.add(MapEntry(at, text));
-    }
-    // A candidate can re-apply, then be decided on again — shown last since
-    // it always comes after whatever prior outcome it followed.
-    if (application.reappliedAt != null) {
-      final at = DateTime.parse(application.reappliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Re-applied: ${_formatDateTime(at)}'));
-    }
-    if (entries.isEmpty) return const SizedBox.shrink();
-
-    // Newest first — the current status is the one worth seeing without
-    // having to scroll for it, same convention as caregiver-app's own
-    // ApplicationTimeline.
-    entries.sort((a, b) => b.key.compareTo(a.key));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _expanded ? 'Hide Activity Log' : 'Show Activity Log',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: _fontSize,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-              Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                size: 16,
-                color: AppColors.primary,
-              ),
-            ],
-          ),
-        ),
-        if (_expanded) ...[
-          const SizedBox(height: 2),
-          for (final entry in entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                entry.value,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
-              ),
-            ),
-        ],
-      ],
-    );
-  }
-}

@@ -49,6 +49,8 @@ export interface JobRecord {
    *  Once set, the individual's own view of past applicants/phone numbers
    *  is hidden (see IndividualService.getMyRequirementApplications). */
   cancelled_at: Date | null;
+  /** Set when the patient permanently cancels: never goes live again, and the accepted caregiver is untouched (migration 094). */
+  permanently_cancelled_at: Date | null;
   /** Effective "went live" timestamp — starts equal to created_at, bumped
    *  to NOW() only when a closed job is edited-and-reposted. The 3-day
    *  apply-by urgency window is always computed from this, not created_at. */
@@ -626,9 +628,31 @@ export class JobsRepository {
     await runner.query(`UPDATE jobs SET status = 'closed', updated_at = NOW() WHERE id = $1`, [id]);
   }
 
-  async reopen(id: string, client?: PoolClient): Promise<void> {
+  /** Puts a closed job back in front of caregivers (the caregiver was un-accepted
+   *  or closed duty). A permanently cancelled job is never reopened this way.
+   *  Returns whether it actually reopened. */
+  async reopen(id: string, client?: PoolClient): Promise<boolean> {
     const runner: QueryRunner = client ?? this.db;
-    await runner.query(`UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1`, [id]);
+    const result = await runner.query(
+      `UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1 AND permanently_cancelled_at IS NULL`,
+      [id],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /** The patient permanently cancels a job that has accepted caregivers: it is
+   *  closed for good (from live or closed) and nothing reopens it. Only valid on
+   *  a live/closed job that is not already cancelled/rejected/permanently
+   *  cancelled; returns null otherwise. */
+  async permanentlyCancel(id: string): Promise<JobRecord | null> {
+    const result = await this.db.query<JobRecord>(
+      `UPDATE jobs SET status = 'closed', permanently_cancelled_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND status IN ('active', 'closed') AND permanently_cancelled_at IS NULL
+         AND cancelled_at IS NULL AND rejection_reason IS NULL
+       RETURNING *`,
+      [id],
+    );
+    return result.rows[0] ?? null;
   }
 
   /** Admin sends any job back to admin review — hidden from caregivers until
@@ -638,7 +662,7 @@ export class JobsRepository {
   async moveToPendingReview(id: string): Promise<void> {
     await this.db.query(
       `UPDATE jobs
-       SET status = 'pending_review', cancelled_at = NULL, rejection_reason = NULL, updated_at = NOW()
+       SET status = 'pending_review', cancelled_at = NULL, permanently_cancelled_at = NULL, rejection_reason = NULL, updated_at = NOW()
        WHERE id = $1`,
       [id],
     );
@@ -676,7 +700,7 @@ export class JobsRepository {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query<JobRecord>(
       `UPDATE jobs
-       SET status = 'active', cancelled_at = NULL, posted_at = NOW(), updated_at = NOW(),
+       SET status = 'active', cancelled_at = NULL, permanently_cancelled_at = NULL, posted_at = NOW(), updated_at = NOW(),
            no_applicants_nudge_at = NULL
        WHERE id = $1
        RETURNING *`,

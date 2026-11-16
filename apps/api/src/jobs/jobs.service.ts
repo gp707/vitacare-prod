@@ -533,6 +533,10 @@ export class JobsService {
     // can both show a real "Re-applied: <date>" entry (see
     // JobApplicationsRepository.upsert's reapplied_at handling).
     const existing = await this.jobApplicationsRepo.findByJobAndProfile(jobId, profile.id);
+    // A caregiver already accepted can't apply to, or decline, the same job: since a job
+    // can be live again with accepted caregivers, this would otherwise overwrite their
+    // acceptance. They end their engagement with Close Duty.
+    if (existing?.status === JobApplicationStatus.ACCEPTED) throw new AppException('JOB_032');
     const isReapply =
       dto.status === JobApplicationStatus.APPLIED &&
       (existing?.status === JobApplicationStatus.REJECTED || existing?.status === JobApplicationStatus.COMPLETED);
@@ -585,9 +589,11 @@ export class JobsService {
     const closeReason = dto.close_reason?.trim() || CaregiverCloseReason.NO_REASON;
 
     let stillAssigned = false;
+    let jobReopened = false;
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.markCompleted(application.id, closeReason, client);
-      await this.jobsRepo.reopen(jobId, client);
+      // A permanently cancelled job stays closed (reopen() returns false).
+      jobReopened = await this.jobsRepo.reopen(jobId, client);
       const remaining = await this.profilesRepo.countAcceptedWork(profile.id, client);
       stillAssigned = remaining > 0;
       if (!stillAssigned) {
@@ -604,8 +610,8 @@ export class JobsService {
     const job = await this.jobsRepo.findById(jobId);
     const poster = job ? await this.usersRepo.findById(job.posted_by) : null;
     if (job && poster) {
-      // completeJob always reopens the job to active, hence "reopened".
-      void this.notificationsService.caregiverClosedEngagement(poster.id, jobDisplayId(job), true);
+      // Reopened unless the patient permanently cancelled the job.
+      void this.notificationsService.caregiverClosedEngagement(poster.id, jobDisplayId(job), jobReopened);
     }
 
     await this.auditService.log({
@@ -617,7 +623,7 @@ export class JobsService {
       beforeValue: { status: 'accepted' },
       afterValue: {
         status: 'completed',
-        job_status: 'active',
+        job_status: jobReopened ? 'active' : 'closed',
         verification_status: stillAssigned ? 'assigned' : 'available',
         close_reason: closeReason,
       },
@@ -671,17 +677,14 @@ export class JobsService {
       throw new AppException('JOB_007');
     }
 
-    if (isAccepting) {
-      const existingAccepted = await this.jobApplicationsRepo.findAcceptedForJob(jobId);
-      if (existingAccepted && existingAccepted.id !== applicationId) {
-        throw new AppException('JOB_016');
-      }
-    }
+    // Several caregivers can be accepted on the same job (the patient makes a closed job
+    // live again to add another), so there is no one-accepted-at-a-time check here.
 
     const caregiverDetail = await this.adminCaregiversRepo.getDetailById(application.profile_id);
     if (!caregiverDetail) throw new AppException('PROFILE_019');
 
     let remainingAccepted = 0;
+    let jobReopened = false;
     await this.db.withTransaction(async (client) => {
       await this.jobApplicationsRepo.decide(applicationId, dto.status, adminId, client, dto.reason);
       if (isAccepting) {
@@ -694,7 +697,8 @@ export class JobsService {
           client,
         );
       } else if (isUndoAccept) {
-        await this.jobsRepo.reopen(jobId, client);
+        // Reopens the job unless it was permanently cancelled by the patient.
+        jobReopened = await this.jobsRepo.reopen(jobId, client);
         // A caregiver can hold several accepted jobs/requirements at once;
         // only free them once none remain (the one just rejected is already
         // no longer 'accepted' at this point — decide() ran above).
@@ -729,7 +733,7 @@ export class JobsService {
         status: dto.status,
         ...(isAccepting ? { job_status: 'closed', caregiver_status: 'assigned' } : {}),
         ...(isUndoAccept
-          ? { job_status: 'active', caregiver_status: remainingAccepted === 0 ? 'available' : 'assigned' }
+          ? { job_status: jobReopened ? 'active' : 'closed', caregiver_status: remainingAccepted === 0 ? 'available' : 'assigned' }
           : {}),
         // Present on a patient's/organisation's own reject (mandatory there,
         // JOB_012) — never on admin's own reject, which stays reason-optional.

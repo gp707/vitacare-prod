@@ -64,7 +64,7 @@ describe('JobsService', () => {
       listActiveForCaregiver: jest.fn(),
       listAssignedForCaregiver: jest.fn(),
       close: jest.fn(),
-      reopen: jest.fn(),
+      reopen: jest.fn().mockResolvedValue(true),
       reject: jest.fn(),
       activate: jest.fn(),
     };
@@ -790,6 +790,23 @@ describe('JobsService', () => {
       });
     });
 
+    it('throws JOB_032 when the caregiver is already accepted on this job (it can be live again with accepted caregivers)', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1', verification_status: VerificationStatus.ASSIGNED });
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      await expect(service.applyToJob('user-1', 'job-1', dto, null)).rejects.toMatchObject({ code: 'JOB_032' });
+      expect(jobApplicationsRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it('also stops an accepted caregiver from "declining" the job through the apply endpoint', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1', verification_status: VerificationStatus.ASSIGNED });
+      jobsRepo.findById.mockResolvedValue(job);
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      await expect(service.applyToJob('user-1', 'job-1', { status: 'rejected' as any }, null)).rejects.toMatchObject({
+        code: 'JOB_032',
+      });
+    });
+
     it.each([VerificationStatus.AVAILABLE, VerificationStatus.ASSIGNED])(
       'allows applying when caregiver status is %s',
       async (status) => {
@@ -1023,6 +1040,22 @@ describe('JobsService', () => {
       await service.completeJob('user-1', 'job-1', {}, null);
 
       expect(notificationsService.caregiverClosedEngagement).toHaveBeenCalledWith('individual-user-1', 'PAT-JOB-512', true);
+    });
+
+    it('does not tell the patient the job is open again, and leaves it closed, when it was permanently cancelled', async () => {
+      profilesRepo.findByUserId.mockResolvedValue({ id: 'profile-1' });
+      jobApplicationsRepo.findByJobAndProfile.mockResolvedValue({ id: 'app-1', status: 'accepted' });
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'individual-user-1', patient_job_number: 512 });
+      usersRepo.findById.mockResolvedValue({ id: 'individual-user-1', role: 'individual' });
+      jobsRepo.reopen.mockResolvedValue(false);
+
+      await service.completeJob('user-1', 'job-1', {}, null);
+
+      expect(notificationsService.caregiverClosedEngagement).toHaveBeenCalledWith('individual-user-1', 'PAT-JOB-512', false);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ job_status: 'closed' }) }),
+      );
     });
 
     it('does not target anyone in the audit log for an admin-posted job', async () => {
@@ -1267,17 +1300,32 @@ describe('JobsService', () => {
     });
 
     it.each(['applied', 'rejected', 'completed'])(
-      'throws JOB_016 when accepting a %s application while a different one is already accepted for the job',
+      'accepts a %s application even while a different caregiver is already accepted on the same job',
       async (status) => {
         jobApplicationsRepo.findById.mockResolvedValue({ ...application, status });
         jobApplicationsRepo.findAcceptedForJob.mockResolvedValue({ ...application, id: 'app-2', status: 'accepted' });
+        adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
 
-        await expect(
-          service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'accepted' as any }, null),
-        ).rejects.toMatchObject({ code: 'JOB_016' });
-        expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+        const result = await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'accepted' as any }, null);
+
+        expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-1', 'accepted', 'admin-1', expect.anything(), undefined);
+        expect(jobsRepo.close).toHaveBeenCalledWith('job-1', expect.anything());
+        expect(result).toEqual({ message: 'Application updated', status: 'accepted' });
       },
     );
+
+    it('rejecting the accepted caregiver of a permanently cancelled job leaves the job closed and says so in the audit log', async () => {
+      jobApplicationsRepo.findById.mockResolvedValue({ ...application, status: 'accepted' });
+      adminCaregiversRepo.getDetailById.mockResolvedValue(caregiverDetail);
+      profilesRepo.countAcceptedWork.mockResolvedValue(0);
+      jobsRepo.reopen.mockResolvedValue(false);
+
+      await service.decideApplication('admin-1', 'job-1', 'app-1', { status: 'rejected' as any }, null);
+
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ job_status: 'closed' }) }),
+      );
+    });
 
     it('does not consult findAcceptedForJob at all for a reject (only accepting checks for a conflict)', async () => {
       jobApplicationsRepo.findById.mockResolvedValue(application);

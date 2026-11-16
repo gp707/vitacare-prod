@@ -415,6 +415,73 @@ export class IndividualService {
     return job;
   }
 
+  /** "Make it live again": a closed job (a caregiver is accepted) goes back in
+   *  front of caregivers WITHOUT touching anyone already accepted or applied. Fresh
+   *  posted_at and a "New Job" push, same as a repost. JOB_015 for a cancelled or
+   *  admin-rejected requirement (use Make Active Again / not possible), JOB_029 once
+   *  permanently cancelled, JOB_031 if it is already live, JOB_010 while blocked. */
+  async makeLiveAgain(userId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+    if (existing.cancelled_at != null || existing.rejection_reason != null) throw new AppException('JOB_015');
+    if (existing.permanently_cancelled_at != null) throw new AppException('JOB_029');
+    if (existing.status !== JobStatus.CLOSED) throw new AppException('JOB_031');
+
+    const profile = await this.individualProfilesRepo.findByUserId(userId);
+    if (profile?.is_job_posting_blocked) throw new AppException('JOB_010');
+
+    const job = await this.jobsRepo.activate(jobId);
+
+    await this.fcmService.sendToAllCaregivers(
+      'New Job Available',
+      'A patient/family is looking for a caregiver — check the Jobs tab.',
+      { preferredGender: job.preferred_gender },
+    );
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_UPDATED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: existing.status },
+      afterValue: { status: job.status, made_live_again: true },
+      ipAddress,
+    });
+
+    return job;
+  }
+
+  /** "Permanently cancel": the job is closed for good and never goes live again,
+   *  and the caregivers already accepted are NOT touched (they stay accepted, with
+   *  their agreement, leave and pay). Candidates still waiting (applied) are told
+   *  the job is no longer taking applications. Needs at least one accepted
+   *  caregiver (JOB_030); JOB_015 / JOB_029 when already cancelled, rejected or
+   *  permanently cancelled. */
+  async permanentlyCancelRequirement(userId: string, jobId: string, ipAddress: string | null) {
+    const existing = await this.jobsRepo.findById(jobId);
+    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
+    if (existing.cancelled_at != null || existing.rejection_reason != null) throw new AppException('JOB_015');
+    if (existing.permanently_cancelled_at != null) throw new AppException('JOB_029');
+    if (!(await this.jobApplicationsRepo.findAcceptedForJob(jobId))) throw new AppException('JOB_030');
+
+    const waiting = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied']);
+    const job = await this.jobsRepo.permanentlyCancel(jobId);
+    if (!job) throw new AppException('JOB_015');
+    void this.notificationsService.jobNoLongerOpen(waiting, jobDisplayId(existing));
+
+    await this.auditService.log({
+      userId,
+      action: AuditAction.JOB_CLOSED,
+      entityType: 'jobs',
+      entityId: jobId,
+      beforeValue: { status: existing.status },
+      afterValue: { status: 'closed', permanently_cancelled: true },
+      ipAddress,
+    });
+
+    return { message: 'Requirement permanently cancelled', status: job.status, permanently_cancelled: true };
+  }
+
   /** Full history (durable — a closed/rejected requirement stays visible,
    *  not just the current live one), each with its care_receiver joined in
    *  so the app can show the full requirement detail without a second
