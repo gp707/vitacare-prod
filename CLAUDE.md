@@ -469,6 +469,16 @@ location) that didn't fit the Individual/admin jobs-table model.
   - accept or reject) clears the agreement; a `completed` row keeps it. Caregiver side: `my_application` carries `agreed_salary` /
   `agreed_start_date` and caregiver-app's Selected card shows an "Agreed with the family" box (`AgreedTermsBox`). Admin accepts and
   organisation requirements are deliberately unchanged (no popup, no fields). Migrations 091 and 092 must be applied before this backend.
+- **Salary-due banner (both apps, computed on the phone, no backend/DB change).** Salary is paid every **2 weeks**: from the
+  agreement's start date the first payment is due 14 days later, then every 14 days (`nextSalaryDue`,
+  `packages/vitacare_shared/lib/models/salary_due.dart`, pure Dart, unit-tested; shows the next due date on or after today). The
+  amount for one period is `rate × 14` for a per-day rate and `rate × 14 ÷ 30` (rounded to the rupee, a fixed 30-day month) for a
+  per-month rate, formatted with Indian digit grouping. An amber `SalaryDueBanner` is pinned at the **top of caregiver-app's My Jobs**
+  (one entry per accepted job with an agreement, soonest first, max 3 + "+ n more") and at the **top of nursenow-app's Requirement
+  Posted list** (the accepted caregiver). It appears only for an `accepted` application whose agreement is filled in. The widget is
+  duplicated per tree (`caregiver/features/jobs/widgets/` and `patient_hospital/features/individual/widgets/`, same precedent as
+  `RateCardButton`). Captions say salary is paid directly between the family and caregiver, and JustHeal does not handle payments.
+  The 14-day cycle simply repeats while the engagement is accepted; no partial last period is computed.
 - **Post a Requirement / Register forms use the same "always-tappable submit, highlight-and-scroll
   on invalid" pattern as admin-web's job-posting form** (see "Naming Conventions"/admin-web's
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a

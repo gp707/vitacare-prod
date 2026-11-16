@@ -11,6 +11,7 @@ export 'models/job_model.dart';
 export 'models/organisation_requirement_model.dart';
 export 'models/rate_card_model.dart';
 export 'models/rate_suggestion.dart';
+export 'models/salary_due.dart';
 export 'models/scope_of_work_model.dart';
 export 'models/duty_requirements_model.dart';
 export 'models/care_tier.dart';

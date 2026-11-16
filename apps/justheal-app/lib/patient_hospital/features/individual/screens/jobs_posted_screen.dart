@@ -14,6 +14,7 @@ import '../data/individual_repository.dart';
 import '../widgets/agreement_dialog.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
+import '../widgets/salary_due_banner.dart';
 import '../widgets/section_box.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
@@ -294,6 +295,24 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// history (see "Registration IS posting" in CLAUDE.md), so there is no
   /// reason to hide anything behind a toggle — every requirement found is
   /// always shown directly.
+  /// The accepted caregiver's next salary due, for each live requirement whose
+  /// agreement is filled in.
+  List<SalaryDueEntry> _salaryDueEntries() {
+    final entries = <SalaryDueEntry>[];
+    for (final requirement in _requirements) {
+      for (final application in _applicationsByJobId[requirement.id] ?? const <JobApplicationModel>[]) {
+        if (application.status != JobApplicationStatus.accepted) continue;
+        final due = nextSalaryDue(
+          salary: application.agreedSalary,
+          unit: application.agreedSalaryUnit ?? (requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
+          startDate: application.agreedStartDate,
+        );
+        if (due != null) entries.add(SalaryDueEntry(label: 'To ${application.fullName}', due: due));
+      }
+    }
+    return entries;
+  }
+
   Widget _buildCard(JobModel requirement) {
     return _RequirementCard(
       requirement: requirement,
@@ -330,6 +349,16 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
               : ListView(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
+                    // Next salary due to the accepted caregiver (every 2 weeks
+                    // from the agreed start date).
+                    if (_salaryDueEntries().isNotEmpty) ...[
+                      SalaryDueBanner(
+                        entries: _salaryDueEntries(),
+                        caption: 'Pay the caregiver directly, every 2 weeks. JustHeal does not handle payments.',
+                        margin: EdgeInsets.zero,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                     if (_error != null)
                       Text(_error!,
                           style: const TextStyle(color: AppColors.error)),

@@ -16,6 +16,7 @@ import '../widgets/job_poster_contact_card.dart';
 import '../../../app/tab_back_scope.dart';
 import '../widgets/job_progress_stepper.dart';
 import '../widgets/job_status_chip.dart';
+import '../widgets/salary_due_banner.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
 /// "My Jobs" — every job/requirement this caregiver has ever gone for,
@@ -338,6 +339,22 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
   }
 
+  /// One entry per currently-accepted job whose agreement (salary, unit and
+  /// start date) has been filled in by the family.
+  List<SalaryDueEntry> _salaryDueEntries() {
+    final entries = <SalaryDueEntry>[];
+    for (final job in _selectedJobs) {
+      final application = job.myApplication;
+      final due = nextSalaryDue(
+        salary: application?.agreedSalary,
+        unit: application?.agreedSalaryUnit ?? (job.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
+        startDate: application?.agreedStartDate,
+      );
+      if (due != null) entries.add(SalaryDueEntry(label: jobDisplayId(job), due: due));
+    }
+    return entries;
+  }
+
   Widget? _agreementFor(JobModel job) {
     final application = job.myApplication;
     final salary = application?.agreedSalary;
@@ -442,11 +459,23 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         body: SafeArea(
           child: _loading
               ? const Center(child: VitaLoadingIndicator())
-              : TabBarView(
+              : Column(
                   children: [
-                    _buildAppliedTab(),
-                    _buildSelectedTab(),
-                    _buildPastTab(),
+                    // Next salary due (every 2 weeks from the agreed start date)
+                    // for the jobs the caregiver is currently on.
+                    SalaryDueBanner(
+                      entries: _salaryDueEntries(),
+                      caption: 'Salary is paid directly by the family, every 2 weeks.',
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildAppliedTab(),
+                          _buildSelectedTab(),
+                          _buildPastTab(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
         ),

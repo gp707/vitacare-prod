@@ -1550,6 +1550,83 @@ void main() {
       expect(repo.agreementSalary, 900);
     });
 
+    String isoDaysFromNow(int days) {
+      final d = DateTime.now().add(Duration(days: days));
+      return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    testWidgets('no salary-due banner until an agreement exists', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      expect(find.byKey(const Key('salary-due-banner')), findsNothing);
+    });
+
+    testWidgets('a daily agreement shows the next due date and 14 days of pay at the top', (tester) async {
+      final start = isoDaysFromNow(3);
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'daily')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'accepted', agreedSalary: 1000, agreedSalaryUnit: 'daily', agreedStartDate: start)],
+          },
+        ),
+      );
+      final due = nextSalaryDue(salary: 1000, unit: 'daily', startDate: start)!;
+      expect(find.byKey(const Key('salary-due-banner')), findsOneWidget);
+      expect(find.text('Salary due ${formatDueDate(due.dueDate)} (${dueInWords(due.daysLeft)})'), findsOneWidget);
+      expect(find.text('₹14,000 for 2 weeks'), findsOneWidget);
+      expect(find.text('₹1,000/day × 14 days'), findsOneWidget);
+      expect(find.textContaining('Pay the caregiver directly'), findsOneWidget);
+    });
+
+    testWidgets('a monthly agreement is prorated: monthly × 14 ÷ 30', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(status: 'accepted', agreedSalary: 30000, agreedSalaryUnit: 'monthly', agreedStartDate: isoDaysFromNow(1)),
+            ],
+          },
+        ),
+      );
+      expect(find.text('₹14,000 for 2 weeks'), findsOneWidget);
+      expect(find.text('₹30,000/month × 14 ÷ 30 days'), findsOneWidget);
+    });
+
+    testWidgets('the unit the patient chose drives the amount, not the job frequency', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'accepted', agreedSalary: 900, agreedSalaryUnit: 'daily', agreedStartDate: isoDaysFromNow(1))],
+          },
+        ),
+      );
+      expect(find.text('₹12,600 for 2 weeks'), findsOneWidget);
+    });
+
+    testWidgets('a rejected caregiver never produces a banner, even with an old agreement on the row', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'rejected', agreedSalary: 900, agreedSalaryUnit: 'daily', agreedStartDate: isoDaysFromNow(1))],
+          },
+        ),
+      );
+      expect(find.byKey(const Key('salary-due-banner')), findsNothing);
+    });
+
     testWidgets('a monthly job shows the agreed salary per month', (tester) async {
       await _pump(
         tester,
