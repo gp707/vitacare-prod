@@ -1279,7 +1279,8 @@ timing rules live in that one file, pure functions, unit-tested).
   | Live 3 days, nobody ever applied | the poster, **once** | `/home` / `/org-home` |
   | Accepted job starts in ≤ 48 h / ≤ 24 h / ≤ 12 h | the caregiver | MyJobs |
   | Every day 10:00 IST (`DailyCaregiverUpdateService`, migration 090) | **every** active patient/family and organisation device — "N new caregivers joined in the last 24 hours" | `/home` / `/org-home` |
-  | Every day 10:30 IST (`DailyPatientUpdateService`, same migration 090 claim table) | caregivers who can apply — "N new patients joined in the last 24 hours" (the **true** count; **no push on a day with 0**) | Jobs |
+  | Every day 10:30 IST (`DailyPatientUpdateService`, same migration 090 claim table) | ALL active caregivers, whatever their status — "N new patients joined in the last 24 hours" (the **true** count; **no push on a day with 0**) | Jobs |
+  | Every day 11:00 IST (`DailyOrganisationJobsUpdateService`, same claim table) | ALL active caregivers — "N new jobs from hospitals, clinics and rehabs" = organisation requirements that went live (`posted_at`, still `active`) in the last 24 h (the **true** count; **no push on a day with 0**; separate from the instant "New Organisation Opening" push) | Jobs |
 
   The daily number is the real count of caregiver accounts registered in the last 24 h **plus `NEW_CAREGIVERS_DISPLAY_BONUS` (4)** — a deliberate product decision, so the shown figure is not the true count; set the constant to 0 to show the truth. Both numbers are stored in `daily_push_claims.detail`. The day is claimed in SQL before sending (once per IST day across instances; a failed send is not retried that day). Migration 090 must be applied before the backend that uses it.
 

@@ -21,18 +21,18 @@ describe('DailyPatientUpdateService', () => {
   beforeEach(() => {
     usersRepo = {
       countIndividualsRegisteredSince: jest.fn().mockResolvedValue(3),
-      listCaregiverFcmTokens: jest.fn().mockResolvedValue(['c1', 'c2']),
+      listAllCaregiverFcmTokens: jest.fn().mockResolvedValue(['c1', 'c2']),
     };
     claimsRepo = { claim: jest.fn().mockResolvedValue(true) };
     fcmService = { broadcastToTokens: jest.fn().mockImplementation(async (tokens: string[]) => tokens.length) };
     service = new DailyPatientUpdateService(usersRepo, claimsRepo, fcmService);
   });
 
-  it('sends the REAL count of new patients to caregivers who can apply', async () => {
+  it('sends the REAL count of new patients to every caregiver, whatever their status', async () => {
     const now = ist('2026-11-16T10:30:00');
     expect(await service.run(now)).toBe(2);
     expect(usersRepo.countIndividualsRegisteredSince).toHaveBeenCalledWith(new Date(now.getTime() - 24 * 3600 * 1000));
-    expect(usersRepo.listCaregiverFcmTokens).toHaveBeenCalledWith(null);
+    expect(usersRepo.listAllCaregiverFcmTokens).toHaveBeenCalled();
     expect(fcmService.broadcastToTokens).toHaveBeenCalledWith(
       ['c1', 'c2'],
       'New patients on JustHeal',

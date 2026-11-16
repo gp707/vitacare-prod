@@ -420,6 +420,18 @@ export class OrganisationRequirementsRepository {
     return result.rows;
   }
 
+  /** Requirements that went live (admin approval, edit-and-activate, or
+   *  reactivation all stamp posted_at) at or after [since] and are still
+   *  active — the ones a caregiver can actually see and apply to right now.
+   *  Used by the daily "new organisation jobs" push. */
+  async countLivePostedSince(since: Date): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM organisation_requirements WHERE status = 'active' AND posted_at >= $1`,
+      [since],
+    );
+    return Number(result.rows[0].count);
+  }
+
   async claimNoApplicantNudge(id: string): Promise<boolean> {
     const result = await this.db.query(
       `UPDATE organisation_requirements SET no_applicants_nudge_at = NOW()

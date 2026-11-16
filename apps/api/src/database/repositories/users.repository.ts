@@ -193,6 +193,19 @@ export class UsersRepository {
     return result.rows.map((row) => row.fcm_token);
   }
 
+  /** Every device of every active, non-deleted caregiver account, whatever
+   *  their verification status (pending_call, rejected, unavailable… all
+   *  included) — unlike listCaregiverFcmTokens, which only reaches caregivers
+   *  who can actually apply. Used by the daily "new patients" push. */
+  async listAllCaregiverFcmTokens(): Promise<string[]> {
+    const result = await this.db.query<{ fcm_token: string }>(
+      `SELECT t.token AS fcm_token FROM user_fcm_tokens t
+       JOIN users u ON u.id = t.user_id
+       WHERE u.role = 'caregiver' AND u.is_active = true AND u.deleted_at IS NULL`,
+    );
+    return result.rows.map((row) => row.fcm_token);
+  }
+
   /** Used by the daily 8 AM availability-reminder push — targets only
    *  caregivers whose status is one of the given verification statuses
    *  (available/unavailable), unlike listCaregiverFcmTokens which is an

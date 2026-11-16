@@ -203,6 +203,17 @@ export const newPatientsUpdate = (count: number): PushMessage => ({
   route: PushRoutes.caregiverJobs,
 });
 
+/** Daily push to caregivers: how many hospital/rehab/clinic requirements really
+ *  went live in the last 24 hours (true count; the caller skips a day with 0). */
+export const newOrganisationJobsUpdate = (count: number): PushMessage => ({
+  title: 'New hospital & clinic jobs',
+  body:
+    count === 1
+      ? '1 new job from a hospital, clinic or rehab was posted in the last 24 hours. Open Find Jobs to apply.'
+      : `${count} new jobs from hospitals, clinics and rehabs were posted in the last 24 hours. Open Find Jobs to apply.`,
+  route: PushRoutes.caregiverJobs,
+});
+
 // ── Duty-start reminders ──────────────────────────────────────────────────
 
 export type DutyReminderStage = '2d' | '1d' | '12h';
