@@ -2373,7 +2373,7 @@ void main() {
       expect(find.text('Leave days'), findsNothing);
     });
 
-    testWidgets('Edit salary & date opens the popup pre-filled and re-sends the agreement', (tester) async {
+    testWidgets('Edit salary and start date opens the sheet pre-filled and re-sends the agreement', (tester) async {
       final repo = await open(tester, app());
       await tester.tap(find.byKey(const Key('edit-agreement')));
       await _settle(tester);
@@ -2583,9 +2583,10 @@ void main() {
           },
         );
 
-    testWidgets('a "Your caregivers (3)" section has one card per accepted caregiver', (tester) async {
+    testWidgets('accepted caregivers are part of the candidates list: one card each, under the total', (tester) async {
       await _pump(tester, twoCaregivers());
-      expect(find.text('Your caregivers (3)'), findsOneWidget);
+      expect(find.text('4 candidates applied in total'), findsOneWidget);
+      expect(find.textContaining('Your caregivers'), findsNothing);
       expect(find.byKey(const Key('caregiver-card-a1')), findsOneWidget);
       expect(find.byKey(const Key('caregiver-card-a2')), findsOneWidget);
       expect(find.byKey(const Key('caregiver-card-a3')), findsOneWidget);
@@ -2626,10 +2627,60 @@ void main() {
       expect(find.text('Asha Rao'), findsNothing);
     });
 
-    testWidgets('accepted caregivers are not repeated in the candidates list; waiting ones still are', (tester) async {
+    testWidgets('accepted caregivers come first in the list, then the candidates still waiting', (tester) async {
       await _pump(tester, twoCaregivers());
       expect(find.text('Asha Rao'), findsOneWidget);
       expect(find.text('Sita Waiting'), findsOneWidget);
+      final lastAccepted = tester.getTopLeft(find.byKey(const Key('caregiver-card-a3'))).dy;
+      final waiting = tester.getTopLeft(find.text('Sita Waiting')).dy;
+      expect(lastAccepted, lessThan(waiting));
+    });
+  });
+
+  group('WhatsApp next to the caregiver phone number', () {
+    testWidgets('the accepted caregiver card and a waiting candidate both have a WhatsApp chip', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(id: 'a1', status: 'accepted', fullName: 'Asha Rao'),
+              _application(id: 'a2', status: 'applied', fullName: 'Ramesh Kumar'),
+            ],
+          },
+        ),
+      );
+      expect(find.byKey(const Key('whatsapp-tap')), findsNWidgets(2));
+      expect(find.text('WhatsApp'), findsNWidgets(2));
+    });
+
+    testWidgets('tapping it opens a WhatsApp chat with that caregiver', (tester) async {
+      final launched = <Uri>[];
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {'job-1': [_application(status: 'applied', fullName: 'Ramesh Kumar')]},
+        ),
+        phoneLauncher: (uri) async {
+          launched.add(uri);
+          return true;
+        },
+      );
+      await tester.tap(find.byKey(const Key('whatsapp-tap')));
+      await _settle(tester);
+      expect(launched.single.toString(), 'https://wa.me/919876543210');
+    });
+
+    testWidgets('the salary page header has it too', (tester) async {
+      final requirement = _requirement(status: 'closed');
+      final repo = _FakeIndividualRepository(
+        requirements: [requirement],
+        applicationsByJobId: {'job-1': [_application(id: 'app-1', status: 'accepted', fullName: 'Asha Accepted')]},
+      );
+      await _pump(tester, repo, home: CaregiverSalaryScreen(requirement: requirement, applicationId: 'app-1'));
+      expect(find.byKey(const Key('whatsapp-tap')), findsOneWidget);
     });
   });
 }

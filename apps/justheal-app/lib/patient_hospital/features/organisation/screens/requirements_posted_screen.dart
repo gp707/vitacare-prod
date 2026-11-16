@@ -824,22 +824,7 @@ class _ApplicantTile extends StatelessWidget {
                         ],
                       ],
                     ),
-                    CallTap(
-                      phone: application.phone,
-                      name: application.fullName,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.call, size: 14, color: AppColors.primary),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(application.phone,
-                                style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
-                          ],
-                        ),
-                      ),
-                    ),
+                    PhoneContactRow(phone: application.phone, name: application.fullName),
                   ],
                 ),
               ),

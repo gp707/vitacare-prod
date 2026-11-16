@@ -113,14 +113,17 @@ class _ApplicantTimelineState extends State<ApplicantTimeline> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              Flexible(
+                child: Text(
                 _expanded ? 'Hide Activity Log' : 'Show Activity Log',
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.bold,
                   fontSize: _fontSize,
                   decoration: TextDecoration.underline,
                 ),
+              ),
               ),
               Icon(
                 _expanded ? Icons.expand_less : Icons.expand_more,

@@ -138,22 +138,7 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
           const SizedBox(height: 2),
           Text(label, key: const Key('salary-status'), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
           const SizedBox(height: AppSpacing.xs),
-          CallTap(
-            phone: application.phone,
-            name: application.fullName,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.call, size: 14, color: AppColors.primary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(application.phone,
-                      style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
-                ],
-              ),
-            ),
-          ),
+          PhoneContactRow(phone: application.phone, name: application.fullName),
           if (!_isAccepted) ...[
             const SizedBox(height: AppSpacing.xs),
             const Text(
@@ -198,7 +183,7 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
               (a) => openAgreementFlow(context, ref, jobId: _jobId, requirement: widget.requirement, application: a),
             ),
             icon: Icon(has ? Icons.edit_outlined : Icons.add, size: 18),
-            label: Text(has ? 'Edit salary & date' : 'Add agreed salary & start date'),
+            label: Text(has ? 'Edit salary and start date' : 'Add agreed salary & start date'),
           ),
         ],
       ],

@@ -374,52 +374,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// history (see "Registration IS posting" in CLAUDE.md), so there is no
   /// reason to hide anything behind a toggle — every requirement found is
   /// always shown directly.
-  /// "Your caregivers": one card per accepted caregiver. A patient can have several, each
-  /// with their own salary, start date, next payment and leave. The caregiver whose salary
-  /// is due soonest comes first; one with no salary set yet comes last.
-  List<Widget> _caregiverCards() {
-    final items = <({JobModel requirement, JobApplicationModel application, String defaultUnit, SalaryDue? due})>[];
-    for (final requirement in _requirements) {
-      final defaultUnit = requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly';
-      for (final application in _applicationsByJobId[requirement.id] ?? const <JobApplicationModel>[]) {
-        if (application.status != JobApplicationStatus.accepted) continue;
-        items.add((
-          requirement: requirement,
-          application: application,
-          defaultUnit: defaultUnit,
-          due: CaregiverSummaryCard.dueFor(application, defaultUnit),
-        ));
-      }
-    }
-    if (items.isEmpty) return const [];
-    items.sort((a, b) {
-      if (a.due == null && b.due == null) return a.application.fullName.compareTo(b.application.fullName);
-      if (a.due == null) return 1;
-      if (b.due == null) return -1;
-      return a.due!.dueDate.compareTo(b.due!.dueDate);
-    });
-    return [
-      Text(
-        'Your caregivers (${items.length})',
-        key: const Key('your-caregivers'),
-        style: const TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      for (final item in items) ...[
-        CaregiverSummaryCard(
-          application: item.application,
-          defaultUnit: item.defaultUnit,
-          isDeciding: _decidingApplicationId.contains(item.application.id),
-          onOpenSalary: () => _openSalaryPage(item.requirement.id, item.application.id),
-          onAddAgreement: () => _openAgreement(item.requirement.id, item.application.id),
-          onViewProfile: () => _viewProfile(item.requirement.id, item.application.id),
-          onReject: () => _rejectWithReason(item.requirement.id, item.application.id),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-      ],
-    ];
-  }
-
   Widget _buildCard(JobModel requirement) {
     return _RequirementCard(
       requirement: requirement,
@@ -459,8 +413,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
               : ListView(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
-                    // Each accepted caregiver, with their own salary and leave.
-                    ..._caregiverCards(),
                     if (_error != null)
                       Text(_error!,
                           style: const TextStyle(color: AppColors.error)),
@@ -2060,6 +2012,18 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
     final rejected =
         sorted.where((a) => a.status == JobApplicationStatus.rejected).toList();
     final waiting = sorted.where((a) => a.status == JobApplicationStatus.applied).toList();
+    // Accepted caregivers head the list, each as a card with their own salary and leave.
+    // The one whose next salary is due soonest comes first; one with no salary yet comes last.
+    final defaultUnit = widget.perUnit == 'day' ? 'daily' : 'monthly';
+    final accepted = sorted.where((a) => a.status == JobApplicationStatus.accepted).toList()
+      ..sort((a, b) {
+        final da = CaregiverSummaryCard.dueFor(a, defaultUnit);
+        final db = CaregiverSummaryCard.dueFor(b, defaultUnit);
+        if (da == null && db == null) return a.fullName.compareTo(b.fullName);
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.dueDate.compareTo(db.dueDate);
+      });
     final completedOnes = sorted.where((a) => a.status == JobApplicationStatus.completed).toList();
 
     return Column(
@@ -2083,7 +2047,18 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
                 style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w600),
               ),
             ),
-          // Accepted caregivers are the cards at the top of the screen, so they are not repeated here.
+          for (final application in accepted) ...[
+            CaregiverSummaryCard(
+              application: application,
+              defaultUnit: defaultUnit,
+              isDeciding: widget.decidingApplicationId.contains(application.id),
+              onOpenSalary: () => widget.onOpenSalary(application.id),
+              onAddAgreement: () => widget.onSetAgreement(application.id),
+              onViewProfile: () => widget.onViewProfile(application.id),
+              onReject: () => widget.onReject(application.id),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           if (waiting.isEmpty && rejected.isEmpty && completedOnes.isEmpty)
             const Padding(
               padding: EdgeInsets.only(bottom: AppSpacing.sm),
@@ -2332,24 +2307,7 @@ class _ApplicantTile extends StatelessWidget {
           // outcome — rejected (by either side) or completed candidates
           // are never hidden, so the patient/family can always look them
           // up again and reconsider.
-          CallTap(
-            phone: application.phone,
-            name: application.fullName,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.call, size: 14, color: AppColors.primary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(application.phone,
-                      style: const TextStyle(
-                          color: AppColors.primary,
-                          decoration: TextDecoration.underline)),
-                ],
-              ),
-            ),
-          ),
+          PhoneContactRow(phone: application.phone, name: application.fullName),
           ApplicantTimeline(application),
           if (isDeciding)
             const Padding(

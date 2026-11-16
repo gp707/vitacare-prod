@@ -46,3 +46,98 @@ class CallTap extends ConsumerWidget {
     );
   }
 }
+
+/// A WhatsApp chat with [phone] (`wa.me` wants digits only, with the country code).
+Uri whatsAppUri(String phone) => Uri.parse('https://wa.me/${phone.replaceAll(RegExp(r'[^0-9]'), '')}');
+
+/// Makes [child] tappable: it opens a WhatsApp chat with [phone]. If WhatsApp can't be
+/// opened, a banner shows the number so it can be messaged by hand.
+class WhatsAppTap extends ConsumerWidget {
+  final String phone;
+  final String name;
+  final Widget child;
+
+  const WhatsAppTap({super.key, required this.phone, required this.name, required this.child});
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    Analytics.tap('individual', 'requirement_posted', 'whatsapp_caregiver');
+    bool launched;
+    try {
+      launched = await ref.read(phoneLauncherProvider)(whatsAppUri(phone));
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && context.mounted) {
+      showVitaErrorBanner(context, 'Could not open WhatsApp. Message $phone directly.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Semantics(
+      button: true,
+      label: 'WhatsApp $name',
+      child: InkWell(
+        key: const Key('whatsapp-tap'),
+        onTap: () => _open(context, ref),
+        borderRadius: BorderRadius.circular(16),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// A caregiver's phone number as one row: the number (tap to call) and a WhatsApp chip
+/// (tap to chat). Wraps onto a second line on a narrow screen or with large text.
+class PhoneContactRow extends StatelessWidget {
+  final String phone;
+  final String name;
+
+  const PhoneContactRow({super.key, required this.phone, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: 2,
+      children: [
+        CallTap(
+          phone: phone,
+          name: name,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.call, size: 14, color: AppColors.primary),
+                const SizedBox(width: AppSpacing.xs),
+                Text(phone, style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
+              ],
+            ),
+          ),
+        ),
+        WhatsAppTap(
+          phone: phone,
+          name: name,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF25D366).withValues(alpha: 0.12),
+              border: Border.all(color: const Color(0xFF25D366)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.chat, size: 14, color: Color(0xFF128C7E)),
+                SizedBox(width: 4),
+                Text('WhatsApp', style: TextStyle(color: Color(0xFF128C7E), fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -521,13 +521,21 @@ location) that didn't fit the Individual/admin jobs-table model.
   `Visibility(maintainState: true)` so mandatory-field validation can still scroll to it); rejected tiles are grey (red stays on the ✕ and
   label), Reject is a tonal button, Patient Details / Care Preferences have a neutral outline, activity-log times read "14 Nov 2026, 6:32 PM".
   `dart format` must NOT be run on this file (hand-formatted at ~120 columns; formatting rewrites ~800 lines).
-- **"Your caregivers" cards replace the salary banner on `JobsPostedScreen`.** A patient can have several accepted caregivers, each with their own
-  salary, start date, leave and pauses, so the amber banner is gone from the top of the screen. Instead each accepted caregiver has a roomy
-  `CaregiverSummaryCard` (`widgets/caregiver_summary_card.dart`) under a "Your caregivers (n)" heading, soonest next-salary first and
-  "Salary not set yet" last: name/status, phone, agreed salary, "Working since…/Starts…", the next salary with the real amount, leave/paused tags,
-  a **Salary & leaves** button (opens that caregiver's `CaregiverSalaryScreen`), View Profile, Reject and the activity log
-  (`widgets/applicant_timeline.dart`). Accepted caregivers are not repeated in the candidates list ("No other candidates waiting." when only
-  accepted ones exist). `SalaryDueBanner` is now used only on the caregiver's salary page and in caregiver-app.
+- **Accepted caregivers are cards at the top of the "n candidates applied in total" list on `JobsPostedScreen` (no salary banner).** A patient can have
+  several accepted caregivers, each with their own salary, start date, leave and pauses, so the amber banner is gone from the top of the screen and there
+  is no separate "Your caregivers" section. Inside the job card's candidates list each accepted caregiver is a roomy `CaregiverSummaryCard`
+  (`widgets/caregiver_summary_card.dart`), listed first (soonest next-salary first, "Salary not set yet" last), followed by candidates waiting, closed-duty
+  candidates and the collapsed "Rejected candidates (n)" row. The card shows name/status, phone, agreed salary, "Working since…/Starts…", the next salary
+  with the real amount, leave/paused tags, a **Salary & leaves** button (opens that caregiver's `CaregiverSalaryScreen`), View Profile, Reject and the
+  activity log (`widgets/applicant_timeline.dart`). "No other candidates waiting." shows when only accepted ones exist. `SalaryDueBanner` is now used only
+  on the caregiver's salary page and in caregiver-app.
+- **The agreed-salary popup is a bottom sheet, not a centred dialog.** `showAgreementDialog` uses `showModalBottomSheet(isScrollControlled: true)` with the
+  sheet padded by `MediaQuery.viewInsets.bottom` and scrollable, so the on-screen (number) keyboard never covers the salary field or Save. The salary page's
+  button reads "Edit salary and start date" (or "Add agreed salary & start date" when none).
+- **WhatsApp next to every caregiver phone number (patient and organisation flows).** `PhoneContactRow` (`widgets/call_tap.dart`) shows the number (tap =
+  `tel:` dialer) and a green **WhatsApp** chip (`WhatsAppTap`, opens `https://wa.me/<digits with country code>` through `phoneLauncherProvider`; if it can't
+  open, a banner shows the number to message by hand). Used on the patient's accepted-caregiver card, candidate tiles, the caregiver salary page header,
+  and the organisation's applicant tile; the profile page already had Call + WhatsApp buttons.
 - **Several accepted caregivers per job; "Make it live again" and "Permanently cancel" (migration 094).** The one-accepted-at-a-time rule is gone:
   `JobsService.decideApplication` no longer throws `JOB_016` (code kept, unused), so each Accept closes the job again and a patient can accept
   more caregivers; the patient UI offers Accept to every candidate not already accepted (not once permanently cancelled) and Reject to applied and

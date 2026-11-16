@@ -19,9 +19,15 @@ Future<bool> showAgreementDialog(
   String? initialSalaryUnit,
   String? initialStartDate,
 }) async {
-  final saved = await showDialog<bool>(
+  // A bottom sheet, not a centred dialog: it sits above the on-screen keyboard and scrolls,
+  // so the number keyboard never covers the salary field or the Save button.
+  final saved = await showModalBottomSheet<bool>(
     context: context,
-    barrierDismissible: false,
+    isScrollControlled: true,
+    isDismissible: false,
+    enableDrag: false,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (_) => _AgreementDialog(
       caregiverName: caregiverName,
       defaultUnit: defaultUnit,
@@ -125,13 +131,23 @@ class _AgreementDialogState extends State<_AgreementDialog> {
   Widget build(BuildContext context) {
     final salaryInvalid = _submitted && _salary == null;
     final dateMissing = _submitted && _startDate == null;
-    return AlertDialog(
-      title: const Text('Confirm salary and start date'),
-      content: SingleChildScrollView(
+    return Padding(
+      // Lifts the whole sheet above the keyboard.
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      // Keeps the buttons clear of the phone's own navigation bar at the bottom.
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Confirm salary and start date',
+              style: TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             const Text(
               'Clarity avoids confusion and future issues. Please enter the salary and start date '
               'you agreed on; they will be sent to the caregiver.',
@@ -185,21 +201,30 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               const SizedBox(height: AppSpacing.sm),
               Text(_error!, style: const TextStyle(color: AppColors.error)),
             ],
+            const SizedBox(height: AppSpacing.lg),
+            // A Wrap so the buttons stack on a narrow screen or with large text.
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                  child: const Text('Fill later'),
+                ),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save & send to caregiver'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Fill later'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save & send to caregiver'),
-        ),
-      ],
+      ),
     );
   }
 }

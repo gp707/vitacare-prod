@@ -98,22 +98,7 @@ class CaregiverSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          CallTap(
-            phone: application.phone,
-            name: application.fullName,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.call, size: 14, color: AppColors.primary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(application.phone,
-                      style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
-                ],
-              ),
-            ),
-          ),
+          PhoneContactRow(phone: application.phone, name: application.fullName),
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
           const SizedBox(height: AppSpacing.md),
