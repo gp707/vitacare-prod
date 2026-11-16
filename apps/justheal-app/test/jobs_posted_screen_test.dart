@@ -164,6 +164,8 @@ JobApplicationModel _application({
   String? agreedSalaryUnit,
   String? agreedStartDate,
   List<String> leaveDates = const [],
+  Map<String, dynamic>? myFeedback,
+  Map<String, dynamic>? theirFeedback,
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -186,6 +188,8 @@ JobApplicationModel _application({
     'agreed_salary_unit': agreedSalaryUnit,
     'agreed_start_date': agreedStartDate,
     'leave_dates': leaveDates,
+    'my_feedback': myFeedback,
+    'their_feedback': theirFeedback,
   });
 }
 
@@ -213,6 +217,8 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? permanentlyCancelledJobId;
   final List<List<String>> markedLeaves = [];
   List<SalaryCycleModel> cycles = [];
+  final List<List<Object?>> feedbackSent = []; // [applicationId, rating, comment]
+  ApiException? feedbackError;
   final List<List<String>> paidCycles = []; // [cycleStart, paidOn]
   ApiException? payError;
   final List<String> cancelledLeaves = [];
@@ -291,6 +297,12 @@ class _FakeIndividualRepository extends IndividualRepository {
 
   @override
   Future<void> markLeaves(String jobId, String applicationId, List<String> dates) async => markedLeaves.add(dates);
+
+  @override
+  Future<void> submitFeedback(String jobId, String applicationId, int rating, String? comment) async {
+    if (feedbackError != null) throw feedbackError!;
+    feedbackSent.add([applicationId, rating, comment]);
+  }
 
   @override
   Future<List<SalaryCycleModel>> getSalaryCycles(String jobId, String applicationId) async => cycles;
@@ -2785,6 +2797,103 @@ void main() {
     testWidgets('with no cycles yet it says when the first one ends', (tester) async {
       await open(tester, []);
       expect(find.byKey(const Key('no-cycles')), findsOneWidget);
+    });
+  });
+
+  group('feedback about a caregiver', () {
+    String iso(int offset) {
+      final d = DateTime.now().add(Duration(days: offset));
+      return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    JobApplicationModel accepted({int startOffset = -3, String? acceptedAt = '2026-11-01T10:00:00Z', Map<String, dynamic>? mine, Map<String, dynamic>? theirs}) =>
+        _application(
+          id: 'app-1',
+          status: 'accepted',
+          fullName: 'Asha Accepted',
+          acceptedAt: acceptedAt,
+          agreedSalary: 1000,
+          agreedSalaryUnit: 'daily',
+          agreedStartDate: iso(startOffset),
+          myFeedback: mine,
+          theirFeedback: theirs,
+        );
+
+    Future<_FakeIndividualRepository> open(WidgetTester tester, JobApplicationModel application) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [application]},
+      );
+      await _pump(tester, repo);
+      return repo;
+    }
+
+    testWidgets('once the cycle start date has arrived the accepted caregiver has a "Rate this caregiver" button', (tester) async {
+      await open(tester, accepted());
+      expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
+      expect(find.text('Rate this caregiver'), findsOneWidget);
+    });
+
+    testWidgets('before the work has started there is no button', (tester) async {
+      await open(tester, accepted(startOffset: 3));
+      expect(find.byKey(const Key('leave-feedback')), findsNothing);
+      expect(find.byKey(const Key('feedback-section')), findsNothing);
+    });
+
+    testWidgets('with no agreed start date yet there is no button', (tester) async {
+      await open(
+        tester,
+        _application(id: 'app-1', status: 'accepted', fullName: 'Asha Accepted', acceptedAt: '2026-11-01T10:00:00Z'),
+      );
+      expect(find.byKey(const Key('leave-feedback')), findsNothing);
+    });
+
+    testWidgets('rating sends the stars and comment, and thanks the patient', (tester) async {
+      final repo = await open(tester, accepted());
+      await tester.tap(find.byKey(const Key('leave-feedback')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('feedback-star-5')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('feedback-comment')), 'Gentle and reliable');
+      await tester.tap(find.byKey(const Key('feedback-submit')));
+      await _settle(tester);
+      expect(repo.feedbackSent.single, ['app-1', 5, 'Gentle and reliable']);
+      expect(find.text('Thank you for your feedback.'), findsOneWidget);
+    });
+
+    testWidgets('once written, the card shows your feedback and what the caregiver wrote about you', (tester) async {
+      await open(
+        tester,
+        accepted(mine: {'rating': 4, 'comment': 'Good'}, theirs: {'rating': 5, 'comment': 'Respectful family'}),
+      );
+      expect(find.byKey(const Key('leave-feedback')), findsNothing);
+      expect(find.byKey(const Key('feedback-mine')), findsOneWidget);
+      expect(find.text('Good'), findsOneWidget);
+      expect(find.byKey(const Key('feedback-received')), findsOneWidget);
+      expect(find.text('Respectful family'), findsOneWidget);
+    });
+
+    testWidgets('a server refusal is shown in the sheet', (tester) async {
+      final repo = await open(tester, accepted());
+      repo.feedbackError = const ApiException(message: 'You can leave feedback once the work has started', code: 'FEEDBACK_001');
+      await tester.tap(find.byKey(const Key('leave-feedback')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('feedback-star-3')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('feedback-submit')));
+      await _settle(tester);
+      expect(find.text('You can leave feedback once the work has started'), findsOneWidget);
+      expect(repo.feedbackSent, isEmpty);
+    });
+
+    testWidgets('the caregiver\'s salary page has it too', (tester) async {
+      final requirement = _requirement(status: 'closed');
+      final repo = _FakeIndividualRepository(
+        requirements: [requirement],
+        applicationsByJobId: {'job-1': [accepted()]},
+      );
+      await _pump(tester, repo, home: CaregiverSalaryScreen(requirement: requirement, applicationId: 'app-1'));
+      expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
     });
   });
 }

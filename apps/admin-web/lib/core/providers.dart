@@ -28,6 +28,7 @@ import '../features/settings/data/admin_profile_repository.dart';
 import '../features/individual_messages/data/individual_messages_repository.dart';
 import '../features/caregiver_messages/data/caregiver_messages_repository.dart';
 import '../features/push_notifications/data/admin_push_notifications_repository.dart';
+import '../features/feedback/data/admin_feedback_repository.dart';
 import '../features/tickets/data/admin_tickets_repository.dart';
 import '../features/rejections/data/admin_rejections_repository.dart';
 import '../features/error_logs/data/admin_error_logs_repository.dart';
@@ -128,6 +129,10 @@ final adminOrganisationsRepositoryProvider =
 final adminPushNotificationsRepositoryProvider =
     Provider<AdminPushNotificationsRepository>((ref) {
   return AdminPushNotificationsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final adminFeedbackRepositoryProvider = Provider<AdminFeedbackRepository>((ref) {
+  return AdminFeedbackRepository(ref.watch(apiClientProvider).dio);
 });
 
 final adminTicketsRepositoryProvider = Provider<AdminTicketsRepository>((ref) {

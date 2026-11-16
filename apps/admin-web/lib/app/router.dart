@@ -16,6 +16,7 @@ import '../features/reports/screens/reports_screen.dart';
 import '../features/individual_messages/screens/individual_messages_screen.dart';
 import '../features/caregiver_messages/screens/caregiver_messages_screen.dart';
 import '../features/push_notifications/screens/push_notifications_screen.dart';
+import '../features/feedback/screens/feedback_screen.dart';
 import '../features/tickets/screens/tickets_screen.dart';
 import '../features/rejections/screens/rejections_screen.dart';
 import '../features/error_logs/screens/error_logs_screen.dart';
@@ -61,6 +62,7 @@ Map<String, WidgetBuilder> buildRoutes({String? initialDeepLinkRoute}) {
     '/push-notifications': (context) =>
         BlockedForReadOnly(child: const PushNotificationsScreen()),
     '/tickets': (context) => const TicketsScreen(),
+    '/feedback': (context) => const FeedbackScreen(),
     '/rejections': (context) => const RejectionsScreen(),
     '/error-logs': (context) => const ErrorLogsScreen(),
     '/insights': (context) => const InsightsScreen(),

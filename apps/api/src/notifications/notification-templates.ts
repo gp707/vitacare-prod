@@ -141,6 +141,13 @@ export const salaryPaid = (displayId: string, cycleStart: string, cycleEnd: stri
   route: PushRoutes.caregiverMyJobs,
 });
 
+/** The other side left feedback about this person. */
+export const feedbackReceived = (displayId: string, toCaregiver: boolean): PushMessage => ({
+  title: 'You received feedback',
+  body: `${displayId}: ${toCaregiver ? 'the family' : 'the caregiver'} left feedback about you. Open the app to read it.`,
+  route: toCaregiver ? PushRoutes.caregiverMyJobs : PushRoutes.individualHome,
+});
+
 export const applicationDeclined = (displayId: string, reason?: string | null): PushMessage => ({
   title: 'Application update',
   body: reason ? `${displayId}: the employer declined. ${reason}` : `${displayId}: the employer declined your application.`,

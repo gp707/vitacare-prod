@@ -1,4 +1,4 @@
-import { leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
+import { feedbackSql, leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
 import { Injectable } from '@nestjs/common';
 import {
   CareDuration,
@@ -110,6 +110,9 @@ export interface MyApplicationSummary {
   leave_dates: string[];
   /** Salary pauses: every day from `from` until `to` (exclusive; null = still paused) counts as leave. */
   pauses: PausePeriod[];
+  /** Feedback this person wrote / that the other side wrote about them (migration 096), or null. */
+  my_feedback: { rating: number; comment: string | null; created_at: string } | null;
+  their_feedback: { rating: number; comment: string | null; created_at: string } | null;
 }
 
 export interface JobWithMyApplication extends JobRecord {
@@ -136,7 +139,7 @@ export interface JobWithMyApplication extends JobRecord {
  *  inline — once accepted, the caregiver can see and contact whoever
  *  posted the job. */
 export interface JobAssignedRecord extends JobWithMyApplication {
-  job_poster: { full_name: string; phone: string } | null;
+  job_poster: { full_name: string; phone: string; is_family: boolean } | null;
 }
 
 export interface CreateJobInput {
@@ -535,9 +538,11 @@ export class JobsRepository {
              'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date,
              'leave_dates', ${leaveDatesSql('ja')},
-             'pauses', ${pausesSql('ja')}
+             'pauses', ${pausesSql('ja')},
+             'my_feedback', ${feedbackSql('ja', 'caregiver')},
+             'their_feedback', ${feedbackSql('ja', 'individual')}
          ) AS my_application,
-         jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
+         jsonb_build_object('full_name', u.full_name, 'phone', u.phone, 'is_family', u.role = 'individual') AS job_poster
        FROM job_applications ja
        JOIN jobs j ON j.id = ja.job_id
        JOIN care_receivers cr ON cr.id = j.care_receiver_id
@@ -576,9 +581,11 @@ export class JobsRepository {
              'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date,
              'leave_dates', ${leaveDatesSql('ja')},
-             'pauses', ${pausesSql('ja')}
+             'pauses', ${pausesSql('ja')},
+             'my_feedback', ${feedbackSql('ja', 'caregiver')},
+             'their_feedback', ${feedbackSql('ja', 'individual')}
          ) AS my_application,
-         jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
+         jsonb_build_object('full_name', u.full_name, 'phone', u.phone, 'is_family', u.role = 'individual') AS job_poster
        FROM job_applications ja
        JOIN jobs j ON j.id = ja.job_id
        JOIN care_receivers cr ON cr.id = j.care_receiver_id

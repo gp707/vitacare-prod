@@ -7,6 +7,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
 import 'agreement_dialog.dart';
+import 'feedback_widgets.dart';
 import 'leave_days_dialog.dart';
 
 /// The actions a patient can take on one caregiver's salary: the agreed salary and
@@ -160,4 +161,24 @@ Future<bool> markCyclePaidFlow(
     () => _repo(ref).markSalaryCyclePaid(jobId, application.id, cycle.cycleStart, toIsoDate(picked)),
     'Marked as paid. ${application.fullName} will be told.',
   );
+}
+
+/// Rate this caregiver: stars + a short comment, once the work has started. Returns
+/// true when it was saved (the caller reloads).
+Future<bool> leaveFeedbackFlow(
+  BuildContext context,
+  WidgetRef ref, {
+  required String jobId,
+  required JobApplicationModel application,
+}) async {
+  Analytics.tap('individual', 'requirement_posted', 'leave_feedback');
+  final saved = await showFeedbackSheet(
+    context,
+    title: 'Rate ${application.fullName}',
+    onSubmit: (rating, comment) => _repo(ref).submitFeedback(jobId, application.id, rating, comment),
+  );
+  if (saved && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback.')));
+  }
+  return saved;
 }

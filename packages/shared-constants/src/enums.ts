@@ -229,6 +229,7 @@ export const AuditAction = {
   // Leave days marked/cancelled or salary paused/resumed by the patient/family.
   JOB_LEAVE_UPDATED: 'job_leave_updated',
   JOB_SALARY_PAID: 'job_salary_paid',
+  FEEDBACK_SUBMITTED: 'feedback_submitted',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

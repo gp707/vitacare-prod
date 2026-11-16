@@ -406,6 +406,8 @@ export class CaregiverService {
     await this.db.withTransaction(async (client) => {
       await this.usersRepo.anonymizeAndDeactivate(userId, client);
       await this.profilesRepo.anonymizeDocuments(profile.id, client);
+      // Feedback the caregiver wrote about families is their own content: it goes with the account.
+      await client.query('DELETE FROM engagement_feedback WHERE author_user_id = $1', [userId]);
     });
 
     await Promise.all(

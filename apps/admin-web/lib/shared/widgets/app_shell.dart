@@ -19,6 +19,7 @@ enum AppShellSection {
   reports,
   pushNotifications,
   tickets,
+  feedback,
   rejections,
   auditLogs,
   errorLogs,
@@ -228,6 +229,14 @@ class _NavList extends StatelessWidget {
                   count: badgeCounts?.openTicketsCount,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/tickets', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.star_outline,
+                  label: 'Feedback',
+                  selected: current == AppShellSection.feedback,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/feedback', (r) => false),
                 ),
                 _NavItem(
                   collapsed: collapsed,

@@ -1,4 +1,4 @@
-import { leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
+import { feedbackSql, leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { JobApplicationStatus } from '@vitacare/shared-constants';
@@ -54,6 +54,9 @@ export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   decided_by_name: string | null;
   leave_dates: string[];
   pauses: PausePeriod[];
+  /** Feedback this person wrote / that the other side wrote about them (migration 096), or null. */
+  my_feedback: { rating: number; comment: string | null; created_at: string } | null;
+  their_feedback: { rating: number; comment: string | null; created_at: string } | null;
 }
 
 @Injectable()
@@ -376,7 +379,8 @@ export class JobApplicationsRepository {
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
-         ${leaveDatesSql('ja')} AS leave_dates, ${pausesSql('ja')} AS pauses
+         ${leaveDatesSql('ja')} AS leave_dates, ${pausesSql('ja')} AS pauses,
+         ${feedbackSql('ja', 'individual')} AS my_feedback, ${feedbackSql('ja', 'caregiver')} AS their_feedback
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id

@@ -11,6 +11,7 @@ import '../../../app/route_for_status.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/agreed_terms_box.dart';
+import '../widgets/feedback_widgets.dart';
 import '../widgets/job_detail_card.dart';
 import '../widgets/job_poster_contact_card.dart';
 import '../../../app/tab_back_scope.dart';
@@ -357,6 +358,34 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     return entries;
   }
 
+  /// "Rate the family" + what they wrote about you, for a job a patient/family posted
+  /// once the work has started. Null for admin-posted jobs and before there is anything to show.
+  Widget? _feedbackFor(JobModel job) {
+    final app = job.myApplication;
+    if (app == null || job.jobPoster?.isFamily != true) return null;
+    final eligible = feedbackEligible(acceptedAt: app.acceptedAt, agreedStartDate: app.agreedStartDate);
+    if (app.myFeedback == null && app.theirFeedback == null && !eligible) return null;
+    return FeedbackSection(
+      aboutLabel: 'family',
+      mine: app.myFeedback,
+      received: app.theirFeedback,
+      eligible: eligible,
+      onLeave: () => _leaveFeedback(job),
+    );
+  }
+
+  Future<void> _leaveFeedback(JobModel job) async {
+    Analytics.tap('caregiver', 'my_jobs', 'leave_feedback');
+    final saved = await showFeedbackSheet(
+      context,
+      title: 'Rate the family',
+      onSubmit: (rating, comment) => ref.read(jobsRepositoryProvider).submitFeedback(job.id, rating, comment),
+    );
+    if (!saved || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback.')));
+    await _load();
+  }
+
   Widget? _agreementFor(JobModel job) {
     final application = job.myApplication;
     final salary = application?.agreedSalary;
@@ -574,6 +603,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               ),
               timeline: job.myApplication != null ? ApplicationTimeline(job.myApplication!) : null,
               agreement: _agreementFor(job),
+              feedback: _feedbackFor(job),
               contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!) : null,
               actionLabel: 'Close Duty',
               busy: _busyId.contains(job.id),
@@ -656,6 +686,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                 hasAppliedAt: job.myApplication!.appliedAt != null,
               ),
               timeline: ApplicationTimeline(job.myApplication!),
+              feedback: _feedbackFor(job),
               contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!, showPhone: false) : null,
               actionLabel: _canReapplyToJob(job) ? 'Reapply' : null,
               busy: _busyId.contains(job.id),
@@ -730,6 +761,8 @@ class _ApplicationCard extends StatelessWidget {
   final Widget? contactCard;
   /// "Agreed with the family" box (Selected tab, jobs only), once the patient has set it.
   final Widget? agreement;
+  /// Overall feedback about the family (jobs posted by a patient/family, once work started).
+  final Widget? feedback;
   final String? actionLabel;
   final bool busy;
   final VoidCallback? onAction;
@@ -741,6 +774,7 @@ class _ApplicationCard extends StatelessWidget {
     this.timeline,
     this.contactCard,
     this.agreement,
+    this.feedback,
     this.actionLabel,
     this.busy = false,
     this.onAction,
@@ -776,6 +810,10 @@ class _ApplicationCard extends StatelessWidget {
           if (agreement != null) ...[
             const SizedBox(height: AppSpacing.md),
             agreement!,
+          ],
+          if (feedback != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            feedback!,
           ],
           if (contactCard != null) ...[
             const SizedBox(height: AppSpacing.md),

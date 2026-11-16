@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { DatabaseService } from './database.service';
 import { UsersRepository } from './repositories/users.repository';
 import { DailyPushClaimsRepository } from './repositories/daily-push-claims.repository';
+import { EngagementFeedbackRepository } from './repositories/engagement-feedback.repository';
 import { SalaryCyclePaymentsRepository } from './repositories/salary-cycle-payments.repository';
 import { JobApplicationLeavesRepository } from './repositories/job-application-leaves.repository';
 import { CaregiverProfilesRepository } from './repositories/caregiver-profiles.repository';
@@ -50,6 +51,7 @@ const repositories = [
   DailyPushClaimsRepository,
   JobApplicationLeavesRepository,
   SalaryCyclePaymentsRepository,
+  EngagementFeedbackRepository,
   CaregiverProfilesRepository,
   CaregiverDocumentsRepository,
   CaregiverLanguagesRepository,

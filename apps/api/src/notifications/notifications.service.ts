@@ -15,6 +15,7 @@ import {
   leaveCancelled,
   leaveMarked,
   salaryPaid,
+  feedbackReceived,
   applicationDeclined,
   caregiverApplied,
   caregiverClosedEngagement,
@@ -168,6 +169,11 @@ export class NotificationsService {
         agreementSet(agreement.displayId, agreement.agreedSalary, agreement.perUnit, agreement.agreedStartDate),
       ),
     );
+  }
+
+  /** The other party left feedback about this person (the text is never in the push). */
+  async feedbackReceived(userId: string, info: { toCaregiver: boolean; displayId: string }): Promise<void> {
+    await this.safe('feedback received', () => this.send(userId, feedbackReceived(info.displayId, info.toCaregiver)));
   }
 
   /** The family marked one of the caregiver's salary cycles as paid. */

@@ -1566,6 +1566,33 @@ email/password endpoint (`isAdminAccountRole`, `common/admin-roles.ts`).
   navigates to `/login` via `adminNavigatorKey` (`core/navigation.dart`). Plain admins' 6-month tokens are unchanged, they just get the same redirect if one ever expires.
 - **Applied to production already:** migration 089 (2026-11-14). Deploy order for the rest: API → admin-web.
 
+## Feedback (patient/family <-> caregiver)
+
+Overall feedback — 1-5 stars plus an optional comment of at most 200 characters (`Validation.FEEDBACK_COMMENT_MAX_LENGTH`, both shared packages) — that a patient/family
+and a caregiver leave each other. **Per engagement** (one caregiver on one job = one `job_applications` row), never per salary cycle. One feedback per person per
+engagement, **write once and final** (no edit, no delete). Patients/families and caregivers only; organisations are not included yet.
+
+- **Who may write (server-side only, `FeedbackService` + `canLeaveFeedback` in `apps/api/src/feedback/`):** the caregiver was accepted (`accepted_at` set) AND the work
+  has started — the agreed **cycle start date has arrived** (<= today IST) or a salary cycle was already marked paid. Never-accepted, accepted-but-not-started and
+  accepted-then-instantly-rejected do not qualify; a caregiver rejected or closed out AFTER the work started still does (feedback stays possible). `FEEDBACK_001` = not
+  eligible yet (also: an admin-posted job has no family to rate), `FEEDBACK_002` = already written. The apps only decide whether to SHOW the button
+  (`feedbackEligible` in `vitacare_shared`), from `accepted_at` + `agreed_start_date` already in their payloads.
+- **Storage (migration 096):** `engagement_feedback` (`application_id` FK cascade, `author_role` `individual`|`caregiver`, `author_user_id`, `about_user_id`, `rating`,
+  `comment`), `UNIQUE (application_id, author_role)`. Also adds `feedback_submitted` to the `audit_logs.action` CHECK (`AuditAction.FEEDBACK_SUBMITTED`).
+  **Apply 096 BEFORE deploying this backend**: the caregiver `assigned`/`history` payloads and the patient applicant list now select from this table, so they 500 without it.
+- **Visibility:** each person sees only their own feedback and what was written about them (not double-blind: you can read theirs before writing yours); admin reads
+  everything. No public ratings or averages. Nothing is shown on profiles.
+- **API:** patient `GET`/`POST /individual/requirements/:jobId/applications/:applicationId/feedback`, caregiver `GET`/`POST /caregiver/jobs/:id/feedback`
+  (`{can_give, reason, mine, received}`; POST body `{rating 1-5, comment?}`), admin `GET /admin/feedback` (`author_role`, `rating`, `search` incl. `NUR-`/`PAT-` ids;
+  read-only, so a `read_only_admin` can read it). The apps get `my_feedback`/`their_feedback` inside the caregiver's `my_application` and the patient's applicant rows
+  (`feedbackSql` in `job-application-leaves.repository.ts`); the caregiver's `job_poster` carries `is_family` so the app knows a family exists to rate.
+- **Side effects:** audit `feedback_submitted` (rating only, not the comment) and a push to the other party ("You received feedback", no text in the push; opens MyJobs / `/home`).
+  A caregiver deleting their account also deletes the feedback they authored (`CaregiverService.deleteAccount`); patient deletion removes it via the cascade.
+- **Apps:** `FeedbackSection` + `showFeedbackSheet` (bottom sheet, keyboard-safe) duplicated per tree (`lib/patient_hospital/features/individual/widgets/feedback_widgets.dart`,
+  `lib/caregiver/features/jobs/widgets/feedback_widgets.dart`). Patient: "Rate this caregiver" on the accepted caregiver card and on the salary page. Caregiver: "Rate this
+  family" on Selected and Past cards of family-posted jobs. admin-web: sidebar **Feedback** (`/feedback`, in `_restorableRoutes`), read-only list with filters.
+- **Not built (deliberately):** edit/delete, admin hide/moderation, public averages, organisations, double-blind reveal, profanity filter. Admin hide is the first follow-up if abuse appears.
+
 ## Support Tickets ("Forgot PIN")
 
 There's no OTP/email PIN reset (see "No OTP" above — phone login has no OTP, and this doesn't

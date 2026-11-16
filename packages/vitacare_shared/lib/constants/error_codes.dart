@@ -93,6 +93,8 @@ class ErrorCodes {
     'JOB_035': 'The payment date cannot be in the future or before the cycle starts',
     'PUSH_001': 'This notification has already been sent, failed, or cancelled',
     'TICKET_001': 'This ticket has already been resolved',
+    'FEEDBACK_001': 'You can leave feedback once the work has started',
+    'FEEDBACK_002': 'You have already left feedback for this job',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
     'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',

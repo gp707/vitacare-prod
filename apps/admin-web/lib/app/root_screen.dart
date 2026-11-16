@@ -36,6 +36,7 @@ const _restorableRoutes = {
   '/nursejobs-messages',
   '/push-notifications',
   '/tickets',
+  '/feedback',
   '/rejections',
   '/error-logs',
   '/insights',

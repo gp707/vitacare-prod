@@ -43,4 +43,5 @@ class Validation {
   static const pushNotificationMaxRecipients = 5000;
   static const pushNotificationTitleMaxLength = 100;
   static const pushNotificationBodyMaxLength = 500;
+  static const feedbackCommentMaxLength = 200;
 }

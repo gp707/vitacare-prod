@@ -1,5 +1,6 @@
 import 'applicant_summary.dart';
 import 'care_receiver_model.dart';
+import 'feedback_model.dart';
 import 'salary_due.dart';
 
 /// The posting admin's contact info — only ever present on
@@ -8,12 +9,16 @@ import 'salary_due.dart';
 class JobPosterModel {
   final String fullName;
   final String phone;
+  /// True when the job was posted by a patient/family account (so there is a family to
+  /// give feedback about); false for an admin-posted job.
+  final bool isFamily;
 
-  const JobPosterModel({required this.fullName, required this.phone});
+  const JobPosterModel({required this.fullName, required this.phone, this.isFamily = false});
 
   factory JobPosterModel.fromJson(Map<String, dynamic> json) => JobPosterModel(
         fullName: json['full_name'] as String,
         phone: json['phone'] as String,
+        isFamily: json['is_family'] as bool? ?? false,
       );
 }
 
@@ -58,6 +63,9 @@ class MyApplicationModel {
   final String? agreedStartDate;
   /// Days the patient marked as leave (YYYY-MM-DD, sorted) — shown to the caregiver.
   final List<String> leaveDates;
+  /// Feedback this caregiver wrote about the family / the family wrote about them (null if none).
+  final FeedbackModel? myFeedback;
+  final FeedbackModel? theirFeedback;
 
   const MyApplicationModel({
     required this.status,
@@ -73,6 +81,8 @@ class MyApplicationModel {
     this.agreedSalaryUnit,
     this.agreedStartDate,
     this.leaveDates = const [],
+    this.myFeedback,
+    this.theirFeedback,
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -89,6 +99,8 @@ class MyApplicationModel {
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
         leaveDates: parseLeaveDates(json['leave_dates']),
+        myFeedback: FeedbackModel.tryParse(json['my_feedback']),
+        theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
       );
 }
 
@@ -312,6 +324,9 @@ class JobApplicationModel {
   final String? agreedStartDate;
   /// Days marked as leave — see MyApplicationModel.
   final List<String> leaveDates;
+  /// Feedback the patient/family wrote about this caregiver / the caregiver wrote about them.
+  final FeedbackModel? myFeedback;
+  final FeedbackModel? theirFeedback;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -334,6 +349,8 @@ class JobApplicationModel {
     this.agreedSalaryUnit,
     this.agreedStartDate,
     this.leaveDates = const [],
+    this.myFeedback,
+    this.theirFeedback,
     required this.updatedAt,
   });
 
@@ -357,6 +374,8 @@ class JobApplicationModel {
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
         leaveDates: parseLeaveDates(json['leave_dates']),
+        myFeedback: FeedbackModel.tryParse(json['my_feedback']),
+        theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
         updatedAt: json['updated_at'] as String,
       );
 }

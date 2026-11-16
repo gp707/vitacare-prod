@@ -12,6 +12,7 @@ import {
   describeLeaveDays,
   leaveMarked,
   salaryPaid,
+  feedbackReceived,
   applicationDeclined,
   caregiverApplied,
   dutyReminder,
@@ -216,5 +217,18 @@ describe('salary paid wording', () => {
     expect(message.body).toContain('18 Nov 2026 to 1 Dec 2026');
     expect(message.body).toContain('paid on 2 Dec 2026');
     expect(message.route).toBe('/caregiver/my-jobs');
+  });
+});
+
+describe('feedback received wording', () => {
+  it('tells a caregiver the family left feedback and opens MyJobs, without the comment text', () => {
+    const m = feedbackReceived('PAT-JOB-548', true);
+    expect(m.body).toContain('the family left feedback');
+    expect(m.route).toBe('/caregiver/my-jobs');
+  });
+  it('tells a family the caregiver left feedback and opens their home screen', () => {
+    const m = feedbackReceived('PAT-JOB-548', false);
+    expect(m.body).toContain('the caregiver left feedback');
+    expect(m.route).toBe('/home');
   });
 });

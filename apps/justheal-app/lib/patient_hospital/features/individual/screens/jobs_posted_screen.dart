@@ -166,6 +166,16 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (mounted) await _load();
   }
 
+  /// Rate a caregiver (stars + a short comment); reloads on save.
+  Future<void> _leaveFeedback(String jobId, String applicationId) async {
+    final application = (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
+        .where((a) => a.id == applicationId)
+        .firstOrNull;
+    if (application == null || !mounted) return;
+    final saved = await leaveFeedbackFlow(context, ref, jobId: jobId, application: application);
+    if (saved && mounted) await _load();
+  }
+
   /// A reason is mandatory (JOB_012 is the server-side backstop) — the
   /// dialog's Confirm button stays disabled until something is typed, so
   /// there's no way to submit a reject without one.
@@ -386,6 +396,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onSetAgreement: (applicationId) =>
           _openAgreement(requirement.id, applicationId),
+      onLeaveFeedback: (applicationId) => _leaveFeedback(requirement.id, applicationId),
       onOpenSalary: (applicationId) => _openSalaryPage(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
       onMakeLive: () => _makeLiveAgain(requirement),
@@ -450,6 +461,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
+  final void Function(String applicationId) onLeaveFeedback;
   final void Function(String applicationId) onOpenSalary;
   final VoidCallback onCancel;
   final VoidCallback onMakeLive;
@@ -465,6 +477,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
+    required this.onLeaveFeedback,
     required this.onOpenSalary,
     required this.onCancel,
     required this.onMakeLive,
@@ -1273,6 +1286,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onReject: widget.onReject,
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
+                onLeaveFeedback: widget.onLeaveFeedback,
                 onOpenSalary: widget.onOpenSalary,
                 permanentlyCancelled: widget.requirement.isPermanentlyCancelled,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
@@ -1941,6 +1955,7 @@ class _ApplicantsSection extends StatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
+  final void Function(String applicationId) onLeaveFeedback;
   final void Function(String applicationId) onOpenSalary;
   final String perUnit;
   /// Whether the job was permanently cancelled (nobody else can be accepted).
@@ -1953,6 +1968,7 @@ class _ApplicantsSection extends StatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
+    required this.onLeaveFeedback,
     required this.onOpenSalary,
     required this.perUnit,
     required this.permanentlyCancelled,
@@ -2054,6 +2070,7 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
               isDeciding: widget.decidingApplicationId.contains(application.id),
               onOpenSalary: () => widget.onOpenSalary(application.id),
               onAddAgreement: () => widget.onSetAgreement(application.id),
+              onLeaveFeedback: () => widget.onLeaveFeedback(application.id),
               onViewProfile: () => widget.onViewProfile(application.id),
               onReject: () => widget.onReject(application.id),
             ),

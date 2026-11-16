@@ -43,6 +43,19 @@ class JobsRepository {
     }
   }
 
+  /// Leaves overall feedback (1-5 stars + an optional short comment) about the family.
+  /// Allowed once the work has started; write once, final.
+  Future<void> submitFeedback(String jobId, int rating, String? comment) async {
+    try {
+      await _dio.post(
+        ApiRoutes.caregiverJobFeedback(jobId),
+        data: {'rating': rating, if (comment != null) 'comment': comment},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// This caregiver's cycle-by-cycle salary record for one job, newest first.
   Future<List<SalaryCycleModel>> getSalaryCycles(String jobId) async {
     try {

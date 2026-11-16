@@ -3,6 +3,7 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import 'applicant_timeline.dart';
 import 'call_tap.dart';
+import 'feedback_widgets.dart';
 
 /// One accepted caregiver at a glance, on the patient's requirement screen: who they
 /// are, what was agreed with them (their own salary and start date), the next salary
@@ -19,6 +20,7 @@ class CaregiverSummaryCard extends StatelessWidget {
   final VoidCallback onAddAgreement;
   final VoidCallback onViewProfile;
   final VoidCallback onReject;
+  final VoidCallback? onLeaveFeedback;
 
   const CaregiverSummaryCard({
     super.key,
@@ -29,6 +31,7 @@ class CaregiverSummaryCard extends StatelessWidget {
     required this.onAddAgreement,
     required this.onViewProfile,
     required this.onReject,
+    this.onLeaveFeedback,
   });
 
   /// The next salary due for this caregiver, or null until their salary is agreed.
@@ -170,6 +173,19 @@ class CaregiverSummaryCard extends StatelessWidget {
               ),
             const SizedBox(height: AppSpacing.md),
             ApplicantTimeline(application),
+            // Overall feedback about this caregiver, once the work has started.
+            if (application.myFeedback != null ||
+                application.theirFeedback != null ||
+                feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate)) ...[
+              const SizedBox(height: AppSpacing.sm),
+              FeedbackSection(
+                aboutLabel: 'caregiver',
+                mine: application.myFeedback,
+                received: application.theirFeedback,
+                eligible: feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate),
+                onLeave: onLeaveFeedback,
+              ),
+            ],
             const SizedBox(height: AppSpacing.sm),
             // A Wrap, not a Row: with large text the two buttons drop to separate lines.
             Wrap(

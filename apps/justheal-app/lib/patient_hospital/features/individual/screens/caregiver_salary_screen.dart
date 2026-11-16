@@ -7,6 +7,7 @@ import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../widgets/call_tap.dart';
+import '../widgets/feedback_widgets.dart';
 import '../widgets/salary_actions.dart';
 import '../widgets/salary_history_card.dart';
 import '../widgets/salary_due_banner.dart';
@@ -116,6 +117,19 @@ class _CaregiverSalaryScreenState extends ConsumerState<CaregiverSalaryScreen> {
                         if (application.agreedSalary != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           _leaveCard(application),
+                        ],
+                        if (application.myFeedback != null ||
+                            application.theirFeedback != null ||
+                            feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate)) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          FeedbackSection(
+                            aboutLabel: 'caregiver',
+                            mine: application.myFeedback,
+                            received: application.theirFeedback,
+                            eligible: feedbackEligible(
+                                acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate),
+                            onLeave: () => _act((a) => leaveFeedbackFlow(context, ref, jobId: _jobId, application: a)),
+                          ),
                         ],
                         if (application.agreedSalary != null || _cycles.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),

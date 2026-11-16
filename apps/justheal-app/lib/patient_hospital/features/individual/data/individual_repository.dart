@@ -287,6 +287,19 @@ class IndividualRepository {
     }
   }
 
+  /// Leaves overall feedback (1-5 stars + an optional short comment) about this caregiver.
+  /// Allowed once the work has started; write once, final.
+  Future<void> submitFeedback(String jobId, String applicationId, int rating, String? comment) async {
+    try {
+      await _dio.post(
+        ApiRoutes.individualApplicationFeedback(jobId, applicationId),
+        data: {'rating': rating, if (comment != null) 'comment': comment},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Every salary cycle of this caregiver on this job, newest first: paid ones as
   /// they were frozen, plus the unpaid ones worked out from today's agreement.
   Future<List<SalaryCycleModel>> getSalaryCycles(String jobId, String applicationId) async {

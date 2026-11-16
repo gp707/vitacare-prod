@@ -43,4 +43,6 @@ export const Validation = {
   PUSH_NOTIFICATION_MAX_RECIPIENTS: 5000,
   PUSH_NOTIFICATION_TITLE_MAX_LENGTH: 100,
   PUSH_NOTIFICATION_BODY_MAX_LENGTH: 500,
+  // Feedback between a patient and a caregiver: a 1-5 star rating plus a short comment.
+  FEEDBACK_COMMENT_MAX_LENGTH: 200,
 } as const;

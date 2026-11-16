@@ -115,6 +115,10 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   // Support ticket errors
   TICKET_001: { status: 400, message: 'This ticket has already been resolved' },
 
+  // Feedback errors
+  FEEDBACK_001: { status: 400, message: 'You can leave feedback once the work has started' },
+  FEEDBACK_002: { status: 400, message: 'You have already left feedback for this job' },
+
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },
   SCOPE_001: { status: 400, message: 'Each scope of work tier must have at least one non-empty bullet' },

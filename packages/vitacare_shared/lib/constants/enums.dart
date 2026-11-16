@@ -526,6 +526,7 @@ class AuditAction {
   static const jobAgreementSet = 'job_agreement_set';
   static const jobLeaveUpdated = 'job_leave_updated';
   static const jobSalaryPaid = 'job_salary_paid';
+  static const feedbackSubmitted = 'feedback_submitted';
 
   static const all = [
     registration,
@@ -581,6 +582,7 @@ class AuditAction {
     jobAgreementSet,
     jobLeaveUpdated,
     jobSalaryPaid,
+    feedbackSubmitted,
   ];
 }
 
