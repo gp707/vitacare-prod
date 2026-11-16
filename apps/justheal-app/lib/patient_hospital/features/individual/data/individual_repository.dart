@@ -239,13 +239,19 @@ class IndividualRepository {
   }
 
   /// The salary and start date agreed with the caregiver just accepted — saved
-  /// and sent to them as a push. [startDate] is YYYY-MM-DD. The unit (per day /
-  /// per month) is the job's own frequency of care, so it isn't sent.
-  Future<void> setAgreement(String jobId, String applicationId, {required int salary, required String startDate}) async {
+  /// and sent to them as a push. [salaryUnit] is 'daily' (per day) or 'monthly'
+  /// (per month), the patient's own choice; [startDate] is YYYY-MM-DD.
+  Future<void> setAgreement(
+    String jobId,
+    String applicationId, {
+    required int salary,
+    required String salaryUnit,
+    required String startDate,
+  }) async {
     try {
       await _dio.put(
         ApiRoutes.individualRequirementApplicationAgreement(jobId, applicationId),
-        data: {'agreed_salary': salary, 'agreed_start_date': startDate},
+        data: {'agreed_salary': salary, 'agreed_salary_unit': salaryUnit, 'agreed_start_date': startDate},
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

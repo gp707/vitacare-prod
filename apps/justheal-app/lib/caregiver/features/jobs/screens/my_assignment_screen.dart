@@ -345,7 +345,11 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     if (salary == null || startDate == null) return null;
     return AgreedTermsBox(
       salary: salary,
-      perUnit: job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
+      perUnit: switch (application?.agreedSalaryUnit) {
+        'daily' => 'day',
+        'monthly' => 'month',
+        _ => job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
+      },
       startDate: startDate,
     );
   }

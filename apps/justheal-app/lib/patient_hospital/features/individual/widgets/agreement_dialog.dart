@@ -13,9 +13,10 @@ import '../../../core/network/api_exception.dart';
 Future<bool> showAgreementDialog(
   BuildContext context, {
   required String caregiverName,
-  required String perUnit, // 'day' or 'month'
-  required Future<void> Function(int salary, String startDate) onSubmit,
+  required String defaultUnit, // 'daily' or 'monthly' — preselected (the job's own frequency)
+  required Future<void> Function(int salary, String salaryUnit, String startDate) onSubmit,
   int? initialSalary,
+  String? initialSalaryUnit,
   String? initialStartDate,
 }) async {
   final saved = await showDialog<bool>(
@@ -23,9 +24,10 @@ Future<bool> showAgreementDialog(
     barrierDismissible: false,
     builder: (_) => _AgreementDialog(
       caregiverName: caregiverName,
-      perUnit: perUnit,
+      defaultUnit: defaultUnit,
       onSubmit: onSubmit,
       initialSalary: initialSalary,
+      initialSalaryUnit: initialSalaryUnit,
       initialStartDate: initialStartDate,
     ),
   );
@@ -34,16 +36,18 @@ Future<bool> showAgreementDialog(
 
 class _AgreementDialog extends StatefulWidget {
   final String caregiverName;
-  final String perUnit;
-  final Future<void> Function(int salary, String startDate) onSubmit;
+  final String defaultUnit;
+  final Future<void> Function(int salary, String salaryUnit, String startDate) onSubmit;
   final int? initialSalary;
+  final String? initialSalaryUnit;
   final String? initialStartDate;
 
   const _AgreementDialog({
     required this.caregiverName,
-    required this.perUnit,
+    required this.defaultUnit,
     required this.onSubmit,
     this.initialSalary,
+    this.initialSalaryUnit,
     this.initialStartDate,
   });
 
@@ -55,6 +59,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   late final TextEditingController _salaryController;
+  late String _unit; // 'daily' or 'monthly'
   DateTime? _startDate;
   bool _submitted = false; // flags empty fields only after the first tap on Save
   bool _saving = false;
@@ -64,6 +69,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
   void initState() {
     super.initState();
     _salaryController = TextEditingController(text: widget.initialSalary?.toString() ?? '');
+    _unit = widget.initialSalaryUnit ?? widget.defaultUnit;
     final initial = widget.initialStartDate;
     if (initial != null) _startDate = DateTime.tryParse(initial);
   }
@@ -106,7 +112,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
       _error = null;
     });
     try {
-      await widget.onSubmit(salary, _iso(date));
+      await widget.onSubmit(salary, _unit, _iso(date));
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -137,6 +143,17 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               style: TextStyle(fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: AppSpacing.md),
+            // The salary can be agreed per day or per month — the patient picks.
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'daily', label: Text('Per day')),
+                ButtonSegment(value: 'monthly', label: Text('Per month')),
+              ],
+              selected: {_unit},
+              showSelectedIcon: false,
+              onSelectionChanged: _saving ? null : (selection) => setState(() => _unit = selection.first),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: _salaryController,
               enabled: !_saving,
@@ -144,7 +161,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               maxLength: 7,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                labelText: 'Agreed Salary (₹ per ${widget.perUnit})',
+                labelText: 'Agreed Salary (₹ per ${_unit == 'daily' ? 'day' : 'month'})',
                 prefixText: '₹ ',
                 counterText: '',
                 border: const OutlineInputBorder(),

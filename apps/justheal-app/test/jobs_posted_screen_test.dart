@@ -150,6 +150,7 @@ JobApplicationModel _application({
   String? reappliedAt,
   String? closeReason,
   int? agreedSalary,
+  String? agreedSalaryUnit,
   String? agreedStartDate,
 }) {
   return JobApplicationModel.fromJson({
@@ -170,6 +171,7 @@ JobApplicationModel _application({
     'reapplied_at': reappliedAt,
     'close_reason': closeReason ?? (status == 'completed' ? 'no_reason' : null),
     'agreed_salary': agreedSalary,
+    'agreed_salary_unit': agreedSalaryUnit,
     'agreed_start_date': agreedStartDate,
   });
 }
@@ -191,6 +193,7 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? agreementJobId;
   String? agreementApplicationId;
   int? agreementSalary;
+  String? agreementUnit;
   String? agreementStartDate;
   ApiException? agreementError;
 
@@ -245,11 +248,18 @@ class _FakeIndividualRepository extends IndividualRepository {
   }
 
   @override
-  Future<void> setAgreement(String jobId, String applicationId, {required int salary, required String startDate}) async {
+  Future<void> setAgreement(
+    String jobId,
+    String applicationId, {
+    required int salary,
+    required String salaryUnit,
+    required String startDate,
+  }) async {
     if (agreementError != null) throw agreementError!;
     agreementJobId = jobId;
     agreementApplicationId = applicationId;
     agreementSalary = salary;
+    agreementUnit = salaryUnit;
     agreementStartDate = startDate;
   }
 
@@ -1454,6 +1464,21 @@ void main() {
       expect(find.text('Add agreed salary & start date'), findsOneWidget);
     });
 
+    testWidgets('the add button sits directly under the name / Accepted row, above the phone number', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      final accepted = tester.getTopLeft(find.text('Accepted')).dy;
+      final button = tester.getTopLeft(find.text('Add agreed salary & start date')).dy;
+      final phone = tester.getTopLeft(find.text('+919876543210')).dy;
+      expect(button, greaterThan(accepted));
+      expect(button, lessThan(phone));
+    });
+
     testWidgets('an accepted caregiver with an agreement shows it in the job\'s own unit (per day for a daily job)',
         (tester) async {
       await _pump(
@@ -1467,6 +1492,62 @@ void main() {
       );
       expect(find.textContaining('Agreed: ₹800 per day'), findsOneWidget);
       expect(find.text('Add agreed salary & start date'), findsNothing);
+    });
+
+    testWidgets("the patient's own unit choice wins over the job's frequency", (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'daily')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(status: 'accepted', agreedSalary: 24000, agreedSalaryUnit: 'monthly', agreedStartDate: '2026-11-20'),
+            ],
+          },
+        ),
+      );
+      expect(find.textContaining('Agreed: ₹24000 per month'), findsOneWidget);
+    });
+
+    testWidgets('the popup offers Per day / Per month, preselecting the job\'s own frequency', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+
+      expect(find.text('Per day'), findsOneWidget);
+      expect(find.text('Per month'), findsOneWidget);
+      expect(find.text('Agreed Salary (₹ per month)'), findsOneWidget);
+    });
+
+    testWidgets('switching to Per day changes the label and is what gets saved', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Add agreed salary & start date'));
+      await _settle(tester);
+
+      await tester.tap(find.text('Per day'));
+      await _settle(tester);
+      expect(find.text('Agreed Salary (₹ per day)'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '900');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(repo.agreementUnit, 'daily');
+      expect(repo.agreementSalary, 900);
     });
 
     testWidgets('a monthly job shows the agreed salary per month', (tester) async {

@@ -612,7 +612,15 @@ export class IndividualService {
     const istToday = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (dto.agreed_start_date < istToday) throw new AppException('JOB_023');
 
-    const updated = await this.jobApplicationsRepo.setAgreement(applicationId, dto.agreed_salary, dto.agreed_start_date);
+    // The patient's own choice; an older app build omits it, so follow the job.
+    const salaryUnit =
+      dto.agreed_salary_unit ?? (job.frequency_of_care === FrequencyOfCare.DAILY ? FrequencyOfCare.DAILY : FrequencyOfCare.MONTHLY);
+    const updated = await this.jobApplicationsRepo.setAgreement(
+      applicationId,
+      dto.agreed_salary,
+      salaryUnit,
+      dto.agreed_start_date,
+    );
     if (!updated) throw new AppException('JOB_022');
 
     const caregiver = await this.caregiverProfilesRepo.findFullById(application.profile_id);
@@ -620,7 +628,7 @@ export class IndividualService {
       void this.notificationsService.agreementSet(caregiver.user_id, {
         displayId: jobDisplayId(job),
         agreedSalary: dto.agreed_salary,
-        perUnit: job.frequency_of_care === FrequencyOfCare.DAILY ? 'day' : 'month',
+        perUnit: salaryUnit === FrequencyOfCare.DAILY ? 'day' : 'month',
         agreedStartDate: dto.agreed_start_date,
       });
     }
@@ -631,13 +639,18 @@ export class IndividualService {
       action: AuditAction.JOB_AGREEMENT_SET,
       entityType: 'job_applications',
       entityId: applicationId,
-      afterValue: { agreed_salary: dto.agreed_salary, agreed_start_date: dto.agreed_start_date },
+      afterValue: {
+        agreed_salary: dto.agreed_salary,
+        agreed_salary_unit: salaryUnit,
+        agreed_start_date: dto.agreed_start_date,
+      },
       ipAddress,
     });
 
     return {
       message: 'Agreed salary and start date saved',
       agreed_salary: updated.agreed_salary,
+      agreed_salary_unit: updated.agreed_salary_unit,
       agreed_start_date: updated.agreed_start_date,
     };
   }

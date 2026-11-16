@@ -23,15 +23,18 @@ void main() {
         'status': 'accepted',
         'decided_by_admin': true,
         'agreed_salary': 800,
+        'agreed_salary_unit': 'daily',
         'agreed_start_date': '2026-11-20',
       });
       expect(model.agreedSalary, 800);
+      expect(model.agreedSalaryUnit, 'daily');
       expect(model.agreedStartDate, '2026-11-20');
     });
 
     test('both are null until the patient fills them in (and for older API responses)', () {
       final model = MyApplicationModel.fromJson({'status': 'accepted', 'decided_by_admin': true});
       expect(model.agreedSalary, isNull);
+      expect(model.agreedSalaryUnit, isNull);
       expect(model.agreedStartDate, isNull);
     });
   });

@@ -146,12 +146,13 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final saved = await showAgreementDialog(
       context,
       caregiverName: application.fullName,
-      perUnit: requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
+      defaultUnit: requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly',
       initialSalary: application.agreedSalary,
+      initialSalaryUnit: application.agreedSalaryUnit,
       initialStartDate: application.agreedStartDate,
-      onSubmit: (salary, startDate) => ref
+      onSubmit: (salary, salaryUnit, startDate) => ref
           .read(individualRepositoryProvider)
-          .setAgreement(jobId, applicationId, salary: salary, startDate: startDate),
+          .setAgreement(jobId, applicationId, salary: salary, salaryUnit: salaryUnit, startDate: startDate),
     );
     if (!saved || !mounted) return;
     await _load();
@@ -1981,6 +1982,11 @@ class _ApplicantTile extends StatelessWidget {
         ),
       );
     }
+    final unit = application.agreedSalaryUnit == 'daily'
+        ? 'day'
+        : application.agreedSalaryUnit == 'monthly'
+            ? 'month'
+            : perUnit; // older rows: follow the job
     final parsed = DateTime.tryParse(startDate);
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -1988,7 +1994,7 @@ class _ApplicantTile extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Agreed: ₹$salary per $perUnit · starts ${parsed != null ? _formatDate(parsed) : startDate}',
+              'Agreed: ₹$salary per $unit · starts ${parsed != null ? _formatDate(parsed) : startDate}',
               style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.success),
             ),
           ),
@@ -2091,6 +2097,9 @@ class _ApplicantTile extends StatelessWidget {
               ),
             ],
           ),
+          // Agreed salary / start date (or the button to add them) sits right
+          // under the name + Accepted row so it is the first thing seen.
+          if (_isAccepted && !isDeciding) _buildAgreement(),
           // The phone number and profile stay visible no matter the
           // outcome — rejected (by either side) or completed candidates
           // are never hidden, so the patient/family can always look them
@@ -2098,7 +2107,6 @@ class _ApplicantTile extends StatelessWidget {
           Text(application.phone,
               style: const TextStyle(color: AppColors.textSecondary)),
           _ApplicantTimeline(application),
-          if (_isAccepted && !isDeciding) _buildAgreement(),
           if (isDeciding)
             const Padding(
               padding: EdgeInsets.only(top: AppSpacing.xs),

@@ -101,6 +101,7 @@ export interface MyApplicationSummary {
   /** Set by the patient/family after accepting (migration 091); only ever
    *  non-null while status is 'accepted' or later 'completed'. */
   agreed_salary: number | null;
+  agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;
 }
 
@@ -483,6 +484,7 @@ export class JobsRepository {
              'decline_reason', ja.decline_reason,
              'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
+             'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date
            ) END AS my_application
          FROM jobs j
@@ -521,6 +523,7 @@ export class JobsRepository {
            'decline_reason', ja.decline_reason,
            'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
+             'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
@@ -559,6 +562,7 @@ export class JobsRepository {
            'decline_reason', ja.decline_reason,
            'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
+             'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster

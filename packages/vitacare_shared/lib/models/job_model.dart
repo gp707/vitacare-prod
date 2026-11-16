@@ -51,6 +51,9 @@ class MyApplicationModel {
   /// per month, following the job's frequency of care) and a YYYY-MM-DD start
   /// date. Null until they fill it in.
   final int? agreedSalary;
+  /// 'daily' (per day) or 'monthly' (per month) — the patient's choice; null
+  /// means follow the job's frequency of care.
+  final String? agreedSalaryUnit;
   final String? agreedStartDate;
 
   const MyApplicationModel({
@@ -64,6 +67,7 @@ class MyApplicationModel {
     this.declineReason,
     this.closeReason,
     this.agreedSalary,
+    this.agreedSalaryUnit,
     this.agreedStartDate,
   });
 
@@ -78,6 +82,7 @@ class MyApplicationModel {
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
+        agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
       );
 }
@@ -292,6 +297,7 @@ class JobApplicationModel {
   /// The agreed salary / start date the patient confirmed after accepting
   /// (null until filled in) — see MyApplicationModel.agreedSalary.
   final int? agreedSalary;
+  final String? agreedSalaryUnit;
   final String? agreedStartDate;
   final String updatedAt;
 
@@ -312,6 +318,7 @@ class JobApplicationModel {
     this.declineReason,
     this.closeReason,
     this.agreedSalary,
+    this.agreedSalaryUnit,
     this.agreedStartDate,
     required this.updatedAt,
   });
@@ -333,6 +340,7 @@ class JobApplicationModel {
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
+        agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
         updatedAt: json['updated_at'] as String,
       );

@@ -1191,7 +1191,7 @@ describe('IndividualService', () => {
 
     it('saves the agreement, tells the caregiver (per day for a daily job) and audit-logs it', async () => {
       const result = await service.setAgreement('user-1', 'job-1', 'app-1', dto(), '1.1.1.1');
-      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 800, tomorrow());
+      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 800, 'daily', tomorrow());
       expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', {
         displayId: 'PAT-JOB-548',
         agreedSalary: 800,
@@ -1202,6 +1202,23 @@ describe('IndividualService', () => {
         expect.objectContaining({ action: 'job_agreement_set', userId: 'user-1', targetUserId: 'cg-user', entityId: 'app-1' }),
       );
       expect(result).toMatchObject({ agreed_salary: 800 });
+    });
+
+    it("saves the patient's own unit choice, whatever the job's frequency is", async () => {
+      // job is daily (beforeEach) but the patient agreed a monthly salary
+      await service.setAgreement('user-1', 'job-1', 'app-1', { ...dto(), agreed_salary: 24000, agreed_salary_unit: 'monthly' }, null);
+      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 24000, 'monthly', tomorrow());
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', expect.objectContaining({ perUnit: 'month' }));
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ agreed_salary_unit: 'monthly' }) }),
+      );
+    });
+
+    it('a daily salary chosen on a monthly job is saved and announced per day', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', frequency_of_care: 'monthly', patient_job_number: 548 });
+      await service.setAgreement('user-1', 'job-1', 'app-1', { ...dto(), agreed_salary_unit: 'daily' }, null);
+      expect(jobApplicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 800, 'daily', tomorrow());
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', expect.objectContaining({ perUnit: 'day' }));
     });
 
     it('says per month for a monthly job', async () => {
