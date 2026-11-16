@@ -117,3 +117,14 @@ export function listSalaryCycles(params: {
   }
   return cycles.sort((a, b) => (a.cycle_start < b.cycle_start ? 1 : a.cycle_start > b.cycle_start ? -1 : 0));
 }
+
+/**
+ * The cycle leave can be marked in: the one that contains [today] (cycle k =
+ * start+14k .. +13). Before the cycle start date has arrived, the first cycle.
+ */
+export function currentCycleRange(startDate: string, today: string): { start: string; end: string } {
+  const elapsed = Math.floor((toDay(today) - toDay(startDate)) / DAY_MS);
+  const k = elapsed < 0 ? 0 : Math.floor(elapsed / SALARY_PERIOD_DAYS);
+  const start = addDays(startDate, k * SALARY_PERIOD_DAYS);
+  return { start, end: addDays(start, SALARY_PERIOD_DAYS - 1) };
+}

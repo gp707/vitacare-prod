@@ -6,6 +6,7 @@ DateTime d(int y, int m, int day) => DateTime(y, m, day, 15, 30); // time of day
 void main() {
   leaveTests();
   salaryCycleTests();
+  currentCycleTests();
   group('salaryForPeriod', () {
     test('a daily rate is paid for 14 days', () {
       expect(salaryForPeriod(rate: 1000, unit: 'daily'), 14000);
@@ -190,6 +191,24 @@ void salaryCycleTests() {
     test('parseSalaryCycles tolerates missing data', () {
       expect(parseSalaryCycles(null), isEmpty);
       expect(parseSalaryCycles([]), isEmpty);
+    });
+  });
+}
+
+void currentCycleTests() {
+  group('currentSalaryCycleRange', () {
+    String fmt(DateTime d) => toIsoDate(d);
+    test('is the first cycle for its first 14 days, then rolls on', () {
+      final first = currentSalaryCycleRange('2026-11-18', today: DateTime(2026, 11, 25))!;
+      expect([fmt(first.start), fmt(first.end)], ['2026-11-18', '2026-12-01']);
+      final second = currentSalaryCycleRange('2026-11-18', today: DateTime(2026, 12, 2))!;
+      expect([fmt(second.start), fmt(second.end)], ['2026-12-02', '2026-12-15']);
+    });
+    test('before the start date it is the first cycle; unreadable dates give null', () {
+      final early = currentSalaryCycleRange('2026-12-20', today: DateTime(2026, 12, 10))!;
+      expect(fmt(early.start), '2026-12-20');
+      expect(currentSalaryCycleRange(null), isNull);
+      expect(currentSalaryCycleRange('nope'), isNull);
     });
   });
 }

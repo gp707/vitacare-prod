@@ -17,6 +17,7 @@ Future<List<String>?> showLeaveDaysDialog(
   required DateTime lastDate,
   required DateTime initialMonth,
   List<String> alreadyMarked = const [],
+  String? note,
 }) {
   return showDialog<List<String>>(
     context: context,
@@ -25,6 +26,7 @@ Future<List<String>?> showLeaveDaysDialog(
       lastDate: DateTime(lastDate.year, lastDate.month, lastDate.day),
       initialMonth: initialMonth,
       alreadyMarked: alreadyMarked.toSet(),
+      note: note,
     ),
   );
 }
@@ -34,12 +36,14 @@ class _LeaveDaysDialog extends StatefulWidget {
   final DateTime lastDate;
   final DateTime initialMonth;
   final Set<String> alreadyMarked;
+  final String? note;
 
   const _LeaveDaysDialog({
     required this.firstDate,
     required this.lastDate,
     required this.initialMonth,
     required this.alreadyMarked,
+    this.note,
   });
 
   @override
@@ -155,9 +159,18 @@ class _LeaveDaysDialogState extends State<_LeaveDaysDialog> {
               const Text('Select the leave days', style: TextStyle(fontSize: AppTypography.title, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
               const Text(
-                'Tap each day the caregiver is on leave. The days can be anywhere in the month.',
+                'Tap each day the caregiver is on leave.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
               ),
+              if (widget.note != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    widget.note!,
+                    key: const Key('leave-cycle-note'),
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppTypography.small),
+                  ),
+                ),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [

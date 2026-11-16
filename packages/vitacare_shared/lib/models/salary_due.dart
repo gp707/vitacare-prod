@@ -218,3 +218,18 @@ class SalaryCycleModel {
 List<SalaryCycleModel> parseSalaryCycles(Object? json) => json is List
     ? json.map((e) => SalaryCycleModel.fromJson(e as Map<String, dynamic>)).toList()
     : const <SalaryCycleModel>[];
+
+/// The salary cycle that contains [today] (cycle k = start + 14k .. +13, both
+/// inclusive; before the cycle start date has arrived, the first cycle). Leave can
+/// only be marked inside it. Null when [startDate] can't be read.
+({DateTime start, DateTime end})? currentSalaryCycleRange(String? startDate, {DateTime? today}) {
+  final parsed = startDate == null ? null : DateTime.tryParse(startDate);
+  if (parsed == null) return null;
+  final startDay = DateTime.utc(parsed.year, parsed.month, parsed.day);
+  final now = today ?? DateTime.now();
+  final todayDay = DateTime.utc(now.year, now.month, now.day);
+  final elapsed = todayDay.difference(startDay).inDays;
+  final k = elapsed < 0 ? 0 : elapsed ~/ salaryPeriodDays;
+  final start = startDay.add(Duration(days: k * salaryPeriodDays));
+  return (start: start, end: start.add(const Duration(days: salaryPeriodDays - 1)));
+}

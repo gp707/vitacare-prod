@@ -101,9 +101,9 @@ class _AgreementDialogState extends State<_AgreementDialog> {
     final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
-      // The cycle start date may be in the past (salary already running), up to a year back.
+      // The cycle start date may be in the past (salary already running), up to a month back.
       initialDate: _startDate ?? today,
-      firstDate: today.subtract(const Duration(days: 365)),
+      firstDate: today.subtract(const Duration(days: 30)),
       lastDate: today.add(const Duration(days: 365)),
     );
     if (picked != null) setState(() => _startDate = picked);
@@ -200,7 +200,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
             ),
             const SizedBox(height: AppSpacing.xs),
             const Text(
-              'Salary is paid every 14 days, counted from this date. It can be a past date. It is a rolling window: '
+              'Salary is paid every 14 days, counted from this date. It can be a past date, up to a month back. It is a rolling window: '
               'you can change the cycle start date any time.',
               key: Key('cycle-hint'),
               style: TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),

@@ -2426,19 +2426,50 @@ void main() {
       final now = DateTime.now();
       String iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
       final today = iso(now);
-      // Today, and the 1st of NEXT month: far apart and in different months.
-      final firstOfNext = iso(DateTime(now.year, now.month + 1, 1));
+      final later = DateTime(now.year, now.month, now.day + 4); // inside the cycle, not next to today
       await tester.tap(find.byKey(Key('leave-day-$today')));
       await _settle(tester);
-      await tester.tap(find.byKey(const Key('leave-next-month')));
-      await _settle(tester);
-      await tester.tap(find.byKey(Key('leave-day-$firstOfNext')));
+      if (later.month != now.month) {
+        await tester.tap(find.byKey(const Key('leave-next-month')));
+        await _settle(tester);
+      }
+      await tester.tap(find.byKey(Key('leave-day-${iso(later)}')));
       await _settle(tester);
       await tester.tap(find.byKey(const Key('leave-confirm')));
       await _settle(tester);
 
       expect(repo.markedLeaves, hasLength(1));
-      expect(repo.markedLeaves.single, [today, firstOfNext]);
+      expect(repo.markedLeaves.single, [today, iso(later)]);
+    });
+
+    testWidgets('leave can only be marked inside the current salary cycle, and the dialog says which', (tester) async {
+      // app() starts 2 days ago: the current cycle is 2 days ago .. 11 days ahead.
+      final repo = await open(tester, app());
+      await tester.tap(find.byKey(const Key('mark-leave')));
+      await _settle(tester);
+      expect(find.byKey(const Key('leave-cycle-note')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('leave-cycle-note'))).data, startsWith('Leave can be marked only in the current salary cycle'));
+
+      final now = DateTime.now();
+      String iso(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final before = DateTime(now.year, now.month, now.day - 3); // the day before the cycle began
+      final after = DateTime(now.year, now.month, now.day + 12); // the day after it ends
+      for (final day in [before, after]) {
+        if (day.month != now.month) {
+          // go to that month if it is the visible one's neighbour; a disabled day does nothing
+          await tester.tap(find.byKey(Key(day.isAfter(now) ? 'leave-next-month' : 'leave-prev-month')), warnIfMissed: false);
+          await _settle(tester);
+        }
+        final key = find.byKey(Key('leave-day-${iso(day)}'));
+        if (key.evaluate().isNotEmpty) {
+          await tester.tap(key, warnIfMissed: false);
+          await _settle(tester);
+        }
+      }
+      expect(find.text('No days selected'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await _settle(tester);
+      expect(repo.markedLeaves, isEmpty);
     });
 
     testWidgets('days already marked as leave are not offered again in the calendar', (tester) async {

@@ -1,4 +1,4 @@
-import { addDays, listSalaryCycles, PaidCycleRow, salaryForDays } from './salary-cycles';
+import { addDays, currentCycleRange, listSalaryCycles, PaidCycleRow, salaryForDays } from './salary-cycles';
 
 const agreement = (over: Partial<{ startDate: string; rate: number; unit: 'daily' | 'monthly'; leaveDates: string[] }> = {}) => ({
   startDate: '2026-11-18',
@@ -102,5 +102,19 @@ describe('salary cycles', () => {
 
   it('a start date in the future has no cycles yet', () => {
     expect(listSalaryCycles({ paid: [], agreement: agreement({ startDate: '2026-12-20' }), today: '2026-12-10' })).toEqual([]);
+  });
+});
+
+describe('currentCycleRange', () => {
+  it('is the first cycle until the start date has passed 14 days', () => {
+    expect(currentCycleRange('2026-11-18', '2026-11-18')).toEqual({ start: '2026-11-18', end: '2026-12-01' });
+    expect(currentCycleRange('2026-11-18', '2026-12-01')).toEqual({ start: '2026-11-18', end: '2026-12-01' });
+  });
+  it('rolls to the next cycle the day after one ends', () => {
+    expect(currentCycleRange('2026-11-18', '2026-12-02')).toEqual({ start: '2026-12-02', end: '2026-12-15' });
+    expect(currentCycleRange('2026-11-18', '2027-01-05')).toEqual({ start: '2026-12-30', end: '2027-01-12' });
+  });
+  it('before the start date has arrived it is the first cycle', () => {
+    expect(currentCycleRange('2026-12-20', '2026-12-10')).toEqual({ start: '2026-12-20', end: '2027-01-02' });
   });
 });

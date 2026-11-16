@@ -1277,7 +1277,7 @@ describe('IndividualService', () => {
       expect(jobApplicationsRepo.setAgreement).toHaveBeenCalled();
     });
 
-    it('throws JOB_023 for a cycle start date more than a year in the past', async () => {
+    it('throws JOB_023 for a cycle start date more than a month in the past', async () => {
       await expect(
         service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: '2020-01-01' } as any, null),
       ).rejects.toMatchObject({ code: 'JOB_023' });
@@ -1417,7 +1417,7 @@ describe('IndividualService', () => {
         );
       });
 
-      it('allows a past day on or after the start date', async () => {
+      it('allows a past day inside the current cycle', async () => {
         await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-3)] } as any, null)).resolves.toBeDefined();
       });
 
@@ -1434,17 +1434,30 @@ describe('IndividualService', () => {
         expect(result.message).toBe('Those days were already marked');
       });
 
-      it('throws JOB_025 for a day before the agreed start date', async () => {
+      it('throws JOB_025 for a day before the cycle start date', async () => {
         await expect(
           service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-11)] } as any, null),
         ).rejects.toMatchObject({ code: 'JOB_025' });
         expect(leavesRepo.addLeaves).not.toHaveBeenCalled();
       });
 
-      it('throws JOB_025 for a day more than a year away', async () => {
-        await expect(
-          service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(400)] } as any, null),
-        ).rejects.toMatchObject({ code: 'JOB_025' });
+      it('throws JOB_025 for a day in a later cycle (the next one, or far ahead)', async () => {
+        // start = 10 days ago, so the current cycle runs from 10 days ago to 3 days ahead
+        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(4)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
+        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(400)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
+      });
+
+      it('allows the first and last day of the current cycle', async () => {
+        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-10), istDay(3)] } as any, null)).resolves.toBeDefined();
+      });
+
+      it('throws JOB_025 for a day in an earlier cycle once a new cycle has begun', async () => {
+        // start 20 days ago: cycle 2 is now running (from 6 days ago to 7 days ahead)
+        jobApplicationsRepo.findById.mockResolvedValue({
+          id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'accepted', agreed_start_date: istDay(-20),
+        });
+        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-10)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
+        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-6)] } as any, null)).resolves.toBeDefined();
       });
 
       it('rejects an impossible calendar date', async () => {

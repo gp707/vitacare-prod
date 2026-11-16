@@ -24,6 +24,7 @@ import { UpdateNameDto } from './dto/update-name.dto';
 import { SetAgreementDto } from './dto/set-agreement.dto';
 import { MarkLeaveDto } from './dto/mark-leave.dto';
 import { MarkCyclePaidDto } from './dto/mark-cycle-paid.dto';
+import { currentCycleRange } from '../common/salary-cycles';
 import { SalaryCyclesService } from '../jobs/salary-cycles.service';
 import { SalaryCyclePaymentsRepository } from '../database/repositories/salary-cycle-payments.repository';
 import { JobApplicationLeavesRepository } from '../database/repositories/job-application-leaves.repository';
@@ -705,16 +706,17 @@ export class IndividualService {
     });
   }
 
-  /** Marks days (YYYY-MM-DD) as leave. Each must be a real date on or after the
-   *  agreed start date and within the next year (JOB_025). Days already marked
+  /** Marks days (YYYY-MM-DD) as leave. Each must be a real date inside the
+   *  CURRENT salary cycle (JOB_025) — earlier or later cycles can't be changed.
+   *  Days already marked
    *  are ignored, so tapping twice never notifies the caregiver twice. */
   async markLeaves(userId: string, jobId: string, applicationId: string, dto: MarkLeaveDto, ipAddress: string | null) {
     const { job, application, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
     const dates = [...new Set(dto.dates)].sort();
-    const latest = IndividualService.istDay(365);
+    const cycle = currentCycleRange(application.agreed_start_date as string, IndividualService.istDay());
     for (const date of dates) {
       if (!IndividualService.isRealDate(date)) throw new AppException('GEN_001');
-      if (date < (application.agreed_start_date as string) || date > latest) throw new AppException('JOB_025');
+      if (date < cycle.start || date > cycle.end) throw new AppException('JOB_025');
     }
     const added = await this.leavesRepo.addLeaves(applicationId, dates);
     if (added.length > 0) {
@@ -822,12 +824,12 @@ export class IndividualService {
     if (application.status !== JobApplicationStatus.ACCEPTED) throw new AppException('JOB_022');
 
     // A real calendar date (rejects 2026-02-31). The cycle start date may be in the past
-    // (salary already running), but not more than a year back.
+    // (salary already running), but not more than a month back.
     const parsed = new Date(`${dto.agreed_start_date}T00:00:00Z`);
     if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dto.agreed_start_date) {
       throw new AppException('GEN_001');
     }
-    if (dto.agreed_start_date < IndividualService.istDay(-365)) throw new AppException('JOB_023');
+    if (dto.agreed_start_date < IndividualService.istDay(-30)) throw new AppException('JOB_023');
 
     // The patient's own choice; an older app build omits it, so follow the job.
     const salaryUnit =

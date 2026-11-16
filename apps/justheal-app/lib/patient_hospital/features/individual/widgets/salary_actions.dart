@@ -74,7 +74,7 @@ Future<bool> _confirm(
   return confirmed ?? false;
 }
 
-/// Pick the specific days the caregiver is on leave (any days, up to 31 at a time).
+/// Pick the specific days the caregiver is on leave (any days of the current cycle).
 Future<bool> markLeaveFlow(
   BuildContext context,
   WidgetRef ref, {
@@ -84,16 +84,19 @@ Future<bool> markLeaveFlow(
   Analytics.tap('individual', 'requirement_posted', 'mark_leave');
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final agreedStart = DateTime.tryParse(application.agreedStartDate ?? '') ?? today;
-  final firstDate = DateTime(agreedStart.year, agreedStart.month, agreedStart.day);
-  final lastDate = today.add(const Duration(days: 365));
+  // Leave can only be marked inside the current salary cycle.
+  final cycle = currentSalaryCycleRange(application.agreedStartDate, today: today);
+  final firstDate = cycle?.start ?? today;
+  final lastDate = cycle?.end ?? today;
   final dates = await showLeaveDaysDialog(
     context,
     firstDate: firstDate,
-    lastDate: lastDate.isBefore(firstDate) ? firstDate : lastDate,
-    // Open on this month (or the start month if the job starts later).
-    initialMonth: today.isBefore(firstDate) ? firstDate : today,
+    lastDate: lastDate,
+    // Open on the month of today, or of the cycle when today is outside it (a start date in the future).
+    initialMonth: (today.isBefore(firstDate) || today.isAfter(lastDate)) ? firstDate : today,
     alreadyMarked: application.leaveDates,
+    note: 'Leave can be marked only in the current salary cycle: '
+        '${formatLongDate(toIsoDate(firstDate))} to ${formatLongDate(toIsoDate(lastDate))}.',
   );
   if (dates == null || dates.isEmpty || !context.mounted) return false;
   return _run(
