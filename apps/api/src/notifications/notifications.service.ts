@@ -12,6 +12,10 @@ import {
   accountUnblocked,
   agreementSet,
   applicationAccepted,
+  leaveCancelled,
+  leaveMarked,
+  salaryPaused,
+  salaryResumed,
   applicationDeclined,
   caregiverApplied,
   caregiverClosedEngagement,
@@ -165,6 +169,29 @@ export class NotificationsService {
         agreementSet(agreement.displayId, agreement.agreedSalary, agreement.perUnit, agreement.agreedStartDate),
       ),
     );
+  }
+
+  /** The family changed the caregiver's leave days or paused/resumed salary. */
+  async leaveChanged(
+    caregiverUserId: string,
+    change:
+      | { kind: 'marked'; displayId: string; dates: string[] }
+      | { kind: 'cancelled'; displayId: string; date: string }
+      | { kind: 'paused'; displayId: string; from: string }
+      | { kind: 'resumed'; displayId: string; on: string },
+  ): Promise<void> {
+    await this.safe('leave changed', () => {
+      switch (change.kind) {
+        case 'marked':
+          return this.send(caregiverUserId, leaveMarked(change.displayId, change.dates));
+        case 'cancelled':
+          return this.send(caregiverUserId, leaveCancelled(change.displayId, change.date));
+        case 'paused':
+          return this.send(caregiverUserId, salaryPaused(change.displayId, change.from));
+        case 'resumed':
+          return this.send(caregiverUserId, salaryResumed(change.displayId, change.on));
+      }
+    });
   }
 
   // ── Changes to a posting, told to the caregivers it affects ─────────────

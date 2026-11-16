@@ -479,6 +479,31 @@ location) that didn't fit the Individual/admin jobs-table model.
   duplicated per tree (`caregiver/features/jobs/widgets/` and `patient_hospital/features/individual/widgets/`, same precedent as
   `RateCardButton`). Captions say salary is paid directly between the family and caregiver, and JustHeal does not handle payments.
   The 14-day cycle simply repeats while the engagement is accepted; no partial last period is computed.
+- **Calling the caregiver from nursenow-app (patients).** On `JobsPostedScreen`'s applicant tile the caregiver's **name** and **phone number**
+  are tappable (`CallTap`, `features/individual/widgets/call_tap.dart`, `tel:` via `url_launcher`, launcher injectable through
+  `phoneLauncherProvider` for tests); every tile has it, including rejected/closed candidates (their phone stays visible). On
+  `CaregiverProfileViewScreen` (the "View Profile" page, shared with organisations) a **Call** button (`tel:`) and a **WhatsApp**
+  button (`https://wa.me/<digits incl. country code>`, no prefilled text) sit right under the name, same URLs as caregiver-app's
+  `JobPosterContactCard`. If the device can't open the dialer/WhatsApp, an error banner shows the number to dial by hand.
+  Organisation's own applicant tile (`requirements_posted_screen.dart`) was not given tappable name/number (not asked for).
+- **Leave days and pausing salary (patients only, migration 093).** Under the agreed-salary line on the accepted caregiver's tile
+  (nursenow-app, `JobsPostedScreen`) the patient gets **Mark leave** (a date-range picker, up to 31 days at a time, any day from the
+  agreed start date to a year ahead), **Pause salary / Resume salary**, and a **chip per marked day** whose x **cancels that one day**
+  (after a confirm). Endpoints (`IndividualController`/`IndividualService`): `POST .../applications/:applicationId/leaves`
+  (`MarkLeaveDto { dates[] }`), `DELETE .../leaves/:date`, `POST .../pause`, `POST .../resume`; all need an accepted caregiver whose
+  agreement is set (`JOB_022`/`JOB_024`), are audit-logged (`AuditAction.JOB_LEAVE_UPDATED`) and push the caregiver
+  (`leaveChanged` -> `leaveMarked`/`leaveCancelled`/`salaryPaused`/`salaryResumed` templates, open MyJobs). Errors: `JOB_025` (day before the start
+  date or > 1 year ahead), `JOB_026` (already paused), `JOB_027` (not paused), `JOB_028` (that day isn't marked leave; a day inside a pause ends
+  only by resuming). Storage: `job_application_leaves(application_id, leave_date)` and `job_application_pauses(application_id,
+  paused_from, resumed_on)` (`resumed_on` exclusive = a working day again, NULL = still paused, one open pause per application via a
+  partial unique index); both are deleted whenever the application is decided again (`JobApplicationsRepository.decide`).
+  **Every day from a pause until it is resumed counts as leave.** Both sides read `leave_dates` + `pauses` (`my_application` for
+  the caregiver, the applicants list for the patient). **Salary maths** (`nextSalaryDue`, shared Dart): in the next 14-day period the
+  leave days (marked + paused, each once) are subtracted; per-day rate = `rate × days worked`, per-month rate = `rate × days worked ÷ 30`;
+  an open pause counts every remaining day of the period as leave (so a long pause shows ₹0 payable). The amber `SalaryDueBanner` shows
+  the real amount large, the working ending in "= ₹…", "On leave (n of 14 days): …" and "Salary paused since …"; the caregiver's
+  "Agreed with the family" box lists leave days as orange chips, any pause in red and finished pauses with their dates.
+  Migrations 091, 092 and 093 must be applied before this backend.
 - **Post a Requirement / Register forms use the same "always-tappable submit, highlight-and-scroll
   on invalid" pattern as admin-web's job-posting form** (see "Naming Conventions"/admin-web's
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a

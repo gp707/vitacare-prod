@@ -1,3 +1,4 @@
+import '../../../shared/widgets/contact_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -600,7 +601,7 @@ class _RequirementApplicantsDialogState
                                 Text(application.fullName,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600)),
-                                Text(application.phone),
+                                PhoneWithContact(phone: application.phone),
                               ],
                             ),
                           ),

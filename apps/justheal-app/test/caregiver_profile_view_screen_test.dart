@@ -94,4 +94,82 @@ void main() {
 
     expect(find.text('This applicant profile is not available.'), findsOneWidget);
   });
+
+  group('calling or messaging the nurse from her profile', () {
+    testWidgets('shows a Call and a WhatsApp button once the profile has loaded', (tester) async {
+      await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile()));
+      expect(find.widgetWithText(FilledButton, 'Call'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsOneWidget);
+    });
+
+    testWidgets('Call opens the dialer with her number', (tester) async {
+      final launched = <Uri>[];
+      await _pump(
+        tester,
+        CaregiverProfileViewScreen(
+          fetchProfile: () async => _profile(),
+          launcher: (uri) async {
+            launched.add(uri);
+            return true;
+          },
+        ),
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Call'));
+      await tester.pump();
+      expect(launched.single.toString(), 'tel:+919876543210');
+    });
+
+    testWidgets('WhatsApp opens a chat with her number, digits only and including the country code', (tester) async {
+      final launched = <Uri>[];
+      await _pump(
+        tester,
+        CaregiverProfileViewScreen(
+          fetchProfile: () async => _profile(),
+          launcher: (uri) async {
+            launched.add(uri);
+            return true;
+          },
+        ),
+      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'WhatsApp'));
+      await tester.pump();
+      expect(launched.single.toString(), 'https://wa.me/919876543210');
+    });
+
+    testWidgets('if the dialer cannot open, a banner shows the number to dial by hand', (tester) async {
+      await _pump(
+        tester,
+        CaregiverProfileViewScreen(fetchProfile: () async => _profile(), launcher: (uri) async => false),
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Call'));
+      await tester.pump();
+      expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('if WhatsApp is not installed, a banner says so and shows the number', (tester) async {
+      await _pump(
+        tester,
+        CaregiverProfileViewScreen(
+          fetchProfile: () async => _profile(),
+          launcher: (uri) async => throw Exception('no whatsapp'),
+        ),
+      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'WhatsApp'));
+      await tester.pump();
+      expect(find.text('Could not open WhatsApp. Message +919876543210 directly.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('no contact buttons while loading or when the profile fails to load', (tester) async {
+      await _pump(
+        tester,
+        CaregiverProfileViewScreen(
+          fetchProfile: () async => throw const ApiException(code: 'GEN_002', message: 'Not found'),
+        ),
+      );
+      expect(find.widgetWithText(FilledButton, 'Call'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsNothing);
+    });
+  });
 }

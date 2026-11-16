@@ -11,6 +11,7 @@ import { CreateIndividualRequirementDto } from './dto/create-individual-requirem
 import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { SetAgreementDto } from './dto/set-agreement.dto';
+import { MarkLeaveDto } from './dto/mark-leave.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
@@ -134,6 +135,51 @@ export class IndividualController {
     @ClientIp() ip: string | null,
   ) {
     return this.individualService.decideMyApplication(user.sub, jobId, applicationId, dto, ip);
+  }
+
+  @Post('requirements/:jobId/applications/:applicationId/leaves')
+  @HttpCode(HttpStatus.OK)
+  markLeaves(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: MarkLeaveDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.markLeaves(user.sub, jobId, applicationId, dto, ip);
+  }
+
+  @Delete('requirements/:jobId/applications/:applicationId/leaves/:date')
+  cancelLeave(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('date') date: string,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.cancelLeave(user.sub, jobId, applicationId, date, ip);
+  }
+
+  @Post('requirements/:jobId/applications/:applicationId/pause')
+  @HttpCode(HttpStatus.OK)
+  pauseSalary(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.pauseSalary(user.sub, jobId, applicationId, ip);
+  }
+
+  @Post('requirements/:jobId/applications/:applicationId/resume')
+  @HttpCode(HttpStatus.OK)
+  resumeSalary(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.individualService.resumeSalary(user.sub, jobId, applicationId, ip);
   }
 
   @Put('requirements/:jobId/applications/:applicationId/agreement')

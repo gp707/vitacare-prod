@@ -258,6 +258,43 @@ class IndividualRepository {
     }
   }
 
+  /// Marks [dates] (YYYY-MM-DD) as leave for the accepted caregiver. The caregiver
+  /// is told, and those days are left out of the salary.
+  Future<void> markLeaves(String jobId, String applicationId, List<String> dates) async {
+    try {
+      await _dio.post(ApiRoutes.individualApplicationLeaves(jobId, applicationId), data: {'dates': dates});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Cancels one day that was marked as leave: it is a working day again.
+  Future<void> cancelLeave(String jobId, String applicationId, String date) async {
+    try {
+      await _dio.delete(ApiRoutes.individualApplicationLeave(jobId, applicationId, date));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Pauses salary from today: every day until [resumeSalary] counts as leave.
+  Future<void> pauseSalary(String jobId, String applicationId) async {
+    try {
+      await _dio.post(ApiRoutes.individualApplicationPause(jobId, applicationId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Resumes salary from today.
+  Future<void> resumeSalary(String jobId, String applicationId) async {
+    try {
+      await _dio.post(ApiRoutes.individualApplicationResume(jobId, applicationId));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// No re-review/verification pipeline to trigger, unlike caregiver-app's
   /// equivalent — an individual account has none.
   Future<void> updatePhone(String phone) async {

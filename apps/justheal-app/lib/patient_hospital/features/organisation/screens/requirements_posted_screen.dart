@@ -12,6 +12,7 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
+import '../../individual/widgets/call_tap.dart';
 import 'post_organisation_requirement_screen.dart';
 import 'edit_organisation_requirement_screen.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
@@ -808,9 +809,14 @@ class _ApplicantTile extends StatelessWidget {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(application.fullName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          // Tapping the name or the number below opens the dialer.
+                          child: CallTap(
+                            phone: application.phone,
+                            name: application.fullName,
+                            child: Text(application.fullName,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
                         ),
                         if (_isAccepted) ...[
                           const SizedBox(width: AppSpacing.xs),
@@ -818,7 +824,22 @@ class _ApplicantTile extends StatelessWidget {
                         ],
                       ],
                     ),
-                    Text(application.phone, style: const TextStyle(color: AppColors.textSecondary)),
+                    CallTap(
+                      phone: application.phone,
+                      name: application.fullName,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.call, size: 14, color: AppColors.primary),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(application.phone,
+                                style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -1,3 +1,4 @@
+import { leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
 import { Injectable } from '@nestjs/common';
 import {
   CareDuration,
@@ -103,6 +104,10 @@ export interface MyApplicationSummary {
   agreed_salary: number | null;
   agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;
+  /** Days the patient marked as leave (YYYY-MM-DD, sorted) — the caregiver sees them. */
+  leave_dates: string[];
+  /** Salary pauses: every day from `from` until `to` (exclusive; null = still paused) counts as leave. */
+  pauses: PausePeriod[];
 }
 
 export interface JobWithMyApplication extends JobRecord {
@@ -485,7 +490,9 @@ export class JobsRepository {
              'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
              'agreed_salary_unit', ja.agreed_salary_unit,
-             'agreed_start_date', ja.agreed_start_date
+             'agreed_start_date', ja.agreed_start_date,
+             'leave_dates', ${leaveDatesSql('ja')},
+             'pauses', ${pausesSql('ja')}
            ) END AS my_application
          FROM jobs j
          JOIN care_receivers cr ON cr.id = j.care_receiver_id
@@ -524,7 +531,9 @@ export class JobsRepository {
            'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
              'agreed_salary_unit', ja.agreed_salary_unit,
-             'agreed_start_date', ja.agreed_start_date
+             'agreed_start_date', ja.agreed_start_date,
+             'leave_dates', ${leaveDatesSql('ja')},
+             'pauses', ${pausesSql('ja')}
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja
@@ -563,7 +572,9 @@ export class JobsRepository {
            'close_reason', ja.close_reason,
              'agreed_salary', ja.agreed_salary,
              'agreed_salary_unit', ja.agreed_salary_unit,
-             'agreed_start_date', ja.agreed_start_date
+             'agreed_start_date', ja.agreed_start_date,
+             'leave_dates', ${leaveDatesSql('ja')},
+             'pauses', ${pausesSql('ja')}
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone) AS job_poster
        FROM job_applications ja

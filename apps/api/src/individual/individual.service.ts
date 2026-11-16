@@ -22,6 +22,8 @@ import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
 import { SetAgreementDto } from './dto/set-agreement.dto';
+import { MarkLeaveDto } from './dto/mark-leave.dto';
+import { JobApplicationLeavesRepository } from '../database/repositories/job-application-leaves.repository';
 import { UpdateFcmTokenDto } from '../caregiver/dto/update-fcm-token.dto';
 import { DeleteAccountDto } from '../caregiver/dto/delete-account.dto';
 
@@ -40,6 +42,7 @@ export class IndividualService {
     private readonly caregiverProfilesRepo: CaregiverProfilesRepository,
     private readonly fcmService: FcmService,
     private readonly notificationsService: NotificationsService,
+    private readonly leavesRepo: JobApplicationLeavesRepository,
   ) {}
 
   /** Minimal "who am I" for session hydration on app launch — no
@@ -583,6 +586,116 @@ export class IndividualService {
       throw new AppException('JOB_012');
     }
     return this.jobsService.decideApplication(userId, jobId, applicationId, dto, ipAddress);
+  }
+
+  // ── Leave days and salary pauses (migration 093) ─────────────────────────
+  // The patient/family marks days the caregiver is on leave, cancels a marked
+  // day, or pauses salary (every day until it is resumed counts as leave). All
+  // of it needs an accepted caregiver with the agreement (start date) filled in.
+
+  private static istDay(offsetDays = 0): string {
+    return new Date(Date.now() + 5.5 * 3600 * 1000 + offsetDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
+  private static isRealDate(value: string): boolean {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }
+
+  /** The job (must be the caller's), the accepted application with its agreement
+   *  set, and the caregiver's account to notify. */
+  private async loadAcceptedWithAgreement(userId: string, jobId: string, applicationId: string) {
+    const job = await this.jobsRepo.findById(jobId);
+    if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
+    const application = await this.jobApplicationsRepo.findById(applicationId);
+    if (!application || application.job_id !== jobId) throw new AppException('JOB_006');
+    if (application.status !== JobApplicationStatus.ACCEPTED) throw new AppException('JOB_022');
+    if (!application.agreed_start_date) throw new AppException('JOB_024');
+    const caregiver = await this.caregiverProfilesRepo.findFullById(application.profile_id);
+    return { job, application, caregiver };
+  }
+
+  private async auditLeave(
+    userId: string,
+    caregiverUserId: string | undefined,
+    applicationId: string,
+    afterValue: Record<string, unknown>,
+    ipAddress: string | null,
+  ) {
+    await this.auditService.log({
+      userId,
+      targetUserId: caregiverUserId,
+      action: AuditAction.JOB_LEAVE_UPDATED,
+      entityType: 'job_applications',
+      entityId: applicationId,
+      afterValue,
+      ipAddress,
+    });
+  }
+
+  /** Marks days (YYYY-MM-DD) as leave. Each must be a real date on or after the
+   *  agreed start date and within the next year (JOB_025). Days already marked
+   *  are ignored, so tapping twice never notifies the caregiver twice. */
+  async markLeaves(userId: string, jobId: string, applicationId: string, dto: MarkLeaveDto, ipAddress: string | null) {
+    const { job, application, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
+    const dates = [...new Set(dto.dates)].sort();
+    const latest = IndividualService.istDay(365);
+    for (const date of dates) {
+      if (!IndividualService.isRealDate(date)) throw new AppException('GEN_001');
+      if (date < (application.agreed_start_date as string) || date > latest) throw new AppException('JOB_025');
+    }
+    const added = await this.leavesRepo.addLeaves(applicationId, dates);
+    if (added.length > 0) {
+      if (caregiver) {
+        void this.notificationsService.leaveChanged(caregiver.user_id, {
+          kind: 'marked',
+          displayId: jobDisplayId(job),
+          dates: added,
+        });
+      }
+      await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'leave_marked', dates: added }, ipAddress);
+    }
+    return { message: added.length > 0 ? 'Leave marked' : 'Those days were already marked', ...(await this.leavesRepo.getState(applicationId)) };
+  }
+
+  /** Cancels one day that was marked as leave: it is a working day again.
+   *  JOB_028 when that day was not marked (a day inside a pause ends only by
+   *  resuming salary). */
+  async cancelLeave(userId: string, jobId: string, applicationId: string, date: string, ipAddress: string | null) {
+    const { job, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !IndividualService.isRealDate(date)) throw new AppException('GEN_001');
+    if (!(await this.leavesRepo.removeLeave(applicationId, date))) throw new AppException('JOB_028');
+    if (caregiver) {
+      void this.notificationsService.leaveChanged(caregiver.user_id, { kind: 'cancelled', displayId: jobDisplayId(job), date });
+    }
+    await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'leave_cancelled', date }, ipAddress);
+    return { message: 'Leave cancelled', ...(await this.leavesRepo.getState(applicationId)) };
+  }
+
+  /** Pauses salary from today (IST). Every day from then until it is resumed
+   *  counts as leave. JOB_026 when it is already paused. */
+  async pauseSalary(userId: string, jobId: string, applicationId: string, ipAddress: string | null) {
+    const { job, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
+    const from = IndividualService.istDay();
+    if (!(await this.leavesRepo.openPause(applicationId, from))) throw new AppException('JOB_026');
+    if (caregiver) {
+      void this.notificationsService.leaveChanged(caregiver.user_id, { kind: 'paused', displayId: jobDisplayId(job), from });
+    }
+    await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'salary_paused', from }, ipAddress);
+    return { message: 'Salary paused', ...(await this.leavesRepo.getState(applicationId)) };
+  }
+
+  /** Resumes salary from today (IST): today is a working day again. JOB_027
+   *  when salary was not paused. */
+  async resumeSalary(userId: string, jobId: string, applicationId: string, ipAddress: string | null) {
+    const { job, caregiver } = await this.loadAcceptedWithAgreement(userId, jobId, applicationId);
+    const on = IndividualService.istDay();
+    if (!(await this.leavesRepo.closePause(applicationId, on))) throw new AppException('JOB_027');
+    if (caregiver) {
+      void this.notificationsService.leaveChanged(caregiver.user_id, { kind: 'resumed', displayId: jobDisplayId(job), on });
+    }
+    await this.auditLeave(userId, caregiver?.user_id, applicationId, { action: 'salary_resumed', on }, ipAddress);
+    return { message: 'Salary resumed', ...(await this.leavesRepo.getState(applicationId)) };
   }
 
   /** The popup shown to the patient/family right after they accept a

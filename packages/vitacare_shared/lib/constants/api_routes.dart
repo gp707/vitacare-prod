@@ -34,6 +34,14 @@ class ApiRoutes {
       '/individual/requirements/$jobId/applications/$applicationId';
   static String individualRequirementApplicationAgreement(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId/agreement';
+  static String individualApplicationLeaves(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId/leaves';
+  static String individualApplicationLeave(String jobId, String applicationId, String date) =>
+      '/individual/requirements/$jobId/applications/$applicationId/leaves/$date';
+  static String individualApplicationPause(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId/pause';
+  static String individualApplicationResume(String jobId, String applicationId) =>
+      '/individual/requirements/$jobId/applications/$applicationId/resume';
   static String individualRequirementApplicantProfile(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId/profile';
 

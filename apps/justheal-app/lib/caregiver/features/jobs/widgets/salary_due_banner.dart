@@ -77,9 +77,14 @@ class _EntryLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final due = entry.due;
+    // The working is done on the days actually worked: leave and paused days earn nothing.
     final rateText = due.unit == 'daily'
-        ? '₹${formatRupees(due.rate)}/day × $salaryPeriodDays days'
-        : '₹${formatRupees(due.rate)}/month × $salaryPeriodDays ÷ $salaryMonthDays days';
+        ? '₹${formatRupees(due.rate)}/day × ${due.workedDays} days'
+        : '₹${formatRupees(due.rate)}/month × ${due.workedDays} ÷ $salaryMonthDays days';
+    final hasLeave = due.leaveDays.isNotEmpty;
+    final leaveLabels = due.leaveDays.map((d) => formatDayMonth(toIsoDate(d))).toList();
+    final shownLeave = leaveLabels.take(6).join(', ');
+    final moreLeave = leaveLabels.length > 6 ? ' +${leaveLabels.length - 6} more' : '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -102,8 +107,43 @@ class _EntryLines extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (showLabel) Text(entry.label, style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text('₹${formatRupees(due.amount)} for 2 weeks', style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text(rateText, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+              // The real amount, as the headline figure.
+              // A Wrap, not a Row: with large accessibility text "for 2 weeks"
+              // drops to the next line instead of overflowing.
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.end,
+                spacing: AppSpacing.xs,
+                children: [
+                  Text('₹${formatRupees(due.amount)}',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2)),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(hasLeave ? 'for ${due.workedDays} working days' : 'for 2 weeks',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              // How it was worked out, ending in the same figure.
+              Text('$rateText = ₹${formatRupees(due.amount)}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+              if (due.isPaused && due.pausedFrom != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    'Salary paused since ${formatLongDate(toIsoDate(due.pausedFrom!))}',
+                    key: const Key('salary-paused-note'),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                  ),
+                ),
+              if (hasLeave)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    'On leave (${due.leaveDays.length} of $salaryPeriodDays days): $shownLeave$moreLeave',
+                    key: const Key('salary-leave-note'),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Colors.deepOrange.shade800),
+                  ),
+                ),
             ],
           ),
         ),

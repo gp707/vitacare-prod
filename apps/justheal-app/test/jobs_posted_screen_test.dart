@@ -16,6 +16,7 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifi
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/screens/jobs_posted_screen.dart';
+import 'package:nursenow_app/patient_hospital/features/individual/widgets/call_tap.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
 
@@ -152,6 +153,8 @@ JobApplicationModel _application({
   int? agreedSalary,
   String? agreedSalaryUnit,
   String? agreedStartDate,
+  List<String> leaveDates = const [],
+  List<Map<String, dynamic>> pauses = const [],
 }) {
   return JobApplicationModel.fromJson({
     'id': id,
@@ -173,6 +176,8 @@ JobApplicationModel _application({
     'agreed_salary': agreedSalary,
     'agreed_salary_unit': agreedSalaryUnit,
     'agreed_start_date': agreedStartDate,
+    'leave_dates': leaveDates,
+    'pauses': pauses,
   });
 }
 
@@ -196,6 +201,10 @@ class _FakeIndividualRepository extends IndividualRepository {
   String? agreementUnit;
   String? agreementStartDate;
   ApiException? agreementError;
+  final List<List<String>> markedLeaves = [];
+  final List<String> cancelledLeaves = [];
+  int pauseCalls = 0;
+  int resumeCalls = 0;
 
   _FakeIndividualRepository({this.requirements = const [], this.applicationsByJobId = const {}, this.reactivateError})
       : super(Dio());
@@ -264,6 +273,18 @@ class _FakeIndividualRepository extends IndividualRepository {
   }
 
   @override
+  Future<void> markLeaves(String jobId, String applicationId, List<String> dates) async => markedLeaves.add(dates);
+
+  @override
+  Future<void> cancelLeave(String jobId, String applicationId, String date) async => cancelledLeaves.add(date);
+
+  @override
+  Future<void> pauseSalary(String jobId, String applicationId) async => pauseCalls++;
+
+  @override
+  Future<void> resumeSalary(String jobId, String applicationId) async => resumeCalls++;
+
+  @override
   Future<CaregiverProfileModel> getApplicantProfile(String jobId, String applicationId) async {
     profileFetchedJobId = jobId;
     profileFetchedApplicationId = applicationId;
@@ -284,7 +305,12 @@ class _FakeIndividualRepository extends IndividualRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool isJobPostingBlocked = false}) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _FakeIndividualRepository repo, {
+  bool isJobPostingBlocked = false,
+  Future<bool> Function(Uri uri)? phoneLauncher,
+}) async {
   // Requirement cards accumulate a lot of content (About Patient/Requirement
   // tags, Edit/Cancel/Post Similar actions, applicant review section) — tall
   // enough that the default 800x600 test viewport clips action buttons out
@@ -303,6 +329,7 @@ Future<void> _pump(WidgetTester tester, _FakeIndividualRepository repo, {bool is
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         individualRepositoryProvider.overrideWithValue(repo),
+        if (phoneLauncher != null) phoneLauncherProvider.overrideWithValue(phoneLauncher),
         scopeOfWorkRepositoryProvider.overrideWithValue(_FakeScopeOfWorkRepository()),
         dutyRequirementsRepositoryProvider.overrideWithValue(_FakeDutyRequirementsRepository()),
         individualMessagesRepositoryProvider.overrideWithValue(_FakeIndividualMessagesRepository()),
@@ -1490,7 +1517,7 @@ void main() {
           },
         ),
       );
-      expect(find.textContaining('Agreed: ₹800 per day'), findsOneWidget);
+      expect(find.textContaining('Agreed: ₹800 per day · starts 20 Nov 2026'), findsOneWidget);
       expect(find.text('Add agreed salary & start date'), findsNothing);
     });
 
@@ -1506,7 +1533,7 @@ void main() {
           },
         ),
       );
-      expect(find.textContaining('Agreed: ₹24000 per month'), findsOneWidget);
+      expect(find.textContaining('Agreed: ₹24,000 per month'), findsOneWidget);
     });
 
     testWidgets('the popup offers Per day / Per month, preselecting the job\'s own frequency', (tester) async {
@@ -1580,8 +1607,9 @@ void main() {
       final due = nextSalaryDue(salary: 1000, unit: 'daily', startDate: start)!;
       expect(find.byKey(const Key('salary-due-banner')), findsOneWidget);
       expect(find.text('Salary due ${formatDueDate(due.dueDate)} (${dueInWords(due.daysLeft)})'), findsOneWidget);
-      expect(find.text('₹14,000 for 2 weeks'), findsOneWidget);
-      expect(find.text('₹1,000/day × 14 days'), findsOneWidget);
+      expect(find.text('₹14,000'), findsOneWidget);
+      expect(find.text('for 2 weeks'), findsOneWidget);
+      expect(find.text('₹1,000/day × 14 days = ₹14,000'), findsOneWidget);
       expect(find.textContaining('Pay the caregiver directly'), findsOneWidget);
     });
 
@@ -1597,8 +1625,8 @@ void main() {
           },
         ),
       );
-      expect(find.text('₹14,000 for 2 weeks'), findsOneWidget);
-      expect(find.text('₹30,000/month × 14 ÷ 30 days'), findsOneWidget);
+      expect(find.text('₹14,000'), findsOneWidget);
+      expect(find.text('₹30,000/month × 14 ÷ 30 days = ₹14,000'), findsOneWidget);
     });
 
     testWidgets('the unit the patient chose drives the amount, not the job frequency', (tester) async {
@@ -1611,7 +1639,8 @@ void main() {
           },
         ),
       );
-      expect(find.text('₹12,600 for 2 weeks'), findsOneWidget);
+      expect(find.text('₹12,600'), findsOneWidget);
+      expect(find.text('₹900/day × 14 days = ₹12,600'), findsOneWidget);
     });
 
     testWidgets('a rejected caregiver never produces a banner, even with an old agreement on the row', (tester) async {
@@ -1637,7 +1666,7 @@ void main() {
           },
         ),
       );
-      expect(find.textContaining('Agreed: ₹24000 per month'), findsOneWidget);
+      expect(find.textContaining('Agreed: ₹24,000 per month'), findsOneWidget);
     });
 
     testWidgets('tapping the add button opens the popup with the care-staff message and both fields',
@@ -1751,6 +1780,242 @@ void main() {
 
       expect(repo.decidedStatus, 'accepted');
       expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+  });
+
+  group('calling the caregiver from the applicant tile', () {
+    _FakeIndividualRepository repoWith(String status) => _FakeIndividualRepository(
+          requirements: [_requirement(status: status == 'applied' ? 'active' : 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: status, fullName: 'Ramesh Kumar')]},
+        );
+
+    testWidgets("tapping the caregiver's name opens the dialer with their number", (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(launched.single.toString(), 'tel:+919876543210');
+    });
+
+    testWidgets("tapping the caregiver's number opens the dialer with their number", (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('accepted'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(launched.single.toString(), 'tel:+919876543210');
+    });
+
+    testWidgets('the number is visibly tappable: a call icon sits beside it', (tester) async {
+      await _pump(tester, repoWith('applied'));
+      expect(find.descendant(of: find.byType(CallTap), matching: find.byIcon(Icons.call)), findsOneWidget);
+    });
+
+    testWidgets('a rejected candidate can still be called, the number stays visible', (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('rejected'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(launched, hasLength(1));
+    });
+
+    testWidgets('if the phone cannot open the dialer, a banner shows the number to dial by hand', (tester) async {
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async => false);
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
+      // Let the banner's 5-second auto-hide timer finish.
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('a launcher that throws is handled the same way', (tester) async {
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async => throw Exception('no dialer'));
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets("tapping the name does not accept or reject the candidate", (tester) async {
+      final repo = repoWith('applied');
+      await _pump(tester, repo, phoneLauncher: (uri) async => true);
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(repo.decidedStatus, isNull);
+    });
+  });
+
+  group('leave days and pausing salary', () {
+    String iso(int daysFromNow) {
+      final d = DateTime.now().add(Duration(days: daysFromNow));
+      return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    _FakeIndividualRepository repoWith({
+      List<String> leave = const [],
+      List<Map<String, dynamic>> pauses = const [],
+      bool withAgreement = true,
+      int startOffset = -2,
+      String unit = 'daily',
+      int salary = 1000,
+    }) =>
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: unit)],
+          applicationsByJobId: {
+            'job-1': [
+              _application(
+                status: 'accepted',
+                agreedSalary: withAgreement ? salary : null,
+                agreedSalaryUnit: withAgreement ? unit : null,
+                agreedStartDate: withAgreement ? iso(startOffset) : null,
+                leaveDates: leave,
+                pauses: pauses,
+              ),
+            ],
+          },
+        );
+
+    testWidgets('Mark leave and Pause salary appear once the agreement is set', (tester) async {
+      await _pump(tester, repoWith());
+      expect(find.byKey(const Key('mark-leave')), findsOneWidget);
+      expect(find.byKey(const Key('pause-salary')), findsOneWidget);
+      expect(find.byKey(const Key('resume-salary')), findsNothing);
+    });
+
+    testWidgets('they are not offered before an agreement exists', (tester) async {
+      await _pump(tester, repoWith(withAgreement: false));
+      expect(find.byKey(const Key('mark-leave')), findsNothing);
+      expect(find.byKey(const Key('pause-salary')), findsNothing);
+    });
+
+    testWidgets('Mark leave opens the date-range picker; closing it marks nothing', (tester) async {
+      final repo = repoWith();
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('mark-leave')));
+      await _settle(tester);
+      expect(find.text('Select the leave days'), findsOneWidget);
+      await tester.tap(find.byWidgetPredicate((w) => w is Icon && w.semanticLabel == 'Close'));
+      await _settle(tester);
+      expect(repo.markedLeaves, isEmpty);
+    });
+
+    testWidgets('picking a day in the range picker marks it as leave', (tester) async {
+      final repo = repoWith(startOffset: 0);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('mark-leave')));
+      await _settle(tester);
+
+      final day = DateTime.now().day.toString();
+      await tester.tap(find.text(day).first);
+      await _settle(tester);
+      await tester.tap(find.text(day).first);
+      await _settle(tester);
+      await tester.tap(find.text('Mark leave').last);
+      await _settle(tester);
+
+      expect(repo.markedLeaves, hasLength(1));
+      expect(repo.markedLeaves.single, [iso(0)]);
+    });
+
+    testWidgets('each marked day shows as a chip', (tester) async {
+      await _pump(tester, repoWith(leave: [iso(-1), iso(1)]));
+      expect(find.byKey(Key('leave-chip-${iso(-1)}')), findsOneWidget);
+      expect(find.byKey(Key('leave-chip-${iso(1)}')), findsOneWidget);
+      expect(find.textContaining('Marked as leave'), findsOneWidget);
+    });
+
+    testWidgets('tapping the x on a chip asks first, then cancels just that day', (tester) async {
+      final repo = repoWith(leave: [iso(-1), iso(1)]);
+      await _pump(tester, repo);
+      await tester.tap(find.descendant(of: find.byKey(Key('leave-chip-${iso(1)}')), matching: find.byIcon(Icons.close)));
+      await _settle(tester);
+      expect(find.textContaining('Cancel leave on'), findsWidgets);
+      expect(repo.cancelledLeaves, isEmpty);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancel leave'));
+      await _settle(tester);
+      expect(repo.cancelledLeaves, [iso(1)]);
+    });
+
+    testWidgets('choosing Keep leave leaves the day marked', (tester) async {
+      final repo = repoWith(leave: [iso(1)]);
+      await _pump(tester, repo);
+      await tester.tap(find.descendant(of: find.byKey(Key('leave-chip-${iso(1)}')), matching: find.byIcon(Icons.close)));
+      await _settle(tester);
+      await tester.tap(find.text('Keep leave'));
+      await _settle(tester);
+      expect(repo.cancelledLeaves, isEmpty);
+    });
+
+    testWidgets('Pause salary asks first and explains that days count as leave', (tester) async {
+      final repo = repoWith();
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('pause-salary')));
+      await _settle(tester);
+      expect(find.textContaining('every day counts as leave and is not paid'), findsOneWidget);
+      expect(repo.pauseCalls, 0);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Pause salary').last);
+      await _settle(tester);
+      expect(repo.pauseCalls, 1);
+    });
+
+    testWidgets('declining the pause confirmation pauses nothing', (tester) async {
+      final repo = repoWith();
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('pause-salary')));
+      await _settle(tester);
+      await tester.tap(find.text('Not now'));
+      await _settle(tester);
+      expect(repo.pauseCalls, 0);
+    });
+
+    testWidgets('while paused it says so and offers Resume salary instead of Pause', (tester) async {
+      await _pump(tester, repoWith(pauses: [{'from': iso(-1), 'to': null}]));
+      expect(find.byKey(const Key('paused-note')), findsOneWidget);
+      expect(find.byKey(const Key('resume-salary')), findsOneWidget);
+      expect(find.byKey(const Key('pause-salary')), findsNothing);
+    });
+
+    testWidgets('Resume salary asks first, then resumes', (tester) async {
+      final repo = repoWith(pauses: [{'from': iso(-1), 'to': null}]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('resume-salary')));
+      await _settle(tester);
+      expect(repo.resumeCalls, 0);
+      await tester.tap(find.widgetWithText(FilledButton, 'Resume salary').last);
+      await _settle(tester);
+      expect(repo.resumeCalls, 1);
+    });
+
+    testWidgets('the salary banner counts only the days worked and names the leave days', (tester) async {
+      // start = 2 days ago: this period is start..start+13, due start+14. Two leave days in it.
+      await _pump(tester, repoWith(leave: [iso(-1), iso(0)], startOffset: -2));
+      expect(find.text('₹12,000'), findsOneWidget);
+      expect(find.text('for 12 working days'), findsOneWidget);
+      expect(find.text('₹1,000/day × 12 days = ₹12,000'), findsOneWidget);
+      expect(find.byKey(const Key('salary-leave-note')), findsOneWidget);
+    });
+
+    testWidgets('a monthly rate is paid as days worked / 30', (tester) async {
+      await _pump(tester, repoWith(unit: 'monthly', salary: 30000, leave: [iso(-1), iso(0)], startOffset: -2));
+      expect(find.text('₹12,000'), findsOneWidget);
+      expect(find.text('₹30,000/month × 12 ÷ 30 days = ₹12,000'), findsOneWidget);
+    });
+
+    testWidgets('while paused the banner says so and the paused days earn nothing', (tester) async {
+      await _pump(tester, repoWith(pauses: [{'from': iso(-1), 'to': null}], startOffset: -2));
+      expect(find.byKey(const Key('salary-paused-note')), findsOneWidget);
+      // Worked: start(-2) and -1 are before... pause from -1 onward: only day -2 is worked => 1 day.
+      expect(find.text('₹1,000'), findsOneWidget);
     });
   });
 }

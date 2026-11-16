@@ -12,6 +12,7 @@ import '../../../core/providers.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
 import '../data/individual_repository.dart';
 import '../widgets/agreement_dialog.dart';
+import '../widgets/call_tap.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/salary_due_banner.dart';
@@ -132,6 +133,122 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     // which are sent to the caregiver. "Fill later" leaves an
     // "Add agreed salary & start date" button on the accepted candidate.
     if (accepted && mounted) await _openAgreement(jobId, applicationId);
+  }
+
+  // ── Leave days and salary pause ───────────────────────────────────────────
+
+  JobApplicationModel? _applicationFor(String jobId, String applicationId) =>
+      (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
+          .where((a) => a.id == applicationId)
+          .firstOrNull;
+
+  /// Runs one leave/pause call, then reloads so the tile and the salary banner
+  /// show the new state; a server error is shown as a banner.
+  Future<void> _runLeaveAction(Future<void> Function() action, String successMessage) async {
+    try {
+      await action();
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage)));
+    } on ApiException catch (e) {
+      if (mounted) showVitaErrorBanner(context, e.message);
+    }
+  }
+
+  Future<bool> _confirm(String title, String message, String confirmLabel, {String cancelLabel = 'Not now'}) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text(cancelLabel)),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(confirmLabel)),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  /// Pick one day or a range of days to mark as leave (up to 31 at a time).
+  Future<void> _markLeave(String jobId, String applicationId) async {
+    final application = _applicationFor(jobId, applicationId);
+    if (application == null || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'mark_leave');
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final agreedStart = DateTime.tryParse(application.agreedStartDate ?? '') ?? today;
+    final firstDate = DateTime(agreedStart.year, agreedStart.month, agreedStart.day);
+    final lastDate = today.add(const Duration(days: 365));
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: firstDate,
+      lastDate: lastDate.isBefore(firstDate) ? firstDate : lastDate,
+      helpText: 'Select the leave days',
+      saveText: 'Mark leave',
+    );
+    if (range == null || !mounted) return;
+    final dates = isoDatesBetween(range.start, range.end);
+    if (dates.length > 31) {
+      showVitaErrorBanner(context, 'Pick at most 31 days at a time.');
+      return;
+    }
+    await _runLeaveAction(
+      () => ref.read(individualRepositoryProvider).markLeaves(jobId, applicationId, dates),
+      dates.length == 1
+          ? 'Leave marked for ${formatDayMonth(dates.first)}. ${application.fullName} has been told.'
+          : '${dates.length} leave days marked. ${application.fullName} has been told.',
+    );
+  }
+
+  /// Cancels one marked day: it is a working day again.
+  Future<void> _cancelLeave(String jobId, String applicationId, String date) async {
+    final application = _applicationFor(jobId, applicationId);
+    if (application == null || !mounted) return;
+    final ok = await _confirm(
+      'Cancel leave on ${formatDayMonth(date)}?',
+      'It becomes a working day again and is paid. ${application.fullName} will be told.',
+      'Cancel leave',
+      cancelLabel: 'Keep leave',
+    );
+    if (!ok || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'cancel_leave');
+    await _runLeaveAction(
+      () => ref.read(individualRepositoryProvider).cancelLeave(jobId, applicationId, date),
+      'Leave on ${formatDayMonth(date)} cancelled.',
+    );
+  }
+
+  Future<void> _pauseSalary(String jobId, String applicationId) async {
+    final application = _applicationFor(jobId, applicationId);
+    if (application == null || !mounted) return;
+    final ok = await _confirm(
+      'Pause salary?',
+      'From today until you resume, every day counts as leave and is not paid. '
+          '${application.fullName} will be told.',
+      'Pause salary',
+    );
+    if (!ok || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'pause_salary');
+    await _runLeaveAction(
+      () => ref.read(individualRepositoryProvider).pauseSalary(jobId, applicationId),
+      'Salary paused.',
+    );
+  }
+
+  Future<void> _resumeSalary(String jobId, String applicationId) async {
+    final application = _applicationFor(jobId, applicationId);
+    if (application == null || !mounted) return;
+    final ok = await _confirm(
+      'Resume salary?',
+      'Today counts as a working day again. ${application.fullName} will be told.',
+      'Resume salary',
+    );
+    if (!ok || !mounted) return;
+    Analytics.tap('individual', 'requirement_posted', 'resume_salary');
+    await _runLeaveAction(
+      () => ref.read(individualRepositoryProvider).resumeSalary(jobId, applicationId),
+      'Salary resumed.',
+    );
   }
 
   /// The "confirm salary and start date" popup for one accepted candidate
@@ -306,6 +423,8 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           salary: application.agreedSalary,
           unit: application.agreedSalaryUnit ?? (requirement.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
           startDate: application.agreedStartDate,
+          leaveDates: application.leaveDates,
+          pauses: application.pauses,
         );
         if (due != null) entries.add(SalaryDueEntry(label: 'To ${application.fullName}', due: due));
       }
@@ -325,6 +444,12 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onSetAgreement: (applicationId) =>
           _openAgreement(requirement.id, applicationId),
+      leaveActions: _LeaveActions(
+        markLeave: (applicationId) => _markLeave(requirement.id, applicationId),
+        cancelLeave: (applicationId, date) => _cancelLeave(requirement.id, applicationId, date),
+        pause: (applicationId) => _pauseSalary(requirement.id, applicationId),
+        resume: (applicationId) => _resumeSalary(requirement.id, applicationId),
+      ),
       onCancel: () => _cancelRequirement(requirement),
       onReactivate: () => _reactivateRequirement(requirement),
       onSaved: _load,
@@ -400,6 +525,22 @@ String _formatDateTime(DateTime date) =>
     '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:'
     '${date.second.toString().padLeft(2, '0')}';
 
+/// What the patient can do about an accepted caregiver's leave and pay, bundled
+/// so it passes down the card -> applicants -> tile chain as one value.
+class _LeaveActions {
+  final void Function(String applicationId) markLeave;
+  final void Function(String applicationId, String date) cancelLeave;
+  final void Function(String applicationId) pause;
+  final void Function(String applicationId) resume;
+
+  const _LeaveActions({
+    required this.markLeave,
+    required this.cancelLeave,
+    required this.pause,
+    required this.resume,
+  });
+}
+
 class _RequirementCard extends ConsumerStatefulWidget {
   final JobModel requirement;
   final List<JobApplicationModel> applications;
@@ -408,6 +549,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
+  final _LeaveActions leaveActions;
   final VoidCallback onCancel;
   final VoidCallback onReactivate;
   final VoidCallback onSaved;
@@ -420,6 +562,7 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
+    required this.leaveActions,
     required this.onCancel,
     required this.onReactivate,
     required this.onSaved,
@@ -1201,6 +1344,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onReject: widget.onReject,
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
+                leaveActions: widget.leaveActions,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
@@ -1859,6 +2003,7 @@ class _ApplicantsSection extends StatelessWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
+  final _LeaveActions leaveActions;
   final String perUnit;
 
   const _ApplicantsSection({
@@ -1868,6 +2013,7 @@ class _ApplicantsSection extends StatelessWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
+    required this.leaveActions,
     required this.perUnit,
   });
 
@@ -1947,6 +2093,7 @@ class _ApplicantsSection extends StatelessWidget {
               onReject: () => onReject(application.id),
               onViewProfile: () => onViewProfile(application.id),
               onSetAgreement: () => onSetAgreement(application.id),
+              leaveActions: leaveActions,
               perUnit: perUnit,
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -1966,6 +2113,7 @@ class _ApplicantTile extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
   final VoidCallback onSetAgreement;
+  final _LeaveActions leaveActions;
   final String perUnit;
 
   const _ApplicantTile({
@@ -1977,6 +2125,7 @@ class _ApplicantTile extends StatelessWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
+    required this.leaveActions,
     required this.perUnit,
   });
 
@@ -2016,18 +2165,109 @@ class _ApplicantTile extends StatelessWidget {
         : application.agreedSalaryUnit == 'monthly'
             ? 'month'
             : perUnit; // older rows: follow the job
-    final parsed = DateTime.tryParse(startDate);
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              'Agreed: ₹$salary per $unit · starts ${parsed != null ? _formatDate(parsed) : startDate}',
-              style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.success),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Agreed: ₹${formatRupees(salary)} per $unit · starts ${formatLongDate(startDate)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.success),
+                ),
+              ),
+              TextButton(onPressed: onSetAgreement, child: const Text('Edit')),
+            ],
           ),
-          TextButton(onPressed: onSetAgreement, child: const Text('Edit')),
+          _buildLeaveControls(),
+        ],
+      ),
+    );
+  }
+
+  /// Leave days and the pause switch, shown under the agreed salary once it is
+  /// set: day chips (tap the x to cancel a marked day), a pause note, and the
+  /// Mark leave / Pause salary buttons.
+  Widget _buildLeaveControls() {
+    final openPause = application.pauses.where((p) => p.isOpen).toList();
+    final isPaused = openPause.isNotEmpty;
+    final closedPauses = application.pauses.where((p) => !p.isOpen && p.to != p.from).toList();
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isPaused)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                'Salary paused since ${formatLongDate(openPause.first.from)}. Days until you resume count as leave.',
+                key: const Key('paused-note'),
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade800),
+              ),
+            ),
+          for (final pause in closedPauses)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                'Paused ${formatLongDate(pause.from)} to ${formatLongDate(pause.to!)}',
+                style: TextStyle(color: Colors.deepOrange.shade800, fontSize: AppTypography.small),
+              ),
+            ),
+          if (application.leaveDates.isNotEmpty) ...[
+            Text('Marked as leave (tap x to cancel a day)',
+                style: TextStyle(fontSize: AppTypography.small, color: Colors.deepOrange.shade800, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: 0,
+              children: [
+                for (final date in application.leaveDates)
+                  InputChip(
+                    key: Key('leave-chip-$date'),
+                    label: Text(formatDayMonth(date), style: const TextStyle(fontSize: AppTypography.small)),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Colors.deepOrange.shade50,
+                    side: BorderSide(color: Colors.deepOrange.shade400),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    deleteButtonTooltipMessage: 'Cancel leave on ${formatDayMonth(date)}',
+                    onDeleted: () => leaveActions.cancelLeave(application.id, date),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              OutlinedButton.icon(
+                key: const Key('mark-leave'),
+                onPressed: () => leaveActions.markLeave(application.id),
+                style: _compactButtonStyle,
+                icon: const Icon(Icons.event_busy, size: 14),
+                label: const Text('Mark leave'),
+              ),
+              if (isPaused)
+                FilledButton.icon(
+                  key: const Key('resume-salary'),
+                  onPressed: () => leaveActions.resume(application.id),
+                  style: _compactButtonStyle,
+                  icon: const Icon(Icons.play_circle_outline, size: 14),
+                  label: const Text('Resume salary'),
+                )
+              else
+                OutlinedButton.icon(
+                  key: const Key('pause-salary'),
+                  onPressed: () => leaveActions.pause(application.id),
+                  style: _compactButtonStyle,
+                  icon: const Icon(Icons.pause_circle_outline, size: 14),
+                  label: const Text('Pause salary'),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -2081,10 +2321,15 @@ class _ApplicantTile extends StatelessWidget {
               Expanded(
                 child: Row(
                   children: [
+                    // Tapping the name or the number below opens the dialer.
                     Flexible(
-                      child: Text(application.fullName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      child: CallTap(
+                        phone: application.phone,
+                        name: application.fullName,
+                        child: Text(application.fullName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
                     ),
                     if (_isAccepted) ...[
                       const SizedBox(width: AppSpacing.xs),
@@ -2133,8 +2378,24 @@ class _ApplicantTile extends StatelessWidget {
           // outcome — rejected (by either side) or completed candidates
           // are never hidden, so the patient/family can always look them
           // up again and reconsider.
-          Text(application.phone,
-              style: const TextStyle(color: AppColors.textSecondary)),
+          CallTap(
+            phone: application.phone,
+            name: application.fullName,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.call, size: 14, color: AppColors.primary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(application.phone,
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          decoration: TextDecoration.underline)),
+                ],
+              ),
+            ),
+          ),
           _ApplicantTimeline(application),
           if (isDeciding)
             const Padding(

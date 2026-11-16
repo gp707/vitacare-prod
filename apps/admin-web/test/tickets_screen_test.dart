@@ -1,3 +1,4 @@
+import 'package:admin_web/shared/widgets/contact_actions.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -137,5 +138,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ElevatedButton, 'Resolve'), findsNothing);
+  });
+
+  testWidgets('the requester\'s phone has one-click Call and WhatsApp buttons (the admin calls them to verify a PIN reset)',
+      (tester) async {
+    final launched = <Uri>[];
+    final original = uriLauncher;
+    uriLauncher = (uri) async {
+      launched.add(uri);
+      return true;
+    };
+    addTearDown(() => uriLauncher = original);
+
+    await _pump(tester, _FakeAdminTicketsRepository([_item()]));
+    expect(find.text('+919876543210'), findsOneWidget);
+    await tester.tap(find.byTooltip('Call +919876543210'));
+    await tester.tap(find.byTooltip('WhatsApp +919876543210'));
+
+    expect(launched, [Uri(scheme: 'tel', path: '+919876543210'), Uri.parse('https://wa.me/919876543210')]);
   });
 }

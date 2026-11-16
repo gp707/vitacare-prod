@@ -230,4 +230,10 @@ void main() {
     expect(repo.editedProfileId, 'profile-1');
     expect(repo.editedFields, {'phone': '+919999999999'});
   });
+
+  testWidgets('the header phone has Call and WhatsApp buttons', (tester) async {
+    await _pump(tester, _FakeAdminCaregiversRepository(_detail(status: 'available')));
+    expect(find.byTooltip('Call +919876543210'), findsOneWidget);
+    expect(find.byTooltip('WhatsApp +919876543210'), findsOneWidget);
+  });
 }

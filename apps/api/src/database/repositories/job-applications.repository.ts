@@ -1,3 +1,4 @@
+import { leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { JobApplicationStatus } from '@vitacare/shared-constants';
@@ -51,6 +52,8 @@ export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   full_name: string;
   phone: string;
   decided_by_name: string | null;
+  leave_dates: string[];
+  pauses: PausePeriod[];
 }
 
 @Injectable()
@@ -150,6 +153,7 @@ export class JobApplicationsRepository {
        WHERE id = $1`,
         [id, status, adminId, declineReason ?? null],
       );
+      await this.clearLeavesAndPauses(id, runner);
       return;
     }
     await runner.query(
@@ -160,6 +164,15 @@ export class JobApplicationsRepository {
        WHERE id = $1`,
       [id, status, adminId],
     );
+    await this.clearLeavesAndPauses(id, runner);
+  }
+
+  /** Leave days and salary pauses belong to one engagement: a new decision on
+   *  the application (re-accepted or rejected) starts or ends that engagement,
+   *  so they go with it (migration 093). */
+  private async clearLeavesAndPauses(id: string, runner: QueryRunner): Promise<void> {
+    await runner.query(`DELETE FROM job_application_leaves WHERE application_id = $1`, [id]);
+    await runner.query(`DELETE FROM job_application_pauses WHERE application_id = $1`, [id]);
   }
 
   /** Records the agreed salary/start date — only while the application is
@@ -347,7 +360,8 @@ export class JobApplicationsRepository {
 
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
-      `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name
+      `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
+         ${leaveDatesSql('ja')} AS leave_dates, ${pausesSql('ja')} AS pauses
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id

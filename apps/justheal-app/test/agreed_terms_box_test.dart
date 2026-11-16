@@ -54,8 +54,9 @@ void main() {
         ),
       ));
       expect(find.text('Salary due Fri 4 Dec 2026 (in 18 days)'), findsOneWidget);
-      expect(find.text('₹14,000 for 2 weeks'), findsOneWidget);
-      expect(find.text('₹1,000/day × 14 days'), findsOneWidget);
+      expect(find.text('₹14,000'), findsOneWidget);
+      expect(find.text('for 2 weeks'), findsOneWidget);
+      expect(find.text('₹1,000/day × 14 days = ₹14,000'), findsOneWidget);
       expect(find.text('Salary is paid directly by the family, every 2 weeks.'), findsOneWidget);
     });
 
@@ -101,6 +102,97 @@ void main() {
         ),
       ));
       expect(find.text('Salary due Fri 4 Dec 2026 (today)'), findsOneWidget);
+    });
+  });
+
+  group('what the caregiver sees about leave and pauses', () {
+    Widget box({List<String> leave = const [], List<PausePeriod> pauses = const []}) => MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: AgreedTermsBox(
+                salary: 800,
+                perUnit: 'day',
+                startDate: '2026-11-20',
+                leaveDates: leave,
+                pauses: pauses,
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('no leave section until the family marks something', (tester) async {
+      await tester.pumpWidget(box());
+      expect(find.byKey(const Key('leave-section')), findsNothing);
+    });
+
+    testWidgets('each leave day is listed as an orange chip, with a note that leave is not paid', (tester) async {
+      await tester.pumpWidget(box(leave: ['2026-11-24', '2026-11-25']));
+      expect(find.byKey(const Key('leave-section')), findsOneWidget);
+      expect(find.text('On leave (not paid)'), findsOneWidget);
+      expect(find.text('Tue 24 Nov'), findsOneWidget);
+      expect(find.text('Wed 25 Nov'), findsOneWidget);
+    });
+
+    testWidgets('a salary pause is shown in red with the date it started', (tester) async {
+      await tester.pumpWidget(box(pauses: [const PausePeriod(from: '2026-11-25')]));
+      expect(find.textContaining('Salary paused since 25 Nov 2026'), findsOneWidget);
+      expect(find.textContaining('count as leave and are not paid'), findsOneWidget);
+    });
+
+    testWidgets('a finished pause shows its dates and how many days were unpaid', (tester) async {
+      await tester.pumpWidget(box(pauses: [const PausePeriod(from: '2026-11-25', to: '2026-11-28')]));
+      expect(find.text('Paused 25 Nov 2026 to 28 Nov 2026 (3 days, not paid)'), findsOneWidget);
+      expect(find.textContaining('Salary paused since'), findsNothing);
+    });
+  });
+
+  group('SalaryDueBanner with leave (caregiver)', () {
+    final today = DateTime(2026, 11, 20);
+
+    testWidgets('shows the reduced amount, the days worked, and names every leave day', (tester) async {
+      final due = nextSalaryDue(
+        salary: 1000,
+        unit: 'daily',
+        startDate: '2026-11-18',
+        today: today,
+        leaveDates: ['2026-11-24', '2026-11-25'],
+      )!;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SalaryDueBanner(entries: [SalaryDueEntry(label: 'PAT-JOB-548', due: due)], caption: 'c')),
+      ));
+      expect(find.text('₹12,000'), findsOneWidget);
+      expect(find.text('for 12 working days'), findsOneWidget);
+      expect(find.text('₹1,000/day × 12 days = ₹12,000'), findsOneWidget);
+      expect(find.text('On leave (2 of 14 days): Tue 24 Nov, Wed 25 Nov'), findsOneWidget);
+    });
+
+    testWidgets('says when salary is paused', (tester) async {
+      final due = nextSalaryDue(
+        salary: 1000,
+        unit: 'daily',
+        startDate: '2026-11-18',
+        today: today,
+        pauses: [const PausePeriod(from: '2026-11-25')],
+      )!;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SalaryDueBanner(entries: [SalaryDueEntry(label: 'X', due: due)], caption: 'c')),
+      ));
+      expect(find.text('Salary paused since 25 Nov 2026'), findsOneWidget);
+      expect(find.text('₹7,000'), findsOneWidget);
+    });
+
+    testWidgets('a long run of leave is shortened to six days plus a count', (tester) async {
+      final due = nextSalaryDue(
+        salary: 1000,
+        unit: 'daily',
+        startDate: '2026-11-18',
+        today: today,
+        leaveDates: [for (var d = 19; d <= 27; d++) '2026-11-$d'],
+      )!;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(child: SalaryDueBanner(entries: [SalaryDueEntry(label: 'X', due: due)], caption: 'c'))),
+      ));
+      expect(find.textContaining('+3 more'), findsOneWidget);
     });
   });
 }

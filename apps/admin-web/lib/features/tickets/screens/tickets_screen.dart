@@ -1,3 +1,4 @@
+import '../../../shared/widgets/contact_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -187,7 +188,7 @@ class _TicketsScreenState extends ConsumerState<TicketsScreen> {
             fields: [
               VitaListCard.kv('ID', item.displayId ?? '-'),
               VitaListCard.kv('Role', _roleLabel(item.userRole)),
-              VitaListCard.kv('Phone', item.phone),
+              PhoneWithContact(label: 'Phone', phone: item.phone),
               VitaListCard.kv('Type', 'Forgot PIN'),
               VitaListCard.kv('Opened', item.createdAt.split('T').first),
               if (item.resolvedByName != null) VitaListCard.kv('Resolved By', item.resolvedByName!),
@@ -226,7 +227,7 @@ class _TicketsScreenState extends ConsumerState<TicketsScreen> {
                     DataCell(Text(item.displayId ?? '-'), onTap: () => _openAccount(item)),
                     DataCell(Text(item.userFullName), onTap: () => _openAccount(item)),
                     DataCell(Text(_roleLabel(item.userRole)), onTap: () => _openAccount(item)),
-                    DataCell(Text(item.phone), onTap: () => _openAccount(item)),
+                    DataCell(PhoneWithContact(phone: item.phone)),
                     DataCell(const Text('Forgot PIN')),
                     DataCell(_StatusChip(status: item.status)),
                     DataCell(Text(item.createdAt.split('T').first)),

@@ -1,3 +1,4 @@
+import '../../../shared/widgets/contact_actions.dart';
 import '../../../shared/state/sidebar_badge_counts_notifier.dart';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
@@ -369,9 +370,7 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                             style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontWeight: FontWeight.w600)),
-                      Text(detail.phone,
-                          style:
-                              const TextStyle(color: AppColors.textSecondary)),
+                    PhoneWithContact(phone: detail.phone),
                     ],
                   ),
                 ),

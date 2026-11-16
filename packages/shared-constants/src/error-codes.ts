@@ -96,6 +96,11 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   JOB_021: { status: 400, message: 'Already pending review' },
   JOB_022: { status: 400, message: 'The agreed salary and start date can only be set for an accepted caregiver' },
   JOB_023: { status: 400, message: 'The start date cannot be in the past' },
+  JOB_024: { status: 400, message: 'Set the agreed salary and start date first' },
+  JOB_025: { status: 400, message: 'Leave days must be on or after the agreed start date, and within the next year' },
+  JOB_026: { status: 400, message: 'Salary is already paused' },
+  JOB_027: { status: 400, message: 'Salary is not paused' },
+  JOB_028: { status: 400, message: 'That day is not marked as leave' },
 
   // Admin push notification errors
   PUSH_001: { status: 400, message: 'This notification has already been sent, failed, or cancelled' },

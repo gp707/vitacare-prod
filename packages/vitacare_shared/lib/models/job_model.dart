@@ -1,5 +1,6 @@
 import 'applicant_summary.dart';
 import 'care_receiver_model.dart';
+import 'salary_due.dart';
 
 /// The posting admin's contact info — only ever present on
 /// GET /caregiver/jobs/assigned, once the caregiver has actually been
@@ -55,6 +56,10 @@ class MyApplicationModel {
   /// means follow the job's frequency of care.
   final String? agreedSalaryUnit;
   final String? agreedStartDate;
+  /// Days the patient marked as leave (YYYY-MM-DD, sorted) — shown to the caregiver.
+  final List<String> leaveDates;
+  /// Salary pauses: every day until resumed counts as leave.
+  final List<PausePeriod> pauses;
 
   const MyApplicationModel({
     required this.status,
@@ -69,6 +74,8 @@ class MyApplicationModel {
     this.agreedSalary,
     this.agreedSalaryUnit,
     this.agreedStartDate,
+    this.leaveDates = const [],
+    this.pauses = const [],
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -84,6 +91,8 @@ class MyApplicationModel {
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
+        leaveDates: parseLeaveDates(json['leave_dates']),
+        pauses: parsePauses(json['pauses']),
       );
 }
 
@@ -299,6 +308,9 @@ class JobApplicationModel {
   final int? agreedSalary;
   final String? agreedSalaryUnit;
   final String? agreedStartDate;
+  /// Days marked as leave and salary pauses — see MyApplicationModel.
+  final List<String> leaveDates;
+  final List<PausePeriod> pauses;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -320,6 +332,8 @@ class JobApplicationModel {
     this.agreedSalary,
     this.agreedSalaryUnit,
     this.agreedStartDate,
+    this.leaveDates = const [],
+    this.pauses = const [],
     required this.updatedAt,
   });
 
@@ -342,6 +356,8 @@ class JobApplicationModel {
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
+        leaveDates: parseLeaveDates(json['leave_dates']),
+        pauses: parsePauses(json['pauses']),
         updatedAt: json['updated_at'] as String,
       );
 }

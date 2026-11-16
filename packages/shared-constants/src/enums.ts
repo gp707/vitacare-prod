@@ -226,6 +226,8 @@ export const AuditAction = {
   ERROR_LOG_RESOLVED: 'error_log_resolved',
   // The patient/family confirming agreed salary + start date after accepting a caregiver.
   JOB_AGREEMENT_SET: 'job_agreement_set',
+  // Leave days marked/cancelled or salary paused/resumed by the patient/family.
+  JOB_LEAVE_UPDATED: 'job_leave_updated',
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 

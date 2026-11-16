@@ -1,3 +1,4 @@
+import '../../../shared/widgets/contact_actions.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -283,8 +284,7 @@ class _OrganisationDetailScreenState
                           style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w600)),
-                    Text(detail.phone,
-                        style: const TextStyle(color: AppColors.textSecondary)),
+                    PhoneWithContact(phone: detail.phone),
                   ],
                 ),
               ),

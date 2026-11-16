@@ -453,4 +453,19 @@ void main() {
     expect(repo.lastFilters?.organisationType, 'hospital');
     expect(repo.lastFilters?.city, 'bangalore');
   });
+
+  testWidgets('the requirement Applicants dialog shows Call and WhatsApp beside each applicant\'s phone',
+      (tester) async {
+    final repo = _FakeAdminOrganisationRequirementsRepository(
+      [_requirement(status: JobStatus.active)],
+      [_application()],
+    );
+    await _pump(tester, repo);
+
+    await tester.tap(find.text('Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Call +919876500000'), findsOneWidget);
+    expect(find.byTooltip('WhatsApp +919876500000'), findsOneWidget);
+  });
 }

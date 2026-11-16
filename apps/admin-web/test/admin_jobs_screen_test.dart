@@ -2768,4 +2768,15 @@ void main() {
       expect(find.text('ADMIN-JOB-501, ADMIN-JOB-502'), findsOneWidget);
     });
   });
+
+  testWidgets('the Applicants dialog shows Call and WhatsApp beside each applicant\'s phone', (tester) async {
+    final repo = _FakeAdminJobsRepository([_job()], applications: [_application(status: 'applied')]);
+    await _pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Applicants'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Call +919876543210'), findsOneWidget);
+    expect(find.byTooltip('WhatsApp +919876543210'), findsOneWidget);
+  });
 }

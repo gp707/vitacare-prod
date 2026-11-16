@@ -349,6 +349,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         salary: application?.agreedSalary,
         unit: application?.agreedSalaryUnit ?? (job.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
         startDate: application?.agreedStartDate,
+        leaveDates: application?.leaveDates ?? const [],
+        pauses: application?.pauses ?? const [],
       );
       if (due != null) entries.add(SalaryDueEntry(label: jobDisplayId(job), due: due));
     }
@@ -368,6 +370,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         _ => job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
       },
       startDate: startDate,
+      leaveDates: application?.leaveDates ?? const [],
+      pauses: application?.pauses ?? const [],
     );
   }
 

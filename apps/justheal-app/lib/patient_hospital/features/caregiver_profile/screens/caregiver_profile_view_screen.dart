@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
+import 'package:nursenow_app/analytics/analytics.dart';
 
 /// Read-only "who applied" view for an individual/organisation reviewing a
 /// caregiver applicant — the full profile, same data CaregiverService
@@ -13,7 +14,11 @@ import '../../../core/network/api_exception.dart';
 class CaregiverProfileViewScreen extends StatefulWidget {
   final Future<CaregiverProfileModel> Function() fetchProfile;
 
-  const CaregiverProfileViewScreen({super.key, required this.fetchProfile});
+  /// Opens the phone's dialer / WhatsApp. Injectable for widget tests —
+  /// defaults to the real url_launcher call.
+  final Future<bool> Function(Uri uri)? launcher;
+
+  const CaregiverProfileViewScreen({super.key, required this.fetchProfile, this.launcher});
 
   @override
   State<CaregiverProfileViewScreen> createState() => _CaregiverProfileViewScreenState();
@@ -43,6 +48,29 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _open(Uri uri, String failureMessage) async {
+    bool launched;
+    try {
+      launched = widget.launcher != null
+          ? await widget.launcher!(uri)
+          : await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && mounted) showVitaErrorBanner(context, failureMessage);
+  }
+
+  void _call(CaregiverProfileModel profile) {
+    Analytics.tapHere('call_caregiver');
+    _open(Uri(scheme: 'tel', path: profile.phone), 'Could not open the dialer. Call ${profile.phone} directly.');
+  }
+
+  void _whatsApp(CaregiverProfileModel profile) {
+    Analytics.tapHere('whatsapp_caregiver');
+    final digits = profile.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    _open(Uri.parse('https://wa.me/$digits'), 'Could not open WhatsApp. Message ${profile.phone} directly.');
   }
 
   @override
@@ -84,6 +112,27 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                                 style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                               ),
                             ],
+                            const SizedBox(height: AppSpacing.md),
+                            // Reach the caregiver straight from their profile.
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () => _call(profile),
+                                    icon: const Icon(Icons.call, size: 18),
+                                    label: const Text('Call'),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _whatsApp(profile),
+                                    icon: const Icon(Icons.chat, size: 18, color: Color(0xFF25D366)),
+                                    label: const Text('WhatsApp'),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: AppSpacing.lg),
                             _InfoCard(profile: profile),
                             const SizedBox(height: AppSpacing.md),

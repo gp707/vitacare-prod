@@ -436,4 +436,10 @@ void main() {
     expect(repo.notesValue, 'Pending compliance document review.');
     expect(find.text('Notes saved'), findsOneWidget);
   });
+
+  testWidgets('the header phone has Call and WhatsApp buttons', (tester) async {
+    await _pump(tester, _FakeAdminOrganisationsRepository(_item()));
+    expect(find.byTooltip('Call +919876543210'), findsOneWidget);
+    expect(find.byTooltip('WhatsApp +919876543210'), findsOneWidget);
+  });
 }

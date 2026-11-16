@@ -1,3 +1,4 @@
+import '../../../shared/widgets/contact_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -118,7 +119,7 @@ class _JobDetailDialogState extends ConsumerState<JobDetailDialog> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(application.phone),
+                                  PhoneWithContact(phone: application.phone),
                                   const SizedBox(height: 2),
                                   _ApplicationTimeline(application),
                                 ],
