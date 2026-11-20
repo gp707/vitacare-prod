@@ -68,7 +68,7 @@ void main() {
     await _pumpShellAs(tester, 'admin');
 
     double y(String label) => tester.getTopLeft(find.text(label)).dy;
-    final top = ['Jobs', 'Caregivers', 'Insights', 'Rejections', 'Tickets', 'Feedback', 'Patients/Family', 'Rehab/Hospitals', 'Settings', 'NurseNow Messages'];
+    final top = ['Jobs', 'Caregivers', 'Insights', 'Accepted', 'Rejections', 'Tickets', 'Feedback', 'Patients/Family', 'Rehab/Hospitals', 'Settings', 'NurseNow Messages'];
     for (var i = 0; i < top.length - 1; i++) {
       expect(y(top[i]), lessThan(y(top[i + 1])), reason: '${top[i]} should be above ${top[i + 1]}');
     }
@@ -112,7 +112,7 @@ void main() {
       expect(find.text(hidden), findsNothing, reason: '$hidden should be hidden');
     }
     for (final shown in [
-      'Jobs', 'Caregivers', 'Insights', 'Rejections', 'Tickets', 'Feedback', 'Patients/Family', 'Rehab/Hospitals',
+      'Jobs', 'Caregivers', 'Insights', 'Accepted', 'Rejections', 'Tickets', 'Feedback', 'Patients/Family', 'Rehab/Hospitals',
       'Reports', 'Audit Logs', 'Error Logs', 'Dashboard', 'Logout',
     ]) {
       expect(find.text(shown), findsOneWidget, reason: '$shown should be visible');

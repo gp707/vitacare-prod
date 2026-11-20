@@ -29,6 +29,7 @@ import { AdminPushNotificationsModule } from './admin-push-notifications/admin-p
 import { TicketsModule } from './tickets/tickets.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { AdminRejectionsModule } from './admin-rejections/admin-rejections.module';
+import { AdminAcceptedModule } from './admin-accepted/admin-accepted.module';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -66,6 +67,7 @@ import { validateEnv } from './config/env.validation';
     TicketsModule,
     FeedbackModule,
     AdminRejectionsModule,
+    AdminAcceptedModule,
   ],
 })
 export class AppModule {}

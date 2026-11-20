@@ -898,6 +898,12 @@ location) that didn't fit the Individual/admin jobs-table model.
   rejection keeps the old `decided_by`, so that case reads as a poster rejection. Adding a reason prompt to the caregiver's
   decline would be an app + API change.
 
+- **Admin sees every "yes" too (Accepted screen).** admin-web sidebar **Accepted** (`/accepted`, in `_restorableRoutes`; sits right above Rejections) lists every caregiver ever
+  accepted onto a job or organisation requirement (`GET /admin/accepted`, `AdminAcceptedRepository`; `status` = the application's CURRENT status: `accepted` shown as
+  "Working", `completed` "Closed duty", `rejected` "Later rejected", `applied` "Re-applied"; `search` matches name/phone and NUR-/PAT-/ORG- ids and job ids). Based on `accepted_at IS NOT NULL`
+  (kept through rejection and completion), so a re-acceptance shows once with its latest date. Shows poster, who accepted (only while still accepted/closed duty — a later
+  rejection overwrites `decided_by`), and for patient jobs the agreed salary + cycle start date. Read-only, readable by `read_only_admin`. No migration.
+
 ### Organisation (Hospital/Rehab/Clinic)
 
 Entirely separate tables/codepath from Individual — `organisation_profiles`,

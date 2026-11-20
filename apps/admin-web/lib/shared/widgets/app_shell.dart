@@ -20,6 +20,7 @@ enum AppShellSection {
   pushNotifications,
   tickets,
   feedback,
+  accepted,
   rejections,
   auditLogs,
   errorLogs,
@@ -212,6 +213,14 @@ class _NavList extends StatelessWidget {
                   selected: current == AppShellSection.insights,
                   onTap: () => Navigator.of(context)
                       .pushNamedAndRemoveUntil('/insights', (r) => false),
+                ),
+                _NavItem(
+                  collapsed: collapsed,
+                  icon: Icons.thumb_up_alt_outlined,
+                  label: 'Accepted',
+                  selected: current == AppShellSection.accepted,
+                  onTap: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/accepted', (r) => false),
                 ),
                 _NavItem(
                   collapsed: collapsed,

@@ -37,6 +37,7 @@ const _restorableRoutes = {
   '/push-notifications',
   '/tickets',
   '/feedback',
+  '/accepted',
   '/rejections',
   '/error-logs',
   '/insights',
