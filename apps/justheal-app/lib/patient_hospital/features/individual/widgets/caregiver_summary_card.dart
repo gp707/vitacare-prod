@@ -88,11 +88,23 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
                   children: [
                     Row(
                       children: [
+                        // The name opens the profile; the rest of the header (avatar, chevron) folds the card.
                         Flexible(
-                          child: Text(
-                            widget.application.fullName,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
+                          child: GestureDetector(
+                            key: Key('caregiver-name-${widget.application.id}'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: widget.onViewProfile,
+                            child: Text(
+                              widget.application.fullName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: AppTypography.subtitle,
+                                color: Colors.white,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white70,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
@@ -121,17 +133,33 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
 
           // ── Their own salary ──
           if (hasAgreement) ...[
-            const Text('Agreed salary', style: TextStyle(color: Colors.white70, fontSize: AppTypography.small)),
-            const SizedBox(height: 2),
-            Text(
-              '₹${formatRupees(salary)} per $unitWord',
-              key: Key('card-salary-${widget.application.id}'),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title, color: Colors.white),
-            ),
-            Text(
-              'Starts ${formatLongDate(startDate)}',
-              key: Key('card-start-${widget.application.id}'),
-              style: const TextStyle(color: Colors.white),
+            // Label, amount and start date on one line, scaled down a little rather than wrapped.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                key: Key('card-agreement-line-${widget.application.id}'),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  const Text('Agreed salary:', style: TextStyle(color: Colors.white70, fontSize: AppTypography.small)),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    '₹${formatRupees(salary)} per $unitWord',
+                    key: Key('card-salary-${widget.application.id}'),
+                    softWrap: false,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
+                  ),
+                  const Text('  ·  ', style: TextStyle(color: Colors.white70)),
+                  Text(
+                    'Starts ${formatLongDate(startDate)}',
+                    key: Key('card-start-${widget.application.id}'),
+                    softWrap: false,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
             ),
           ] else
             Container(
@@ -227,10 +255,10 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
                   style: ButtonStyle(
                     visualDensity: VisualDensity.compact,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    // On the green card the Reject button is a white pill with red text, so it
-                    // stays the one red action on the card.
-                    backgroundColor: WidgetStateProperty.all(Colors.white),
-                    foregroundColor: WidgetStateProperty.all(AppColors.error),
+                    // White on red, the counterpart of Accept's white on green — and the one red
+                    // action on the green card.
+                    backgroundColor: WidgetStateProperty.all(AppColors.error),
+                    foregroundColor: WidgetStateProperty.all(Colors.white),
                   ),
                   icon: const Icon(Icons.close, size: 14),
                   label: const Text('Reject'),

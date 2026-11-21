@@ -1753,15 +1753,35 @@ void main() {
           applicationsByJobId: {'job-1': [_application(status: status, fullName: 'Ramesh Kumar')]},
         );
 
-    testWidgets("tapping the caregiver's name opens the dialer with their number", (tester) async {
+    testWidgets("tapping a candidate's name opens their profile (not the dialer)", (tester) async {
       final launched = <Uri>[];
-      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async {
+      final repo = repoWith('applied');
+      await _pump(tester, repo, phoneLauncher: (uri) async {
         launched.add(uri);
         return true;
       });
-      await tester.tap(find.text('Ramesh Kumar'));
+      await tester.tap(find.byKey(const Key('applicant-name-app-1')));
       await _settle(tester);
-      expect(launched.single.toString(), 'tel:+919876543210');
+      expect(repo.profileFetchedJobId, 'job-1');
+      expect(repo.profileFetchedApplicationId, 'app-1');
+      expect(launched, isEmpty);
+    });
+
+    testWidgets("tapping an accepted caregiver's name opens their profile, without folding the card", (tester) async {
+      final repo = repoWith('accepted');
+      await _pump(tester, repo);
+      await tester.ensureVisible(find.byKey(const Key('caregiver-name-app-1')));
+      await tester.tap(find.byKey(const Key('caregiver-name-app-1')));
+      await _settle(tester);
+      expect(repo.profileFetchedApplicationId, 'app-1');
+    });
+
+    testWidgets("a rejected candidate's name also opens their profile", (tester) async {
+      final repo = repoWith('rejected');
+      await _pump(tester, repo, expandRejected: true);
+      await tester.tap(find.byKey(const Key('applicant-name-app-1')));
+      await _settle(tester);
+      expect(repo.profileFetchedApplicationId, 'app-1');
     });
 
     testWidgets("tapping the caregiver's number opens the dialer with their number", (tester) async {
@@ -1793,7 +1813,7 @@ void main() {
 
     testWidgets('if the phone cannot open the dialer, a banner shows the number to dial by hand', (tester) async {
       await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async => false);
-      await tester.tap(find.text('Ramesh Kumar'));
+      await tester.tap(find.text('+919876543210'));
       await _settle(tester);
       expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6)); // the banner's own 5s timer
@@ -1810,7 +1830,7 @@ void main() {
     testWidgets("tapping the name does not accept or reject the candidate", (tester) async {
       final repo = repoWith('applied');
       await _pump(tester, repo, phoneLauncher: (uri) async => true);
-      await tester.tap(find.text('Ramesh Kumar'));
+      await tester.tap(find.text('+919876543210'));
       await _settle(tester);
       expect(repo.decidedStatus, isNull);
     });
@@ -2019,7 +2039,7 @@ void main() {
       expect(r.decidedStatus, isNull); // the app never rejects anyone itself; the server rejects only the waiting ones
     });
 
-    testWidgets('a cancelled job with an accepted caregiver says so, keeps the caregiver visible, and offers no Accept', (tester) async {
+    testWidgets('a cancelled job with an accepted caregiver says so, keeps the caregiver visible, and still offers Accept Anyway on the candidates the cancel rejected', (tester) async {
       await _pump(
         tester,
         repo(cancelledAt: '2026-11-17T10:00:00Z', apps: [
@@ -2030,10 +2050,22 @@ void main() {
       expect(find.text('Cancelled — caregiver assigned'), findsOneWidget);
       expect(find.text('Asha Accepted'), findsOneWidget);
       expect(find.byKey(const Key('caregiver-card-app-9')), findsOneWidget);
-      // nobody can be accepted while the job is cancelled
-      expect(find.widgetWithText(FilledButton, 'Accept'), findsNothing);
-      expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsNothing);
+      // a candidate rejected by the cancel can still be accepted ("Accept Anyway"), as always
+      expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsOneWidget);
     });
+
+    for (final cancelledAt in [null, '2026-11-17T10:00:00Z']) {
+      testWidgets('every rejected candidate has Accept Anyway (job ${cancelledAt == null ? 'live' : 'cancelled'})', (tester) async {
+        await _pump(
+          tester,
+          repo(status: cancelledAt == null ? 'active' : 'closed', cancelledAt: cancelledAt, apps: [
+            _application(id: 'r1', status: 'rejected', fullName: 'Ramesh Rejected', decidedBy: 'someone'),
+            _application(id: 'r2', status: 'rejected', fullName: 'Sita Rejected', decidedBy: 'someone'),
+          ]),
+        );
+        expect(find.widgetWithText(FilledButton, 'Accept Anyway'), findsNWidgets(2));
+      });
+    }
 
     testWidgets('an admin-rejected requirement can be neither cancelled nor made live by the patient', (tester) async {
       await _pump(tester, repo(rejectionReason: 'Duplicate posting', apps: [_application(status: 'accepted')]));
@@ -2140,6 +2172,17 @@ void main() {
       expect(repo.agreementSalary, 1200);
     });
 
+    testWidgets('Agreed salary, the amount and the start date sit on one line', (tester) async {
+      await _pump(tester, twoCaregivers());
+      final line = find.byKey(const Key('card-agreement-line-a1'));
+      expect(line, findsOneWidget);
+      final salaryY = tester.getCenter(find.byKey(const Key('card-salary-a1'))).dy;
+      final startY = tester.getCenter(find.byKey(const Key('card-start-a1'))).dy;
+      final labelY = tester.getCenter(find.descendant(of: line, matching: find.text('Agreed salary:'))).dy;
+      expect((salaryY - startY).abs(), lessThan(8));
+      expect((salaryY - labelY).abs(), lessThan(8));
+    });
+
     testWidgets('every accepted caregiver card starts unfolded, showing its details', (tester) async {
       await _pump(tester, twoCaregivers());
       for (final id in ['a1', 'a2', 'a3']) {
@@ -2152,8 +2195,8 @@ void main() {
 
     testWidgets('tapping a caregiver\'s header folds the whole card down to just their name, and tapping again unfolds it', (tester) async {
       await _pump(tester, twoCaregivers());
-      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
-      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-chevron-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-chevron-a1')));
       await _settle(tester);
 
       final card = find.byKey(const Key('caregiver-card-a1'));
@@ -2169,7 +2212,7 @@ void main() {
       expect(find.descendant(of: card, matching: find.text('View Profile')), findsNothing);
       expect(find.descendant(of: card, matching: find.text('Show Activity Log')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-chevron-a1')));
       await _settle(tester);
       expect(find.descendant(of: card, matching: find.text('₹1,000 per day')), findsOneWidget);
       expect(find.byKey(const Key('card-edit-agreement-a1')), findsOneWidget);
@@ -2178,8 +2221,8 @@ void main() {
 
     testWidgets('each caregiver folds independently: folding one leaves the others open', (tester) async {
       await _pump(tester, twoCaregivers());
-      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
-      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-chevron-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-chevron-a1')));
       await _settle(tester);
       expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
       // Meena (a2) is untouched and still shows everything
@@ -2188,8 +2231,8 @@ void main() {
       expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-a2'))).icon, Icons.expand_less);
 
       // folding a second one doesn't reopen the first
-      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a2')));
-      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a2')));
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-chevron-a2')));
+      await tester.tap(find.byKey(const Key('caregiver-card-chevron-a2')));
       await _settle(tester);
       expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
       expect(find.byKey(const Key('card-edit-agreement-a2')), findsNothing);
@@ -2200,8 +2243,8 @@ void main() {
     testWidgets('a folded card stays folded after the list reloads (for example after a decision elsewhere)', (tester) async {
       final repo = twoCaregivers();
       await _pump(tester, repo);
-      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
-      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-chevron-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-chevron-a1')));
       await _settle(tester);
       // pull to refresh
       await tester.drag(find.byType(Scrollable).first, const Offset(0, 300));
@@ -2575,7 +2618,39 @@ void main() {
       expect(tinted, isTrue);
     });
 
-    testWidgets('on the green card the Reject button is a white pill with red text (the one red action)', (tester) async {
+    testWidgets('Reject is white on red everywhere, the counterpart of Accept (and Accept Anyway) being white on green', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(id: 'acc', status: 'accepted', fullName: 'Asha Accepted'),
+              _application(id: 'app', status: 'applied', fullName: 'Ramesh Applied'),
+              _application(id: 'rej', status: 'rejected', fullName: 'Sita Rejected', decidedBy: 'someone'),
+            ],
+          },
+        ),
+      );
+      Color? bg(Finder f) => tester.widget<FilledButton>(f).style!.backgroundColor!.resolve({});
+      Color? fg(Finder f) => tester.widget<FilledButton>(f).style!.foregroundColor!.resolve({});
+      // Reject on the accepted caregiver's card and on the still-waiting candidate's tile
+      final rejects = find.widgetWithText(FilledButton, 'Reject');
+      expect(rejects, findsNWidgets(2));
+      for (var i = 0; i < 2; i++) {
+        expect(bg(rejects.at(i)), AppColors.error);
+        expect(fg(rejects.at(i)), Colors.white);
+      }
+      // Accept and Accept Anyway: white on green
+      for (final label in ['Accept', 'Accept Anyway']) {
+        final f = find.widgetWithText(FilledButton, label);
+        expect(f, findsOneWidget, reason: label);
+        expect(bg(f), AppColors.success);
+        expect(fg(f), Colors.white);
+      }
+    });
+
+    testWidgets('(old check) on the green card the Reject button is red with white text', (tester) async {
       await _pump(
         tester,
         _FakeIndividualRepository(
@@ -2584,8 +2659,8 @@ void main() {
         ),
       );
       final reject = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Reject'));
-      expect(reject.style!.backgroundColor!.resolve({}), Colors.white);
-      expect(reject.style!.foregroundColor!.resolve({}), AppColors.error);
+      expect(reject.style!.backgroundColor!.resolve({}), AppColors.error);
+      expect(reject.style!.foregroundColor!.resolve({}), Colors.white);
     });
 
     testWidgets('a candidate still waiting keeps its own amber, not red or green', (tester) async {

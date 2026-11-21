@@ -1188,7 +1188,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
                 onLeaveFeedback: widget.onLeaveFeedback,
-                jobCancelled: widget.requirement.isCancelled,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
@@ -1857,8 +1856,6 @@ class _ApplicantsSection extends StatefulWidget {
   final void Function(String applicationId) onSetAgreement;
   final void Function(String applicationId) onLeaveFeedback;
   final String perUnit;
-  /// Whether the patient cancelled the job (nobody can be accepted until it is made live again).
-  final bool jobCancelled;
 
   const _ApplicantsSection({
     required this.applications,
@@ -1869,7 +1866,6 @@ class _ApplicantsSection extends StatefulWidget {
     required this.onSetAgreement,
     required this.onLeaveFeedback,
     required this.perUnit,
-    required this.jobCancelled,
   });
 
   @override
@@ -1889,7 +1885,7 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
         // Several caregivers can be accepted on one job, so anyone not already
         // accepted can be accepted — "Accept Anyway" for a previously rejected or
         // completed candidate. Not once the job is permanently cancelled.
-        canAccept: application.status != JobApplicationStatus.accepted && !widget.jobCancelled,
+        canAccept: application.status != JobApplicationStatus.accepted,
         // An undecided candidate can always be declined; an accepted one can always
         // be rejected (ending that engagement).
         canReject: application.status == JobApplicationStatus.applied ||
@@ -2169,14 +2165,17 @@ class _ApplicantTile extends StatelessWidget {
               Expanded(
                 child: Row(
                   children: [
-                    // Tapping the name or the number below opens the dialer.
+                    // Tapping the name opens that person's profile (the number below opens the dialer).
                     Flexible(
-                      child: CallTap(
-                        phone: application.phone,
-                        name: application.fullName,
+                      child: InkWell(
+                        key: Key('applicant-name-${application.id}'),
+                        onTap: onViewProfile,
                         child: Text(application.fullName,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColors.textSecondary)),
                       ),
                     ),
                     if (_isAccepted) ...[
@@ -2287,8 +2286,9 @@ class _ApplicantTile extends StatelessWidget {
                           FilledButton.icon(
                             onPressed: onReject,
                             style: _compactButtonStyle.copyWith(
-                              backgroundColor: WidgetStateProperty.all(AppColors.error.withValues(alpha: 0.1)),
-                              foregroundColor: WidgetStateProperty.all(AppColors.error),
+                              // White on red, the counterpart of Accept's white on green.
+                              backgroundColor: WidgetStateProperty.all(AppColors.error),
+                              foregroundColor: WidgetStateProperty.all(Colors.white),
                             ),
                             icon: const Icon(Icons.close, size: 14),
                             label: const Text('Reject'),
