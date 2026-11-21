@@ -1557,8 +1557,9 @@ Anyone with the app can invite others in two taps. No backend, no database, no a
   when WhatsApp can't open; `shareViaSheet`; both providers are overridable in tests), `share_app_card.dart` (`ShareAppCard`, `ShareJobButton`).
 - **Message wording** depends on who shares (caregiver / patient-family / organisation), English only. The text never contains a name, phone number, address or patient detail.
   A job share carries only the shift, city and the salary when it is a plain number (a sentence-style salary is left out).
-- **The link** is the Play Store page (`in.vitacasahealth.justheal`, Android only for now; iOS untested) with `&referrer=utm_source%3Dshare%26utm_medium%3D<app_invite|job_share>%26utm_campaign%3D<caregiver|individual|organisation>`,
-  so the Play Console's acquisition reports show installs from shares and who shared. There is no per-person referral code yet, so nobody can be credited with an install.
+- **The link** is the plain Play Store page, `https://play.google.com/store/apps/details?id=in.vitacasahealth.justheal` (Android only for now; iOS untested) — no `referrer`/UTM
+  parameters, so it is as short as that page's address can be and looks clean in a chat (it used to carry `&referrer=utm_...`; removed on request). The Play Console therefore cannot tell
+  installs from shares apart from other installs, and nobody can be credited with an install. A shorter link would need our own domain redirect (e.g. `vitacasahealth.in/app`).
 - **Where it appears:** a full `ShareAppCard` on each Profile screen (caregiver: top of the profile; patient/organisation: below the PIN); a compact one on caregiver My Jobs ->
   Selected once they hold a job, and on the patient's Requirement Posted screen once someone has applied; a **Share this job on WhatsApp** link on caregiver job cards in the
   browse list only (`JobDetailCard(showShare: true)`); and after sending feedback the thank-you snackbar has a "Share JustHeal" action. Taps are counted by `Analytics.tap`

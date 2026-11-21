@@ -8,8 +8,8 @@ import 'share_service.dart';
 /// ready message) and a **More** button for any other app. The wording follows who is
 /// sharing ([audience]). [flow]/[screen] only label the analytics tap.
 ///
-/// [compact] is the small inline version used at happy moments (after being accepted, after
-/// the first applicants arrive); the full version lives on the Profile screens.
+/// [compact] is the slightly tighter inline version used at happy moments (after being accepted,
+/// after the first applicants arrive); the full version lives on the Profile screens.
 class ShareAppCard extends ConsumerWidget {
   final ShareAudience audience;
   final String flow;
@@ -58,17 +58,18 @@ class ShareAppCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _headline,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: compact ? AppTypography.body : AppTypography.title),
-          ),
-          if (!compact) ...[
-            const SizedBox(height: 2),
-            const Text(
-              'Share JustHeal with them. It takes two taps.',
-              style: TextStyle(color: AppColors.textSecondary),
+          // Small, regular weight and always one line: scaled down a little rather than wrapped.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _headline,
+              key: const Key('share-app-headline'),
+              maxLines: 1,
+              softWrap: false,
+              style: const TextStyle(fontWeight: FontWeight.normal, fontSize: AppTypography.small),
             ),
-          ],
+          ),
           SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
           // A Wrap so the buttons stack on a narrow screen or with large text.
           Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xs, children: [whatsapp, more]),

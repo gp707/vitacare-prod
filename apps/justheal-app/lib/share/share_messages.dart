@@ -6,18 +6,14 @@ const String playStorePackage = 'in.vitacasahealth.justheal';
 /// Who is sharing — decides the wording of the invite.
 enum ShareAudience { caregiver, individual, organisation }
 
-/// The store link, tagged so the Play Console's "acquisition" reports show how many
-/// installs came from shares and from which kind of person (`utm_medium` = what was
-/// shared, `utm_campaign` = who shared it). No personal data is ever put in the link.
-String appStoreLink({required ShareAudience audience, String medium = 'app_invite'}) {
-  final referrer = Uri.encodeComponent('utm_source=share&utm_medium=$medium&utm_campaign=${audience.name}');
-  return 'https://play.google.com/store/apps/details?id=$playStorePackage&referrer=$referrer';
-}
+/// The plain Play Store link: just the app's id, no tracking parameters, so it stays as short
+/// as the Play Store allows and looks clean in a chat.
+const String appStoreLink = 'https://play.google.com/store/apps/details?id=$playStorePackage';
 
 /// The message for "tell a friend about JustHeal". Plain text, English, no names,
 /// phone numbers or any job or patient detail.
 String appInviteMessage(ShareAudience audience) {
-  final link = appStoreLink(audience: audience);
+  const link = appStoreLink;
   switch (audience) {
     case ShareAudience.caregiver:
       return 'Looking for nursing or caregiver jobs? JustHeal connects caregivers with patients and families '
@@ -41,6 +37,5 @@ String jobShareMessage(JobModel job) {
   final plainSalary = salary != null && RegExp(r'^\d{1,7}$').hasMatch(salary.trim());
   final unit = job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month';
   final pay = plainSalary ? ', ₹${formatRupees(int.parse(salary.trim()))} per $unit' : '';
-  final link = appStoreLink(audience: ShareAudience.caregiver, medium: 'job_share');
-  return 'Nursing job on JustHeal: $duty in $city$pay. Download the app and apply: $link';
+  return 'Nursing job on JustHeal: $duty in $city$pay. Download the app and apply: $appStoreLink';
 }

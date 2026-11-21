@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
+import 'package:vitacare_ui/vitacare_ui.dart';
 
 import 'package:nursenow_app/share/share_app_card.dart';
 import 'package:nursenow_app/share/share_messages.dart';
@@ -25,12 +26,21 @@ JobModel _job({String? salary = '1100', String frequency = 'daily'}) => JobModel
 
 void main() {
   group('messages', () {
-    test('the store link carries the audience and what was shared, and nothing personal', () {
-      final link = appStoreLink(audience: ShareAudience.caregiver);
-      expect(link, startsWith('https://play.google.com/store/apps/details?id=in.vitacasahealth.justheal'));
-      expect(Uri.parse(link).queryParameters['referrer'], 'utm_source=share&utm_medium=app_invite&utm_campaign=caregiver');
-      expect(Uri.parse(appStoreLink(audience: ShareAudience.individual, medium: 'job_share')).queryParameters['referrer'],
-          'utm_source=share&utm_medium=job_share&utm_campaign=individual');
+    test('the store link is the plain Play Store address: just the app id, no tracking parameters', () {
+      expect(appStoreLink, 'https://play.google.com/store/apps/details?id=in.vitacasahealth.justheal');
+      expect(appStoreLink, isNot(contains('referrer')));
+      expect(appStoreLink, isNot(contains('utm_')));
+      expect(Uri.parse(appStoreLink).queryParameters.keys, ['id']);
+    });
+
+    test('no message carries a referrer or tracking parameter either', () {
+      final messages = [for (final a in ShareAudience.values) appInviteMessage(a), jobShareMessage(_job())];
+      for (final m in messages) {
+        expect(m, isNot(contains('referrer')));
+        expect(m, isNot(contains('utm_')));
+        expect(m, isNot(contains('%3D')));
+        expect(m, endsWith(appStoreLink));
+      }
     });
 
     test('each audience gets its own wording and the link', () {
@@ -52,7 +62,6 @@ void main() {
       expect(m, contains('₹1,100 per day'));
       expect(m, isNot(contains('Indiranagar')));
       expect(m, isNot(contains('+91')));
-      expect(Uri.parse(RegExp(r'https://\S+').firstMatch(m)!.group(0)!).queryParameters['referrer'], contains('utm_medium=job_share'));
     });
 
     test('a monthly rate reads per month, and a salary that is a sentence is left out', () {
@@ -115,6 +124,20 @@ void main() {
       expect(find.text('Know a hospital or clinic that is hiring?'), findsOneWidget);
     });
 
+    testWidgets('the question is small, regular weight and on a single line, even on a narrow phone', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      for (final audience in ShareAudience.values) {
+        await pump(tester, audience: audience);
+        final text = tester.widget<Text>(find.byKey(const Key('share-app-headline')));
+        expect(text.style!.fontWeight, FontWeight.normal);
+        expect(text.style!.fontSize, AppTypography.small);
+        expect(text.maxLines, 1);
+        // one line: the rendered height is about one line of text, not two
+        expect(tester.getSize(find.byKey(const Key('share-app-headline'))).height, lessThan(AppTypography.small * 2));
+      }
+    });
+
     testWidgets('Share on WhatsApp opens WhatsApp with the invite already typed — one tap', (tester) async {
       await pump(tester);
       await tester.tap(find.byKey(const Key('share-app-whatsapp')));
@@ -154,11 +177,15 @@ void main() {
       await tester.pump(const Duration(seconds: 6));
     });
 
-    testWidgets('the compact version drops the explanation but keeps both buttons', (tester) async {
-      await pump(tester, compact: true);
-      expect(find.text('Share JustHeal with them. It takes two taps.'), findsNothing);
-      expect(find.byKey(const Key('share-app-whatsapp')), findsOneWidget);
-      expect(find.byKey(const Key('share-app-more')), findsOneWidget);
+    testWidgets('the card is just the question and the two buttons, in both the full and the compact version', (tester) async {
+      for (final compact in [false, true]) {
+        await pump(tester, compact: compact);
+        expect(find.text('Share JustHeal with them. It takes two taps.'), findsNothing);
+        expect(find.textContaining('two taps'), findsNothing);
+        expect(find.byKey(const Key('share-app-headline')), findsOneWidget);
+        expect(find.byKey(const Key('share-app-whatsapp')), findsOneWidget);
+        expect(find.byKey(const Key('share-app-more')), findsOneWidget);
+      }
     });
   });
 
