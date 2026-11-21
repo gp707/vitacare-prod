@@ -6,6 +6,8 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/contact_actions.dart';
+import '../../jobs/widgets/job_detail_dialog.dart';
+import '../../organisation_requirements/widgets/requirement_widgets.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_accepted_repository.dart';
 
@@ -92,6 +94,59 @@ class _AcceptedScreenState extends ConsumerState<AcceptedScreen> {
 
   void _openCaregiver(AdminAcceptedItem item) =>
       Navigator.of(context).pushNamed('/caregiver-detail', arguments: item.caregiverProfileId);
+
+  /// Opens the job (or organisation requirement) this row is about, in place — the same detail view
+  /// the Jobs screen and the Audit Logs open.
+  Future<void> _openJob(AdminAcceptedItem item) async {
+    if (item.jobId.isEmpty) return;
+    if (!item.isRequirement) {
+      await showDialog<void>(context: context, builder: (_) => JobDetailDialog(jobId: item.jobId));
+      return;
+    }
+    try {
+      final (requirement, _) = await ref.read(adminOrganisationRequirementsRepositoryProvider).getDetail(item.jobId);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => RequirementReadOnlyDialog(
+          requirement: requirement,
+          // Editing lives on the Jobs screen: close this view and go there.
+          onEdit: () {
+            Navigator.of(dialogContext).pop();
+            Navigator.of(context).pushNamed('/jobs');
+          },
+        ),
+      );
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// Opens the profile of whoever accepted: a patient/family or an organisation (an admin has none).
+  void _openAcceptedBy(AdminAcceptedItem item) {
+    if (!item.acceptedByHasProfile) return;
+    Navigator.of(context).pushNamed(
+      item.acceptedByRole == 'organisation' ? '/organisation-detail' : '/individual-detail',
+      arguments: item.acceptedById,
+    );
+  }
+
+  /// A hover card (multi-line) around [child]; shows quickly and stays long enough to read.
+  Widget _hover(String message, Widget child) => Tooltip(
+        message: message,
+        waitDuration: const Duration(milliseconds: 250),
+        showDuration: const Duration(seconds: 10),
+        preferBelow: false,
+        textAlign: TextAlign.left,
+        child: child,
+      );
+
+  /// Text that looks and behaves like a link.
+  Widget _linkText(String text, {Key? key}) => Text(
+        text,
+        key: key,
+        style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline),
+      );
 
   String _by(AdminAcceptedItem item) {
     final name = item.acceptedByName;
@@ -233,19 +288,35 @@ class _AcceptedScreenState extends ConsumerState<AcceptedScreen> {
                     DataCell(Text(item.acceptedAt.split('T').first)),
                     DataCell(_StatusChip(status: item.status)),
                     DataCell(
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${item.caregiverDisplayLabel ?? '-'}  ${item.caregiverName}'),
-                          PhoneWithContact(phone: item.caregiverPhone),
-                        ],
+                      _hover(
+                        item.caregiverHoverText,
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${item.caregiverDisplayLabel ?? '-'}  ${item.caregiverName}'),
+                            PhoneWithContact(phone: item.caregiverPhone),
+                          ],
+                        ),
                       ),
                       onTap: () => _openCaregiver(item),
                     ),
-                    DataCell(Text(item.jobLabel)),
+                    // The job: hover for its details, click to open it.
+                    DataCell(
+                      _hover(item.jobHoverText, _linkText(item.jobLabel, key: Key('accepted-job-${item.applicationId}'))),
+                      onTap: () => _openJob(item),
+                    ),
                     DataCell(Text('${item.posterName ?? '-'}\n${item.posterDisplayLabel ?? ''}'.trim())),
-                    DataCell(Text(_by(item))),
+                    // Who accepted: hover for their details, click to open a patient's / organisation's profile.
+                    DataCell(
+                      _hover(
+                        item.acceptedByHoverText,
+                        item.acceptedByHasProfile
+                            ? _linkText(_by(item), key: Key('accepted-by-${item.applicationId}'))
+                            : Text(_by(item), key: Key('accepted-by-${item.applicationId}')),
+                      ),
+                      onTap: item.acceptedByHasProfile ? () => _openAcceptedBy(item) : null,
+                    ),
                     DataCell(Text(_agreed(item))),
                   ]))
               .toList(),

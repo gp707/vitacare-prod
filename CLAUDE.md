@@ -859,6 +859,7 @@ location) that didn't fit the Individual/admin jobs-table model.
   "Working", `completed` "Closed duty", `rejected` "Later rejected", `applied` "Re-applied"; `search` matches name/phone and NUR-/PAT-/ORG- ids and job ids). Based on `accepted_at IS NOT NULL`
   (kept through rejection and completion), so a re-acceptance shows once with its latest date. Shows poster, who accepted (only while still accepted/closed duty — a later
   rejection overwrites `decided_by`), and for patient jobs the agreed salary + start date. Read-only, readable by `read_only_admin`. No migration.
+  **Hover + click-through (desktop table):** hovering the **Caregiver** cell shows their details (NUR id, phone, age/gender, qualification, status; click opens their profile), hovering the **Job** cell shows the job's details (poster, city/area, shift or type of nurse, offered salary) and **clicking it opens that job in place** (`JobDetailDialog`; an organisation requirement opens `RequirementReadOnlyDialog`, whose Edit goes to the Jobs screen), and hovering **Accepted by** shows who it is (name, PAT-/ORG- id, role, phone) and **clicking opens the patient's / organisation's profile** (`/individual-detail` / `/organisation-detail` with `accepted_by_id`; an admin who accepted has a hover card but no link). The API row carries `job_id`, `job_*`, `caregiver_*` and `accepted_by_id/phone/number` for this. The narrow card layout has no hover and is unchanged.
 
 ### Organisation (Hospital/Rehab/Clinic)
 

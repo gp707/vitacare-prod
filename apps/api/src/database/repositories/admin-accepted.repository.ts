@@ -31,6 +31,27 @@ export interface AcceptedItem {
   agreed_salary: number | null;
   agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;
+  /** The job (or organisation requirement) itself: its id, to open it, and the facts shown on hover. */
+  job_id: string;
+  job_city: string | null;
+  job_area: string | null;
+  /** Patient/admin jobs: the shift (`duty_type`); organisation requirements: null. */
+  job_shift: string | null;
+  /** Organisation requirements: the type of nurse wanted; jobs: null. */
+  job_type_of_nurse: string | null;
+  /** Patient/admin jobs: the offered salary as stored (text) and its frequency. */
+  job_salary: string | null;
+  job_frequency: string | null;
+  /** The caregiver, for the hover card. */
+  caregiver_age: number | null;
+  caregiver_gender: string | null;
+  caregiver_qualification: string | null;
+  caregiver_status: string | null;
+  /** Who accepted (same availability rule as accepted_by_name): the account id to open their profile,
+   *  their phone and their display number (PAT-/ORG- — null for an admin). */
+  accepted_by_id: string | null;
+  accepted_by_phone: string | null;
+  accepted_by_number: number | null;
 }
 
 export interface AcceptedFilters {
@@ -43,7 +64,9 @@ const JOB_SELECT = `
          ja.profile_id, j.admin_job_number, j.patient_job_number, NULL::int AS requirement_number,
          pu.full_name AS poster_name, pu.phone AS poster_phone, pu.role AS poster_role,
          ip.patient_number AS poster_number,
-         ja.agreed_salary, ja.agreed_salary_unit, ja.agreed_start_date::text AS agreed_start_date
+         ja.agreed_salary, ja.agreed_salary_unit, ja.agreed_start_date::text AS agreed_start_date,
+         j.id AS job_id, j.city::text AS job_city, j.area AS job_area, j.duty_type::text AS job_shift,
+         NULL::text AS job_type_of_nurse, j.salary_amount::text AS job_salary, j.frequency_of_care::text AS job_frequency
   FROM job_applications ja
   JOIN jobs j ON j.id = ja.job_id
   LEFT JOIN users pu ON pu.id = j.posted_by
@@ -56,7 +79,9 @@ const REQUIREMENT_SELECT = `
          r.requirement_number,
          op.organisation_name AS poster_name, pu.phone AS poster_phone, pu.role AS poster_role,
          op.org_number AS poster_number,
-         oa.agreed_salary, oa.agreed_salary_unit, oa.agreed_start_date::text AS agreed_start_date
+         oa.agreed_salary, oa.agreed_salary_unit, oa.agreed_start_date::text AS agreed_start_date,
+         r.id AS job_id, op.city::text AS job_city, op.area AS job_area, NULL::text AS job_shift,
+         r.type_of_nurse::text AS job_type_of_nurse, NULL::text AS job_salary, NULL::text AS job_frequency
   FROM organisation_requirement_applications oa
   JOIN organisation_requirements r ON r.id = oa.requirement_id
   LEFT JOIN users pu ON pu.id = r.posted_by
@@ -73,11 +98,19 @@ const ITEMS_CTE = `
            raw.poster_name, raw.poster_phone, raw.poster_role, raw.poster_number,
            CASE WHEN raw.status IN ('accepted', 'completed') THEN du.full_name END AS accepted_by_name,
            CASE WHEN raw.status IN ('accepted', 'completed') THEN du.role END AS accepted_by_role,
-           raw.agreed_salary, raw.agreed_salary_unit, raw.agreed_start_date
+           raw.agreed_salary, raw.agreed_salary_unit, raw.agreed_start_date,
+           raw.job_id, raw.job_city, raw.job_area, raw.job_shift, raw.job_type_of_nurse, raw.job_salary, raw.job_frequency,
+           cp.age AS caregiver_age, cp.gender AS caregiver_gender, cp.highest_qualification AS caregiver_qualification,
+           cp.verification_status AS caregiver_status,
+           CASE WHEN raw.status IN ('accepted', 'completed') THEN du.id END AS accepted_by_id,
+           CASE WHEN raw.status IN ('accepted', 'completed') THEN du.phone END AS accepted_by_phone,
+           CASE WHEN raw.status IN ('accepted', 'completed') THEN COALESCE(dip.patient_number, dop.org_number) END AS accepted_by_number
     FROM raw
     JOIN caregiver_profiles cp ON cp.id = raw.profile_id
     JOIN users cu ON cu.id = cp.user_id
     LEFT JOIN users du ON du.id = raw.decided_by
+    LEFT JOIN individual_profiles dip ON dip.user_id = raw.decided_by
+    LEFT JOIN organisation_profiles dop ON dop.user_id = raw.decided_by
   )`;
 
 /** Escapes LIKE wildcards so a search for "50%" matches literally. */

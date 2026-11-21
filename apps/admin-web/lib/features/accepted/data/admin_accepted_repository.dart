@@ -30,6 +30,23 @@ class AdminAcceptedItem {
   final String? agreedSalaryUnit;
   /// The start date agreed with the caregiver (YYYY-MM-DD) — by the patient or the organisation.
   final String? agreedStartDate;
+  /// The job / organisation requirement itself (to open it, and for the hover card).
+  final String jobId;
+  final String? jobCity;
+  final String? jobArea;
+  final String? jobShift;
+  final String? jobTypeOfNurse;
+  final String? jobSalary;
+  final String? jobFrequency;
+  /// The caregiver, for the hover card.
+  final int? caregiverAge;
+  final String? caregiverGender;
+  final String? caregiverQualification;
+  final String? caregiverStatus;
+  /// The account that accepted (same availability as [acceptedByName]), to open their profile.
+  final String? acceptedById;
+  final String? acceptedByPhone;
+  final int? acceptedByNumber;
 
   const AdminAcceptedItem({
     required this.kind,
@@ -52,7 +69,91 @@ class AdminAcceptedItem {
     this.agreedSalary,
     this.agreedSalaryUnit,
     this.agreedStartDate,
+    this.jobId = '',
+    this.jobCity,
+    this.jobArea,
+    this.jobShift,
+    this.jobTypeOfNurse,
+    this.jobSalary,
+    this.jobFrequency,
+    this.caregiverAge,
+    this.caregiverGender,
+    this.caregiverQualification,
+    this.caregiverStatus,
+    this.acceptedById,
+    this.acceptedByPhone,
+    this.acceptedByNumber,
   });
+
+  bool get isRequirement => kind == 'organisation_requirement';
+
+  /// PAT-/ORG- id of whoever accepted; null for an admin or when it is no longer known.
+  String? get acceptedByDisplayLabel => switch (acceptedByRole) {
+        'individual' => patientDisplayId(acceptedByNumber),
+        'organisation' => organisationDisplayId(acceptedByNumber),
+        _ => null,
+      };
+
+  /// Only a patient/family or an organisation has a profile screen to open.
+  bool get acceptedByHasProfile =>
+      acceptedById != null && (acceptedByRole == 'individual' || acceptedByRole == 'organisation');
+
+  /// Multi-line hover card for the caregiver cell.
+  String get caregiverHoverText {
+    final lines = <String>[
+      '${caregiverDisplayLabel ?? 'Caregiver'} · $caregiverName',
+      'Phone: $caregiverPhone',
+      if (caregiverAge != null || caregiverGender != null)
+        [
+          if (caregiverAge != null) 'Age $caregiverAge',
+          if (caregiverGender != null) Gender.displayNames[caregiverGender] ?? caregiverGender!,
+        ].join(' · '),
+      if (caregiverQualification != null)
+        'Qualification: ${Qualification.displayNames[caregiverQualification] ?? caregiverQualification}',
+      if (caregiverStatus != null) 'Status: ${caregiverStatus!.replaceAll('_', ' ')}',
+      'Click to open their profile',
+    ];
+    return lines.join('\n');
+  }
+
+  /// Multi-line hover card for the job cell.
+  String get jobHoverText {
+    final where = [
+      if (jobCity != null) City.displayNames[jobCity] ?? jobCity!,
+      if (jobArea != null && jobArea!.isNotEmpty) jobArea!,
+    ].join(' · ');
+    final lines = <String>[
+      jobLabel,
+      if (posterName != null) 'Posted by: $posterName ${posterDisplayLabel ?? ''}'.trim(),
+      if (where.isNotEmpty) where,
+      if (jobShift != null) 'Shift: ${DutyType.displayNames[jobShift] ?? jobShift}',
+      if (jobTypeOfNurse != null) 'Looking for: ${TypeOfNurse.displayNames[jobTypeOfNurse] ?? jobTypeOfNurse}',
+      if (jobSalary != null && jobSalary!.isNotEmpty)
+        'Offered: $jobSalary per ${jobFrequency == 'daily' ? 'day' : 'month'}',
+      'Click to open this ${isRequirement ? 'requirement' : 'job'}',
+    ];
+    return lines.join('\n');
+  }
+
+  /// Multi-line hover card for the "Accepted by" cell.
+  String get acceptedByHoverText {
+    final role = switch (acceptedByRole) {
+      'individual' => 'patient/family',
+      'organisation' => 'organisation',
+      'admin' || 'super_admin' => 'admin',
+      _ => null,
+    };
+    final lines = <String>[
+      [
+        acceptedByName ?? '-',
+        if (acceptedByDisplayLabel != null) acceptedByDisplayLabel!,
+      ].join(' · '),
+      if (role != null) 'Role: $role',
+      if (acceptedByPhone != null) 'Phone: $acceptedByPhone',
+      if (acceptedByHasProfile) 'Click to open their profile',
+    ];
+    return lines.join('\n');
+  }
 
   String? get caregiverDisplayLabel => caregiverDisplayId(caregiverNumber);
 
@@ -95,6 +196,20 @@ class AdminAcceptedItem {
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
+        jobId: (json['job_id'] as String?) ?? '',
+        jobCity: json['job_city'] as String?,
+        jobArea: json['job_area'] as String?,
+        jobShift: json['job_shift'] as String?,
+        jobTypeOfNurse: json['job_type_of_nurse'] as String?,
+        jobSalary: json['job_salary'] as String?,
+        jobFrequency: json['job_frequency'] as String?,
+        caregiverAge: (json['caregiver_age'] as num?)?.toInt(),
+        caregiverGender: json['caregiver_gender'] as String?,
+        caregiverQualification: json['caregiver_qualification'] as String?,
+        caregiverStatus: json['caregiver_status'] as String?,
+        acceptedById: json['accepted_by_id'] as String?,
+        acceptedByPhone: json['accepted_by_phone'] as String?,
+        acceptedByNumber: (json['accepted_by_number'] as num?)?.toInt(),
       );
 }
 

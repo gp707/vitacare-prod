@@ -11,6 +11,13 @@ import 'package:admin_web/features/accepted/data/admin_accepted_repository.dart'
 import 'package:admin_web/features/accepted/screens/accepted_screen.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/core/network/api_exception.dart';
+import 'package:admin_web/features/jobs/data/admin_jobs_repository.dart';
+import 'package:admin_web/features/jobs/widgets/job_detail_dialog.dart';
+import 'package:admin_web/features/organisations/data/admin_organisations_repository.dart';
+import 'package:admin_web/features/organisation_requirements/data/admin_organisation_requirements_repository.dart';
+import 'package:admin_web/features/organisation_requirements/widgets/requirement_widgets.dart';
+import 'package:flutter/gestures.dart';
 
 AdminAcceptedItem _item({
   String status = 'accepted',
@@ -26,6 +33,7 @@ AdminAcceptedItem _item({
   int? agreedSalary = 30000,
   String? agreedSalaryUnit = 'monthly',
   String? agreedStartDate = '2026-11-01',
+  String acceptedByUserId = 'patient-1',
 }) =>
     AdminAcceptedItem(
       kind: requirementNumber != null ? 'organisation_requirement' : 'job',
@@ -46,7 +54,72 @@ AdminAcceptedItem _item({
       agreedSalary: agreedSalary,
       agreedSalaryUnit: agreedSalaryUnit,
       agreedStartDate: agreedStartDate,
+      jobId: requirementNumber != null ? 'req-uuid-$requirementNumber' : 'job-uuid-$patientJobNumber',
+      jobCity: 'bangalore',
+      jobArea: 'Whitefield',
+      jobShift: requirementNumber != null ? null : 'live_in',
+      jobTypeOfNurse: requirementNumber != null ? 'registered_nurse' : null,
+      jobSalary: requirementNumber != null ? null : '1067 - 1500',
+      jobFrequency: requirementNumber != null ? null : 'daily',
+      caregiverAge: 26,
+      caregiverGender: 'male',
+      caregiverQualification: 'gda_non_nursing',
+      caregiverStatus: 'assigned',
+      acceptedById: acceptedByName == null ? null : acceptedByUserId,
+      acceptedByPhone: acceptedByName == null ? null : '+919845204336',
+      acceptedByNumber: acceptedByRole == 'admin' ? null : 636,
     );
+
+class _FakeJobsRepo implements AdminJobsRepository {
+  @override
+  Future<(JobModel, List<JobApplicationModel>)> getDetail(String jobId) async =>
+      throw const ApiException(code: 'GEN_002', message: 'not needed in this test');
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _FakeRequirementsRepo implements AdminOrganisationRequirementsRepository {
+  @override
+  Future<(AdminOrganisationRequirement, List<OrganisationRequirementApplicationModel>)> getDetail(String id) async => (
+        AdminOrganisationRequirement.fromJson({
+          'id': id,
+          'posted_by': 'org-user-1',
+          'requirement_number': 574,
+          'status': 'active',
+          'type_of_nurse': 'registered_nurse',
+          'number_of_vacancies': 1,
+          'accommodation_provided': false,
+          'food_provided': false,
+          'posted_at': '2026-01-01T00:00:00Z',
+          'created_at': '2026-01-01T00:00:00Z',
+          'organisation_name': 'Test Hospital',
+        }),
+        <OrganisationRequirementApplicationModel>[],
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _FakeOrgsRepo implements AdminOrganisationsRepository {
+  @override
+  Future<AdminOrganisationListItem> getDetail(String userId) async => AdminOrganisationListItem.fromJson({
+        'user_id': userId,
+        'full_name': 'Maria',
+        'phone': '+919800000001',
+        'organisation_name': 'Test Hospital',
+        'organisation_type': 'hospital',
+        'city': 'bangalore',
+        'area': 'x',
+        'is_active': true,
+        'is_job_posting_blocked': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
 
 class _FakeRepo extends AdminAcceptedRepository {
   final List<AdminAcceptedItem> items;
@@ -78,6 +151,9 @@ Future<void> _pump(WidgetTester tester, _FakeRepo repo) async {
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         adminAcceptedRepositoryProvider.overrideWithValue(repo),
+        adminJobsRepositoryProvider.overrideWithValue(_FakeJobsRepo()),
+        adminOrganisationRequirementsRepositoryProvider.overrideWithValue(_FakeRequirementsRepo()),
+        adminOrganisationsRepositoryProvider.overrideWithValue(_FakeOrgsRepo()),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
@@ -180,5 +256,103 @@ void main() {
     await tester.tap(find.text('NUR-589  Sunandita Nandy'));
     await tester.pumpAndSettle();
     expect(find.text('opened /caregiver-detail:cp-589'), findsOneWidget);
+  });
+
+  group('hover details and click-through', () {
+    Future<void> hover(WidgetTester tester, Finder target) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(tester.getCenter(target));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+    }
+
+    testWidgets('hovering the caregiver shows their details', (tester) async {
+      await _pump(tester, _FakeRepo([_item()]));
+      await hover(tester, find.text('NUR-589  Sunandita Nandy'));
+      expect(find.textContaining('Age 26 · Male'), findsOneWidget);
+      expect(find.textContaining('Qualification: GDA'), findsOneWidget);
+      expect(find.textContaining('Status: assigned'), findsOneWidget);
+      expect(find.textContaining('Click to open their profile'), findsOneWidget);
+    });
+
+    testWidgets('hovering the job shows its details', (tester) async {
+      await _pump(tester, _FakeRepo([_item()]));
+      await hover(tester, find.text('PAT-JOB-548'));
+      expect(find.textContaining('Posted by: Krishna Sapra PAT-636'), findsOneWidget);
+      expect(find.textContaining('Bangalore · Whitefield'), findsOneWidget);
+      expect(find.textContaining('Shift: 24Hrs - Live In'), findsOneWidget);
+      expect(find.textContaining('Offered: 1067 - 1500 per day'), findsOneWidget);
+      expect(find.textContaining('Click to open this job'), findsOneWidget);
+    });
+
+    testWidgets('an organisation requirement\'s hover says what is being looked for', (tester) async {
+      await _pump(
+        tester,
+        _FakeRepo([_item(patientJobNumber: null, requirementNumber: 574, posterRole: 'organisation', posterName: 'Vita Health', acceptedByRole: 'organisation')]),
+      );
+      await hover(tester, find.text('ORG-JOB-574'));
+      expect(find.textContaining('Looking for: Registered Nurse'), findsOneWidget);
+      expect(find.textContaining('Click to open this requirement'), findsOneWidget);
+    });
+
+    testWidgets('hovering "Accepted by" shows who it is, their role, id and phone', (tester) async {
+      await _pump(tester, _FakeRepo([_item()]));
+      await hover(tester, find.byKey(const Key('accepted-by-a-589-accepted')));
+      expect(find.textContaining('Krishna Sapra · PAT-636'), findsOneWidget);
+      expect(find.textContaining('Role: patient/family'), findsOneWidget);
+      expect(find.textContaining('Phone: +919845204336'), findsOneWidget);
+      expect(find.textContaining('Click to open their profile'), findsOneWidget);
+    });
+
+    testWidgets('clicking "Accepted by" opens the patient\'s profile', (tester) async {
+      await _pump(tester, _FakeRepo([_item()]));
+      await tester.tap(find.byKey(const Key('accepted-by-a-589-accepted')));
+      await tester.pumpAndSettle();
+      expect(find.text('opened /individual-detail:patient-1'), findsOneWidget);
+    });
+
+    testWidgets('clicking "Accepted by" for an organisation opens the organisation\'s profile', (tester) async {
+      await _pump(
+        tester,
+        _FakeRepo([_item(posterRole: 'organisation', acceptedByRole: 'organisation', acceptedByUserId: 'org-user-1')]),
+      );
+      await tester.tap(find.byKey(const Key('accepted-by-a-589-accepted')));
+      await tester.pumpAndSettle();
+      expect(find.text('opened /organisation-detail:org-user-1'), findsOneWidget);
+    });
+
+    testWidgets('an admin who accepted has a hover card but nothing to click through to', (tester) async {
+      await _pump(tester, _FakeRepo([_item(acceptedByName: 'Pankaj', acceptedByRole: 'admin')]));
+      await hover(tester, find.byKey(const Key('accepted-by-a-589-accepted')));
+      expect(find.textContaining('Role: admin'), findsOneWidget);
+      expect(find.textContaining('Click to open their profile'), findsNothing);
+      await tester.tap(find.byKey(const Key('accepted-by-a-589-accepted')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('opened /individual-detail'), findsNothing);
+      expect(find.textContaining('opened /organisation-detail'), findsNothing);
+    });
+
+    testWidgets('clicking the job opens that job in place (the job detail dialog)', (tester) async {
+      await _pump(tester, _FakeRepo([_item()]));
+      await tester.tap(find.byKey(const Key('accepted-job-a-589-accepted')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(JobDetailDialog), findsOneWidget);
+      expect(tester.widget<JobDetailDialog>(find.byType(JobDetailDialog)).jobId, 'job-uuid-548');
+    });
+
+    testWidgets('clicking an organisation requirement opens its detail', (tester) async {
+      await _pump(
+        tester,
+        _FakeRepo([_item(patientJobNumber: null, requirementNumber: 574, posterRole: 'organisation', posterName: 'Vita Health')]),
+      );
+      await tester.tap(find.byKey(const Key('accepted-job-a-589-accepted')));
+      await tester.pumpAndSettle();
+      expect(find.byType(RequirementReadOnlyDialog), findsOneWidget);
+      expect(find.text('Test Hospital'), findsWidgets);
+    });
   });
 }
