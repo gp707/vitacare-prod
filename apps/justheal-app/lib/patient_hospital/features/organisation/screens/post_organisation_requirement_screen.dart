@@ -7,6 +7,7 @@ import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../widgets/salary_range_input.dart';
 import '../widgets/special_skills_char_limit_note.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
@@ -40,6 +41,10 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   String? _preferredGender;
   String? _experienceRequired;
   String? _employmentType;
+  // Optional salary range: leave both boxes empty to give none.
+  final _salaryMinController = TextEditingController();
+  final _salaryMaxController = TextEditingController();
+  String _salaryUnit = 'monthly';
 
   bool _saving = false;
   String? _error;
@@ -49,6 +54,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
   final _typeOfNurseOtherKey = GlobalKey();
   final _numberOfVacanciesKey = GlobalKey();
   final _specialSkillsKey = GlobalKey();
+  final _salaryRangeKey = GlobalKey();
 
   @override
   void initState() {
@@ -64,8 +70,17 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _preferredGender = source.preferredGender;
       _experienceRequired = source.experienceRequired;
       _employmentType = source.employmentType;
+      if (source.hasSalaryRange) {
+        _salaryMinController.text = source.salaryMin.toString();
+        _salaryMaxController.text = source.salaryMax.toString();
+        _salaryUnit = source.salaryUnit!;
+      }
     }
   }
+
+  /// The range is optional, but if one box is filled both must be, with the highest not below the lowest.
+  String? get _salaryRangeProblem => salaryRangeError(_salaryMinController.text, _salaryMaxController.text);
+  bool get _hasSalaryRange => _salaryMinController.text.trim().isNotEmpty && _salaryMaxController.text.trim().isNotEmpty;
 
   bool get _isTypeOfNurseValid => _typeOfNurse != null;
   bool get _isTypeOfNurseOtherValid =>
@@ -86,6 +101,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
       _isTypeOfNurseValid &&
       _isTypeOfNurseOtherValid &&
       _isNumberOfVacanciesValid &&
+      _salaryRangeProblem == null &&
       _isSpecialSkillsValid;
 
   /// In on-form order, so the first invalid one found here is genuinely the
@@ -94,6 +110,7 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
         _typeOfNurseKey,
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
+        if (_salaryRangeProblem != null) _salaryRangeKey,
         if (!_isSpecialSkillsValid) _specialSkillsKey,
       ];
 
@@ -103,6 +120,8 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
     _specialSkillsController.dispose();
     _specialSkillsScrollController.dispose();
     _numberOfVacanciesController.dispose();
+    _salaryMinController.dispose();
+    _salaryMaxController.dispose();
     super.dispose();
   }
 
@@ -141,6 +160,9 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
             preferredGender: _preferredGender,
             experienceRequired: _experienceRequired,
             employmentType: _employmentType,
+            salaryMin: _hasSalaryRange ? int.parse(_salaryMinController.text.trim()) : null,
+            salaryMax: _hasSalaryRange ? int.parse(_salaryMaxController.text.trim()) : null,
+            salaryUnit: _hasSalaryRange ? _salaryUnit : null,
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -257,6 +279,42 @@ class _PostOrganisationRequirementScreenState extends ConsumerState<PostOrganisa
                 DropdownMenuItem(value: Gender.female, child: Text('Female')),
               ],
               onChanged: (value) => setState(() => _preferredGender = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              key: _salaryRangeKey,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.payments_outlined, color: AppColors.primaryDark),
+                      SizedBox(width: AppSpacing.sm),
+                      // Flexible: with the A+ text zoom the title wraps instead of overflowing.
+                      Flexible(child: Text('Salary range (optional)', style: TextStyle(fontWeight: FontWeight.bold))),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const Text(
+                    'Caregivers see this range. You can change it any time after posting.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SalaryRangeInput(
+                    minController: _salaryMinController,
+                    maxController: _salaryMaxController,
+                    unit: _salaryUnit,
+                    onUnitChanged: (u) => setState(() => _salaryUnit = u),
+                    onChanged: () => setState(() {}),
+                    errorText: _showValidationErrors ? _salaryRangeProblem : null,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             SwitchListTile(

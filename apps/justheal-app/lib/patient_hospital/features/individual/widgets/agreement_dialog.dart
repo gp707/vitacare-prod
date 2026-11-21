@@ -18,6 +18,8 @@ Future<bool> showAgreementDialog(
   int? initialSalary,
   String? initialSalaryUnit,
   String? initialStartDate,
+  // An organisation hiring staff: leaves out the paragraph addressed to a family.
+  bool forOrganisation = false,
 }) async {
   // A bottom sheet, not a centred dialog: it sits above the on-screen keyboard and scrolls,
   // so the number keyboard never covers the salary field or the Save button.
@@ -35,6 +37,7 @@ Future<bool> showAgreementDialog(
       initialSalary: initialSalary,
       initialSalaryUnit: initialSalaryUnit,
       initialStartDate: initialStartDate,
+      forOrganisation: forOrganisation,
     ),
   );
   return saved ?? false;
@@ -47,6 +50,7 @@ class _AgreementDialog extends StatefulWidget {
   final int? initialSalary;
   final String? initialSalaryUnit;
   final String? initialStartDate;
+  final bool forOrganisation;
 
   const _AgreementDialog({
     required this.caregiverName,
@@ -55,6 +59,7 @@ class _AgreementDialog extends StatefulWidget {
     this.initialSalary,
     this.initialSalaryUnit,
     this.initialStartDate,
+    this.forOrganisation = false,
   });
 
   @override
@@ -153,12 +158,14 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               'Clarity avoids confusion and future issues. Please enter the salary and start date '
               'you agreed on; they will be sent to the caregiver.',
             ),
-            const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'Please understand these are care staff, not house maids. We hope they get respect and '
-              'are treated the way you treat your own family members.',
-              style: TextStyle(fontStyle: FontStyle.italic),
-            ),
+            if (!widget.forOrganisation) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Please understand these are care staff, not house maids. We hope they get respect and '
+                'are treated the way you treat your own family members.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             // The salary can be agreed per day or per month — the patient picks.
             SegmentedButton<String>(

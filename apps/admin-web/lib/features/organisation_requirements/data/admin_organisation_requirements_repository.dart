@@ -23,6 +23,10 @@ class AdminOrganisationRequirement {
   final String? experienceRequired;
   /// Org-set, optional. Org-owned, same as above.
   final String? employmentType;
+  /// The salary range the organisation gave (per day / per month), if any.
+  final int? salaryMin;
+  final int? salaryMax;
+  final String? salaryUnit;
   final String status;
   final String? rejectionReason;
   final String postedAt;
@@ -55,6 +59,9 @@ class AdminOrganisationRequirement {
     this.preferredGender,
     this.experienceRequired,
     this.employmentType,
+    this.salaryMin,
+    this.salaryMax,
+    this.salaryUnit,
     required this.status,
     this.rejectionReason,
     required this.postedAt,
@@ -82,6 +89,9 @@ class AdminOrganisationRequirement {
         preferredGender: json['preferred_gender'] as String?,
         experienceRequired: json['experience_required'] as String?,
         employmentType: json['employment_type'] as String?,
+        salaryMin: json['salary_min'] as int?,
+        salaryMax: json['salary_max'] as int?,
+        salaryUnit: json['salary_unit'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
         postedAt: json['posted_at'] as String,

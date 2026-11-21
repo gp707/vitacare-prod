@@ -30,6 +30,7 @@ describe('OrganisationRequirementsService', () => {
       listForAdmin: jest.fn(),
       activate: jest.fn(),
       updateOwnFields: jest.fn(),
+      setSalaryRange: jest.fn(),
       reject: jest.fn(),
       close: jest.fn(),
       reopen: jest.fn(),
@@ -45,8 +46,9 @@ describe('OrganisationRequirementsService', () => {
       countAcceptedByProfileId: jest.fn(),
       findAssignedByProfileId: jest.fn(),
       hasAnyApplicationForRequirement: jest.fn(),
+      setAgreement: jest.fn(),
     };
-    caregiverProfilesRepo = { findByUserId: jest.fn(), markAvailable: jest.fn(), countAcceptedWork: jest.fn() };
+    caregiverProfilesRepo = { findByUserId: jest.fn(), findFullById: jest.fn(), markAvailable: jest.fn(), countAcceptedWork: jest.fn() };
     adminCaregiversRepo = { getDetailById: jest.fn(), updateStatus: jest.fn() };
     organisationProfilesRepo = { findByUserId: jest.fn(), findByUserIdWithPhone: jest.fn() };
     fcmService = { sendToAllCaregivers: jest.fn() };
@@ -66,6 +68,9 @@ describe('OrganisationRequirementsService', () => {
       caregiverClosedEngagement: jest.fn(),
       organisationRequirementUpdated: jest.fn(),
       organisationRequirementNoLongerOpen: jest.fn(),
+      agreementSet: jest.fn(),
+      agreementChanged: jest.fn(),
+      agreementChangeCallReminder: jest.fn(),
     };
     service = new OrganisationRequirementsService(
       db,
@@ -1094,6 +1099,184 @@ describe('OrganisationRequirementsService', () => {
       applicationsRepo.findByRequirementId.mockResolvedValue([{ id: 'app-1' }]);
       const result = await service.getRequirementDetailForAdmin('req-1');
       expect(result.applications).toEqual([{ id: 'app-1' }]);
+    });
+  });
+
+  describe('salary range on a requirement', () => {
+    const range = { salary_min: 20000, salary_max: 30000, salary_unit: 'monthly' as const };
+
+    it('is saved when posting, all three values together', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1', type_of_nurse: 'registered_nurse', status: 'pending_review' });
+      await service.createRequirement(
+        'org-1',
+        { type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: true, ...range } as any,
+        null,
+      );
+      expect(requirementsRepo.create).toHaveBeenCalledWith(expect.objectContaining(range));
+    });
+
+    it('is optional when posting: nothing given means no range stored', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1' });
+      await service.createRequirement('org-1', { type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: true } as any, null);
+      expect(requirementsRepo.create).toHaveBeenCalledWith(expect.objectContaining({ salary_min: null, salary_max: null, salary_unit: null }));
+    });
+
+    it.each([
+      ['only a minimum', { salary_min: 20000 }],
+      ['a range without its unit', { salary_min: 20000, salary_max: 30000 }],
+      ['a maximum below the minimum', { salary_min: 30000, salary_max: 20000, salary_unit: 'monthly' }],
+    ])('rejects %s when posting (GEN_001)', async (_label, partial) => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      await expect(
+        service.createRequirement('org-1', { type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: true, ...partial } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_001' });
+      expect(requirementsRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('a minimum equal to the maximum is a valid range', async () => {
+      organisationProfilesRepo.findByUserId.mockResolvedValue({ is_job_posting_blocked: false });
+      requirementsRepo.create.mockResolvedValue({ id: 'req-1' });
+      await expect(
+        service.createRequirement('org-1', { type_of_nurse: 'registered_nurse', accommodation_provided: true, food_provided: true, salary_min: 900, salary_max: 900, salary_unit: 'daily' } as any, null),
+      ).resolves.toBeDefined();
+    });
+
+    describe('editing it after posting', () => {
+      const live = { id: 'req-1', posted_by: 'org-1', status: 'active', requirement_number: 574, salary_min: 15000, salary_max: 20000, salary_unit: 'monthly' };
+
+      it('works even when caregivers have already applied (the rest of the edit is locked by JOB_014, this is not)', async () => {
+        requirementsRepo.findById.mockResolvedValue(live);
+        applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(true);
+        requirementsRepo.setSalaryRange.mockResolvedValue({ ...live, ...range });
+        await expect(service.setSalaryRange('org-1', 'req-1', range, null)).resolves.toMatchObject(range);
+        expect(requirementsRepo.setSalaryRange).toHaveBeenCalledWith('req-1', range);
+      });
+
+      it('works on a closed or cancelled requirement too', async () => {
+        requirementsRepo.findById.mockResolvedValue({ ...live, status: 'closed', cancelled_at: new Date() });
+        requirementsRepo.setSalaryRange.mockResolvedValue({ ...live, status: 'closed', ...range });
+        await expect(service.setSalaryRange('org-1', 'req-1', range, null)).resolves.toBeDefined();
+      });
+
+      it('tells the caregivers on a live posting when the range actually changed', async () => {
+        requirementsRepo.findById.mockResolvedValue(live);
+        requirementsRepo.setSalaryRange.mockResolvedValue({ ...live, ...range });
+        await service.setSalaryRange('org-1', 'req-1', range, null);
+        expect(notificationsService.organisationRequirementUpdated).toHaveBeenCalledWith('req-1', 'ORG-JOB-574');
+      });
+
+      it('says nothing when the same range is saved again, or the posting is not live', async () => {
+        requirementsRepo.findById.mockResolvedValue(live);
+        requirementsRepo.setSalaryRange.mockResolvedValue({ ...live });
+        await service.setSalaryRange('org-1', 'req-1', { salary_min: 15000, salary_max: 20000, salary_unit: 'monthly' }, null);
+        requirementsRepo.findById.mockResolvedValue({ ...live, status: 'pending_review' });
+        requirementsRepo.setSalaryRange.mockResolvedValue({ ...live, status: 'pending_review', ...range });
+        await service.setSalaryRange('org-1', 'req-1', range, null);
+        expect(notificationsService.organisationRequirementUpdated).not.toHaveBeenCalled();
+      });
+
+      it('refuses someone else\'s requirement (GEN_002) and an inverted range (GEN_001)', async () => {
+        requirementsRepo.findById.mockResolvedValue({ ...live, posted_by: 'other-org' });
+        await expect(service.setSalaryRange('org-1', 'req-1', range, null)).rejects.toMatchObject({ code: 'GEN_002' });
+        requirementsRepo.findById.mockResolvedValue(live);
+        await expect(
+          service.setSalaryRange('org-1', 'req-1', { salary_min: 9, salary_max: 5, salary_unit: 'daily' }, null),
+        ).rejects.toMatchObject({ code: 'GEN_001' });
+        expect(requirementsRepo.setSalaryRange).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('agreed salary and start date (the final terms after hiring)', () => {
+    const tomorrow = () => new Date(Date.now() + 5.5 * 3600 * 1000 + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const dto = (over: Record<string, unknown> = {}) => ({ agreed_salary: 25000, agreed_salary_unit: 'monthly', agreed_start_date: tomorrow(), ...over }) as any;
+    const accepted = (over: Record<string, unknown> = {}) => ({
+      id: 'app-1',
+      requirement_id: 'req-1',
+      profile_id: 'prof-1',
+      status: 'accepted',
+      agreed_salary: null,
+      agreed_salary_unit: null,
+      agreed_start_date: null,
+      ...over,
+    });
+
+    beforeEach(() => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', requirement_number: 574, salary_unit: 'monthly' });
+      applicationsRepo.findById.mockResolvedValue(accepted());
+      applicationsRepo.setAgreement.mockResolvedValue({ agreed_salary: 25000, agreed_salary_unit: 'monthly', agreed_start_date: tomorrow() });
+      caregiverProfilesRepo.findFullById.mockResolvedValue({ id: 'prof-1', user_id: 'cg-user', full_name: 'Asha Rao' });
+    });
+
+    it('saves it, tells the caregiver the first time (with ORG-JOB id), and audit-logs it', async () => {
+      const result = await service.setAgreement('org-1', 'req-1', 'app-1', dto(), '1.1.1.1');
+      expect(applicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 25000, 'monthly', tomorrow());
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', {
+        displayId: 'ORG-JOB-574',
+        agreedSalary: 25000,
+        perUnit: 'month',
+        agreedStartDate: tomorrow(),
+      });
+      expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+      expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'job_agreement_set', userId: 'org-1', targetUserId: 'cg-user', entityType: 'organisation_requirement_applications' }),
+      );
+      expect(result).toMatchObject({ agreed_salary: 25000 });
+    });
+
+    it('follows the posting\'s own unit when the client sends none, and says per day for daily', async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', requirement_number: 574, salary_unit: 'daily' });
+      await service.setAgreement('org-1', 'req-1', 'app-1', dto({ agreed_salary_unit: undefined }), null);
+      expect(applicationsRepo.setAgreement).toHaveBeenCalledWith('app-1', 25000, 'daily', tomorrow());
+      expect(notificationsService.agreementSet).toHaveBeenCalledWith('cg-user', expect.objectContaining({ perUnit: 'day' }));
+    });
+
+    it('a CHANGE tells just that caregiver at once with the new figures, and reminds the organisation to call them', async () => {
+      applicationsRepo.findById.mockResolvedValue(accepted({ agreed_salary: 20000, agreed_salary_unit: 'monthly', agreed_start_date: tomorrow() }));
+      await service.setAgreement('org-1', 'req-1', 'app-1', dto(), null);
+      expect(notificationsService.agreementChanged).toHaveBeenCalledTimes(1);
+      expect(notificationsService.agreementChanged).toHaveBeenCalledWith('cg-user', expect.objectContaining({ displayId: 'ORG-JOB-574', agreedSalary: 25000 }));
+      // the reminder goes to the organisation account, flagged so it opens the organisation home
+      expect(notificationsService.agreementChangeCallReminder).toHaveBeenCalledWith('org-1', 'Asha Rao', true);
+      expect(notificationsService.agreementSet).not.toHaveBeenCalled();
+    });
+
+    it('saving identical values again sends nothing', async () => {
+      applicationsRepo.findById.mockResolvedValue(accepted({ agreed_salary: 25000, agreed_salary_unit: 'monthly', agreed_start_date: tomorrow() }));
+      await service.setAgreement('org-1', 'req-1', 'app-1', dto(), null);
+      expect(notificationsService.agreementSet).not.toHaveBeenCalled();
+      expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+      expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+    });
+
+    it.each(['rejected', 'applied', 'completed'])('refuses a %s caregiver (JOB_022) and notifies nobody', async (status) => {
+      applicationsRepo.findById.mockResolvedValue(accepted({ status }));
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+      expect(applicationsRepo.setAgreement).not.toHaveBeenCalled();
+      expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+      expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+    });
+
+    it('a write that loses the race with a rejection notifies nobody', async () => {
+      applicationsRepo.findById.mockResolvedValue(accepted({ agreed_salary: 20000, agreed_salary_unit: 'monthly', agreed_start_date: tomorrow() }));
+      applicationsRepo.setAgreement.mockResolvedValue(null);
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+      expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+    });
+
+    it("refuses someone else's requirement (GEN_002), another requirement's application (JOB_006), a date over a month back (JOB_023) and a fake date (GEN_001)", async () => {
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'other', requirement_number: 574 });
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'GEN_002' });
+      requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1', requirement_number: 574 });
+      applicationsRepo.findById.mockResolvedValue(accepted({ requirement_id: 'other-req' }));
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_006' });
+      applicationsRepo.findById.mockResolvedValue(accepted());
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto({ agreed_start_date: '2020-01-01' }), null)).rejects.toMatchObject({ code: 'JOB_023' });
+      await expect(service.setAgreement('org-1', 'req-1', 'app-1', dto({ agreed_start_date: '2026-02-31' }), null)).rejects.toMatchObject({ code: 'GEN_001' });
+      expect(applicationsRepo.setAgreement).not.toHaveBeenCalled();
     });
   });
 });

@@ -13,9 +13,9 @@ String statusMessageFor(String status, String? rejectionMessage) {
       // 8am status-confirmation reminder (see CLAUDE.md).
       return "You're verified and available. Head to Find Jobs to browse openings and apply.";
     case VerificationStatus.unavailable:
-      return "You're verified, but currently marked as not taking work. Contact the office to change this.";
+      return 'Your profile is inactive.';
     case VerificationStatus.assigned:
-      return "You're currently assigned to a job.";
+      return 'Your profile is active.';
     case VerificationStatus.rejected:
       return rejectionMessage == null || rejectionMessage.isEmpty
           ? 'Your application was not approved. Contact the office for details.'

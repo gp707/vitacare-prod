@@ -23,6 +23,9 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? capturedPreferredGender;
   String? capturedExperienceRequired;
   String? capturedEmploymentType;
+  int? capturedSalaryMin;
+  int? capturedSalaryMax;
+  String? capturedSalaryUnit;
 
   _FakeOrganisationRepository({this.createError}) : super(Dio());
 
@@ -37,8 +40,14 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     String? preferredGender,
     String? experienceRequired,
     String? employmentType,
+    int? salaryMin,
+    int? salaryMax,
+    String? salaryUnit,
   }) async {
     createCalled = true;
+    capturedSalaryMin = salaryMin;
+    capturedSalaryMax = salaryMax;
+    capturedSalaryUnit = salaryUnit;
     capturedTypeOfNurse = typeOfNurse;
     capturedTypeOfNurseOther = typeOfNurseOther;
     capturedAccommodation = accommodationProvided;
@@ -68,7 +77,7 @@ class _FakeOrganisationRepository extends OrganisationRepository {
 }
 
 Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo) async {
-  await tester.binding.setSurfaceSize(const Size(400, 1200));
+  await tester.binding.setSurfaceSize(const Size(400, 2000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -341,5 +350,84 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Your account is blocked from posting new requirements'), findsOneWidget);
+  });
+
+  group('salary range (optional)', () {
+    Future<void> pickType(WidgetTester tester) async {
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Type of Nurse/Caregiver (Mandatory)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Registered Nurse').last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the form offers a salary range, lowest and highest, per month by default', (tester) async {
+      await _pump(tester, _FakeOrganisationRepository());
+      expect(find.text('Salary range (optional)'), findsOneWidget);
+      expect(find.byKey(const Key('salary-range-min')), findsOneWidget);
+      expect(find.byKey(const Key('salary-range-max')), findsOneWidget);
+      expect(find.textContaining('Lowest (₹ per month)'), findsOneWidget);
+    });
+
+    testWidgets('posting without a range sends none', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo);
+      await pickType(tester);
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+      expect(repo.createCalled, isTrue);
+      expect(repo.capturedSalaryMin, isNull);
+      expect(repo.capturedSalaryMax, isNull);
+      expect(repo.capturedSalaryUnit, isNull);
+    });
+
+    testWidgets('a range is sent with its unit', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo);
+      await pickType(tester);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '20000');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '30000');
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+      expect(repo.capturedSalaryMin, 20000);
+      expect(repo.capturedSalaryMax, 30000);
+      expect(repo.capturedSalaryUnit, 'monthly');
+    });
+
+    testWidgets('per day can be chosen', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo);
+      await pickType(tester);
+      await tester.tap(find.text('Per day'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '800');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '1200');
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+      expect(repo.capturedSalaryUnit, 'daily');
+      expect(repo.capturedSalaryMin, 800);
+    });
+
+    testWidgets('a half-filled range blocks the submit and says why', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo);
+      await pickType(tester);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '20000');
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+      expect(repo.createCalled, isFalse);
+      expect(find.text('Enter both the lowest and the highest salary'), findsOneWidget);
+    });
+
+    testWidgets('a highest salary below the lowest blocks the submit', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo);
+      await pickType(tester);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '30000');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '20000');
+      await tester.tap(find.text('Submit for Review'));
+      await tester.pumpAndSettle();
+      expect(repo.createCalled, isFalse);
+      expect(find.text('The highest salary cannot be below the lowest'), findsOneWidget);
+    });
   });
 }

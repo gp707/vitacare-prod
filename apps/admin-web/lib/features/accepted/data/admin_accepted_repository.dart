@@ -28,7 +28,7 @@ class AdminAcceptedItem {
   final int? agreedSalary;
   /// 'daily' or 'monthly'.
   final String? agreedSalaryUnit;
-  /// The start date the patient agreed (YYYY-MM-DD), jobs only.
+  /// The start date agreed with the caregiver (YYYY-MM-DD) — by the patient or the organisation.
   final String? agreedStartDate;
 
   const AdminAcceptedItem({

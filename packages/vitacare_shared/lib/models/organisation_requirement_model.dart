@@ -1,5 +1,6 @@
 import 'applicant_summary.dart';
 import 'job_model.dart';
+import 'salary_due.dart';
 
 /// Mirrors a row from GET /caregiver/organisation-requirements or
 /// GET /organisation/requirements — the "exclusive" org posting shape (no
@@ -31,6 +32,11 @@ class OrganisationRequirementModel {
   final String? experienceRequired;
   /// Org-set, optional. See EmploymentType in enums.dart.
   final String? employmentType;
+  /// Org-set, optional salary RANGE: [salaryMin]–[salaryMax], per day ('daily') or per month
+  /// ('monthly'). All three are set together or all null.
+  final int? salaryMin;
+  final int? salaryMax;
+  final String? salaryUnit;
   final String status;
   final String? rejectionReason;
   /// Set once the org cancels this requirement themselves (distinct from
@@ -77,6 +83,9 @@ class OrganisationRequirementModel {
     this.preferredGender,
     this.experienceRequired,
     this.employmentType,
+    this.salaryMin,
+    this.salaryMax,
+    this.salaryUnit,
     required this.status,
     this.rejectionReason,
     this.cancelledAt,
@@ -104,6 +113,9 @@ class OrganisationRequirementModel {
         preferredGender: json['preferred_gender'] as String?,
         experienceRequired: json['experience_required'] as String?,
         employmentType: json['employment_type'] as String?,
+        salaryMin: json['salary_min'] as int?,
+        salaryMax: json['salary_max'] as int?,
+        salaryUnit: json['salary_unit'] as String?,
         status: json['status'] as String,
         rejectionReason: json['rejection_reason'] as String?,
         cancelledAt: json['cancelled_at'] as String?,
@@ -125,6 +137,21 @@ class OrganisationRequirementModel {
   /// Mirrors JobModel.isCancelled — set once the org cancels this
   /// requirement themselves via the self-cancel endpoint.
   bool get isCancelled => cancelledAt != null;
+
+  /// True once the organisation has given a salary range.
+  bool get hasSalaryRange => salaryMin != null && salaryMax != null && salaryUnit != null;
+}
+
+/// "₹20,000 – ₹30,000 per month" (or per day); null when no range was given. A range whose
+/// two ends are equal reads as a single figure.
+String? salaryRangeLabel(OrganisationRequirementModel requirement) {
+  if (!requirement.hasSalaryRange) return null;
+  final unit = requirement.salaryUnit == 'daily' ? 'day' : 'month';
+  final min = requirement.salaryMin!;
+  final max = requirement.salaryMax!;
+  return min == max
+      ? '₹${formatRupees(min)} per $unit'
+      : '₹${formatRupees(min)} – ₹${formatRupees(max)} per $unit';
 }
 
 /// Human-friendly display id for an organisation requirement —
@@ -165,6 +192,13 @@ class OrganisationRequirementApplicationModel {
   /// organisation here, same as MyApplicationModel shows it to the
   /// caregiver themselves.
   final String? closeReason;
+  /// What the organisation agreed with this caregiver once accepted: the final salary
+  /// ([agreedSalaryUnit] 'daily'/'monthly') and the start date (YYYY-MM-DD). Null until entered.
+  final int? agreedSalary;
+  final String? agreedSalaryUnit;
+  final String? agreedStartDate;
+  /// Every entry / change of the agreed salary and start date, oldest first.
+  final List<AgreementChange> agreementHistory;
   final String updatedAt;
 
   const OrganisationRequirementApplicationModel({
@@ -183,6 +217,10 @@ class OrganisationRequirementApplicationModel {
     this.reappliedAt,
     this.declineReason,
     this.closeReason,
+    this.agreedSalary,
+    this.agreedSalaryUnit,
+    this.agreedStartDate,
+    this.agreementHistory = const [],
     required this.updatedAt,
   });
 
@@ -203,6 +241,10 @@ class OrganisationRequirementApplicationModel {
         reappliedAt: json['reapplied_at'] as String?,
         declineReason: json['decline_reason'] as String?,
         closeReason: json['close_reason'] as String?,
+        agreedSalary: json['agreed_salary'] as int?,
+        agreedSalaryUnit: json['agreed_salary_unit'] as String?,
+        agreedStartDate: json['agreed_start_date'] as String?,
+        agreementHistory: parseAgreementHistory(json['agreement_history']),
         updatedAt: json['updated_at'] as String,
       );
 }

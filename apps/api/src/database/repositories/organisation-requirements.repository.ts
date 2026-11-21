@@ -3,6 +3,7 @@ import { PoolClient } from 'pg';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { MyApplicationSummary } from './jobs.repository';
 import { ApplicantSummary, applicantSummarySql } from './applicant-summary.sql';
+import { orgAgreementHistorySql } from './agreement-log.sql';
 
 export interface OrganisationRequirementRecord {
   id: string;
@@ -25,6 +26,10 @@ export interface OrganisationRequirementRecord {
   experience_required: string | null;
   /** Org-set, optional. See EmploymentType in shared-constants. */
   employment_type: string | null;
+  /** Org-set, optional salary RANGE (migration 098): all three set together or all null. */
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_unit: 'daily' | 'monthly' | null;
   status: string;
   rejection_reason: string | null;
   /** Mirrors jobs.cancelled_at (migration 048) — set by the org's own
@@ -82,7 +87,17 @@ export interface CreateOrganisationRequirementInput {
   preferred_gender: string | null;
   experience_required: string | null;
   employment_type: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_unit: 'daily' | 'monthly' | null;
   status: string;
+}
+
+/** The salary range an organisation gives on a requirement (migration 098). */
+export interface SalaryRangeInput {
+  salary_min: number;
+  salary_max: number;
+  salary_unit: 'daily' | 'monthly';
 }
 
 /** Every field the org self-edit endpoint can touch — the org-owned subset
@@ -131,8 +146,9 @@ export class OrganisationRequirementsRepository {
     const result = await runner.query<OrganisationRequirementRecord>(
       `INSERT INTO organisation_requirements
          (posted_by, type_of_nurse, type_of_nurse_other, accommodation_provided, food_provided,
-          special_skills, number_of_vacancies, preferred_gender, experience_required, employment_type, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          special_skills, number_of_vacancies, preferred_gender, experience_required, employment_type,
+          salary_min, salary_max, salary_unit, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         input.posted_by,
@@ -145,8 +161,24 @@ export class OrganisationRequirementsRepository {
         input.preferred_gender,
         input.experience_required,
         input.employment_type,
+        input.salary_min,
+        input.salary_max,
+        input.salary_unit,
         input.status,
       ],
+    );
+    return result.rows[0];
+  }
+
+  /** Sets (or replaces) the salary range — allowed at any time, whatever the status or whether
+   *  anyone has applied (unlike the rest of the org's self-edit, which locks on the first applicant). */
+  async setSalaryRange(id: string, range: SalaryRangeInput): Promise<OrganisationRequirementRecord> {
+    const result = await this.db.query<OrganisationRequirementRecord>(
+      `UPDATE organisation_requirements
+       SET salary_min = $2, salary_max = $3, salary_unit = $4, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id, range.salary_min, range.salary_max, range.salary_unit],
     );
     return result.rows[0];
   }
@@ -199,7 +231,11 @@ export class OrganisationRequirementsRepository {
            'reapplied_at', ora.reapplied_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
            'decline_reason', ora.decline_reason,
-           'close_reason', ora.close_reason
+           'close_reason', ora.close_reason,
+           'agreed_salary', ora.agreed_salary,
+           'agreed_salary_unit', ora.agreed_salary_unit,
+           'agreed_start_date', ora.agreed_start_date::text,
+           'agreement_history', ${orgAgreementHistorySql('ora')}
          ) END AS my_application
        FROM organisation_requirements r
        JOIN organisation_profiles op ON op.user_id = r.posted_by

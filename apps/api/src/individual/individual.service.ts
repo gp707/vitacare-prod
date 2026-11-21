@@ -678,12 +678,27 @@ export class IndividualService {
 
     const caregiver = await this.caregiverProfilesRepo.findFullById(application.profile_id);
     if (caregiver) {
-      void this.notificationsService.agreementSet(caregiver.user_id, {
+      const agreement = {
         displayId: jobDisplayId(job),
         agreedSalary: dto.agreed_salary,
-        perUnit: salaryUnit === FrequencyOfCare.DAILY ? 'day' : 'month',
+        perUnit: salaryUnit === FrequencyOfCare.DAILY ? ('day' as const) : ('month' as const),
         agreedStartDate: dto.agreed_start_date,
-      });
+      };
+      const hadAgreement = application.agreed_salary != null && application.agreed_start_date != null;
+      const changed =
+        hadAgreement &&
+        (application.agreed_salary !== dto.agreed_salary ||
+          application.agreed_salary_unit !== salaryUnit ||
+          application.agreed_start_date !== dto.agreed_start_date);
+      if (!hadAgreement) {
+        // The first time the family fills it in.
+        void this.notificationsService.agreementSet(caregiver.user_id, agreement);
+      } else if (changed) {
+        // A change to an existing agreement: only that caregiver hears it, at once, with the new
+        // figures — and the family is reminded to call them. Saving the same values again is silent.
+        void this.notificationsService.agreementChanged(caregiver.user_id, agreement);
+        void this.notificationsService.agreementChangeCallReminder(userId, caregiver.full_name);
+      }
     }
 
     await this.auditService.log({

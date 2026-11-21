@@ -37,6 +37,8 @@ import { ListOrganisationRequirementsQueryDto } from './dto/list-organisation-re
 import { ApplyJobDto } from '../jobs/dto/apply-job.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { CompleteRequirementDto } from './dto/complete-requirement.dto';
+import { SetSalaryRangeDto } from './dto/set-salary-range.dto';
+import { SetAgreementDto } from '../individual/dto/set-agreement.dto';
 
 /** Core requirement/application logic, shared by the org-facing,
  *  admin-facing, and caregiver-facing controllers — the organisation-phase
@@ -70,8 +72,21 @@ export class OrganisationRequirementsService {
     }
   }
 
+  /** A salary range is all-or-nothing: min, max and the unit together, with max >= min. */
+  private validateSalaryRange(min: number | undefined, max: number | undefined, unit: string | undefined): void {
+    const given = [min, max, unit].filter((v) => v !== undefined && v !== null).length;
+    if (given === 0) return;
+    if (given !== 3 || (max as number) < (min as number)) throw new AppException('GEN_001');
+  }
+
+  /** "Today +/- n days" on the IST calendar, as YYYY-MM-DD. */
+  private static istDay(offsetDays: number): string {
+    return new Date(Date.now() + 5.5 * 3600 * 1000 + offsetDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
   async createRequirement(orgUserId: string, dto: CreateOrganisationRequirementDto, ipAddress: string | null) {
     this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
+    this.validateSalaryRange(dto.salary_min, dto.salary_max, dto.salary_unit);
     const profile = await this.organisationProfilesRepo.findByUserId(orgUserId);
     if (!profile) throw new AppException('GEN_002');
     if (profile.is_job_posting_blocked) throw new AppException('JOB_010');
@@ -87,6 +102,9 @@ export class OrganisationRequirementsService {
       preferred_gender: dto.preferred_gender ?? null,
       experience_required: dto.experience_required ?? null,
       employment_type: dto.employment_type ?? null,
+      salary_min: dto.salary_min ?? null,
+      salary_max: dto.salary_max ?? null,
+      salary_unit: dto.salary_unit ?? null,
       status: JobStatus.PENDING_REVIEW,
     });
 
@@ -154,6 +172,115 @@ export class OrganisationRequirementsService {
     });
 
     return requirement;
+  }
+
+  /** Sets or changes the salary range on the org's own requirement. Unlike the rest of the self-edit
+   *  (locked by JOB_014 once anyone has applied), this is allowed at any time and in any status — the
+   *  range is guidance for caregivers, it does not change what the posting is. When it actually changes
+   *  on a live posting, the caregivers waiting on or accepted for it are told. */
+  async setSalaryRange(orgUserId: string, id: string, dto: SetSalaryRangeDto, ipAddress: string | null) {
+    const existing = await this.requirementsRepo.findById(id);
+    if (!existing || existing.posted_by !== orgUserId) throw new AppException('GEN_002');
+    this.validateSalaryRange(dto.salary_min, dto.salary_max, dto.salary_unit);
+
+    const requirement = await this.requirementsRepo.setSalaryRange(id, dto);
+
+    if (existing.status === JobStatus.ACTIVE && changedAny(existing, requirement, ['salary_min', 'salary_max', 'salary_unit'])) {
+      void this.notificationsService.organisationRequirementUpdated(
+        id,
+        organisationJobDisplayId(requirement.requirement_number),
+      );
+    }
+
+    await this.auditService.log({
+      userId: orgUserId,
+      action: AuditAction.ORG_REQUIREMENT_UPDATED,
+      entityType: 'organisation_requirements',
+      entityId: id,
+      beforeValue: { salary_min: existing.salary_min, salary_max: existing.salary_max, salary_unit: existing.salary_unit },
+      afterValue: { salary_min: requirement.salary_min, salary_max: requirement.salary_max, salary_unit: requirement.salary_unit },
+      ipAddress,
+    });
+
+    return requirement;
+  }
+
+  /** The final salary and start date the organisation agreed with an ACCEPTED caregiver (the counterpart
+   *  of IndividualService.setAgreement). Only while the application is still `accepted` (JOB_022 — the
+   *  guard is in the UPDATE itself); the start date may be up to a month in the past (JOB_023). Can be
+   *  set again. The first entry tells the caregiver; a later CHANGE tells just that caregiver at once
+   *  with the new figures and reminds the organisation to call them; saving identical values is silent. */
+  async setAgreement(
+    orgUserId: string,
+    requirementId: string,
+    applicationId: string,
+    dto: SetAgreementDto,
+    ipAddress: string | null,
+  ) {
+    const requirement = await this.requirementsRepo.findById(requirementId);
+    if (!requirement || requirement.posted_by !== orgUserId) throw new AppException('GEN_002');
+    const application = await this.applicationsRepo.findById(applicationId);
+    if (!application || application.requirement_id !== requirementId) throw new AppException('JOB_006');
+    if (application.status !== JobApplicationStatus.ACCEPTED) throw new AppException('JOB_022');
+
+    const parsed = new Date(`${dto.agreed_start_date}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dto.agreed_start_date) {
+      throw new AppException('GEN_001');
+    }
+    if (dto.agreed_start_date < OrganisationRequirementsService.istDay(-30)) throw new AppException('JOB_023');
+
+    // The organisation's own choice; an older client omits it, so follow the posting's range, else monthly.
+    const salaryUnit = dto.agreed_salary_unit ?? requirement.salary_unit ?? 'monthly';
+    const updated = await this.applicationsRepo.setAgreement(
+      applicationId,
+      dto.agreed_salary,
+      salaryUnit,
+      dto.agreed_start_date,
+    );
+    if (!updated) throw new AppException('JOB_022');
+
+    const caregiver = await this.caregiverProfilesRepo.findFullById(application.profile_id);
+    if (caregiver) {
+      const agreement = {
+        displayId: organisationJobDisplayId(requirement.requirement_number),
+        agreedSalary: dto.agreed_salary,
+        perUnit: salaryUnit === 'daily' ? ('day' as const) : ('month' as const),
+        agreedStartDate: dto.agreed_start_date,
+      };
+      const hadAgreement = application.agreed_salary != null && application.agreed_start_date != null;
+      const changed =
+        hadAgreement &&
+        (application.agreed_salary !== dto.agreed_salary ||
+          application.agreed_salary_unit !== salaryUnit ||
+          application.agreed_start_date !== dto.agreed_start_date);
+      if (!hadAgreement) {
+        void this.notificationsService.agreementSet(caregiver.user_id, agreement);
+      } else if (changed) {
+        void this.notificationsService.agreementChanged(caregiver.user_id, agreement);
+        void this.notificationsService.agreementChangeCallReminder(orgUserId, caregiver.full_name, true);
+      }
+    }
+
+    await this.auditService.log({
+      userId: orgUserId,
+      targetUserId: caregiver?.user_id,
+      action: AuditAction.JOB_AGREEMENT_SET,
+      entityType: 'organisation_requirement_applications',
+      entityId: applicationId,
+      afterValue: {
+        agreed_salary: dto.agreed_salary,
+        agreed_salary_unit: salaryUnit,
+        agreed_start_date: dto.agreed_start_date,
+      },
+      ipAddress,
+    });
+
+    return {
+      message: 'Agreed salary and start date saved',
+      agreed_salary: updated.agreed_salary,
+      agreed_salary_unit: updated.agreed_salary_unit,
+      agreed_start_date: updated.agreed_start_date,
+    };
   }
 
   /** Cancels the org's own requirement — allowed at any point in its

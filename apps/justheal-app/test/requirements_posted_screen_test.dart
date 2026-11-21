@@ -56,8 +56,14 @@ OrganisationRequirementModel _requirement({
   String? experienceRequired = 'fresher',
   String? employmentType = 'full_time',
   String postedAt = '2026-08-01T10:00:00Z',
+  int? salaryMin,
+  int? salaryMax,
+  String? salaryUnit,
 }) {
   return OrganisationRequirementModel.fromJson({
+    'salary_min': salaryMin,
+    'salary_max': salaryMax,
+    'salary_unit': salaryUnit,
     'id': id,
     'requirement_number': requirementNumber,
     'posted_by': 'org-1',
@@ -91,8 +97,16 @@ OrganisationRequirementApplicationModel _application({
   String? decidedBy,
   String updatedAt = '2026-08-01T10:00:00Z',
   String? closeReason,
+  int? agreedSalary,
+  String? agreedSalaryUnit,
+  String? agreedStartDate,
+  List<Map<String, dynamic>> agreementHistory = const [],
 }) {
   return OrganisationRequirementApplicationModel.fromJson({
+    'agreed_salary': agreedSalary,
+    'agreed_salary_unit': agreedSalaryUnit,
+    'agreed_start_date': agreedStartDate,
+    'agreement_history': agreementHistory,
     'id': id,
     'requirement_id': requirementId,
     'profile_id': 'profile-1',
@@ -119,6 +133,17 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? decidedApplicationId;
   String? decidedStatus;
   String? decidedReason;
+  // salary range / agreement calls
+  String? salaryRangeRequirementId;
+  int? salaryRangeMin;
+  int? salaryRangeMax;
+  String? salaryRangeUnit;
+  ApiException? salaryRangeError;
+  String? agreementRequirementId;
+  String? agreementApplicationId;
+  int? agreementSalary;
+  String? agreementUnit;
+  String? agreementStartDate;
   String? profileFetchedRequirementId;
   String? profileFetchedApplicationId;
   String? editedRequirementId;
@@ -142,6 +167,36 @@ class _FakeOrganisationRepository extends OrganisationRepository {
     decidedApplicationId = applicationId;
     decidedStatus = status;
     decidedReason = reason;
+  }
+
+  @override
+  Future<OrganisationRequirementModel> setSalaryRange(
+    String requirementId, {
+    required int salaryMin,
+    required int salaryMax,
+    required String salaryUnit,
+  }) async {
+    if (salaryRangeError != null) throw salaryRangeError!;
+    salaryRangeRequirementId = requirementId;
+    salaryRangeMin = salaryMin;
+    salaryRangeMax = salaryMax;
+    salaryRangeUnit = salaryUnit;
+    return _requirement(id: requirementId);
+  }
+
+  @override
+  Future<void> setAgreement(
+    String requirementId,
+    String applicationId, {
+    required int salary,
+    required String salaryUnit,
+    required String startDate,
+  }) async {
+    agreementRequirementId = requirementId;
+    agreementApplicationId = applicationId;
+    agreementSalary = salary;
+    agreementUnit = salaryUnit;
+    agreementStartDate = startDate;
   }
 
   @override
@@ -197,13 +252,21 @@ class _FakeOrganisationRepository extends OrganisationRepository {
 /// Each applicant's activity log is collapsed by default — tap every
 /// "Show Activity Log" link so the timeline entries become visible.
 Future<void> _expandAllActivityLogs(WidgetTester tester) async {
-  while (find.text('Show Activity Log').evaluate().isNotEmpty) {
+  var guard = 0;
+  while (find.text('Show Activity Log').evaluate().isNotEmpty && guard++ < 20) {
+    // The card is taller than the test screen: scroll the link into view before tapping it.
+    await tester.ensureVisible(find.text('Show Activity Log').first);
     await tester.tap(find.text('Show Activity Log').first);
     await _settle(tester);
   }
 }
 
 Future<void> _pump(WidgetTester tester, _FakeOrganisationRepository repo, {bool isJobPostingBlocked = false}) async {
+  // A tall screen, so every card (they have grown) is fully on screen and every tap lands.
+  tester.view.physicalSize = const Size(800, 3000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -555,6 +618,9 @@ void main() {
     expect(repo.decidedRequirementId, 'req-1');
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+    // the agreed-salary popup follows; skip it here
+    await tester.tap(find.text('Fill later'));
+    await _settle(tester);
   });
 
   testWidgets('rejecting an applicant requires a reason — Confirm stays disabled until something is typed',
@@ -600,6 +666,8 @@ void main() {
 
     expect(repo.decidedApplicationId, 'app-1');
     expect(repo.decidedStatus, 'accepted');
+    await tester.tap(find.text('Fill later'));
+    await _settle(tester);
   });
 
   testWidgets(
@@ -887,5 +955,218 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Post a Requirement'), findsOneWidget);
+  });
+
+  group('salary range on a requirement', () {
+    testWidgets('shows the range on the card, per month or per day', (tester) async {
+      await _pump(tester, _FakeOrganisationRepository(requirements: [
+        _requirement(id: 'req-1', salaryMin: 20000, salaryMax: 30000, salaryUnit: 'monthly'),
+      ]));
+      expect(find.text('₹20,000 – ₹30,000 per month'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+    });
+
+    testWidgets('says "not set" with an Add button when no range was given', (tester) async {
+      await _pump(tester, _FakeOrganisationRepository(requirements: [_requirement()]));
+      expect(find.text('Salary range not set'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Add'), findsOneWidget);
+    });
+
+    testWidgets('can be edited after posting and saves min, max and unit', (tester) async {
+      final repo = _FakeOrganisationRepository(requirements: [
+        _requirement(salaryMin: 20000, salaryMax: 30000, salaryUnit: 'monthly'),
+      ]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-salary-range')));
+      await _settle(tester);
+      // pre-filled with what is saved
+      expect(tester.widget<TextField>(find.byKey(const Key('salary-range-min'))).controller!.text, '20000');
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '900');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '1200');
+      await tester.tap(find.text('Per day'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(repo.salaryRangeRequirementId, 'req-1');
+      expect(repo.salaryRangeMin, 900);
+      expect(repo.salaryRangeMax, 1200);
+      expect(repo.salaryRangeUnit, 'daily');
+    });
+
+    testWidgets('can be edited even though the rest of the requirement is locked by an applicant', (tester) async {
+      final repo = _FakeOrganisationRepository(
+        requirements: [_requirement()],
+        applicationsByRequirementId: {'req-1': [_application()]},
+      );
+      await _pump(tester, repo);
+      // the requirement itself is locked...
+      await tester.tap(find.byTooltip('More options'));
+      await _settle(tester);
+      expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await _settle(tester);
+      // ...but the salary range is not
+      await tester.tap(find.byKey(const Key('edit-salary-range')));
+      await _settle(tester);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '15000');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '18000');
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(repo.salaryRangeMin, 15000);
+    });
+
+    testWidgets('refuses an empty, half-filled or inverted range without calling the server', (tester) async {
+      final repo = _FakeOrganisationRepository(requirements: [_requirement()]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-salary-range')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(find.byKey(const Key('salary-range-error')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '900');
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(find.text('Enter both the lowest and the highest salary'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '500');
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(find.text('The highest salary cannot be below the lowest'), findsOneWidget);
+      expect(repo.salaryRangeMin, isNull);
+    });
+
+    testWidgets('a server error is shown in the sheet, which stays open', (tester) async {
+      final repo = _FakeOrganisationRepository(requirements: [_requirement()])
+        ..salaryRangeError = ApiException(code: 'GEN_001', message: 'Invalid salary range');
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-salary-range')));
+      await _settle(tester);
+      await tester.enterText(find.byKey(const Key('salary-range-min')), '900');
+      await tester.enterText(find.byKey(const Key('salary-range-max')), '1200');
+      await tester.tap(find.byKey(const Key('salary-range-save')));
+      await _settle(tester);
+      expect(find.text('Invalid salary range'), findsOneWidget);
+      expect(find.byKey(const Key('salary-range-save')), findsOneWidget);
+    });
+  });
+
+  group('final salary and start date after hiring', () {
+    _FakeOrganisationRepository repoWith(List<OrganisationRequirementApplicationModel> apps) => _FakeOrganisationRepository(
+          requirements: [_requirement(salaryMin: 20000, salaryMax: 30000, salaryUnit: 'monthly')],
+          applicationsByRequirementId: {'req-1': apps},
+        );
+
+    testWidgets('accepting a caregiver opens the "Confirm salary and start date" popup right away', (tester) async {
+      final repo = repoWith([_application()]);
+      await _pump(tester, repo);
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await _settle(tester);
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      // the organisation version has no paragraph addressed to a family
+      expect(find.textContaining('house maids'), findsNothing);
+      // "per month" is preselected from the posting's own range unit
+      expect(find.textContaining('Agreed Salary (₹ per month)'), findsOneWidget);
+      await tester.tap(find.text('Fill later'));
+      await _settle(tester);
+      expect(repo.agreementSalary, isNull);
+    });
+
+    testWidgets('saving the popup sends the salary, its unit and the start date for that caregiver', (tester) async {
+      final repo = repoWith([_application()]);
+      await _pump(tester, repo);
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await _settle(tester);
+      await tester.enterText(find.byType(TextField).last, '26000');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save & send to caregiver'));
+      await _settle(tester);
+      expect(repo.agreementRequirementId, 'req-1');
+      expect(repo.agreementApplicationId, 'app-1');
+      expect(repo.agreementSalary, 26000);
+      expect(repo.agreementUnit, 'monthly');
+      expect(repo.agreementStartDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+    });
+
+    testWidgets('an accepted caregiver with nothing entered shows a button to enter salary and start date', (tester) async {
+      await _pump(tester, repoWith([_application(status: 'accepted', acceptedAt: '2026-08-02T10:00:00Z')]));
+      expect(find.text('Salary and start date not entered yet'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Enter salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('once entered, the agreed salary and start date are on ONE line, with an Edit button', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(status: 'accepted', acceptedAt: '2026-08-02T10:00:00Z', agreedSalary: 25000, agreedSalaryUnit: 'monthly', agreedStartDate: '2026-12-01'),
+        ]),
+      );
+      final line = find.byKey(const Key('agreement-line-app-1'));
+      expect(line, findsOneWidget);
+      final text = tester.widget<Text>(line).data!;
+      expect(text, contains('Agreed salary: ₹25,000 per month'));
+      expect(text, contains('Starts 1 Dec 2026'));
+      expect(text, isNot(contains('\n')));
+      expect(find.widgetWithText(OutlinedButton, 'Edit salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('editing opens the popup filled with the saved values and saves the change', (tester) async {
+      final repo = repoWith([
+        _application(status: 'accepted', acceptedAt: '2026-08-02T10:00:00Z', agreedSalary: 25000, agreedSalaryUnit: 'monthly', agreedStartDate: '2099-12-01'),
+      ]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('agreement-button-app-1')));
+      await _settle(tester);
+      expect(find.text('25000'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, '27000');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save & send to caregiver'));
+      await _settle(tester);
+      expect(repo.agreementSalary, 27000);
+      expect(repo.agreementStartDate, '2099-12-01');
+    });
+
+    testWidgets('a rejected, waiting or closed caregiver has no way to enter or change salary and start date', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'r', status: 'rejected', rejectedAt: '2026-08-02T10:00:00Z', agreedSalary: 25000, agreedSalaryUnit: 'monthly', agreedStartDate: '2026-12-01'),
+          _application(id: 'w', status: 'applied'),
+          _application(id: 'c', status: 'completed', completedAt: '2026-08-03T10:00:00Z'),
+        ]),
+      );
+      expect(find.byKey(const Key('agreement-button-r')), findsNothing);
+      expect(find.byKey(const Key('agreement-button-w')), findsNothing);
+      expect(find.byKey(const Key('agreement-button-c')), findsNothing);
+      expect(find.textContaining('Agreed salary'), findsNothing);
+    });
+
+    testWidgets('the activity log lists every entry and change of salary and start date, with thin separators', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(
+            status: 'accepted',
+            acceptedAt: '2026-08-02T10:00:00Z',
+            agreedSalary: 25000,
+            agreedSalaryUnit: 'monthly',
+            agreedStartDate: '2026-12-01',
+            agreementHistory: [
+              {'salary': 20000, 'unit': 'monthly', 'start_date': '2026-11-25', 'at': '2026-08-03T10:00:00Z'},
+              {'salary': 25000, 'unit': 'monthly', 'start_date': '2026-12-01', 'at': '2026-08-04T10:00:00Z'},
+            ],
+          ),
+        ]),
+      );
+      await _expandAllActivityLogs(tester);
+      expect(find.textContaining('Salary and start date entered'), findsOneWidget);
+      expect(find.textContaining('Salary and start date changed'), findsOneWidget);
+      expect(find.textContaining('₹20,000 per month, starts 25 Nov 2026'), findsOneWidget);
+      expect(find.textContaining('₹25,000 per month, starts 1 Dec 2026'), findsOneWidget);
+      // applied + accepted + entered + changed = 4 entries -> 3 separators
+      expect(find.byKey(const Key('org-log-separator-1')), findsOneWidget);
+      expect(find.byKey(const Key('org-log-separator-3')), findsOneWidget);
+      expect(find.byKey(const Key('org-log-separator-4')), findsNothing);
+    });
   });
 }

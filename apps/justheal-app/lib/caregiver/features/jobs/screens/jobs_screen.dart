@@ -552,6 +552,10 @@ class _RequirementCard extends StatelessWidget {
               ].join(' · '),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
+          if (salaryRangeLabel(requirement) != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+          ],
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.xs,

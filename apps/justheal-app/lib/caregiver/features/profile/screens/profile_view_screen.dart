@@ -11,7 +11,7 @@ import '../../../core/providers.dart';
 import '../../../core/utils/image_compression.dart';
 import '../../../core/utils/upload_size_limit.dart';
 import '../../auth/state/session_notifier.dart';
-import '../status_message.dart';
+import '../widgets/profile_status_banner.dart';
 import '../../../app/caregiver_bottom_nav.dart';
 import '../../../app/messages_bell.dart';
 import '../../../app/delete_account_dialog.dart';
@@ -339,10 +339,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        Text(
-          statusMessageFor(
-              profile.verificationStatus, profile.rejectionMessage),
-          textAlign: TextAlign.center,
+        ProfileStatusBanner(
+          status: profile.verificationStatus,
+          rejectionMessage: profile.rejectionMessage,
         ),
         const SizedBox(height: AppSpacing.lg),
         const ShareAppCard(audience: ShareAudience.caregiver, flow: 'caregiver', screen: 'profile'),

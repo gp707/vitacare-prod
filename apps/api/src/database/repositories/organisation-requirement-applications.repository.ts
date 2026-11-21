@@ -4,6 +4,7 @@ import { JobApplicationStatus } from '@vitacare/shared-constants';
 import { DatabaseService, QueryRunner } from '../database.service';
 import { MyApplicationSummary } from './jobs.repository';
 import { OrganisationRequirementWithOrg } from './organisation-requirements.repository';
+import { orgAgreementHistorySql } from './agreement-log.sql';
 
 export interface OrganisationRequirementApplicationRecord {
   id: string;
@@ -18,6 +19,11 @@ export interface OrganisationRequirementApplicationRecord {
   reapplied_at: Date | null;
   decline_reason: string | null;
   close_reason: string | null;
+  /** What the organisation agreed with this caregiver once accepted (migration 098). */
+  agreed_salary: number | null;
+  agreed_salary_unit: 'daily' | 'monthly' | null;
+  agreed_start_date: string | null;
+  agreed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -27,6 +33,8 @@ export interface OrganisationRequirementApplicationWithCaregiver
   full_name: string;
   phone: string;
   decided_by_name: string | null;
+  /** Every entry/change of the agreed salary and start date, oldest first. */
+  agreement_history: { salary: number; unit: string; start_date: string; at: string }[];
 }
 
 /** An organisation requirement the caregiver is (or was) accepted onto —
@@ -130,7 +138,8 @@ export class OrganisationRequirementApplicationsRepository {
     }
     await runner.query(
       `UPDATE organisation_requirement_applications
-       SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW()
+       SET status = $2, decided_by = $3, accepted_at = NOW(), updated_at = NOW(),
+           agreed_salary = NULL, agreed_salary_unit = NULL, agreed_start_date = NULL, agreed_at = NULL
        WHERE id = $1`,
       [id, status, actorId],
     );
@@ -162,6 +171,33 @@ export class OrganisationRequirementApplicationsRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Records the agreed salary/start date — only while the application is still `accepted` (the
+   *  guard is in the UPDATE itself, so a concurrent reject can't be overwritten). The update and its
+   *  log entry are one statement: they succeed or fail together. Returns null when nothing matched. */
+  async setAgreement(
+    id: string,
+    agreedSalary: number,
+    agreedSalaryUnit: 'daily' | 'monthly',
+    agreedStartDate: string,
+    client?: PoolClient,
+  ): Promise<OrganisationRequirementApplicationRecord | null> {
+    const runner: QueryRunner = client ?? this.db;
+    const result = await runner.query<OrganisationRequirementApplicationRecord>(
+      `WITH updated AS (
+         UPDATE organisation_requirement_applications
+         SET agreed_salary = $2, agreed_salary_unit = $3, agreed_start_date = $4::date, agreed_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND status = 'accepted'
+         RETURNING *
+       ), logged AS (
+         INSERT INTO organisation_application_agreement_log (application_id, salary, salary_unit, start_date)
+         SELECT id, $2, $3, $4::date FROM updated
+       )
+       SELECT * FROM updated`,
+      [id, agreedSalary, agreedSalaryUnit, agreedStartDate],
+    );
+    return result.rows[0] ?? null;
+  }
+
   /** closeReason defaults to NO_REASON in the service layer before this is
    *  called, so it's always a real value here, never null/undefined. */
   async markCompleted(id: string, closeReason: string, client?: PoolClient): Promise<void> {
@@ -183,7 +219,8 @@ export class OrganisationRequirementApplicationsRepository {
 
   async findByRequirementId(requirementId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
     const result = await this.db.query<OrganisationRequirementApplicationWithCaregiver>(
-      `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name
+      `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
+              ${orgAgreementHistorySql('ora')} AS agreement_history
        FROM organisation_requirement_applications ora
        JOIN caregiver_profiles cp ON cp.id = ora.profile_id
        JOIN users u ON u.id = cp.user_id
@@ -207,7 +244,11 @@ export class OrganisationRequirementApplicationsRepository {
            'reapplied_at', ora.reapplied_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
            'decline_reason', ora.decline_reason,
-           'close_reason', ora.close_reason
+           'close_reason', ora.close_reason,
+           'agreed_salary', ora.agreed_salary,
+           'agreed_salary_unit', ora.agreed_salary_unit,
+           'agreed_start_date', ora.agreed_start_date::text,
+           'agreement_history', ${orgAgreementHistorySql('ora')}
          ) AS my_application
        FROM organisation_requirement_applications ora
        JOIN organisation_requirements r ON r.id = ora.requirement_id
@@ -236,7 +277,11 @@ export class OrganisationRequirementApplicationsRepository {
            'reapplied_at', ora.reapplied_at,
            'decided_by_admin', ora.decided_by IS NOT NULL,
            'decline_reason', ora.decline_reason,
-           'close_reason', ora.close_reason
+           'close_reason', ora.close_reason,
+           'agreed_salary', ora.agreed_salary,
+           'agreed_salary_unit', ora.agreed_salary_unit,
+           'agreed_start_date', ora.agreed_start_date::text,
+           'agreement_history', ${orgAgreementHistorySql('ora')}
          ) AS my_application
        FROM organisation_requirement_applications ora
        JOIN organisation_requirements r ON r.id = ora.requirement_id

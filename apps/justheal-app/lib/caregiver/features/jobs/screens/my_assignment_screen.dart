@@ -405,6 +405,24 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
   }
 
+  /// What the organisation agreed with this caregiver (the final salary and start date), once entered.
+  Widget? _agreementForRequirement(OrganisationRequirementModel requirement) {
+    final application = requirement.myApplication;
+    final salary = application?.agreedSalary;
+    final startDate = application?.agreedStartDate;
+    if (salary == null || startDate == null) return null;
+    return AgreedTermsBox(
+      title: 'Agreed with the organisation',
+      salary: salary,
+      perUnit: switch (application?.agreedSalaryUnit) {
+        'daily' => 'day',
+        'monthly' => 'month',
+        _ => requirement.salaryUnit == 'daily' ? 'day' : 'month',
+      },
+      startDate: startDate,
+    );
+  }
+
   List<JobModel> get _appliedJobs =>
       _activeJobs.where((j) => j.myApplication?.status == JobApplicationStatus.applied).toList();
   List<OrganisationRequirementModel> get _appliedRequirements =>
@@ -546,7 +564,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               title: _RequirementSummary(requirement: requirement),
               stepperStage: jobStepperStage(applicationStatus: JobApplicationStatus.applied, startDate: null),
               status: jobCardStatus(status: JobApplicationStatus.applied, decidedByAdmin: false, hasAppliedAt: true),
-              timeline: requirement.myApplication != null ? ApplicationTimeline(requirement.myApplication!) : null,
+              timeline: requirement.myApplication != null ? ApplicationTimeline(requirement.myApplication!, agreedBy: 'the organisation') : null,
               actionLabel: 'Reject',
               busy: _busyId.contains(requirement.id),
               onAction: () => _rejectRequirement(requirement),
@@ -605,7 +623,8 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                 decidedByAdmin: requirement.myApplication?.decidedByAdmin ?? true,
                 hasAppliedAt: true,
               ),
-              timeline: requirement.myApplication != null ? ApplicationTimeline(requirement.myApplication!) : null,
+              timeline: requirement.myApplication != null ? ApplicationTimeline(requirement.myApplication!, agreedBy: 'the organisation') : null,
+              agreement: _agreementForRequirement(requirement),
               contactCard: requirement.organisationPhone != null
                   ? JobPosterContactCard(
                       poster: JobPosterModel(
@@ -696,7 +715,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
                 decidedByAdmin: requirement.myApplication!.decidedByAdmin,
                 hasAppliedAt: requirement.myApplication!.appliedAt != null,
               ),
-              timeline: ApplicationTimeline(requirement.myApplication!),
+              timeline: ApplicationTimeline(requirement.myApplication!, agreedBy: 'the organisation'),
               contactCard: requirement.organisationPhone != null
                   ? JobPosterContactCard(
                       poster: JobPosterModel(
@@ -885,6 +904,10 @@ class _RequirementSummary extends StatelessWidget {
           style: const TextStyle(fontSize: AppTypography.subtitle, fontWeight: FontWeight.bold),
         ),
         Text(_typeOfNurseText, style: const TextStyle(color: AppColors.textSecondary)),
+        if (salaryRangeLabel(requirement) != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+        ],
         const SizedBox(height: AppSpacing.xs),
         InkWell(
           onTap: () => Navigator.of(context).push(

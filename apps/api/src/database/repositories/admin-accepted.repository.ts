@@ -27,7 +27,7 @@ export interface AcceptedItem {
    *  (a later rejection overwrites decided_by with the rejecter). */
   accepted_by_name: string | null;
   accepted_by_role: string | null;
-  /** What the patient/family agreed (jobs only): rupees, 'daily'|'monthly', start date. */
+  /** What the patient/family or organisation agreed: rupees, 'daily'|'monthly', start date. */
   agreed_salary: number | null;
   agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;
@@ -56,7 +56,7 @@ const REQUIREMENT_SELECT = `
          r.requirement_number,
          op.organisation_name AS poster_name, pu.phone AS poster_phone, pu.role AS poster_role,
          op.org_number AS poster_number,
-         NULL::int AS agreed_salary, NULL::varchar AS agreed_salary_unit, NULL::text AS agreed_start_date
+         oa.agreed_salary, oa.agreed_salary_unit, oa.agreed_start_date::text AS agreed_start_date
   FROM organisation_requirement_applications oa
   JOIN organisation_requirements r ON r.id = oa.requirement_id
   LEFT JOIN users pu ON pu.id = r.posted_by

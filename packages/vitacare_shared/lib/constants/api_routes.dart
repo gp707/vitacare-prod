@@ -49,6 +49,12 @@ class ApiRoutes {
       '/organisation/requirements/$requirementId/cancel';
   static String organisationRequirementReactivate(String requirementId) =>
       '/organisation/requirements/$requirementId/reactivate';
+  /// Set or change the salary range of a requirement (any time).
+  static String organisationRequirementSalaryRange(String requirementId) =>
+      '/organisation/requirements/$requirementId/salary-range';
+  /// The final salary and start date agreed with an accepted caregiver.
+  static String organisationRequirementApplicationAgreement(String requirementId, String applicationId) =>
+      '/organisation/requirements/$requirementId/applications/$applicationId/agreement';
   static const organisationProfile = '/organisation/profile';
   static const organisationProfilePhone = '/organisation/profile/phone';
   static const organisationProfileCode = '/organisation/profile/code';

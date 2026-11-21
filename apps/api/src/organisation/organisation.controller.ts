@@ -11,6 +11,8 @@ import { OrganisationRequirementsService } from './organisation-requirements.ser
 import { CreateOrganisationRequirementDto } from './dto/create-organisation-requirement.dto';
 import { UpdateMyOrganisationRequirementDto } from './dto/update-my-organisation-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
+import { SetSalaryRangeDto } from './dto/set-salary-range.dto';
+import { SetAgreementDto } from '../individual/dto/set-agreement.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateOrganisationProfileDto } from './dto/update-organisation-profile.dto';
@@ -67,6 +69,31 @@ export class OrganisationController {
   @HttpCode(HttpStatus.OK)
   reactivateRequirement(@CurrentUser() user: JwtPayload, @Param('id') id: string, @ClientIp() ip: string | null) {
     return this.requirementsService.reactivateRequirement(user.sub, id, ip);
+  }
+
+  /** Set or change the salary range — allowed at any time, even after applicants exist. */
+  @Put('requirements/:id/salary-range')
+  @HttpCode(HttpStatus.OK)
+  setSalaryRange(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SetSalaryRangeDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.requirementsService.setSalaryRange(user.sub, id, dto, ip);
+  }
+
+  /** The final salary and start date agreed with an accepted caregiver. */
+  @Put('requirements/:requirementId/applications/:applicationId/agreement')
+  @HttpCode(HttpStatus.OK)
+  setAgreement(
+    @CurrentUser() user: JwtPayload,
+    @Param('requirementId') requirementId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: SetAgreementDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.requirementsService.setAgreement(user.sub, requirementId, applicationId, dto, ip);
   }
 
   @Get('requirements/:id/applications')

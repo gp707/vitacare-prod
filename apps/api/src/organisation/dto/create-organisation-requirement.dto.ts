@@ -62,4 +62,21 @@ export class CreateOrganisationRequirementDto {
   @IsOptional()
   @IsIn(Object.values(EmploymentType), { message: 'GEN_001' })
   employment_type?: string;
+
+  /** Optional salary range (all three together, max >= min — checked in the service). */
+  @IsOptional()
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(1_000_000, { message: 'GEN_001' })
+  salary_min?: number;
+
+  @IsOptional()
+  @IsInt({ message: 'GEN_001' })
+  @Min(1, { message: 'GEN_001' })
+  @Max(1_000_000, { message: 'GEN_001' })
+  salary_max?: number;
+
+  @IsOptional()
+  @IsIn(['daily', 'monthly'], { message: 'GEN_001' })
+  salary_unit?: 'daily' | 'monthly';
 }

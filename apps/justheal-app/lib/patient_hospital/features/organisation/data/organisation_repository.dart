@@ -33,6 +33,9 @@ class OrganisationRepository {
     String? preferredGender,
     String? experienceRequired,
     String? employmentType,
+    int? salaryMin,
+    int? salaryMax,
+    String? salaryUnit,
   }) async {
     try {
       final res = await _dio.post(ApiRoutes.organisationRequirements, data: {
@@ -45,8 +48,52 @@ class OrganisationRepository {
         if (preferredGender != null) 'preferred_gender': preferredGender,
         if (experienceRequired != null) 'experience_required': experienceRequired,
         if (employmentType != null) 'employment_type': employmentType,
+        if (salaryMin != null && salaryMax != null && salaryUnit != null) ...{
+          'salary_min': salaryMin,
+          'salary_max': salaryMax,
+          'salary_unit': salaryUnit,
+        },
       });
       return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Sets or changes the salary range — allowed at any time, even once caregivers have applied
+  /// (the rest of the requirement is locked then).
+  Future<OrganisationRequirementModel> setSalaryRange(
+    String requirementId, {
+    required int salaryMin,
+    required int salaryMax,
+    required String salaryUnit,
+  }) async {
+    try {
+      final res = await _dio.put(ApiRoutes.organisationRequirementSalaryRange(requirementId), data: {
+        'salary_min': salaryMin,
+        'salary_max': salaryMax,
+        'salary_unit': salaryUnit,
+      });
+      return OrganisationRequirementModel.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// The final salary and start date agreed with an accepted caregiver (the caregiver is told).
+  Future<void> setAgreement(
+    String requirementId,
+    String applicationId, {
+    required int salary,
+    required String salaryUnit,
+    required String startDate,
+  }) async {
+    try {
+      await _dio.put(ApiRoutes.organisationRequirementApplicationAgreement(requirementId, applicationId), data: {
+        'agreed_salary': salary,
+        'agreed_salary_unit': salaryUnit,
+        'agreed_start_date': startDate,
+      });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

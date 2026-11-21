@@ -112,6 +112,25 @@ export const agreementSet = (
   route: PushRoutes.caregiverMyJobs,
 });
 
+/** The family CHANGED an already-agreed salary and/or start date: told straight away, with the new figures. */
+export const agreementChanged = (
+  displayId: string,
+  agreedSalary: number,
+  perUnit: 'day' | 'month',
+  agreedStartDate: string,
+): PushMessage => ({
+  title: 'Salary or start date changed',
+  body: `${displayId}: the family changed it. Now ₹${agreedSalary} per ${perUnit}, starting ${formatAgreedDate(agreedStartDate)}. Details are in MyJobs.`,
+  route: PushRoutes.caregiverMyJobs,
+});
+
+/** Reminder to the patient/family, after they changed a caregiver's agreement: call and tell them. */
+export const agreementChangeCallReminder = (caregiverName: string, toOrganisation = false): PushMessage => ({
+  title: 'Please tell the caregiver',
+  body: `You changed ${caregiverName}'s salary or start date. Please call ${caregiverName} to let them know about the change.`,
+  route: toOrganisation ? PushRoutes.organisationHome : PushRoutes.individualHome,
+});
+
 /** The other side left feedback about this person. */
 export const feedbackReceived = (displayId: string, toCaregiver: boolean): PushMessage => ({
   title: 'You received feedback',
@@ -350,6 +369,9 @@ export const REQUIREMENT_APPLICANT_FIELDS = [
   'preferred_gender',
   'experience_required',
   'employment_type',
+  'salary_min',
+  'salary_max',
+  'salary_unit',
 ] as const;
 
 /** True if any of [fields] differs between the two records. Compared as

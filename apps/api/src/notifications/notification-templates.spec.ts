@@ -1,4 +1,6 @@
 import {
+  agreementChangeCallReminder,
+  agreementChanged,
   accountBlocked,
   accountUnblocked,
   applicationAccepted,
@@ -200,5 +202,29 @@ describe('feedback received wording', () => {
     const m = feedbackReceived('PAT-JOB-548', false);
     expect(m.body).toContain('the caregiver left feedback');
     expect(m.route).toBe('/home');
+  });
+});
+
+describe('agreement change wording', () => {
+  it('tells the caregiver it was changed, with the new salary and start date, and opens MyJobs', () => {
+    const m = agreementChanged('PAT-JOB-548', 6600, 'day', '2026-11-01');
+    expect(m.title).toBe('Salary or start date changed');
+    expect(m.body).toContain('PAT-JOB-548');
+    expect(m.body).toContain('changed');
+    expect(m.body).toContain('₹6600 per day');
+    expect(m.body).toContain('1 Nov 2026');
+    expect(m.route).toBe('/caregiver/my-jobs');
+  });
+  it('says per month for a monthly salary', () => {
+    expect(agreementChanged('PAT-JOB-548', 30000, 'month', '2026-12-05').body).toContain('₹30000 per month');
+  });
+  it('reminds the family to call that caregiver by name and opens their home screen', () => {
+    const m = agreementChangeCallReminder('Asha Rao');
+    expect(m.body).toContain('call Asha Rao');
+    expect(m.body).toContain("Asha Rao's salary or start date");
+    expect(m.route).toBe('/home');
+  });
+  it('the reminder to an organisation opens the organisation home screen instead', () => {
+    expect(agreementChangeCallReminder('Asha Rao', true).route).toBe('/org-home');
   });
 });

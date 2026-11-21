@@ -741,6 +741,7 @@ class RequirementReadOnlyDialog extends StatelessWidget {
                         requirement.employmentType!
                     : '—',
               ),
+              _DetailRow('Salary Range', _salaryRangeText(requirement)),
               _DetailRow(
                   'Accommodation',
                   requirement.accommodationProvided
@@ -982,4 +983,14 @@ class _OrganisationNotesSectionState
       ],
     );
   }
+}
+
+/// "₹20,000 – ₹30,000 per month" (or per day), or a dash when the organisation gave no range.
+String _salaryRangeText(AdminOrganisationRequirement requirement) {
+  final min = requirement.salaryMin;
+  final max = requirement.salaryMax;
+  final unit = requirement.salaryUnit;
+  if (min == null || max == null || unit == null) return '—';
+  final per = unit == 'daily' ? 'day' : 'month';
+  return min == max ? '₹${formatRupees(min)} per $per' : '₹${formatRupees(min)} – ₹${formatRupees(max)} per $per';
 }

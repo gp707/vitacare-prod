@@ -10,6 +10,8 @@ import {
   PushRoutes,
   accountBlocked,
   accountUnblocked,
+  agreementChangeCallReminder,
+  agreementChanged,
   agreementSet,
   applicationAccepted,
   feedbackReceived,
@@ -165,6 +167,30 @@ export class NotificationsService {
         caregiverUserId,
         agreementSet(agreement.displayId, agreement.agreedSalary, agreement.perUnit, agreement.agreedStartDate),
       ),
+    );
+  }
+
+  /** The family changed an already-agreed salary / start date: tell that caregiver straight away. */
+  async agreementChanged(
+    caregiverUserId: string,
+    agreement: { displayId: string; agreedSalary: number; perUnit: 'day' | 'month'; agreedStartDate: string },
+  ): Promise<void> {
+    await this.safe('agreement changed', () =>
+      this.send(
+        caregiverUserId,
+        agreementChanged(agreement.displayId, agreement.agreedSalary, agreement.perUnit, agreement.agreedStartDate),
+      ),
+    );
+  }
+
+  /** ...and remind the patient/family to call that caregiver and tell them about the change. */
+  async agreementChangeCallReminder(
+    posterUserId: string,
+    caregiverName: string,
+    toOrganisation = false,
+  ): Promise<void> {
+    await this.safe('agreement change reminder', () =>
+      this.send(posterUserId, agreementChangeCallReminder(caregiverName, toOrganisation)),
     );
   }
 

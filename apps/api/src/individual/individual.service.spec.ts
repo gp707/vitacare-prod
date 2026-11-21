@@ -86,6 +86,8 @@ describe('IndividualService', () => {
       organisationRequirementApplied: jest.fn(),
       applicationDecided: jest.fn(),
       agreementSet: jest.fn(),
+      agreementChanged: jest.fn(),
+      agreementChangeCallReminder: jest.fn(),
       jobUpdated: jest.fn(),
       jobCancelled: jest.fn(),
       jobNoLongerOpen: jest.fn(),
@@ -1228,6 +1230,89 @@ describe('IndividualService', () => {
       await expect(
         service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: today } as any, null),
       ).resolves.toBeDefined();
+    });
+
+    describe('changing an agreement that already exists', () => {
+      const existing = (over: Record<string, unknown> = {}) => ({
+        id: 'app-1',
+        job_id: 'job-1',
+        profile_id: 'prof-1',
+        status: 'accepted',
+        agreed_salary: 800,
+        agreed_salary_unit: 'daily',
+        agreed_start_date: tomorrow(),
+        ...over,
+      });
+      beforeEach(() => {
+        caregiverProfilesRepo.findFullById.mockResolvedValue({ id: 'prof-1', user_id: 'cg-user', full_name: 'Asha Rao' });
+      });
+
+      it('a changed salary tells just that caregiver at once, with the new figures, and reminds the patient to call them', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ agreed_salary: 600 }));
+        await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+        expect(notificationsService.agreementChanged).toHaveBeenCalledTimes(1);
+        expect(notificationsService.agreementChanged).toHaveBeenCalledWith('cg-user', {
+          displayId: 'PAT-JOB-548',
+          agreedSalary: 800,
+          perUnit: 'day',
+          agreedStartDate: tomorrow(),
+        });
+        expect(notificationsService.agreementChangeCallReminder).toHaveBeenCalledTimes(1);
+        expect(notificationsService.agreementChangeCallReminder).toHaveBeenCalledWith('user-1', 'Asha Rao');
+        // not announced as a first-time entry
+        expect(notificationsService.agreementSet).not.toHaveBeenCalled();
+      });
+
+      it('a changed start date alone counts as a change', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ agreed_start_date: '2020-01-01' }));
+        await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+        expect(notificationsService.agreementChanged).toHaveBeenCalledTimes(1);
+        expect(notificationsService.agreementChangeCallReminder).toHaveBeenCalledTimes(1);
+      });
+
+      it('a changed unit alone (per day -> per month) counts as a change', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ agreed_salary_unit: 'monthly' }));
+        await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+        expect(notificationsService.agreementChanged).toHaveBeenCalledTimes(1);
+      });
+
+      it('saving exactly the same values again sends nothing', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing());
+        await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+        expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+        expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+        expect(notificationsService.agreementSet).not.toHaveBeenCalled();
+      });
+
+      it('the first time the family enters it is the normal "agreed" push, with no change push or call reminder', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ agreed_salary: null, agreed_salary_unit: null, agreed_start_date: null }));
+        await service.setAgreement('user-1', 'job-1', 'app-1', dto(), null);
+        expect(notificationsService.agreementSet).toHaveBeenCalledTimes(1);
+        expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+        expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+      });
+
+      it('a rejected caregiver cannot be changed at all, and nobody is notified', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ status: 'rejected' }));
+        await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+        expect(jobApplicationsRepo.setAgreement).not.toHaveBeenCalled();
+        expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+        expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+      });
+
+      it('a closed-duty (completed) caregiver cannot be changed either', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ status: 'completed' }));
+        await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+        expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+      });
+
+      it('a change that loses the race with a rejection notifies nobody', async () => {
+        jobApplicationsRepo.findById.mockResolvedValue(existing({ agreed_salary: 600 }));
+        jobApplicationsRepo.setAgreement.mockResolvedValue(null);
+        await expect(service.setAgreement('user-1', 'job-1', 'app-1', dto(), null)).rejects.toMatchObject({ code: 'JOB_022' });
+        expect(notificationsService.agreementChanged).not.toHaveBeenCalled();
+        expect(notificationsService.agreementChangeCallReminder).not.toHaveBeenCalled();
+      });
     });
 
     it('throws GEN_002 for a job that is not yours', async () => {

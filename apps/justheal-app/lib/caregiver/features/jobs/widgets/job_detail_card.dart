@@ -274,6 +274,7 @@ class _FieldLine extends StatelessWidget {
 /// time, so scanning the list stays fast.
 class JobDetailCard extends ConsumerWidget {
   final JobModel job;
+
   /// Show "Share this job on WhatsApp" (the browse list; not once the caregiver is already on the job).
   final bool showShare;
 
@@ -312,7 +313,8 @@ class JobDetailCard extends ConsumerWidget {
             ],
           ),
         ),
-        if (showShare) ShareJobButton(message: jobShareMessage(job), screen: 'jobs'),
+        if (showShare)
+          ShareJobButton(message: jobShareMessage(job), screen: 'jobs'),
       ],
     );
   }
@@ -621,6 +623,40 @@ class JobFullDetailScreen extends StatelessWidget {
 /// be a genuinely long free-text block (up to
 /// Validation.specialSkillsMaxLength characters) that would otherwise blow
 /// out the card's fixed-height layout on the browse list/MyJobs.
+/// The salary range an organisation offers on a requirement ("₹20,000 – ₹30,000 per month"),
+/// highlighted the way a job's salary is, so it is the first thing a caregiver sees.
+class SalaryRangeLine extends StatelessWidget {
+  final String label;
+
+  const SalaryRangeLine({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('org-salary-range'),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.success),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class RequirementFullDetailScreen extends StatelessWidget {
   final OrganisationRequirementModel requirement;
 
@@ -669,6 +705,10 @@ class RequirementFullDetailScreen extends StatelessWidget {
                   ].join(' · '),
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
+              if (salaryRangeLabel(requirement) != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+              ],
               const SizedBox(height: AppSpacing.md),
               const Divider(height: 1),
               const SizedBox(height: AppSpacing.sm),
@@ -728,137 +768,170 @@ class RequirementFullDetailScreen extends StatelessWidget {
 class ApplicationTimeline extends StatefulWidget {
   final MyApplicationModel application;
 
-  const ApplicationTimeline(this.application, {super.key});
+  /// Who enters the salary and start date: "the family" for a patient's job, "the organisation" for
+  /// an organisation's requirement.
+  final String agreedBy;
+
+  const ApplicationTimeline(this.application, {super.key, this.agreedBy = 'the family'});
 
   @override
   State<ApplicationTimeline> createState() => _ApplicationTimelineState();
 }
 
 class _ApplicationTimelineState extends State<ApplicationTimeline> {
-  // Fixed per-row heights, rather than relying on inherited text-theme
-  // metrics — the ambient DefaultTextStyle isn't stable enough to guess at
-  // "roughly 3 lines" of pixels; picking a known font size and row height
-  // instead makes the maxHeight below (and whether rows actually overflow
-  // it) exact instead of a fragile trial-and-error guess.
   static const _fontSize = 13.0;
-  static const _rowHeight = 20.0;
-  static const _reasonRowHeight =
-      36.0; // a "Declined + Reason" row wraps to two lines
-  // Strictly less than 5 plain rows (100) and strictly more than 4 (80) —
-  // 4 rows visible by default (both parties can see the recent trail at a
-  // glance), so a 5th entry always genuinely overflows and the scrollbar is
-  // never shown without something real to scroll to.
-  static const _maxHeight = 86.0;
 
-  final _controller = ScrollController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  /// Collapsed by default: the log opens only when the caregiver asks for it.
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final application = widget.application;
-    final entries = <MapEntry<DateTime, String>>[];
+    // title: what happened and when; detail: an optional second line (a reason, or the new salary
+    // and start date); emphasis: the detail is the point of the entry (salary changes).
+    final entries = <_LogEntry>[];
     if (application.appliedAt != null) {
       final at = DateTime.parse(application.appliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Applied by you: ${formatDateTime(at)}'));
+      entries.add(_LogEntry(at, 'Applied by you: ${formatDateTime(at)}'));
     }
-    // Marks the moment a fresh apply overwrote a previously
-    // rejected/completed row — shown alongside (not instead of) that
-    // prior event's own entry below, since re-applying no longer clears
-    // it (see JobApplicationsRepository.upsert).
+    // Marks the moment a fresh apply overwrote a previously rejected/completed row — shown
+    // alongside (not instead of) that prior event's own entry, since re-applying no longer clears it.
     if (application.reappliedAt != null) {
       final at = DateTime.parse(application.reappliedAt!).toLocal();
-      entries.add(MapEntry(at, 'Re-applied by you: ${formatDateTime(at)}'));
+      entries.add(_LogEntry(at, 'Re-applied by you: ${formatDateTime(at)}'));
     }
     if (application.acceptedAt != null) {
       final at = DateTime.parse(application.acceptedAt!).toLocal();
-      entries.add(MapEntry(at, 'Accepted by employer: ${formatDateTime(at)}'));
+      entries.add(_LogEntry(at, 'Accepted by employer: ${formatDateTime(at)}'));
     }
-    // A caregiver-initiated close of an accepted job — the only path to
-    // 'completed', so this is always "by you", never the employer's doing.
-    // Shown whenever completedAt is set, regardless of the application's
-    // CURRENT status — e.g. still shown as history after the poster later
-    // accepts the caregiver again ("Accept Anyway") or the caregiver
-    // re-applies, neither of which clear completedAt any more.
+    // A caregiver-initiated close of an accepted job — the only path to 'completed', so always "by you".
+    // Shown whenever completedAt is set, whatever the CURRENT status, as history.
     if (application.completedAt != null) {
       final at = DateTime.parse(application.completedAt!).toLocal();
-      var text = 'Closed by you: ${formatDateTime(at)}';
-      if (application.closeReason != null) {
-        text =
-            '$text\nReason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}';
-      }
-      entries.add(MapEntry(at, text));
+      entries.add(_LogEntry(
+        at,
+        'Closed by you: ${formatDateTime(at)}',
+        detail: application.closeReason == null
+            ? null
+            : 'Reason: ${CaregiverCloseReason.displayNames[application.closeReason] ?? application.closeReason}',
+      ));
     }
-    // Shown whenever rejectedAt is set, regardless of the application's
-    // CURRENT status — same reasoning as completedAt above, so a
-    // previously-declined-then-accepted-anyway (or re-applied) candidate's
-    // rejection stays visible as history instead of silently vanishing.
+    // Shown whenever rejectedAt is set, whatever the CURRENT status, so a declined-then-accepted-anyway
+    // (or re-applied) candidate's rejection stays visible as history.
     if (application.rejectedAt != null) {
       final at = DateTime.parse(application.rejectedAt!).toLocal();
       final label = application.decidedByAdmin
           ? 'Declined by employer'
           : 'Declined by you';
-      var text = '$label: ${formatDateTime(at)}';
-      if (application.declineReason != null &&
-          application.declineReason!.isNotEmpty) {
-        text = '$text\nReason: ${application.declineReason!}';
-      }
-      entries.add(MapEntry(at, text));
+      final reason = application.declineReason;
+      entries.add(_LogEntry(
+        at,
+        '$label: ${formatDateTime(at)}',
+        detail:
+            (reason != null && reason.isNotEmpty) ? 'Reason: $reason' : null,
+      ));
     }
-    // Every time the family entered or changed the salary and start date, so an edit never
-    // overwrites the story: the first entry is "entered", the rest are "changed".
+    // Every time the family entered or changed the salary and start date, so an edit never overwrites
+    // the story: the first entry is "entered", the rest are "changed". The new figures get their own
+    // bold line so the change is the first thing read.
     for (var i = 0; i < application.agreementHistory.length; i++) {
       final change = application.agreementHistory[i];
       final at = DateTime.parse(change.at).toLocal();
       final verb = i == 0 ? 'entered' : 'changed';
-      entries.add(MapEntry(at, 'Salary and start date $verb by the family: ${formatDateTime(at)}\n${change.summary}'));
+      entries.add(_LogEntry(
+        at,
+        'Salary and start date $verb by ${widget.agreedBy}: ${formatDateTime(at)}',
+        detail: change.summary,
+        emphasis: true,
+      ));
     }
     if (entries.isEmpty) return const SizedBox.shrink();
 
-    // Newest first — the current status is the one worth seeing without
-    // having to scroll for it.
-    entries.sort((a, b) => b.key.compareTo(a.key));
+    // Newest first — the current status is the one worth seeing without having to look for it.
+    entries.sort((a, b) => b.at.compareTo(a.at));
 
-    final totalHeight = entries.fold<double>(
-      0,
-      (sum, entry) =>
-          sum + (entry.value.contains('\n') ? _reasonRowHeight : _rowHeight),
-    );
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: _maxHeight),
-      child: Scrollbar(
-        controller: _controller,
-        // Only forced visible when there's genuinely something to scroll to
-        // — otherwise a full-track, undraggable thumb looks broken.
-        thumbVisibility: totalHeight > _maxHeight,
-        child: ListView(
-          controller: _controller,
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            for (final entry in entries)
-              SizedBox(
-                height:
-                    entry.value.contains('\n') ? _reasonRowHeight : _rowHeight,
-                child: Text(
-                  entry.value,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontStyle: FontStyle.italic,
-                    fontSize: _fontSize,
+    // Every entry is shown in full (no inner scrolling box, which clipped and overlapped the two-line
+    // entries), with a very thin line between two entries.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          key: const Key('timeline-toggle'),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    _expanded ? 'Hide Activity Log' : 'Show Activity Log',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: _fontSize,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
-              ),
-          ],
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18, color: AppColors.primary),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (_expanded)
+          Column(
+            key: const Key('application-timeline'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < entries.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                    key: Key('timeline-separator-$i'),
+                    height: 13,
+                    thickness: 0.5,
+                    color: AppColors.border.withValues(alpha: 0.7),
+                  ),
+                Text(
+                  entries[i].title,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                      fontSize: _fontSize),
+                ),
+                if (entries[i].detail != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      entries[i].detail!,
+                      style: entries[i].emphasis
+                          ? const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: _fontSize + 1)
+                          : const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontStyle: FontStyle.italic,
+                              fontSize: _fontSize),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+      ],
     );
   }
+}
+
+class _LogEntry {
+  final DateTime at;
+  final String title;
+  final String? detail;
+  final bool emphasis;
+
+  const _LogEntry(this.at, this.title, {this.detail, this.emphasis = false});
 }
 
 /// Pulses continuously to draw the eye to the schedule, alongside the

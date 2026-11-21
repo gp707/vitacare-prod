@@ -12,7 +12,9 @@ import '../../../core/providers.dart';
 import '../../auth/state/session_notifier.dart';
 import '../../auth/state/session_state.dart';
 import '../../caregiver_profile/screens/caregiver_profile_view_screen.dart';
+import '../../individual/widgets/agreement_dialog.dart';
 import '../../individual/widgets/call_tap.dart';
+import '../widgets/salary_range_input.dart';
 import 'post_organisation_requirement_screen.dart';
 import 'edit_organisation_requirement_screen.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
@@ -77,14 +79,58 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
   Future<void> _accept(String requirementId, String applicationId) async {
     Analytics.tap('organisation', 'requirements_posted', 'accept_candidate');
     setState(() => _decidingApplicationId.add(applicationId));
+    var accepted = false;
     try {
       await ref.read(organisationRepositoryProvider).decideApplication(requirementId, applicationId, 'accepted');
       await _load();
+      accepted = true;
     } on ApiException catch (e) {
       if (mounted) showVitaErrorBanner(context, e.message);
     } finally {
       if (mounted) setState(() => _decidingApplicationId.remove(applicationId));
     }
+    // Right after hiring: the popup for the final salary and start date ("Fill later" skips it; the
+    // accepted candidate's tile then has a button to do it any time).
+    if (accepted && mounted) await _openAgreement(requirementId, applicationId);
+  }
+
+  /// The popup to enter / change the final salary and start date agreed with an accepted caregiver.
+  Future<void> _openAgreement(String requirementId, String applicationId) async {
+    final requirement = _requirements.where((r) => r.id == requirementId).firstOrNull;
+    final application = (_applicationsByRequirementId[requirementId] ?? const []).where((a) => a.id == applicationId).firstOrNull;
+    if (requirement == null || application == null) return;
+    Analytics.tap('organisation', 'requirements_posted', 'agreement_open');
+    final saved = await showAgreementDialog(
+      context,
+      caregiverName: application.fullName,
+      defaultUnit: requirement.salaryUnit ?? 'monthly',
+      initialSalary: application.agreedSalary,
+      initialSalaryUnit: application.agreedSalaryUnit,
+      initialStartDate: application.agreedStartDate,
+      forOrganisation: true,
+      onSubmit: (salary, salaryUnit, startDate) => ref
+          .read(organisationRepositoryProvider)
+          .setAgreement(requirementId, applicationId, salary: salary, salaryUnit: salaryUnit, startDate: startDate),
+    );
+    if (saved && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent to ${application.fullName}.')));
+      await _load();
+    }
+  }
+
+  /// Set or change the salary range of a requirement — allowed at any time, even with applicants.
+  Future<void> _editSalaryRange(OrganisationRequirementModel requirement) async {
+    Analytics.tap('organisation', 'requirements_posted', 'edit_salary_range');
+    final saved = await showSalaryRangeSheet(
+      context,
+      initialMin: requirement.salaryMin,
+      initialMax: requirement.salaryMax,
+      initialUnit: requirement.salaryUnit,
+      onSave: (min, max, unit) => ref
+          .read(organisationRepositoryProvider)
+          .setSalaryRange(requirement.id, salaryMin: min, salaryMax: max, salaryUnit: unit),
+    );
+    if (saved && mounted) await _load();
   }
 
   /// A reason is mandatory (JOB_012 is the server-side backstop) — the
@@ -282,6 +328,8 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
                           onAccept: (applicationId) => _accept(requirement.id, applicationId),
                           onReject: (applicationId) => _rejectWithReason(requirement.id, applicationId),
                           onViewProfile: (applicationId) => _viewProfile(requirement.id, applicationId),
+                          onSetAgreement: (applicationId) => _openAgreement(requirement.id, applicationId),
+                          onEditSalaryRange: () => _editSalaryRange(requirement),
                           onEdit: () => _editRequirement(requirement),
                           onCancel: () => _cancelRequirement(requirement),
                           onReactivate: () => _reactivateRequirement(requirement),
@@ -458,6 +506,10 @@ class _RequirementFullDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              if (salaryRangeLabel(requirement) != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                IconField(icon: Icons.payments_outlined, text: 'Salary range: ${salaryRangeLabel(requirement)}'),
+              ],
               if (requirement.specialSkills != null && requirement.specialSkills!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
                 const Text(
@@ -483,6 +535,8 @@ class _RequirementCard extends StatelessWidget {
   final void Function(String applicationId) onAccept;
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
+  final void Function(String applicationId) onSetAgreement;
+  final VoidCallback onEditSalaryRange;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
   final VoidCallback onReactivate;
@@ -495,6 +549,8 @@ class _RequirementCard extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onSetAgreement,
+    required this.onEditSalaryRange,
     required this.onEdit,
     required this.onCancel,
     required this.onReactivate,
@@ -671,6 +727,32 @@ class _RequirementCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
+          // The salary range, always editable — even when the rest of the requirement is locked
+          // because caregivers have applied.
+          Row(
+            key: const Key('salary-range-row'),
+            children: [
+              const Icon(Icons.payments_outlined, size: 18, color: AppColors.primaryDark),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  salaryRangeLabel(requirement) ?? 'Salary range not set',
+                  key: const Key('salary-range-text'),
+                  style: TextStyle(
+                    fontWeight: requirement.hasSalaryRange ? FontWeight.bold : FontWeight.normal,
+                    color: requirement.hasSalaryRange ? AppColors.textPrimary : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              TextButton(
+                key: const Key('edit-salary-range'),
+                onPressed: onEditSalaryRange,
+                style: TextButton.styleFrom(minimumSize: Size.zero, padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm)),
+                child: Text(requirement.hasSalaryRange ? 'Edit' : 'Add'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
           // Pushes a dedicated full-screen page rather than showing the
           // special skills text inline — it can be a genuinely long
           // free-text block (up to Validation.specialSkillsMaxLength
@@ -723,6 +805,7 @@ class _RequirementCard extends StatelessWidget {
                   onAccept: () => onAccept(application.id),
                   onReject: () => onReject(application.id),
                   onViewProfile: () => onViewProfile(application.id),
+                  onSetAgreement: () => onSetAgreement(application.id),
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
@@ -741,6 +824,7 @@ class _ApplicantTile extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
+  final VoidCallback onSetAgreement;
 
   const _ApplicantTile({
     required this.application,
@@ -750,6 +834,7 @@ class _ApplicantTile extends StatelessWidget {
     required this.onAccept,
     required this.onReject,
     required this.onViewProfile,
+    required this.onSetAgreement,
   });
 
   bool get _isAccepted => application.status == JobApplicationStatus.accepted;
@@ -769,6 +854,45 @@ class _ApplicantTile extends StatelessWidget {
     if (_isApplied) return AppColors.warning;
     if (_isRejected) return AppColors.error;
     return AppColors.textSecondary;
+  }
+
+  /// The final salary and start date agreed with this accepted caregiver — on one line — and the
+  /// button to enter or change them (only an accepted caregiver can have them changed).
+  Widget _buildAgreement() {
+    final salary = application.agreedSalary;
+    final startDate = application.agreedStartDate;
+    final has = salary != null && startDate != null;
+    final unit = application.agreedSalaryUnit == 'daily' ? 'day' : 'month';
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (has)
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Agreed salary: ₹${formatRupees(salary)} per $unit  ·  Starts ${formatLongDate(startDate)}',
+                key: Key('agreement-line-${application.id}'),
+                softWrap: false,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            )
+          else
+            const Text('Salary and start date not entered yet',
+                style: TextStyle(color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+          const SizedBox(height: AppSpacing.xs),
+          OutlinedButton.icon(
+            key: Key('agreement-button-${application.id}'),
+            onPressed: onSetAgreement,
+            style: _compactButtonStyle,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: Text(has ? 'Edit salary and start date' : 'Enter salary and start date'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -839,6 +963,7 @@ class _ApplicantTile extends StatelessWidget {
                 ),
             ],
           ),
+          if (_isAccepted && !isDeciding) _buildAgreement(),
           const SizedBox(height: 2),
           // The full per-transition log — actor, action, date/time, and
           // reason (if any) — not just the bare current status word.
@@ -986,6 +1111,14 @@ class _ApplicantTimelineState extends State<_ApplicantTimeline> {
       final at = DateTime.parse(application.reappliedAt!).toLocal();
       entries.add(MapEntry(at, 'Re-applied: ${_formatDateTime(at)}'));
     }
+    // Every time the salary and start date were entered or changed: the first is "entered", later ones
+    // "changed", each with the figures.
+    for (var i = 0; i < application.agreementHistory.length; i++) {
+      final change = application.agreementHistory[i];
+      final at = DateTime.parse(change.at).toLocal();
+      final verb = i == 0 ? 'entered' : 'changed';
+      entries.add(MapEntry(at, 'Salary and start date $verb: ${_formatDateTime(at)}\n${change.summary}'));
+    }
     if (entries.isEmpty) return const SizedBox.shrink();
 
     // Newest first — the current status is the one worth seeing without
@@ -1020,14 +1153,20 @@ class _ApplicantTimelineState extends State<_ApplicantTimeline> {
         ),
         if (_expanded) ...[
           const SizedBox(height: 2),
-          for (final entry in entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                entry.value,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+          for (var i = 0; i < entries.length; i++) ...[
+            // A very light line between two entries.
+            if (i > 0)
+              Divider(
+                key: Key('org-log-separator-$i'),
+                height: 9,
+                thickness: 0.5,
+                color: AppColors.border.withValues(alpha: 0.6),
               ),
+            Text(
+              entries[i].value,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
             ),
+          ],
         ],
       ],
     );
