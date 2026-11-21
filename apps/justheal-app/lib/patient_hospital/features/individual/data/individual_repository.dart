@@ -153,12 +153,10 @@ class IndividualRepository {
   /// Cancels the caller's own requirement — allowed at any point in its
   /// lifecycle (pending_review, active, or already closed by an
   /// acceptance), regardless of whether anyone applied. JOB_015 if it's
-  /// already been admin-rejected or cancelled once already. Any still
-  /// applied/accepted application is bulk-rejected server-side with a
-  /// fixed reason, and an accepted caregiver is flipped back to
-  /// available. After this call the individual can no longer see who
-  /// applied on this requirement (see listApplications/getApplicantProfile
-  /// below). Not a dead end — see [reactivateRequirement].
+  /// already been admin-rejected or cancelled once already. Only the candidates
+  /// still waiting for a decision are rejected server-side (with a fixed reason);
+  /// a caregiver who was accepted keeps their status and stays assigned. The job
+  /// can be made live again at any time (see [makeLiveAgain]).
   Future<void> cancelRequirement(String jobId) async {
     try {
       await _dio.post(ApiRoutes.individualRequirementCancel(jobId));
@@ -178,24 +176,6 @@ class IndividualRepository {
   Future<void> makeLiveAgain(String jobId) async {
     try {
       await _dio.post(ApiRoutes.individualRequirementMakeLive(jobId));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Closes the job for good. Caregivers already accepted are not touched.
-  Future<void> permanentlyCancelRequirement(String jobId) async {
-    try {
-      await _dio.post(ApiRoutes.individualRequirementPermanentCancel(jobId));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  Future<JobModel> reactivateRequirement(String jobId) async {
-    try {
-      final res = await _dio.post(ApiRoutes.individualRequirementReactivate(jobId));
-      return JobModel.fromJson(res.data['data'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

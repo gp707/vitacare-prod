@@ -309,15 +309,7 @@ location) that didn't fit the Individual/admin jobs-table model.
   requirement per account, full stop. **No "Show Closed/Cancelled Requirements" toggle either** —
   that only ever made sense when an account could accumulate multiple past postings; now every
   requirement in history (0 or 1 in practice) is shown directly. A cancelled requirement is not a
-  dead end: `POST /individual/requirements/:jobId/reactivate` (`IndividualService
-  .reactivateRequirement`, mirrors `OrganisationRequirementsService.reactivateRequirement` —
-  `JobsRepository.activate()` flips `status` back to `active`, clears `cancelled_at`, bumps
-  `posted_at`, same as a repost) brings it back to active with no admin re-review needed (the
-  content was already vetted the first time it went live) — `JOB_017` if the requirement was never
-  cancelled (an admin-rejected one, `rejection_reason` set, can never be self-reactivated, same
-  asymmetry as cancel's own `JOB_015`), `JOB_010` if the account is job-posting-blocked. The
-  per-card "More options" menu shows **"Make Active Again"** instead of "Cancel the Job" once a
-  requirement is cancelled — the two are mutually exclusive, never both offered at once.
+  dead end: it can be made live again at any time (see "Job lifecycle for a patient/family" below — **"Make it live again"**, which replaced "Make Active Again").
 - **`JobsPostedScreen`'s requirement card is the only place a requirement is ever edited — every
   field is always shown, pre-filled, and directly editable right there.** The old "Show Full
   Details" collapse/expand toggle and the separate, full-screen `EditRequirementScreen` (reached
@@ -350,7 +342,7 @@ location) that didn't fit the Individual/admin jobs-table model.
   current state (every pending edit across every field at once) via one `editRequirement` call;
   each field's own cross only reverts that one field, leaving any other still-pending edits
   untouched. No form-wide "discard everything" action exists any more. The per-card "More options" menu
-  dropped its "Edit the Job" action entirely, now offering only Cancel/Make Active Again (see
+  dropped its "Edit the Job" action entirely, now offering only Cancel and Make it live again (see
   above). **Unlike every other field in this card, Salary is deliberately read-only — never a
   text field, no tick/cross controls of its own, on either this card or the registration form's
   own salary bar (`_buildSalaryBar()` in `registration_screen.dart`, "Registration IS posting"
@@ -504,25 +496,36 @@ location) that didn't fit the Individual/admin jobs-table model.
   and `salary_cycle_payments` (migrations 093/095, with their old rows — drop them in a later migration if you want), the unused error codes `JOB_024`–`JOB_028`/`JOB_033`–`JOB_035`
   and the audit actions `job_leave_updated`/`job_salary_paid` (old audit rows still use them). Migration 095 is applied in production but now unused. An accepted caregiver's agreement is
   kept through rejection/closed duty (feedback eligibility relies on it) and cleared only on a fresh re-accept.
+- **Activity log of salary / start date changes (migration 097 — written and validated in a rolled-back transaction, NOT yet applied; apply it BEFORE deploying this backend).** Every time the
+  patient enters or changes the agreed salary/start date, `JobApplicationsRepository.setAgreement` appends a row to `job_application_agreement_log` in the same statement as the update (a
+  concurrent reject writes neither); the migration backfills one starting row for each agreement that exists. The caregiver's own activity log shows them all, in the patient app
+  (`ApplicantTimeline`: "Salary and start date entered/changed: <time>" + "₹X per day|month, starts <date>") and in caregiver-app (`ApplicationTimeline`: "... by the family"): the first entry is
+  "entered", later ones "changed", newest first alongside accepted/rejected/etc. The payloads carry `agreement_history` (`agreementHistorySql`, both the patient's applicant list and the
+  caregiver's `my_application`); `AgreementChange` is in `vitacare_shared`. A re-acceptance clears the current agreement but keeps its history.
+- **Patient colours:** an accepted caregiver's card/tile is tinted with the green of the "Accepted" text (`AppColors.success` at 10%) and a rejected candidate's tile with the red of the Reject
+  button (`AppColors.error` at 10%, same tint as the button itself); a waiting candidate keeps its amber.
 - **WhatsApp next to every caregiver phone number (patient and organisation flows).** `PhoneContactRow` (`widgets/call_tap.dart`) shows the number (tap =
   `tel:` dialer) and a green **WhatsApp** chip (`WhatsAppTap`, opens `https://wa.me/<digits with country code>` through `phoneLauncherProvider`; if it can't
   open, a banner shows the number to message by hand). Used on the patient's accepted-caregiver card, candidate tiles, the caregiver salary page header,
   and the organisation's applicant tile; the profile page already had Call + WhatsApp buttons.
-- **Several accepted caregivers per job; "Make it live again" and "Permanently cancel" (migration 094).** The one-accepted-at-a-time rule is gone:
-  `JobsService.decideApplication` no longer throws `JOB_016` (code kept, unused), so each Accept closes the job again and a patient can accept
-  more caregivers; the patient UI offers Accept to every candidate not already accepted (not once permanently cancelled) and Reject to applied and
-  accepted ones. Because a job can now be live with accepted caregivers, `JobsService.applyToJob` refuses an already-accepted caregiver
-  (`JOB_032`, for apply or decline) so their acceptance can't be overwritten. The card's ⋮ menu, while a caregiver is accepted, replaces "Cancel
-  the Job" (which would reject people): **Make it live again** (only while the job is closed; `POST /individual/requirements/:jobId/make-live`,
-  `IndividualService.makeLiveAgain`: `activate()` + a "New Job" push, **nobody is rejected**; `JOB_031` already live, `JOB_029` permanently
-  cancelled, `JOB_015` cancelled/rejected, `JOB_010` blocked; the app confirms first) and **Permanently cancel** (`POST .../permanent-cancel`,
-  `permanentlyCancelRequirement`: sets `jobs.permanently_cancelled_at` and closes the job, **accepted caregivers are untouched**, waiting
-  candidates are told it's closed; needs an accepted caregiver `JOB_030`; `JOB_029` already; the app confirms: "will not go live again, cannot be
-  undone, accepted caregivers stay accepted"). A permanently cancelled job is never reopened automatically: `JobsRepository.reopen()` is guarded
-  (`permanently_cancelled_at IS NULL`, returns whether it reopened), so rejecting its caregiver or a caregiver's Close Duty leaves it closed (the
-  poster is not told "open again"); only admin's `activate()` clears the flag. Status pill: "Permanently cancelled — caregiver assigned"; both menu
-  items then show disabled. A live job with nobody accepted still shows "Cancel the Job" (reversible, rejects candidates); a cancelled one shows
-  "Make Active Again". Migrations 093 and 094 must be applied before this backend.
+- **Job lifecycle for a patient/family (2026-11-21) — cancel and make-live work at any time; "Permanently cancel" was REMOVED.** (SUPERSEDES the older cancel/"Make Active Again"/
+  one-accepted-at-a-time/permanent-cancel notes, including the "cancelling rejects everyone and hides applicants" text above.) A posting goes live after admin approval. Rules:
+  - **Cancel the Job** (`POST /individual/requirements/:jobId/cancel`, `IndividualService.cancelRequirement`) is allowed at any time — in review, live, or closed by an acceptance — except
+    once already cancelled or admin-rejected (`JOB_015`). It closes the job (`cancelled_at` set) and **rejects only the candidates still `applied`** (reason "This requirement was cancelled.",
+    pushed to them); **an accepted caregiver keeps their status and stays assigned** (no `markAvailable`, no push). Response: `{rejected_applications, accepted_kept}`.
+  - **Make it live again** (`POST .../make-live`, `IndividualService.makeLiveAgain`) works on ANY closed job — closed by an acceptance or cancelled — except an admin-rejected one (`JOB_015`);
+    `JOB_031` if it is already live or still in review, `JOB_010` while posting is blocked. It clears `cancelled_at`, bumps `posted_at`, pushes "New Job" and **rejects nobody**; candidates
+    rejected by an earlier cancel can apply again. The old `POST .../reactivate` endpoint still exists server-side for older app builds; the app no longer calls it.
+  - **Accepting a candidate closes the job automatically**; the patient can make it live again without rejecting anyone, so a job (and patient) can hold **several accepted caregivers** (no
+    `JOB_016` limit; `JOB_032` stops an already-accepted caregiver applying/declining). A caregiver's Close Duty or an un-accept reopens the job (`JobsRepository.reopen`).
+  - A **cancelled job still returns and shows its applications** (accepted caregivers stay visible with their cards; earlier-rejected ones sit under "Rejected candidates"); nobody can be
+    accepted while it is cancelled (the app hides Accept; the server does not enforce this).
+  - Patient card menu (`_RequirementCard`): admin-rejected -> disabled "Cancel the Job (Unavailable)"; closed -> **Make it live again**; not cancelled -> **Cancel the Job**. Status pill:
+    "Pending admin review" / "Live — visible to caregivers" / "Closed — caregiver assigned" / "Cancelled" / "Cancelled — caregiver assigned" / "Rejected". The cancel dialog says waiting candidates are
+    rejected, accepted ones stay, and the job can be made live again at any time.
+  - Removed: `POST .../permanent-cancel`, `JobsRepository.permanentlyCancel`, the `reopen()` guard, `JobModel.permanentlyCancelledAt`. The `jobs.permanently_cancelled_at` column (migration 094)
+    stays but nothing sets it and `activate()` clears it; error codes `JOB_029`/`JOB_030` are unused.
+
 - **Post a Requirement / Register forms use the same "always-tappable submit, highlight-and-scroll
   on invalid" pattern as admin-web's job-posting form** (see "Naming Conventions"/admin-web's
   `AdminJobsScreen` for the original): the submit button is never disabled; tapping it with a

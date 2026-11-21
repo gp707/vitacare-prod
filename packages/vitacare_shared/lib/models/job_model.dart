@@ -1,6 +1,37 @@
 import 'applicant_summary.dart';
 import 'care_receiver_model.dart';
 import 'feedback_model.dart';
+import 'salary_due.dart';
+
+/// One entry of the agreed salary / start date history: the patient/family entered it, or
+/// changed it later. Both people's activity log lists every one, so nothing is lost when it
+/// is edited.
+class AgreementChange {
+  final int salary;
+  /// 'daily' or 'monthly'.
+  final String unit;
+  /// YYYY-MM-DD.
+  final String startDate;
+  /// When it was entered or changed (ISO timestamp).
+  final String at;
+
+  const AgreementChange({required this.salary, required this.unit, required this.startDate, required this.at});
+
+  factory AgreementChange.fromJson(Map<String, dynamic> json) => AgreementChange(
+        salary: (json['salary'] as num).toInt(),
+        unit: json['unit'] as String,
+        startDate: json['start_date'] as String,
+        at: json['at'] as String,
+      );
+
+  /// "₹30,000 per month, starts 1 Nov 2026".
+  String get summary => '₹${formatRupees(salary)} per ${unit == 'daily' ? 'day' : 'month'}, starts ${formatLongDate(startDate)}';
+}
+
+/// Parses the API's `agreement_history` tolerantly (oldest first).
+List<AgreementChange> parseAgreementHistory(Object? json) => json is List
+    ? json.map((e) => AgreementChange.fromJson(e as Map<String, dynamic>)).toList()
+    : const <AgreementChange>[];
 
 /// The posting admin's contact info — only ever present on
 /// GET /caregiver/jobs/assigned, once the caregiver has actually been
@@ -63,6 +94,8 @@ class MyApplicationModel {
   /// Feedback this caregiver wrote about the family / the family wrote about them (null if none).
   final FeedbackModel? myFeedback;
   final FeedbackModel? theirFeedback;
+  /// Every entry/change of the agreed salary and start date, oldest first.
+  final List<AgreementChange> agreementHistory;
 
   const MyApplicationModel({
     required this.status,
@@ -79,6 +112,7 @@ class MyApplicationModel {
     this.agreedStartDate,
     this.myFeedback,
     this.theirFeedback,
+    this.agreementHistory = const [],
   });
 
   factory MyApplicationModel.fromJson(Map<String, dynamic> json) => MyApplicationModel(
@@ -96,6 +130,7 @@ class MyApplicationModel {
         agreedStartDate: json['agreed_start_date'] as String?,
         myFeedback: FeedbackModel.tryParse(json['my_feedback']),
         theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
+        agreementHistory: parseAgreementHistory(json['agreement_history']),
       );
 }
 
@@ -153,9 +188,6 @@ class JobModel {
   /// requirement — distinct from [rejectionReason] (admin) and a plain
   /// close (filled). See [isCancelled].
   final String? cancelledAt;
-  /// Set when the patient permanently cancels: the job never goes live again, but the
-  /// caregivers already accepted are untouched. See [isPermanentlyCancelled].
-  final String? permanentlyCancelledAt;
   /// Only present on admin-facing responses (via a users join) — the
   /// poster's role/name, e.g. 'individual' for a NurseNow patient/family
   /// posting vs 'admin'/'super_admin' for admin's own. Null on
@@ -201,7 +233,6 @@ class JobModel {
     this.jobPoster,
     this.rejectionReason,
     this.cancelledAt,
-    this.permanentlyCancelledAt,
     this.postedByRole,
     this.postedByName,
     this.postedByPhone,
@@ -242,7 +273,6 @@ class JobModel {
             : JobPosterModel.fromJson(json['job_poster'] as Map<String, dynamic>),
         rejectionReason: json['rejection_reason'] as String?,
         cancelledAt: json['cancelled_at'] as String?,
-        permanentlyCancelledAt: json['permanently_cancelled_at'] as String?,
         postedByRole: json['posted_by_role'] as String?,
         postedByName: json['posted_by_name'] as String?,
         postedByPhone: json['posted_by_phone'] as String?,
@@ -257,7 +287,6 @@ class JobModel {
   /// — always implies [status] is 'closed', but distinct from a plain
   /// close (filled) or an admin rejection ([rejectionReason] set).
   bool get isCancelled => cancelledAt != null;
-  bool get isPermanentlyCancelled => permanentlyCancelledAt != null;
 }
 
 /// Human-friendly display id for a job — "ADMIN-JOB-<n>" or "PAT-JOB-<n>"
@@ -320,6 +349,8 @@ class JobApplicationModel {
   /// Feedback the patient/family wrote about this caregiver / the caregiver wrote about them.
   final FeedbackModel? myFeedback;
   final FeedbackModel? theirFeedback;
+  /// Every entry/change of the agreed salary and start date, oldest first.
+  final List<AgreementChange> agreementHistory;
   final String updatedAt;
 
   const JobApplicationModel({
@@ -343,6 +374,7 @@ class JobApplicationModel {
     this.agreedStartDate,
     this.myFeedback,
     this.theirFeedback,
+    this.agreementHistory = const [],
     required this.updatedAt,
   });
 
@@ -367,6 +399,7 @@ class JobApplicationModel {
         agreedStartDate: json['agreed_start_date'] as String?,
         myFeedback: FeedbackModel.tryParse(json['my_feedback']),
         theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
+        agreementHistory: parseAgreementHistory(json['agreement_history']),
         updatedAt: json['updated_at'] as String,
       );
 }

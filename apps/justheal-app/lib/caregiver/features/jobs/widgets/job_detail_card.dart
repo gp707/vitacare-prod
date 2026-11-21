@@ -809,6 +809,14 @@ class _ApplicationTimelineState extends State<ApplicationTimeline> {
       }
       entries.add(MapEntry(at, text));
     }
+    // Every time the family entered or changed the salary and start date, so an edit never
+    // overwrites the story: the first entry is "entered", the rest are "changed".
+    for (var i = 0; i < application.agreementHistory.length; i++) {
+      final change = application.agreementHistory[i];
+      final at = DateTime.parse(change.at).toLocal();
+      final verb = i == 0 ? 'entered' : 'changed';
+      entries.add(MapEntry(at, 'Salary and start date $verb by the family: ${formatDateTime(at)}\n${change.summary}'));
+    }
     if (entries.isEmpty) return const SizedBox.shrink();
 
     // Newest first — the current status is the one worth seeing without

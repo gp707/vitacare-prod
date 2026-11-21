@@ -245,9 +245,10 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Make it live again?'),
-        content: const Text(
+        content: Text(
           'Caregivers will see this job again and can apply. '
-          'Caregivers you have already accepted stay accepted.',
+          'Caregivers you have already accepted stay accepted.'
+          '${requirement.isCancelled ? ' Candidates who were rejected when you cancelled can apply again.' : ''}',
         ),
         actions: [
           TextButton(
@@ -275,54 +276,16 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
-  /// "Permanently cancel": the job is closed for good and never goes live again.
-  /// Caregivers already accepted are NOT touched.
-  Future<void> _permanentlyCancel(JobModel requirement) async {
-    Analytics.tap('individual', 'requirement_posted', 'permanently_cancel');
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Permanently cancel this job?'),
-        content: const Text(
-          'The job will not go live again, and this cannot be undone. '
-          'Caregivers you have already accepted are not affected and stay accepted.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep the job'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Permanently cancel', style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await ref.read(individualRepositoryProvider).permanentlyCancelRequirement(requirement.id);
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('The job was permanently cancelled. Your accepted caregivers are not affected.')),
-        );
-      }
-    } on ApiException catch (e) {
-      if (mounted) showVitaErrorBanner(context, e.message);
-    }
-  }
-
   Future<void> _cancelRequirement(JobModel requirement) async {
     Analytics.tap('individual', 'requirement_posted', 'cancel_requirement');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancel this requirement?'),
+        title: const Text('Cancel this job?'),
         content: const Text(
-          'Any candidates who applied or were accepted will have their application declined as '
-          "cancelled, and you won't be able to see who applied afterward. You can make this "
-          'requirement active again later, but today\'s applicant list will not come back.',
+          'The job will be closed and caregivers will no longer see it. Candidates who applied '
+          'but are not accepted will be rejected. Caregivers you have already accepted stay '
+          'accepted. You can make the job live again at any time.',
         ),
         actions: [
           TextButton(
@@ -350,23 +313,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     }
   }
 
-  /// Brings a cancelled requirement back to active — no confirmation
-  /// dialog needed (unlike cancel, this isn't destructive), matching
-  /// Organisation's own "Unhide and Make it Live" action.
-  Future<void> _reactivateRequirement(JobModel requirement) async {
-    Analytics.tap('individual', 'requirement_posted', 'make_active_again');
-    try {
-      await ref
-          .read(individualRepositoryProvider)
-          .reactivateRequirement(requirement.id);
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) {
-        showVitaErrorBanner(context, e.message);
-      }
-    }
-  }
-
   /// An individual account only ever has one requirement in its whole
   /// history (see "Registration IS posting" in CLAUDE.md), so there is no
   /// reason to hide anything behind a toggle — every requirement found is
@@ -386,8 +332,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
       onLeaveFeedback: (applicationId) => _leaveFeedback(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
       onMakeLive: () => _makeLiveAgain(requirement),
-      onPermanentCancel: () => _permanentlyCancel(requirement),
-      onReactivate: () => _reactivateRequirement(requirement),
       onSaved: _load,
     );
   }
@@ -459,8 +403,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onLeaveFeedback;
   final VoidCallback onCancel;
   final VoidCallback onMakeLive;
-  final VoidCallback onPermanentCancel;
-  final VoidCallback onReactivate;
   final VoidCallback onSaved;
 
   const _RequirementCard({
@@ -474,8 +416,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onLeaveFeedback,
     required this.onCancel,
     required this.onMakeLive,
-    required this.onPermanentCancel,
-    required this.onReactivate,
     required this.onSaved,
   });
 
@@ -1031,17 +971,14 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   bool get _hasAcceptedApplicant =>
       widget.applications.any((a) => a.status == JobApplicationStatus.accepted);
 
-  /// Mirrors the backend's own JOB_015 check — cancellable at any point in
-  /// the lifecycle except once it's already been terminated some other
-  /// way (admin-rejected or already cancelled once).
-  bool get _canCancel =>
-      !widget.requirement.isCancelled &&
-      widget.requirement.rejectionReason == null;
+  /// A job can be cancelled at any time (pending review, live, or closed by an acceptance) unless it was
+  /// already cancelled or the admin rejected it (mirrors the backend's JOB_015).
+  bool get _canCancel => !widget.requirement.isCancelled && widget.requirement.rejectionReason == null;
 
-  /// Mirrors the backend's own JOB_017 check — only a requirement this
-  /// account cancelled itself can be self-reactivated; an admin-rejected
-  /// one never can (same asymmetry as _canCancel above).
-  bool get _canReactivate => widget.requirement.isCancelled;
+  /// Any closed job can be put back live — closed by an acceptance or cancelled — unless the admin
+  /// rejected it (mirrors the backend's JOB_015).
+  bool get _canMakeLive =>
+      widget.requirement.status == JobStatus.closed && widget.requirement.rejectionReason == null;
 
   /// Mirrors the backend's own JOB_014 check (job_applications.status IN
   /// ('applied', 'accepted')) — editing is blocked once a caregiver has
@@ -1060,11 +997,10 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       case JobStatus.active:
         return 'Live — visible to caregivers';
       case JobStatus.closed:
-        if (widget.requirement.isCancelled) return 'Cancelled';
-        if (widget.requirement.rejectionReason != null) return 'Rejected';
-        if (widget.requirement.isPermanentlyCancelled) {
-          return _hasAcceptedApplicant ? 'Permanently cancelled — caregiver assigned' : 'Permanently cancelled';
+        if (widget.requirement.isCancelled) {
+          return _hasAcceptedApplicant ? 'Cancelled — caregiver assigned' : 'Cancelled';
         }
+        if (widget.requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
       default:
         return widget.requirement.status;
@@ -1106,40 +1042,18 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     // is cancelled — cancelling an already-cancelled one makes no sense,
     // but bringing it back does.
     final menuActions = <_MenuAction>[
-      if (widget.requirement.isPermanentlyCancelled) ...[
-        // Permanently cancelled: nothing can put it back, and nothing here touches the
-        // caregivers already accepted.
-        _MenuAction(label: 'Make it live again (Unavailable)', enabled: false, onSelected: widget.onMakeLive),
-        _MenuAction(label: 'Permanently cancelled', enabled: false, onSelected: widget.onPermanentCancel),
-      ] else if (widget.requirement.isCancelled)
-        _MenuAction(
-          label: 'Make Active Again',
-          enabled: _canReactivate,
-          onSelected: widget.onReactivate,
-        )
-      else if (_hasAcceptedApplicant && _canCancel) ...[
-        // A caregiver is accepted. "Cancel the Job" would reject them, which is not what
-        // the patient wants here: either put the job back up (nobody is rejected) while
-        // it is closed, or close it for good (nobody is rejected either).
-        if (widget.requirement.status == JobStatus.closed)
-          _MenuAction(
-            label: 'Make it live again',
-            enabled: true,
-            onSelected: widget.onMakeLive,
-          ),
-        _MenuAction(
-          label: 'Permanently cancel',
-          enabled: true,
-          destructive: true,
-          onSelected: widget.onPermanentCancel,
-        ),
-      ] else
-        _MenuAction(
-          label: _canCancel ? 'Cancel the Job' : 'Cancel the Job (Unavailable)',
-          enabled: _canCancel,
-          destructive: true,
-          onSelected: widget.onCancel,
-        ),
+      if (!_canCancel && !_canMakeLive)
+        // Admin-rejected: the patient can neither cancel nor revive it.
+        _MenuAction(label: 'Cancel the Job (Unavailable)', enabled: false, destructive: true, onSelected: widget.onCancel)
+      else ...[
+        // Closed — because a caregiver was accepted, or because the patient cancelled — can
+        // be made live again at any time; nobody already accepted is ever rejected by it.
+        if (_canMakeLive) _MenuAction(label: 'Make it live again', enabled: true, onSelected: widget.onMakeLive),
+        // Live (or still in review, or closed by an acceptance) can be cancelled at any time:
+        // candidates still waiting are rejected, accepted caregivers are left alone.
+        if (_canCancel)
+          _MenuAction(label: 'Cancel the Job', enabled: true, destructive: true, onSelected: widget.onCancel),
+      ],
     ];
 
     return Container(
@@ -1264,15 +1178,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
           // admin-unapproved posting was never visible to caregivers, so
           // it can't have any applicants yet).
           if (requirement.status != JobStatus.pendingReview) ...[
-            if (requirement.isCancelled)
-              const Text(
-                'This requirement was cancelled. Candidate applications are no longer available.',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontStyle: FontStyle.italic),
-              )
-            else
-              _ApplicantsSection(
+            _ApplicantsSection(
                 applications: widget.applications,
                 decidingApplicationId: widget.decidingApplicationId,
                 onAccept: widget.onAccept,
@@ -1280,7 +1186,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
                 onLeaveFeedback: widget.onLeaveFeedback,
-                permanentlyCancelled: widget.requirement.isPermanentlyCancelled,
+                jobCancelled: widget.requirement.isCancelled,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
@@ -1949,8 +1855,8 @@ class _ApplicantsSection extends StatefulWidget {
   final void Function(String applicationId) onSetAgreement;
   final void Function(String applicationId) onLeaveFeedback;
   final String perUnit;
-  /// Whether the job was permanently cancelled (nobody else can be accepted).
-  final bool permanentlyCancelled;
+  /// Whether the patient cancelled the job (nobody can be accepted until it is made live again).
+  final bool jobCancelled;
 
   const _ApplicantsSection({
     required this.applications,
@@ -1961,7 +1867,7 @@ class _ApplicantsSection extends StatefulWidget {
     required this.onSetAgreement,
     required this.onLeaveFeedback,
     required this.perUnit,
-    required this.permanentlyCancelled,
+    required this.jobCancelled,
   });
 
   @override
@@ -1981,7 +1887,7 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
         // Several caregivers can be accepted on one job, so anyone not already
         // accepted can be accepted — "Accept Anyway" for a previously rejected or
         // completed candidate. Not once the job is permanently cancelled.
-        canAccept: application.status != JobApplicationStatus.accepted && !widget.permanentlyCancelled,
+        canAccept: application.status != JobApplicationStatus.accepted && !widget.jobCancelled,
         // An undecided candidate can always be declined; an accepted one can always
         // be rejected (ending that engagement).
         canReject: application.status == JobApplicationStatus.applied ||
@@ -2230,22 +2136,22 @@ class _ApplicantTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
+        // Accepted = the green of the "Accepted" text; rejected = the red of the Reject button
+        // (same 10% tint), so a decided candidate reads at a glance.
         color: _isAccepted
-            ? AppColors.success.withValues(alpha: 0.08)
+            ? AppColors.success.withValues(alpha: 0.1)
             : _isApplied
                 ? AppColors.warning.withValues(alpha: 0.08)
-                : (_isRejected
-                    ? AppColors.textSecondary.withValues(alpha: 0.05)
-                    : null),
+                : (_isRejected ? AppColors.error.withValues(alpha: 0.1) : null),
         // Amber/highlighted with a wider border — a candidate waiting on a
         // decision stands out from a plain grey/green/red decided tile at
         // a glance.
         border: Border.all(
           color: _isApplied
               ? AppColors.warning
-              : ((_statusColor == AppColors.textSecondary || _isRejected)
-                  ? AppColors.border
-                  : _statusColor),
+              : _isRejected
+                  ? AppColors.error.withValues(alpha: 0.45)
+                  : (_statusColor == AppColors.textSecondary ? AppColors.border : _statusColor),
           width: _isApplied ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(AppSpacing.sm),

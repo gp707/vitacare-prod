@@ -334,11 +334,16 @@ export class IndividualService {
     }
 
     const activeApplications = await this.jobApplicationsRepo.findActiveForJob(jobId);
+    // Cancelling closes the job and rejects only the candidates still waiting for a decision.
+    // A caregiver already accepted keeps their status (and stays assigned): the patient can
+    // make the job live again at any time and can have several accepted caregivers.
+    const waiting = activeApplications.filter((a) => a.status === JobApplicationStatus.APPLIED);
+    const keptAccepted = activeApplications.length - waiting.length;
     // Looked up now: cancelling rejects every one of these applications.
-    const affectedCaregivers = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied', 'accepted']);
+    const affectedCaregivers = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied']);
 
     await this.db.withTransaction(async (client) => {
-      for (const application of activeApplications) {
+      for (const application of waiting) {
         await this.jobApplicationsRepo.decide(
           application.id,
           JobApplicationStatus.REJECTED,
@@ -346,9 +351,6 @@ export class IndividualService {
           client,
           'This requirement was cancelled.',
         );
-        if (application.status === JobApplicationStatus.ACCEPTED) {
-          await this.caregiverProfilesRepo.markAvailable(application.profile_id, client);
-        }
       }
       await this.jobsRepo.cancel(jobId, client);
     });
@@ -360,11 +362,21 @@ export class IndividualService {
       entityType: 'jobs',
       entityId: jobId,
       beforeValue: { status: existing.status },
-      afterValue: { status: 'closed', cancelled: true, rejected_applications: activeApplications.length },
+      afterValue: {
+        status: 'closed',
+        cancelled: true,
+        rejected_applications: waiting.length,
+        accepted_kept: keptAccepted,
+      },
       ipAddress,
     });
 
-    return { message: 'Requirement cancelled', status: 'closed', rejected_applications: activeApplications.length };
+    return {
+      message: 'Requirement cancelled',
+      status: 'closed',
+      rejected_applications: waiting.length,
+      accepted_kept: keptAccepted,
+    };
   }
 
   /** Self-service — brings a requirement the individual previously
@@ -412,16 +424,17 @@ export class IndividualService {
     return job;
   }
 
-  /** "Make it live again": a closed job (a caregiver is accepted) goes back in
-   *  front of caregivers WITHOUT touching anyone already accepted or applied. Fresh
-   *  posted_at and a "New Job" push, same as a repost. JOB_015 for a cancelled or
-   *  admin-rejected requirement (use Make Active Again / not possible), JOB_029 once
-   *  permanently cancelled, JOB_031 if it is already live, JOB_010 while blocked. */
+  /** "Make it live again": any closed job — closed because a caregiver was accepted, or cancelled by
+   *  the patient — goes back in front of caregivers WITHOUT touching anyone already accepted or
+   *  applied (a cancel only ever rejected the candidates still waiting; they can apply again). Fresh
+   *  posted_at and a "New Job" push, same as a repost. JOB_015 for an admin-rejected requirement,
+   *  JOB_031 if it is already live (or still awaiting review), JOB_010 while posting is blocked. */
   async makeLiveAgain(userId: string, jobId: string, ipAddress: string | null) {
     const existing = await this.jobsRepo.findById(jobId);
     if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
-    if (existing.cancelled_at != null || existing.rejection_reason != null) throw new AppException('JOB_015');
-    if (existing.permanently_cancelled_at != null) throw new AppException('JOB_029');
+    // Any closed job can be put back up — closed by an acceptance or cancelled by the patient — except one the
+    // admin rejected. Nobody already accepted is rejected; earlier-rejected candidates can apply again.
+    if (existing.rejection_reason != null) throw new AppException('JOB_015');
     if (existing.status !== JobStatus.CLOSED) throw new AppException('JOB_031');
 
     const profile = await this.individualProfilesRepo.findByUserId(userId);
@@ -446,37 +459,6 @@ export class IndividualService {
     });
 
     return job;
-  }
-
-  /** "Permanently cancel": the job is closed for good and never goes live again,
-   *  and the caregivers already accepted are NOT touched (they stay accepted, with
-   *  their agreement, leave and pay). Candidates still waiting (applied) are told
-   *  the job is no longer taking applications. Needs at least one accepted
-   *  caregiver (JOB_030); JOB_015 / JOB_029 when already cancelled, rejected or
-   *  permanently cancelled. */
-  async permanentlyCancelRequirement(userId: string, jobId: string, ipAddress: string | null) {
-    const existing = await this.jobsRepo.findById(jobId);
-    if (!existing || existing.posted_by !== userId) throw new AppException('GEN_002');
-    if (existing.cancelled_at != null || existing.rejection_reason != null) throw new AppException('JOB_015');
-    if (existing.permanently_cancelled_at != null) throw new AppException('JOB_029');
-    if (!(await this.jobApplicationsRepo.findAcceptedForJob(jobId))) throw new AppException('JOB_030');
-
-    const waiting = await this.jobApplicationsRepo.listApplicantUsers(jobId, ['applied']);
-    const job = await this.jobsRepo.permanentlyCancel(jobId);
-    if (!job) throw new AppException('JOB_015');
-    void this.notificationsService.jobNoLongerOpen(waiting, jobDisplayId(existing));
-
-    await this.auditService.log({
-      userId,
-      action: AuditAction.JOB_CLOSED,
-      entityType: 'jobs',
-      entityId: jobId,
-      beforeValue: { status: existing.status },
-      afterValue: { status: 'closed', permanently_cancelled: true },
-      ipAddress,
-    });
-
-    return { message: 'Requirement permanently cancelled', status: job.status, permanently_cancelled: true };
   }
 
   /** Full history (durable — a closed/rejected requirement stays visible,
@@ -608,7 +590,6 @@ export class IndividualService {
   async getMyRequirementApplications(userId: string, jobId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
-    if (job.cancelled_at != null) return [];
     return this.jobApplicationsRepo.findByJobId(jobId);
   }
 
@@ -623,7 +604,6 @@ export class IndividualService {
   async getApplicantProfile(userId: string, jobId: string, applicationId: string) {
     const job = await this.jobsRepo.findById(jobId);
     if (!job || job.posted_by !== userId) throw new AppException('GEN_002');
-    if (job.cancelled_at != null) throw new AppException('GEN_002');
     const application = await this.jobApplicationsRepo.findById(applicationId);
     if (!application || application.job_id !== jobId) throw new AppException('GEN_002');
     return this.caregiverService.getApplicantProfile(application.profile_id);

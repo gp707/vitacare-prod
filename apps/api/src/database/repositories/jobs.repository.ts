@@ -1,3 +1,4 @@
+import { agreementHistorySql } from './agreement-log.sql';
 import { feedbackSql } from './engagement-feedback.sql';
 import { Injectable } from '@nestjs/common';
 import {
@@ -49,7 +50,7 @@ export interface JobRecord {
    *  Once set, the individual's own view of past applicants/phone numbers
    *  is hidden (see IndividualService.getMyRequirementApplications). */
   cancelled_at: Date | null;
-  /** Set when the patient permanently cancels: never goes live again, and the accepted caregiver is untouched (migration 094). */
+  /** LEGACY (migration 094): the "permanently cancel" feature was removed. Nothing sets this any more and making a job live clears it. */
   permanently_cancelled_at: Date | null;
   /** Effective "went live" timestamp — starts equal to created_at, bumped
    *  to NOW() only when a closed job is edited-and-reposted. The 3-day
@@ -107,6 +108,8 @@ export interface MyApplicationSummary {
   agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;
   /** Feedback this person wrote / that the other side wrote about them (migration 096), or null. */
+  /** Every entry/change of the agreed salary and start date, oldest first (migration 097). */
+  agreement_history: { salary: number; unit: 'daily' | 'monthly'; start_date: string; at: string }[];
   my_feedback: { rating: number; comment: string | null; created_at: string } | null;
   their_feedback: { rating: number; comment: string | null; created_at: string } | null;
 }
@@ -531,6 +534,7 @@ export class JobsRepository {
              'agreed_salary', ja.agreed_salary,
              'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date,
+             'agreement_history', ${agreementHistorySql('ja')},
              'my_feedback', ${feedbackSql('ja', 'caregiver')},
              'their_feedback', ${feedbackSql('ja', 'individual')}
          ) AS my_application,
@@ -572,6 +576,7 @@ export class JobsRepository {
              'agreed_salary', ja.agreed_salary,
              'agreed_salary_unit', ja.agreed_salary_unit,
              'agreed_start_date', ja.agreed_start_date,
+             'agreement_history', ${agreementHistorySql('ja')},
              'my_feedback', ${feedbackSql('ja', 'caregiver')},
              'their_feedback', ${feedbackSql('ja', 'individual')}
          ) AS my_application,
@@ -626,30 +631,15 @@ export class JobsRepository {
   }
 
   /** Puts a closed job back in front of caregivers (the caregiver was un-accepted
-   *  or closed duty). A permanently cancelled job is never reopened this way.
+   *  or closed duty).
    *  Returns whether it actually reopened. */
   async reopen(id: string, client?: PoolClient): Promise<boolean> {
     const runner: QueryRunner = client ?? this.db;
     const result = await runner.query(
-      `UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1 AND permanently_cancelled_at IS NULL`,
+      `UPDATE jobs SET status = 'active', updated_at = NOW() WHERE id = $1`,
       [id],
     );
     return (result.rowCount ?? 0) > 0;
-  }
-
-  /** The patient permanently cancels a job that has accepted caregivers: it is
-   *  closed for good (from live or closed) and nothing reopens it. Only valid on
-   *  a live/closed job that is not already cancelled/rejected/permanently
-   *  cancelled; returns null otherwise. */
-  async permanentlyCancel(id: string): Promise<JobRecord | null> {
-    const result = await this.db.query<JobRecord>(
-      `UPDATE jobs SET status = 'closed', permanently_cancelled_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND status IN ('active', 'closed') AND permanently_cancelled_at IS NULL
-         AND cancelled_at IS NULL AND rejection_reason IS NULL
-       RETURNING *`,
-      [id],
-    );
-    return result.rows[0] ?? null;
   }
 
   /** Admin sends any job back to admin review — hidden from caregivers until

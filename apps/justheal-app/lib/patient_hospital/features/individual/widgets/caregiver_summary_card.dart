@@ -44,7 +44,8 @@ class CaregiverSummaryCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // The green of the "Accepted" text, as a light tint behind the whole card.
+        color: AppColors.success.withValues(alpha: 0.1),
         border: Border.all(color: AppColors.success.withValues(alpha: 0.6), width: 1.5),
         borderRadius: BorderRadius.circular(AppSpacing.md),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],

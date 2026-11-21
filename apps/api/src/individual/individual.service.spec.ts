@@ -898,11 +898,11 @@ describe('IndividualService', () => {
       expect(result).toEqual([{ id: 'app-1' }]);
     });
 
-    it('returns an empty list once the requirement has been cancelled, without querying applications', async () => {
+    it('still returns the applications once the requirement has been cancelled (accepted caregivers stay visible)', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: new Date() });
+      jobApplicationsRepo.findByJobId.mockResolvedValue([{ id: 'app-1', status: 'accepted' }]);
       const result = await service.getMyRequirementApplications('user-1', 'job-1');
-      expect(result).toEqual([]);
-      expect(jobApplicationsRepo.findByJobId).not.toHaveBeenCalled();
+      expect(result).toEqual([{ id: 'app-1', status: 'accepted' }]);
     });
   });
 
@@ -933,13 +933,11 @@ describe('IndividualService', () => {
       expect(result).toEqual({ full_name: 'Nurse Nita' });
     });
 
-    it('throws GEN_002 once the requirement has been cancelled, without looking up the application', async () => {
+    it('still opens an applicant\'s profile once the requirement has been cancelled', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', cancelled_at: new Date() });
-      await expect(service.getApplicantProfile('user-1', 'job-1', 'app-1')).rejects.toMatchObject({
-        code: 'GEN_002',
-      });
-      expect(jobApplicationsRepo.findById).not.toHaveBeenCalled();
-      expect(caregiverService.getApplicantProfile).not.toHaveBeenCalled();
+      jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'profile-1' });
+      caregiverService.getApplicantProfile.mockResolvedValue({ id: 'profile-1' });
+      await expect(service.getApplicantProfile('user-1', 'job-1', 'app-1')).resolves.toEqual({ id: 'profile-1' });
     });
   });
 
@@ -984,41 +982,53 @@ describe('IndividualService', () => {
       });
     });
 
-    it('tells every applicant and the accepted caregiver — looked up before the cancel rejects them', async () => {
+    it('tells only the waiting candidates, looked up before the cancel rejects them (an accepted caregiver is not told)', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active', patient_job_number: 512 });
       jobApplicationsRepo.findActiveForJob.mockResolvedValue([]);
-      const waiting = [
-        { user_id: 'c1', status: 'applied' },
-        { user_id: 'c2', status: 'accepted' },
-      ];
+      const waiting = [{ user_id: 'c1', status: 'applied' }];
       jobApplicationsRepo.listApplicantUsers.mockResolvedValue(waiting);
       db.withTransaction.mockImplementation(async (fn: any) => fn({}));
 
       await service.cancelRequirement('user-1', 'job-1', null);
 
-      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied', 'accepted']);
+      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied']);
       expect(notificationsService.jobCancelled).toHaveBeenCalledWith(waiting, 'PAT-JOB-512');
     });
 
-    it('allows cancelling an already-closed requirement that has a filled/accepted candidate', async () => {
-      jobsRepo.findById.mockResolvedValue({
-        id: 'job-1',
-        posted_by: 'user-1',
-        status: 'closed',
-        cancelled_at: null,
-        rejection_reason: null,
-      });
+    it('rejects only the waiting candidates; an accepted caregiver keeps their status and stays assigned', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active', cancelled_at: null, rejection_reason: null });
       jobApplicationsRepo.findActiveForJob.mockResolvedValue([
         { id: 'app-1', status: 'accepted', profile_id: 'profile-1' },
+        { id: 'app-2', status: 'applied', profile_id: 'profile-2' },
+        { id: 'app-3', status: 'applied', profile_id: 'profile-3' },
       ]);
       const client = {};
       db.withTransaction.mockImplementation(async (fn: any) => fn(client));
 
       const result = await service.cancelRequirement('user-1', 'job-1', null);
 
-      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('profile-1', client);
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledTimes(2);
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-2', 'rejected', 'user-1', client, 'This requirement was cancelled.');
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-3', 'rejected', 'user-1', client, 'This requirement was cancelled.');
+      expect(jobApplicationsRepo.decide).not.toHaveBeenCalledWith('app-1', expect.anything(), expect.anything(), expect.anything(), expect.anything());
+      // the accepted caregiver stays assigned: their profile is never released
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
-      expect(result.rejected_applications).toBe(1);
+      expect(result).toMatchObject({ rejected_applications: 2, accepted_kept: 1, status: 'closed' });
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ afterValue: expect.objectContaining({ rejected_applications: 2, accepted_kept: 1 }) }),
+      );
+    });
+
+    it('can be cancelled at any time: a live job, a job closed by an acceptance, or one still in review', async () => {
+      for (const status of ['active', 'closed', 'pending_review']) {
+        jobsRepo.cancel.mockClear();
+        jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status, cancelled_at: null, rejection_reason: null });
+        jobApplicationsRepo.findActiveForJob.mockResolvedValue([{ id: 'app-1', status: 'accepted', profile_id: 'profile-1' }]);
+        db.withTransaction.mockImplementation(async (fn: any) => fn({}));
+        await service.cancelRequirement('user-1', 'job-1', null);
+        expect(jobsRepo.cancel).toHaveBeenCalledTimes(1);
+      }
     });
 
     it('cancels a pending_review requirement with no applications — no cascading side effects', async () => {
@@ -1035,10 +1045,10 @@ describe('IndividualService', () => {
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', action: 'job_closed', entityId: 'job-1' }),
       );
-      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed', rejected_applications: 0 });
+      expect(result).toEqual({ message: 'Requirement cancelled', status: 'closed', rejected_applications: 0, accepted_kept: 0 });
     });
 
-    it('rejects every applied/accepted application with a fixed reason and flips an accepted caregiver back to available', async () => {
+    it('rejects each waiting candidate with a fixed reason and leaves the accepted caregiver untouched', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'active' });
       jobApplicationsRepo.findActiveForJob.mockResolvedValue([
         { id: 'app-1', status: 'applied', profile_id: 'profile-1' },
@@ -1049,26 +1059,12 @@ describe('IndividualService', () => {
 
       const result = await service.cancelRequirement('user-1', 'job-1', null);
 
-      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
-        'app-1',
-        'rejected',
-        'user-1',
-        client,
-        'This requirement was cancelled.',
-      );
-      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith(
-        'app-2',
-        'rejected',
-        'user-1',
-        client,
-        'This requirement was cancelled.',
-      );
-      // Only the accepted applicant is flipped back to available — the
-      // still-applied one was never assigned in the first place.
-      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledTimes(1);
-      expect(caregiverProfilesRepo.markAvailable).toHaveBeenCalledWith('profile-2', client);
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledTimes(1);
+      expect(jobApplicationsRepo.decide).toHaveBeenCalledWith('app-1', 'rejected', 'user-1', client, 'This requirement was cancelled.');
+      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
       expect(jobsRepo.cancel).toHaveBeenCalledWith('job-1', client);
-      expect(result.rejected_applications).toBe(2);
+      expect(result.rejected_applications).toBe(1);
+      expect(result.accepted_kept).toBe(1);
     });
   });
 
@@ -1299,15 +1295,23 @@ describe('IndividualService', () => {
       await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_031' });
     });
 
-    it('throws JOB_029 once permanently cancelled', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null, permanently_cancelled_at: new Date() });
-      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_029' });
+    it('also puts a CANCELLED job back live, and never rejects or changes anyone', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date(), rejection_reason: null, patient_job_number: 548 });
+      const job = await service.makeLiveAgain('user-1', 'job-1', null);
+      expect(jobsRepo.activate).toHaveBeenCalledWith('job-1');
+      expect(job.status).toBe('active');
+      expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
+    });
+
+    it('throws JOB_015 for an admin-rejected requirement', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: 'Not suitable', permanently_cancelled_at: null });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
       expect(jobsRepo.activate).not.toHaveBeenCalled();
     });
 
-    it('throws JOB_015 for a cancelled or admin-rejected requirement', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date(), rejection_reason: null, permanently_cancelled_at: null });
-      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
+    it('throws JOB_031 for a posting still waiting for admin review', async () => {
+      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'pending_review', cancelled_at: null, rejection_reason: null });
+      await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_031' });
     });
 
     it('throws JOB_010 while the account is blocked from posting', async () => {
@@ -1318,51 +1322,6 @@ describe('IndividualService', () => {
     it('throws GEN_002 for a job that is not yours', async () => {
       jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else', status: 'closed' });
       await expect(service.makeLiveAgain('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
-    });
-  });
-
-  describe('permanentlyCancelRequirement', () => {
-    beforeEach(() => {
-      jobsRepo.findById.mockResolvedValue({
-        id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null,
-        permanently_cancelled_at: null, patient_job_number: 548,
-      });
-      jobApplicationsRepo.findAcceptedForJob = jest.fn().mockResolvedValue({ id: 'app-1', status: 'accepted' });
-      jobsRepo.permanentlyCancel = jest.fn().mockResolvedValue({ id: 'job-1', status: 'closed' });
-    });
-
-    it('closes the job for good, leaves every accepted caregiver alone, tells only the waiting candidates', async () => {
-      jobApplicationsRepo.listApplicantUsers.mockResolvedValue([{ user_id: 'w1', status: 'applied' }]);
-      const result = await service.permanentlyCancelRequirement('user-1', 'job-1', '1.1.1.1');
-      expect(jobsRepo.permanentlyCancel).toHaveBeenCalledWith('job-1');
-      expect(jobApplicationsRepo.listApplicantUsers).toHaveBeenCalledWith('job-1', ['applied']);
-      expect(notificationsService.jobNoLongerOpen).toHaveBeenCalledWith([{ user_id: 'w1', status: 'applied' }], 'PAT-JOB-548');
-      // The accepted caregiver is not rejected, un-assigned or otherwise touched:
-      expect(jobApplicationsRepo.decide).not.toHaveBeenCalled();
-      expect(caregiverProfilesRepo.markAvailable).not.toHaveBeenCalled();
-      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ afterValue: expect.objectContaining({ permanently_cancelled: true }) }));
-      expect(result).toMatchObject({ permanently_cancelled: true, status: 'closed' });
-    });
-
-    it('throws JOB_030 when no caregiver is accepted', async () => {
-      jobApplicationsRepo.findAcceptedForJob.mockResolvedValue(null);
-      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_030' });
-      expect(jobsRepo.permanentlyCancel).not.toHaveBeenCalled();
-    });
-
-    it('throws JOB_029 when it was already permanently cancelled', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: null, rejection_reason: null, permanently_cancelled_at: new Date() });
-      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_029' });
-    });
-
-    it('throws JOB_015 for a cancelled or admin-rejected requirement', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', status: 'closed', cancelled_at: new Date(), rejection_reason: null, permanently_cancelled_at: null });
-      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'JOB_015' });
-    });
-
-    it('throws GEN_002 for a job that is not yours', async () => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
-      await expect(service.permanentlyCancelRequirement('user-1', 'job-1', null)).rejects.toMatchObject({ code: 'GEN_002' });
     });
   });
 });

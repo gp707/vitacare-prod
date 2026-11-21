@@ -98,6 +98,14 @@ class _ApplicantTimelineState extends State<ApplicantTimeline> {
       final at = DateTime.parse(application.reappliedAt!).toLocal();
       entries.add(MapEntry(at, 'Re-applied: ${_formatDateTime(at)}'));
     }
+    // Every time the salary and start date were entered or changed for this caregiver, so an
+    // edit never overwrites the story: the first entry is "entered", the rest are "changed".
+    for (var i = 0; i < application.agreementHistory.length; i++) {
+      final change = application.agreementHistory[i];
+      final at = DateTime.parse(change.at).toLocal();
+      final verb = i == 0 ? 'entered' : 'changed';
+      entries.add(MapEntry(at, 'Salary and start date $verb: ${_formatDateTime(at)}\n${change.summary}'));
+    }
     if (entries.isEmpty) return const SizedBox.shrink();
 
     // Newest first — the current status is the one worth seeing without

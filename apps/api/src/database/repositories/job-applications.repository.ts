@@ -1,3 +1,4 @@
+import { agreementHistorySql } from './agreement-log.sql';
 import { feedbackSql } from './engagement-feedback.sql';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
@@ -53,6 +54,8 @@ export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   phone: string;
   decided_by_name: string | null;
   /** Feedback this person wrote / that the other side wrote about them (migration 096), or null. */
+  /** Every entry/change of the agreed salary and start date, oldest first (migration 097). */
+  agreement_history: { salary: number; unit: 'daily' | 'monthly'; start_date: string; at: string }[];
   my_feedback: { rating: number; comment: string | null; created_at: string } | null;
   their_feedback: { rating: number; comment: string | null; created_at: string } | null;
 }
@@ -178,11 +181,19 @@ export class JobApplicationsRepository {
     client?: PoolClient,
   ): Promise<JobApplicationRecord | null> {
     const runner: QueryRunner = client ?? this.db;
+    // One statement: the update and the log entry succeed or fail together, and a concurrent
+    // reject (status no longer accepted) writes neither.
     const result = await runner.query<JobApplicationRecord>(
-      `UPDATE job_applications
-       SET agreed_salary = $2, agreed_salary_unit = $3, agreed_start_date = $4::date, agreed_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND status = 'accepted'
-       RETURNING *`,
+      `WITH updated AS (
+         UPDATE job_applications
+         SET agreed_salary = $2, agreed_salary_unit = $3, agreed_start_date = $4::date, agreed_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND status = 'accepted'
+         RETURNING *
+       ), logged AS (
+         INSERT INTO job_application_agreement_log (application_id, salary, salary_unit, start_date)
+         SELECT id, $2, $3, $4::date FROM updated
+       )
+       SELECT * FROM updated`,
       [id, agreedSalary, agreedSalaryUnit, agreedStartDate],
     );
     return result.rows[0] ?? null;
@@ -353,6 +364,7 @@ export class JobApplicationsRepository {
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
+         ${agreementHistorySql('ja')} AS agreement_history,
          ${feedbackSql('ja', 'individual')} AS my_feedback, ${feedbackSql('ja', 'caregiver')} AS their_feedback
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id

@@ -64,4 +64,33 @@ void main() {
       expect(cleanFeedbackComment('x' * 300)!.length, Validation.feedbackCommentMaxLength);
     });
   });
+
+  group('agreement history (the activity log of salary / start date changes)', () {
+    test('reads every entry, oldest first, and words each one', () {
+      final app = JobApplicationModel.fromJson({
+        'id': 'a', 'job_id': 'j', 'profile_id': 'p', 'status': 'accepted', 'full_name': 'X', 'phone': '1', 'updated_at': 't',
+        'agreement_history': [
+          {'salary': 30000, 'unit': 'monthly', 'start_date': '2026-11-01', 'at': '2026-11-17T10:00:00Z'},
+          {'salary': 1200, 'unit': 'daily', 'start_date': '2026-11-26', 'at': '2026-11-21T12:00:00Z'},
+        ],
+      });
+      expect(app.agreementHistory, hasLength(2));
+      expect(app.agreementHistory.first.summary, '₹30,000 per month, starts 1 Nov 2026');
+      expect(app.agreementHistory.last.summary, '₹1,200 per day, starts 26 Nov 2026');
+    });
+
+    test('older responses without the field mean no history, on both models', () {
+      expect(MyApplicationModel.fromJson({'status': 'accepted', 'decided_by_admin': false}).agreementHistory, isEmpty);
+      expect(parseAgreementHistory(null), isEmpty);
+    });
+
+    test('the caregiver\'s own application carries it too', () {
+      final app = MyApplicationModel.fromJson({
+        'status': 'accepted',
+        'decided_by_admin': false,
+        'agreement_history': [{'salary': 900, 'unit': 'daily', 'start_date': '2026-12-01', 'at': '2026-11-20T09:00:00Z'}],
+      });
+      expect(app.agreementHistory.single.salary, 900);
+    });
+  });
 }
