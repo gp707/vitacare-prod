@@ -28,7 +28,7 @@ class AdminAcceptedItem {
   final int? agreedSalary;
   /// 'daily' or 'monthly'.
   final String? agreedSalaryUnit;
-  /// The cycle start date the patient agreed (YYYY-MM-DD), jobs only.
+  /// The start date the patient agreed (YYYY-MM-DD), jobs only.
   final String? agreedStartDate;
 
   const AdminAcceptedItem({

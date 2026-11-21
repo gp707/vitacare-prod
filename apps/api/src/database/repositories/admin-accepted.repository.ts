@@ -27,7 +27,7 @@ export interface AcceptedItem {
    *  (a later rejection overwrites decided_by with the rejecter). */
   accepted_by_name: string | null;
   accepted_by_role: string | null;
-  /** What the patient/family agreed (jobs only): rupees, 'daily'|'monthly', cycle start date. */
+  /** What the patient/family agreed (jobs only): rupees, 'daily'|'monthly', start date. */
   agreed_salary: number | null;
   agreed_salary_unit: 'daily' | 'monthly' | null;
   agreed_start_date: string | null;

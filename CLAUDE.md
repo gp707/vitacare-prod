@@ -469,16 +469,6 @@ location) that didn't fit the Individual/admin jobs-table model.
   - accept or reject) clears the agreement; a `completed` row keeps it. Caregiver side: `my_application` carries `agreed_salary` /
   `agreed_start_date` and caregiver-app's Selected card shows an "Agreed with the family" box (`AgreedTermsBox`). Admin accepts and
   organisation requirements are deliberately unchanged (no popup, no fields). Migrations 091 and 092 must be applied before this backend.
-- **Salary-due banner (both apps, computed on the phone, no backend/DB change).** Salary is paid every **2 weeks**: from the
-  agreement's start date the first payment is due 14 days later, then every 14 days (`nextSalaryDue`,
-  `packages/vitacare_shared/lib/models/salary_due.dart`, pure Dart, unit-tested; shows the next due date on or after today). The
-  amount for one period is `rate × 14` for a per-day rate and `rate × 14 ÷ 30` (rounded to the rupee, a fixed 30-day month) for a
-  per-month rate, formatted with Indian digit grouping. An amber `SalaryDueBanner` is pinned at the **top of caregiver-app's My Jobs**
-  (one entry per accepted job with an agreement, soonest first, max 3 + "+ n more") and at the **top of nursenow-app's Requirement
-  Posted list** (the accepted caregiver). It appears only for an `accepted` application whose agreement is filled in. The widget is
-  duplicated per tree (`caregiver/features/jobs/widgets/` and `patient_hospital/features/individual/widgets/`, same precedent as
-  `RateCardButton`). Captions say salary is paid directly between the family and caregiver, and JustHeal does not handle payments.
-  The 14-day cycle simply repeats while the engagement is accepted; no partial last period is computed.
 - **Calling the caregiver from nursenow-app (patients).** On `JobsPostedScreen`'s applicant tile the caregiver's **name** and **phone number**
   are tappable (`CallTap`, `features/individual/widgets/call_tap.dart`, `tel:` via `url_launcher`, launcher injectable through
   `phoneLauncherProvider` for tests); every tile has it, including rejected/closed candidates (their phone stays visible). On
@@ -486,77 +476,34 @@ location) that didn't fit the Individual/admin jobs-table model.
   button (`https://wa.me/<digits incl. country code>`, no prefilled text) sit right under the name, same URLs as caregiver-app's
   `JobPosterContactCard`. If the device can't open the dialer/WhatsApp, an error banner shows the number to dial by hand.
   Organisation's own applicant tile (`requirements_posted_screen.dart`) was not given tappable name/number (not asked for).
-- **Leave days and pausing salary (patients only, migration 093) live on each caregiver's own salary page.** Salary is per caregiver: every
-  candidate tile with a salary has a **Salary & leaves** button (`Key('open-salary-tile')`), and the amber banner at the top of
-  nursenow-app's `JobsPostedScreen` is a summary (due date, real amount, working) with one **Salary & leaves** button per caregiver
-  (`SalaryDueEntry.onOpen`), both opening `CaregiverSalaryScreen` (`screens/caregiver_salary_screen.dart`). The page shows who/status,
-  the **agreed salary** (+ **Edit salary & date**, or **Add** if none), the **next salary due**, and **Leave days**: a chip per marked day
-  whose x cancels that day (after a confirm), **Mark leave** (a calendar where the patient taps **specific days** — never a range, the days need not be adjacent, and
-  can span months; `widgets/leave_days_dialog.dart`; up to 31 days at a time, any day from the start date to a year ahead; days already marked show as
-  leave and aren't offered again) and **Pause salary / Resume**. The actions are shared functions in `widgets/salary_actions.dart` (`openAgreementFlow`,
-  `markLeaveFlow`, `cancelLeaveFlow`, `pauseSalaryFlow`, `resumeSalaryFlow`). **A caregiver no longer on the job (rejected, or closed duty)
-  keeps their salary record**: the tile shows "Agreed (past): ₹…" and the same page opens **read-only** (no edit, no next-salary banner, no
-  leave/pause controls, chips without the cancel x). That needs the server to keep the data on reject: `JobApplicationsRepository.decide`
-  now KEEPS `agreed_*`, leave days and pauses on a reject and only closes an open pause (`closeOpenPause`; also done in `markCompleted`);
-  they are cleared only on a fresh (re-)accept, which starts a new engagement. Endpoints (`IndividualController`/`IndividualService`): `POST .../applications/:applicationId/leaves`
-  (`MarkLeaveDto { dates[] }`), `DELETE .../leaves/:date`, `POST .../pause`, `POST .../resume`; all need an accepted caregiver whose
-  agreement is set (`JOB_022`/`JOB_024`), are audit-logged (`AuditAction.JOB_LEAVE_UPDATED`) and push the caregiver
-  (`leaveChanged` -> `leaveMarked`/`leaveCancelled`/`salaryPaused`/`salaryResumed` templates, open MyJobs). Errors: `JOB_025` (day before the start
-  date or > 1 year ahead), `JOB_026` (already paused), `JOB_027` (not paused), `JOB_028` (that day isn't marked leave; a day inside a pause ends
-  only by resuming). Storage: `job_application_leaves(application_id, leave_date)` and `job_application_pauses(application_id,
-  paused_from, resumed_on)` (`resumed_on` exclusive = a working day again, NULL = still paused, one open pause per application via a
-  partial unique index); both are deleted whenever the application is decided again (`JobApplicationsRepository.decide`).
-  **Every day from a pause until it is resumed counts as leave.** Both sides read `leave_dates` + `pauses` (`my_application` for
-  the caregiver, the applicants list for the patient). **Salary maths** (`nextSalaryDue`, shared Dart): in the next 14-day period the
-  leave days (marked + paused, each once) are subtracted; per-day rate = `rate × days worked`, per-month rate = `rate × days worked ÷ 30`;
-  an open pause counts every remaining day of the period as leave (so a long pause shows ₹0 payable). The amber `SalaryDueBanner` shows
-  the real amount large, the working ending in "= ₹…", "On leave (n of 14 days): …" and "Salary paused since …"; the caregiver's
-  "Agreed with the family" box lists leave days as orange chips, any pause in red and finished pauses with their dates.
-  Migrations 091, 092 and 093 must be applied before this backend.
 - **Patient screen UX (nursenow-app `JobsPostedScreen`).** (1) **Rejected candidates are collapsed** behind one "Rejected candidates (n)" row
   (`Key('rejected-toggle')`) until tapped; applied, accepted and *completed* (closed by caregiver) candidates always show, and the total
   count still includes everyone. (2) There is **no explanatory banner** above the candidates (the old "You have accepted a candidate. Reject
-  them to be able to make the job live again." note was removed). (3) The salary banner is one calm amber block (large amount, working, a
-  "Salary & leaves" button); the yellow Rate-Card guidance block is hidden once a salary is agreed (kept in the tree via
+  them to be able to make the job live again." note was removed). (3) The yellow Rate-Card guidance block is hidden once a salary is agreed (kept in the tree via
   `Visibility(maintainState: true)` so mandatory-field validation can still scroll to it); rejected tiles are grey (red stays on the ✕ and
   label), Reject is a tonal button, Patient Details / Care Preferences have a neutral outline, activity-log times read "14 Nov 2026, 6:32 PM".
   `dart format` must NOT be run on this file (hand-formatted at ~120 columns; formatting rewrites ~800 lines).
-- **Accepted caregivers are cards at the top of the "n candidates applied in total" list on `JobsPostedScreen` (no salary banner).** A patient can have
-  several accepted caregivers, each with their own salary, start date, leave and pauses, so the amber banner is gone from the top of the screen and there
-  is no separate "Your caregivers" section. Inside the job card's candidates list each accepted caregiver is a roomy `CaregiverSummaryCard`
-  (`widgets/caregiver_summary_card.dart`), listed first (soonest next-salary first, "Salary not set yet" last), followed by candidates waiting, closed-duty
-  candidates and the collapsed "Rejected candidates (n)" row. The card shows name/status, phone, agreed salary, "Working since…/Starts…", the next salary
-  with the real amount, leave/paused tags, a **Salary & leaves** button (opens that caregiver's `CaregiverSalaryScreen`), View Profile, Reject and the
-  activity log (`widgets/applicant_timeline.dart`). "No other candidates waiting." shows when only accepted ones exist. `SalaryDueBanner` is now used only
-  on the caregiver's salary page and in caregiver-app.
+- **Accepted caregivers are cards at the top of the "n candidates applied in total" list on `JobsPostedScreen`.** A patient can have several accepted caregivers, each with their
+  own salary and start date, so there is no banner at the top and no separate "Your caregivers" section. Each accepted caregiver is a roomy `CaregiverSummaryCard`
+  (`widgets/caregiver_summary_card.dart`), listed earliest-accepted first, followed by candidates waiting, closed-duty candidates and the collapsed "Rejected candidates (n)" row.
+  The card shows name/status, phone (call + WhatsApp), the agreed salary and "Starts <date>" (or "Salary not set yet"), the Enter/Edit salary and start date button, the activity log
+  (`widgets/applicant_timeline.dart`), feedback, View Profile and Reject. "No other candidates waiting." shows when only accepted ones exist.
 - **The agreed-salary popup is a bottom sheet, not a centred dialog.** `showAgreementDialog` uses `showModalBottomSheet(isScrollControlled: true)` with the
-  sheet padded by `MediaQuery.viewInsets.bottom` and scrollable, so the on-screen (number) keyboard never covers the salary field or Save. The salary page's
-  button reads "Edit salary and start date" (or "Add agreed salary & start date" when none).
-- **Pause salary was removed (2026-11-16); "start date" is now the "cycle start date".** (SUPERSEDES every mention of pause/resume above.) The salary page, caregiver
-  card, banners and caregiver-app no longer offer or show a salary pause; `POST .../pause` and `.../resume`, `IndividualService.pauseSalary/resumeSalary`, the
-  `salaryPaused`/`salaryResumed` pushes and `PausePeriod` (shared Dart) are gone, and `nextSalaryDue` only subtracts marked leave days. Leave days stay. Left in place
-  on purpose: the `job_application_pauses` table (2 old closed rows, none open), `pausesSql`/`closeOpenPause` (harmless; the API may still return `pauses`, apps ignore it)
-  and error codes JOB_026/027 (unused). Older app builds that still show Pause get a 404 from the removed endpoints. The agreed "start date" is labelled **Cycle start date**
-  everywhere (agreement sheet, salary page, cards, caregiver's Agreed box): salary is due every 14 days from it, as a rolling window the patient can change any time
-  ("Edit salary and cycle start date"); the field/API names (`agreed_start_date`) are unchanged.
-- **Salary cycle history and "Mark as paid" (migration 095 — written, validated in a rolled-back transaction, NOT yet applied to prod; apply before deploying this backend).**
-  Every 14-day cycle from the **cycle start date** is a record: dates, rate, leave days inside it, days worked, amount, and paid/due/current. `salary_cycle_payments`
-  holds only **paid** cycles, frozen at the moment the patient marks them paid (own rate + leave snapshot, so later rate/start-date/leave edits never rewrite history);
-  unpaid cycles are worked out on the fly by `apps/api/src/common/salary-cycles.ts` (`listSalaryCycles`) from the current agreement — the one server-side copy of the
-  cycle maths (the apps' "next salary due" banner uses `salary_due.dart`). Cycle k covers start+14k .. +13 (inclusive), due the day after it ends; a cycle overlapping a paid
-  one is skipped, so moving the start date never duplicates history. Only an `accepted` caregiver gets unpaid cycles; a rejected/closed one keeps just the paid record.
-  `SalaryCyclesService` (`jobs/`) is shared by both sides. Endpoints: patient `GET /individual/requirements/:jobId/applications/:applicationId/salary-cycles` and
-  `POST .../salary-cycles/:cycleStart/paid` (`MarkCyclePaidDto { paid_on? }`, default today IST; `JOB_033` not an ended cycle, `JOB_034` already paid, `JOB_035` bad payment date;
-  audit `job_salary_paid`, which migration 095 adds to the `audit_logs.action` CHECK); caregiver `GET /caregiver/jobs/:id/salary-cycles`. Marking paid pushes the caregiver
-  ("Salary paid", `salaryPaid` template, opens MyJobs). No "undo paid" yet. A past unpaid cycle uses today's rate, not the rate at that time (only paid cycles freeze it).
-  Patient: `SalaryHistoryCard` on `CaregiverSalaryScreen` (due cycles get **Mark as paid**, a date picker defaulting to today); caregiver: collapsible `SalaryHistory` under
-  the Agreed box on MyJobs (read-only). `SalaryCycleModel` is in `vitacare_shared/salary_due.dart`; `SalaryCycleTile` is duplicated per tree.
-- **The cycle start date may be in the past (up to 30 days back; `JOB_023` beyond that).** `IndividualService.setAgreement` no longer requires today-or-later, and the agreement
-  sheet's date picker opens on the chosen date and goes back 30 days. A past start simply produces earlier cycles at once (some already due, ready to Mark as paid).
-- **Leave can only be marked in the CURRENT salary cycle.** `IndividualService.markLeaves` accepts a day only inside `currentCycleRange(agreed_start_date, today IST)`
-  (cycle k = start+14k .. +13; before the start date arrives, the first cycle) — `JOB_025` otherwise ("Leave can only be marked within the current salary cycle"). Past days
-  of the current cycle are fine; earlier and later cycles are not. The app mirrors it with `currentSalaryCycleRange` (shared Dart): the calendar's range is that cycle and the
-  dialog states it ("Leave can be marked only in the current salary cycle: …"). Cancelling an already-marked day is NOT restricted (not asked for).
+  sheet padded by `MediaQuery.viewInsets.bottom` and scrollable, so the on-screen (number) keyboard never covers the salary field or Save. The card's
+  button reads "Enter salary and start date" (or "Edit salary and start date" once set).
+- **Salary is only the agreed salary + start date (2026-11-21) — leaves, salary-due/payment tracking, cycles and pause were REMOVED.** (SUPERSEDES every earlier mention of
+  leave days, pause/resume, next-salary-due banners, the per-caregiver salary page / "Salary & leaves", salary cycles, "Mark as paid" and the "cycle start date" wording.)
+  What remains: after a patient accepts a caregiver, **one popup** (`showAgreementDialog`, a keyboard-safe bottom sheet) takes the **Agreed Salary** (Per day / Per month) and the
+  **Start date** (may be in the past, up to 30 days back — `JOB_023` beyond that); saved with `PUT .../applications/:applicationId/agreement` (`IndividualService.setAgreement`),
+  pushed to the caregiver, and shown as "Agreed with the family" (`AgreedTermsBox`: salary + "Start date: …") on the caregiver's Selected card. Patient side
+  (`CaregiverSummaryCard`): a caregiver with nothing agreed shows "Salary not set yet" + the button **Enter salary and start date**; one with an agreement shows the salary,
+  "Starts <date>" and **Edit salary and start date** (opens the same popup, filled in). Removed code: patient `CaregiverSalaryScreen`, `leave_days_dialog`, `salary_history_card`,
+  `salary_cycle_tile`, `salary_due_banner` (both trees), caregiver `SalaryHistory`; API leave/cycle/pay endpoints, `SalaryCyclesService`, `common/salary-cycles.ts`,
+  `JobApplicationLeavesRepository`/`SalaryCyclePaymentsRepository`, the `leaveChanged`/`salaryCyclePaid` pushes; shared Dart `nextSalaryDue`, `SalaryCycleModel`, `PausePeriod`, leave
+  fields (`salary_due.dart` now only holds `formatRupees`/`formatLongDate`/`toIsoDate`). **Left in place on purpose:** the DB tables `job_application_leaves`, `job_application_pauses`
+  and `salary_cycle_payments` (migrations 093/095, with their old rows — drop them in a later migration if you want), the unused error codes `JOB_024`–`JOB_028`/`JOB_033`–`JOB_035`
+  and the audit actions `job_leave_updated`/`job_salary_paid` (old audit rows still use them). Migration 095 is applied in production but now unused. An accepted caregiver's agreement is
+  kept through rejection/closed duty (feedback eligibility relies on it) and cleared only on a fresh re-accept.
 - **WhatsApp next to every caregiver phone number (patient and organisation flows).** `PhoneContactRow` (`widgets/call_tap.dart`) shows the number (tap =
   `tel:` dialer) and a green **WhatsApp** chip (`WhatsAppTap`, opens `https://wa.me/<digits with country code>` through `phoneLauncherProvider`; if it can't
   open, a banner shows the number to message by hand). Used on the patient's accepted-caregiver card, candidate tiles, the caregiver salary page header,
@@ -902,7 +849,7 @@ location) that didn't fit the Individual/admin jobs-table model.
   accepted onto a job or organisation requirement (`GET /admin/accepted`, `AdminAcceptedRepository`; `status` = the application's CURRENT status: `accepted` shown as
   "Working", `completed` "Closed duty", `rejected` "Later rejected", `applied` "Re-applied"; `search` matches name/phone and NUR-/PAT-/ORG- ids and job ids). Based on `accepted_at IS NOT NULL`
   (kept through rejection and completion), so a re-acceptance shows once with its latest date. Shows poster, who accepted (only while still accepted/closed duty — a later
-  rejection overwrites `decided_by`), and for patient jobs the agreed salary + cycle start date. Read-only, readable by `read_only_admin`. No migration.
+  rejection overwrites `decided_by`), and for patient jobs the agreed salary + start date. Read-only, readable by `read_only_admin`. No migration.
 
 ### Organisation (Hospital/Rehab/Clinic)
 
@@ -1580,7 +1527,7 @@ engagement. **Both sides can change the feedback they wrote** (`PUT .../feedback
 written; one feedback each, replaced in place, no history kept). Nobody can delete. Patients/families and caregivers only; organisations are not included yet.
 
 - **Who may write (server-side only, `FeedbackService` + `canLeaveFeedback` in `apps/api/src/feedback/`):** the caregiver was accepted (`accepted_at` set) AND the work
-  has started — the agreed **cycle start date has arrived** (<= today IST) or a salary cycle was already marked paid. Never-accepted, accepted-but-not-started and
+  has started — the agreed **start date has arrived** (<= today IST). Never-accepted, accepted-but-not-started and
   accepted-then-instantly-rejected do not qualify; a caregiver rejected or closed out AFTER the work started still does (feedback stays possible). `FEEDBACK_001` = not
   eligible yet (also: an admin-posted job has no family to rate), `FEEDBACK_002` = already written. The apps only decide whether to SHOW the button
   (`feedbackEligible` in `vitacare_shared`), from `accepted_at` + `agreed_start_date` already in their payloads.
@@ -1593,7 +1540,7 @@ written; one feedback each, replaced in place, no history kept). Nobody can dele
   old and new rating, **no second push**, no "edited" marker or timestamp is stored), caregiver `GET`/`POST`/`PUT /caregiver/jobs/:id/feedback`
   (`{can_give, can_edit, reason, mine, received}`; body `{rating 1-5, comment?}`), admin `GET /admin/feedback` (`author_role`, `rating`, `search` incl. `NUR-`/`PAT-` ids;
   read-only, so a `read_only_admin` can read it). The apps get `my_feedback`/`their_feedback` inside the caregiver's `my_application` and the patient's applicant rows
-  (`feedbackSql` in `job-application-leaves.repository.ts`); the caregiver's `job_poster` carries `is_family` so the app knows a family exists to rate.
+  (`feedbackSql` in `database/repositories/engagement-feedback.sql.ts`); the caregiver's `job_poster` carries `is_family` so the app knows a family exists to rate.
 - **Side effects:** audit `feedback_submitted` (rating only, not the comment) and a push to the other party ("You received feedback", no text in the push; opens MyJobs / `/home`).
   A caregiver deleting their account also deletes the feedback they authored (`CaregiverService.deleteAccount`); patient deletion removes it via the cascade.
 - **Apps:** `FeedbackSection` + `showFeedbackSheet` (bottom sheet, keyboard-safe) duplicated per tree (`lib/patient_hospital/features/individual/widgets/feedback_widgets.dart`,

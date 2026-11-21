@@ -105,7 +105,7 @@ class _AcceptedScreenState extends ConsumerState<AcceptedScreen> {
     final salary = item.agreedSalaryText;
     if (salary == null) return '-';
     final start = item.agreedStartDate;
-    return start == null ? salary : '$salary\nCycle from ${formatLongDate(start)}';
+    return start == null ? salary : '$salary\nStarts ${formatLongDate(start)}';
   }
 
   @override

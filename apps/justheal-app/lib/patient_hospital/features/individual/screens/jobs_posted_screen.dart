@@ -2018,7 +2018,7 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
         sorted.where((a) => a.status == JobApplicationStatus.rejected).toList();
     final waiting = sorted.where((a) => a.status == JobApplicationStatus.applied).toList();
     // Accepted caregivers head the list, each as a card with their own salary and start date.
-    // The one whose next salary is due soonest comes first; one with no salary yet comes last.
+    // The earliest accepted comes first.
     final defaultUnit = widget.perUnit == 'day' ? 'daily' : 'monthly';
     final accepted = sorted.where((a) => a.status == JobApplicationStatus.accepted).toList()
       // Earliest accepted first; the name breaks a tie.

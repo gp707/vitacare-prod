@@ -1612,7 +1612,470 @@ void main() {
       expect(repo.agreementSalary, 900);
     });
 
-  
+    testWidgets('a monthly job shows the agreed salary per month', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', frequencyOfCare: 'monthly')],
+          applicationsByJobId: {
+            'job-1': [_application(status: 'accepted', agreedSalary: 24000, agreedStartDate: '2026-11-20')],
+          },
+        ),
+      );
+      expect(find.text('₹24,000 per month'), findsOneWidget);
+    });
+
+    testWidgets('tapping the add button opens the popup with the care-staff message and both fields',
+        (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      await tester.tap(find.text('Enter salary and start date'));
+      await _settle(tester);
+
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+      expect(find.textContaining('care staff, not house maids'), findsOneWidget);
+      expect(find.textContaining('treated the way you treat your own family members'), findsOneWidget);
+      expect(find.text('Agreed Salary (₹ per day)'), findsOneWidget);
+      expect(find.text('Start date'), findsOneWidget);
+      expect(find.text('Fill later'), findsOneWidget);
+    });
+
+    testWidgets('Save with empty fields flags both and sends nothing', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Enter salary and start date'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(find.text('Enter the agreed salary in rupees'), findsOneWidget);
+      expect(find.text('Pick the start date'), findsOneWidget);
+      expect(repo.agreementSalary, isNull);
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('Fill later closes the popup without saving', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Enter salary and start date'));
+      await _settle(tester);
+      await tester.tap(find.text('Fill later'));
+      await _settle(tester);
+
+      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(repo.agreementSalary, isNull);
+      expect(find.text('Enter salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('saving sends the salary and the picked date for that caregiver', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.text('Enter salary and start date'));
+      await _settle(tester);
+
+      await tester.enterText(find.byType(TextField), '900');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(repo.agreementJobId, 'job-1');
+      expect(repo.agreementApplicationId, 'app-1');
+      expect(repo.agreementSalary, 900);
+      expect(repo.agreementStartDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      expect(find.text('Confirm salary and start date'), findsNothing);
+      expect(find.text('Sent to Test Caregiver.'), findsOneWidget);
+    });
+
+    testWidgets('a server error is shown inside the popup and it stays open', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement(status: 'closed')],
+        applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+      )..agreementError = const ApiException(message: 'The start date cannot be in the past', code: 'JOB_023');
+      await _pump(tester, repo);
+      await tester.tap(find.text('Enter salary and start date'));
+      await _settle(tester);
+      await tester.enterText(find.byType(TextField), '900');
+      await tester.tap(find.text('Select a date'));
+      await _settle(tester);
+      await tester.tap(find.text('OK'));
+      await _settle(tester);
+      await tester.tap(find.text('Save & send to caregiver'));
+      await _settle(tester);
+
+      expect(find.text('The start date cannot be in the past'), findsOneWidget);
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+
+    testWidgets('accepting a candidate opens the popup right away', (tester) async {
+      final repo = _FakeIndividualRepository(
+        requirements: [_requirement()],
+        applicationsByJobId: {'job-1': [_application(status: 'applied')]},
+      );
+      await _pump(tester, repo);
+      // The fake does not change the stored status, so make the next load report it accepted.
+      repo.applicationsByJobId = {'job-1': [_application(status: 'accepted')]};
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await _settle(tester);
+
+      expect(repo.decidedStatus, 'accepted');
+      expect(find.text('Confirm salary and start date'), findsOneWidget);
+    });
+  });
+
+
+  group('calling the caregiver from the applicant tile', () {
+    _FakeIndividualRepository repoWith(String status) => _FakeIndividualRepository(
+          requirements: [_requirement(status: status == 'applied' ? 'active' : 'closed')],
+          applicationsByJobId: {'job-1': [_application(status: status, fullName: 'Ramesh Kumar')]},
+        );
+
+    testWidgets("tapping the caregiver's name opens the dialer with their number", (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(launched.single.toString(), 'tel:+919876543210');
+    });
+
+    testWidgets("tapping the caregiver's number opens the dialer with their number", (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('accepted'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(launched.single.toString(), 'tel:+919876543210');
+    });
+
+    testWidgets('the number is visibly tappable: a call icon sits beside it', (tester) async {
+      await _pump(tester, repoWith('applied'));
+      expect(find.descendant(of: find.byType(CallTap), matching: find.byIcon(Icons.call)), findsOneWidget);
+    });
+
+    testWidgets('a rejected candidate can still be called, the number stays visible', (tester) async {
+      final launched = <Uri>[];
+      await _pump(tester, repoWith('rejected'), phoneLauncher: (uri) async {
+        launched.add(uri);
+        return true;
+      });
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(launched, hasLength(1));
+    });
+
+    testWidgets('if the phone cannot open the dialer, a banner shows the number to dial by hand', (tester) async {
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async => false);
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6)); // the banner's own 5s timer
+    });
+
+    testWidgets('a launcher that throws is handled the same way', (tester) async {
+      await _pump(tester, repoWith('applied'), phoneLauncher: (uri) async => throw Exception('no dialer'));
+      await tester.tap(find.text('+919876543210'));
+      await _settle(tester);
+      expect(find.text('Could not open the dialer. Call +919876543210 directly.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 6)); // the banner's own 5s timer
+    });
+
+    testWidgets("tapping the name does not accept or reject the candidate", (tester) async {
+      final repo = repoWith('applied');
+      await _pump(tester, repo, phoneLauncher: (uri) async => true);
+      await tester.tap(find.text('Ramesh Kumar'));
+      await _settle(tester);
+      expect(repo.decidedStatus, isNull);
+    });
+  });
+
+
+  group('rejected candidates are collapsed until tapped', () {
+    _FakeIndividualRepository repoWith(List<JobApplicationModel> applications, {String status = 'active'}) =>
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: status)],
+          applicationsByJobId: {'job-1': applications},
+        );
+
+    testWidgets('a rejected candidate is hidden behind one row, with a count', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a1', status: 'applied', fullName: 'Ramesh Kumar'),
+          _application(id: 'a2', status: 'rejected', fullName: 'Sita Devi', decidedBy: 'someone'),
+        ]),
+        expandRejected: false,
+      );
+      expect(find.text('Rejected candidates (1)'), findsOneWidget);
+      expect(find.text('Sita Devi'), findsNothing);
+      expect(find.text('Ramesh Kumar'), findsOneWidget);
+    });
+
+    testWidgets('the total still counts everyone, rejected included', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a1', status: 'applied', fullName: 'Ramesh Kumar'),
+          _application(id: 'a2', status: 'rejected', fullName: 'Sita Devi', decidedBy: 'someone'),
+        ]),
+        expandRejected: false,
+      );
+      expect(find.text('2 candidates applied in total'), findsOneWidget);
+    });
+
+    testWidgets('tapping the row shows the rejected candidate with phone and View Profile, and tapping again hides them',
+        (tester) async {
+      await _pump(
+        tester,
+        repoWith([_application(id: 'a2', status: 'rejected', fullName: 'Sita Devi', decidedBy: 'someone')]),
+        expandRejected: false,
+      );
+      await tester.tap(find.byKey(const Key('rejected-toggle')));
+      await _settle(tester);
+      expect(find.text('Sita Devi'), findsOneWidget);
+      expect(find.text('+919876543210'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'View Profile'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('rejected-toggle')));
+      await _settle(tester);
+      expect(find.text('Sita Devi'), findsNothing);
+    });
+
+    testWidgets('an applied or accepted candidate is never collapsed', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a1', status: 'accepted', fullName: 'Asha Accepted'),
+          _application(id: 'a3', status: 'applied', fullName: 'Ramesh Applied'),
+        ]),
+        expandRejected: false,
+      );
+      expect(find.text('Asha Accepted'), findsOneWidget);
+      expect(find.text('Ramesh Applied'), findsOneWidget);
+      expect(find.byKey(const Key('rejected-toggle')), findsNothing);
+    });
+
+    testWidgets('a candidate who closed the job themselves (completed) stays visible, not collapsed', (tester) async {
+      await _pump(
+        tester,
+        repoWith([_application(id: 'a4', status: 'completed', fullName: 'Closed Caregiver')]),
+        expandRejected: false,
+      );
+      expect(find.text('Closed Caregiver'), findsOneWidget);
+      expect(find.byKey(const Key('rejected-toggle')), findsNothing);
+    });
+
+    testWidgets('no collapsed row when nobody was rejected', (tester) async {
+      await _pump(tester, repoWith([_application(status: 'applied')]), expandRejected: false);
+      expect(find.byKey(const Key('rejected-toggle')), findsNothing);
+    });
+
+    testWidgets('the row counts every rejected candidate', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a2', status: 'rejected', fullName: 'Sita Devi', decidedBy: 'x'),
+          _application(id: 'a5', status: 'rejected', fullName: 'Meena Rao'),
+        ]),
+        expandRejected: false,
+      );
+      expect(find.text('Rejected candidates (2)'), findsOneWidget);
+    });
+
+    testWidgets('an accepted candidate stays on top while the rejected ones are tucked away', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a2', status: 'rejected', fullName: 'Sita Devi', decidedBy: 'x'),
+          _application(id: 'a1', status: 'accepted', fullName: 'Asha Accepted'),
+        ], status: 'closed'),
+        expandRejected: false,
+      );
+      expect(find.text('Asha Accepted'), findsOneWidget);
+      expect(find.text('Sita Devi'), findsNothing);
+      expect(find.text('Rejected candidates (1)'), findsOneWidget);
+    });
+  });
+
+  group('Make it live again and Permanently cancel (while a caregiver is accepted)', () {
+    _FakeIndividualRepository acceptedRepo({String status = 'closed', String? permanent, List<JobApplicationModel>? apps}) =>
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: status, permanentlyCancelledAt: permanent)],
+          applicationsByJobId: {
+            'job-1': apps ?? [_application(id: 'app-9', status: 'accepted', fullName: 'Asha Accepted')],
+          },
+        );
+
+    Future<void> openMenu(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await _settle(tester);
+    }
+
+    testWidgets('a closed job with an accepted caregiver offers Make it live again and Permanently cancel, not Cancel the Job',
+        (tester) async {
+      await _pump(tester, acceptedRepo());
+      await openMenu(tester);
+      expect(find.text('Make it live again'), findsOneWidget);
+      expect(find.text('Permanently cancel'), findsOneWidget);
+      expect(find.text('Cancel the Job'), findsNothing);
+    });
+
+    testWidgets('Make it live again confirms, and says nobody already accepted is rejected', (tester) async {
+      final repo = acceptedRepo();
+      await _pump(tester, repo);
+      await openMenu(tester);
+      await tester.tap(find.text('Make it live again'));
+      await _settle(tester);
+      expect(find.text('Make it live again?'), findsOneWidget);
+      expect(find.textContaining('Caregivers you have already accepted stay accepted.'), findsOneWidget);
+      expect(repo.madeLiveJobId, isNull);
+
+      await tester.tap(find.text('Not now'));
+      await _settle(tester);
+      expect(repo.madeLiveJobId, isNull);
+    });
+
+    testWidgets('confirming makes the job live again WITHOUT rejecting the accepted caregiver', (tester) async {
+      final repo = acceptedRepo();
+      await _pump(tester, repo);
+      await openMenu(tester);
+      await tester.tap(find.text('Make it live again'));
+      await _settle(tester);
+      await tester.tap(find.text('Make it live'));
+      await _settle(tester);
+      expect(repo.madeLiveJobId, 'job-1');
+      // Nobody is rejected: no decision call at all, and the job is not cancelled.
+      expect(repo.decidedStatus, isNull);
+      expect(repo.cancelledJobId, isNull);
+      expect(find.text('The job is live again.'), findsOneWidget);
+    });
+
+    testWidgets('Permanently cancel warns that the job will not go live again and accepted caregivers are not affected',
+        (tester) async {
+      final repo = acceptedRepo();
+      await _pump(tester, repo);
+      await openMenu(tester);
+      await tester.tap(find.text('Permanently cancel'));
+      await _settle(tester);
+      expect(find.text('Permanently cancel this job?'), findsOneWidget);
+      expect(find.textContaining('will not go live again'), findsOneWidget);
+      expect(find.textContaining('Caregivers you have already accepted are not affected and stay accepted.'), findsOneWidget);
+      expect(repo.permanentlyCancelledJobId, isNull);
+
+      await tester.tap(find.text('Keep the job'));
+      await _settle(tester);
+      expect(repo.permanentlyCancelledJobId, isNull);
+    });
+
+    testWidgets('confirming a permanent cancel closes the job for good and does not touch the accepted caregiver',
+        (tester) async {
+      final repo = acceptedRepo();
+      await _pump(tester, repo);
+      await openMenu(tester);
+      await tester.tap(find.text('Permanently cancel'));
+      await _settle(tester);
+      await tester.tap(find.text('Permanently cancel').last);
+      await _settle(tester);
+      expect(repo.permanentlyCancelledJobId, 'job-1');
+      expect(repo.decidedStatus, isNull);
+      expect(repo.cancelledJobId, isNull);
+      expect(find.textContaining('Your accepted caregivers are not affected.'), findsOneWidget);
+    });
+
+    testWidgets('while the job is live again, only Permanently cancel is offered (it is already live)', (tester) async {
+      await _pump(tester, acceptedRepo(status: 'active'));
+      await openMenu(tester);
+      expect(find.text('Make it live again'), findsNothing);
+      expect(find.text('Permanently cancel'), findsOneWidget);
+    });
+
+    testWidgets('a live job with a caregiver accepted lets more candidates be accepted, with no banner', (tester) async {
+      await _pump(
+        tester,
+        acceptedRepo(status: 'active', apps: [
+          _application(id: 'app-9', status: 'accepted', fullName: 'Asha Accepted'),
+          _application(id: 'app-3', status: 'applied', fullName: 'Ramesh Applied'),
+        ]),
+      );
+      expect(find.textContaining('Your job is live'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Accept'), findsOneWidget);
+    });
+
+    testWidgets('once permanently cancelled: labelled as such, both menu items disabled, no Accept anywhere, caregiver untouched',
+        (tester) async {
+      await _pump(
+        tester,
+        acceptedRepo(permanent: '2026-11-17T10:00:00Z', apps: [
+          _application(id: 'app-9', status: 'accepted', fullName: 'Asha Accepted'),
+          _application(id: 'app-3', status: 'applied', fullName: 'Ramesh Applied'),
+        ]),
+      );
+      expect(find.text('Permanently cancelled — caregiver assigned'), findsOneWidget);
+      expect(find.textContaining('This job was permanently cancelled'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Accept'), findsNothing);
+      expect(find.text('Asha Accepted'), findsOneWidget);
+      await openMenu(tester);
+      expect(find.text('Make it live again (Unavailable)'), findsOneWidget);
+      expect(find.text('Permanently cancelled'), findsOneWidget);
+    });
+
+    testWidgets('a live job with nobody accepted still offers Cancel the Job', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {'job-1': [_application(status: 'applied')]},
+        ),
+      );
+      await openMenu(tester);
+      expect(find.text('Cancel the Job'), findsOneWidget);
+      expect(find.text('Make it live again'), findsNothing);
+    });
+
+    testWidgets('a cancelled job still offers Make Active Again', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(requirements: [_requirement(status: 'closed', cancelledAt: '2026-08-02T10:00:00Z')]),
+      );
+      await openMenu(tester);
+      expect(find.text('Make Active Again'), findsOneWidget);
+      expect(find.text('Make it live again'), findsNothing);
+    });
+
+    testWidgets('an admin-rejected requirement can be neither made live nor permanently cancelled by the patient', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed', rejectionReason: 'Duplicate posting')],
+          applicationsByJobId: {'job-1': [_application(status: 'accepted')]},
+        ),
+      );
+      await openMenu(tester);
+      expect(find.text('Make it live again'), findsNothing);
+      expect(find.text('Permanently cancel'), findsNothing);
+      expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
+    });
+  });
 
   group('several accepted caregivers, each with their own salary and start date', () {
     String iso(int days) {
@@ -1775,7 +2238,7 @@ void main() {
       return repo;
     }
 
-    testWidgets('once the cycle start date has arrived the accepted caregiver has a "Rate this caregiver" button', (tester) async {
+    testWidgets('once the start date has arrived the accepted caregiver has a "Rate this caregiver" button', (tester) async {
       await open(tester, accepted());
       expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
       expect(find.text('Rate this caregiver'), findsOneWidget);

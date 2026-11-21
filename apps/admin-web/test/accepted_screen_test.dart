@@ -100,7 +100,7 @@ void main() {
     expect(find.text('Krishna Sapra\nPAT-636'), findsOneWidget); // posted by
     expect(find.text('Krishna Sapra'), findsOneWidget); // accepted by
     expect(find.textContaining('₹30,000 per month'), findsOneWidget);
-    expect(find.textContaining('Cycle from'), findsOneWidget);
+    expect(find.textContaining('Starts 1 Nov 2026'), findsOneWidget);
     expect(find.text('2026-11-17'), findsOneWidget);
     expect(find.text('Working'), findsOneWidget);
   });
