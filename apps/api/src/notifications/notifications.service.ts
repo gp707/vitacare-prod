@@ -194,9 +194,10 @@ export class NotificationsService {
     );
   }
 
-  /** The other party left feedback about this person (the text is never in the push). */
-  async feedbackReceived(userId: string, info: { toCaregiver: boolean; displayId: string }): Promise<void> {
-    await this.safe('feedback received', () => this.send(userId, feedbackReceived(info.displayId, info.toCaregiver)));
+  /** The patient/family rated this caregiver: told straight away, with the star count (never the
+   *  comment). Only ever sent to a caregiver — a caregiver's feedback about a patient is private. */
+  async feedbackReceived(caregiverUserId: string, info: { displayId: string; rating: number }): Promise<void> {
+    await this.safe('feedback received', () => this.send(caregiverUserId, feedbackReceived(info.displayId, info.rating)));
   }
 
   // ── Changes to a posting, told to the caregivers it affects ─────────────

@@ -1543,16 +1543,20 @@ written; one feedback each, replaced in place, no history kept). Nobody can dele
 - **Storage (migration 096):** `engagement_feedback` (`application_id` FK cascade, `author_role` `individual`|`caregiver`, `author_user_id`, `about_user_id`, `rating`,
   `comment`), `UNIQUE (application_id, author_role)`. Also adds `feedback_submitted` to the `audit_logs.action` CHECK (`AuditAction.FEEDBACK_SUBMITTED`).
   **Apply 096 BEFORE deploying this backend**: the caregiver `assigned`/`history` payloads and the patient applicant list now select from this table, so they 500 without it.
-- **Visibility (changed 2026-11-21):** a **caregiver's feedback about a patient/family is private** — the patient/family never sees it and is never pushed about it
-  (`FeedbackService.stateFor` returns `received: null` for the patient; the patient's applicant list sends `their_feedback: NULL`; `submitForCaregiver` sends no push; the
-  patient app also ignores it). The caregiver DOES still see what the family wrote about them (and the family's feedback still pushes the caregiver). Admin reads everything.
+- **Visibility (changed 2026-11-21):** (1) a **caregiver's feedback about a patient/family is private** — the patient never sees it and is never pushed about it
+  (`FeedbackService.stateFor` returns `received: null` for the patient; the patient's applicant list sends `their_feedback: NULL`; no push on submit; the patient app ignores it too).
+  (2) A **caregiver sees the family's STAR RATING about them but never the written comment** (`stateFor` nulls the comment for the caregiver; `feedbackSql(alias, 'individual', false)`
+  puts `comment: NULL` into the caregiver's `my_application.their_feedback`; the app's "Feedback about you" block renders stars only). A caregiver still sees their OWN feedback in full,
+  and a patient still sees (and can change) their own rating + comment. (3) **Only admin sees both rating and comment of everything, and only a full admin can modify**:
+  `PATCH /admin/feedback/:id` (`FeedbackService.updateForAdmin`, any feedback either direction, rating + comment, empty comment clears it, audit-logged with the old rating, nobody
+  notified); a `read_only_admin` can read `GET /admin/feedback` but the write is refused by the policy. admin-web's Feedback screen has an Edit button per row (hidden for read-only).
   No public ratings or averages. Nothing is shown on profiles.
 - **API:** patient `GET`/`POST`/`PUT /individual/requirements/:jobId/applications/:applicationId/feedback` (PUT = change your own: `FEEDBACK_003` if you have none, audit-logged with the
   old and new rating, **no second push**, no "edited" marker or timestamp is stored), caregiver `GET`/`POST`/`PUT /caregiver/jobs/:id/feedback`
   (`{can_give, can_edit, reason, mine, received}`; body `{rating 1-5, comment?}`), admin `GET /admin/feedback` (`author_role`, `rating`, `search` incl. `NUR-`/`PAT-` ids;
   read-only, so a `read_only_admin` can read it). The apps get `my_feedback`/`their_feedback` inside the caregiver's `my_application` and the patient's applicant rows
   (`feedbackSql` in `database/repositories/engagement-feedback.sql.ts`); the caregiver's `job_poster` carries `is_family` so the app knows a family exists to rate.
-- **Side effects:** audit `feedback_submitted` (rating only, not the comment) and, for the PATIENT's feedback only, a push to the caregiver ("You received feedback", no text in the push; opens MyJobs). A caregiver's feedback sends no push to the patient.
+- **Side effects:** audit `feedback_submitted` (rating only, not the comment) and, for the PATIENT's feedback only, a push to the caregiver ("You received feedback", no text in the push; opens MyJobs). A caregiver's feedback sends no push to the patient. The push to the caregiver is immediate and carries the star count ("the family rated you 4 stars out of 5", `feedbackReceived(displayId, rating)`), never the comment; it is sent on the first rating only (a later change by the patient sends no second push).
   A caregiver deleting their account also deletes the feedback they authored (`CaregiverService.deleteAccount`); patient deletion removes it via the cascade.
 - **Apps:** `FeedbackSection` + `showFeedbackSheet` (bottom sheet, keyboard-safe) duplicated per tree (`lib/patient_hospital/features/individual/widgets/feedback_widgets.dart`,
   `lib/caregiver/features/jobs/widgets/feedback_widgets.dart`). Patient: "Rate this caregiver" on the accepted caregiver card and on the salary page. Caregiver: "Rate this

@@ -75,7 +75,9 @@ class FeedbackSection extends StatelessWidget {
             ),
           if (received != null) ...[
             if (mine != null || eligible) const SizedBox(height: AppSpacing.sm),
-            _FeedbackBlock(keyName: 'feedback-received', title: 'Feedback about you', feedback: received!),
+            // Stars only: the other side's written comment is private to admin, so it is never rendered here
+            // (the server no longer sends it either).
+            _FeedbackBlock(keyName: 'feedback-received', title: 'Feedback about you', feedback: received!, showComment: false),
           ],
         ],
       ),
@@ -88,8 +90,9 @@ class _FeedbackBlock extends StatelessWidget {
   final String title;
   final FeedbackModel feedback;
   final VoidCallback? onEdit;
+  final bool showComment;
 
-  const _FeedbackBlock({required this.keyName, required this.title, required this.feedback, this.onEdit});
+  const _FeedbackBlock({required this.keyName, required this.title, required this.feedback, this.onEdit, this.showComment = true});
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +116,7 @@ class _FeedbackBlock extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         StarsRow(rating: feedback.rating),
-        if (comment != null && comment.isNotEmpty) ...[
+        if (showComment && comment != null && comment.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(comment, key: Key('$keyName-comment')),
         ],

@@ -5,13 +5,17 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/hide_for_read_only.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_feedback_repository.dart';
+import '../widgets/edit_feedback_dialog.dart';
 
 /// Feedback patients/families and caregivers leave each other after they have worked
 /// together: 1-5 stars and a short comment, one per person per engagement, final once
-/// sent. Read-only here. Each person only ever sees their own and what was written
-/// about them; this is the one place everything can be read.
+/// sent. A patient sees their own; a caregiver sees their own and the family's STAR RATING
+/// about them (never the comment); a patient never sees a caregiver's feedback. This is the one
+/// place everything — every rating and comment — can be read, and the one place a feedback can be
+/// corrected (full admins only; a read-only admin can read but not edit).
 class FeedbackScreen extends ConsumerStatefulWidget {
   const FeedbackScreen({super.key});
 
@@ -63,6 +67,20 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       if (mounted) setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Admin corrects a feedback (rating and/or comment); reloads the list when saved.
+  Future<void> _edit(AdminFeedbackItem item) async {
+    final saved = await showEditFeedbackDialog(
+      context,
+      item: item,
+      onSave: (rating, comment) =>
+          ref.read(adminFeedbackRepositoryProvider).update(item.id, rating: rating, comment: comment),
+    );
+    if (saved && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Feedback updated.')));
+      await _load();
     }
   }
 
@@ -201,6 +219,17 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
               VitaListCard.kv('Date', item.createdAt.split('T').first),
               if (item.jobLabel != null) VitaListCard.kv('Job', item.jobLabel!),
               if (item.comment != null) VitaListCard.kv('Comment', item.comment!),
+              HideForReadOnly(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    key: Key('edit-feedback-${item.id}'),
+                    onPressed: () => _edit(item),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit'),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -217,6 +246,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
             DataColumn(label: Text('Stars')),
             DataColumn(label: Text('Comment')),
             DataColumn(label: Text('Job')),
+            DataColumn(label: Text('')),
           ],
           rows: _items
               .map((item) => DataRow(cells: [
@@ -235,6 +265,14 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                       child: Text(item.comment ?? '-', softWrap: true),
                     )),
                     DataCell(Text(item.jobLabel ?? '-')),
+                    DataCell(HideForReadOnly(
+                      child: IconButton(
+                        key: Key('edit-feedback-${item.id}'),
+                        tooltip: 'Edit this feedback',
+                        onPressed: () => _edit(item),
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                      ),
+                    )),
                   ]))
               .toList(),
         ),

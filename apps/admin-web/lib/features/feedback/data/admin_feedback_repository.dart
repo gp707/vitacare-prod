@@ -77,6 +77,15 @@ class AdminFeedbackRepository {
 
   AdminFeedbackRepository(this._dio);
 
+  /// Admin corrects a feedback's rating and/or comment (a null comment clears it). Nobody is notified.
+  Future<void> update(String id, {required int rating, String? comment}) async {
+    try {
+      await _dio.patch('/admin/feedback/$id', data: {'rating': rating, 'comment': comment ?? ''});
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<AdminFeedbackListResult> list({int page = 1, int limit = 20, String? authorRole, int? rating, String? search}) async {
     try {
       final res = await _dio.get('/admin/feedback', queryParameters: {

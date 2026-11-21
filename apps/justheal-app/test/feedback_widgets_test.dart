@@ -97,6 +97,22 @@ void _suite({
       expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
     });
 
+    testWidgets('what the other side wrote about you shows as stars only — the comment is never rendered', (tester) async {
+      await pumpSection(
+        tester,
+        section(mine: null, received: const FeedbackModel(rating: 4, comment: 'Private remark'), eligible: true),
+      );
+      expect(find.byKey(const Key('feedback-received')), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(4));
+      expect(find.text('Private remark'), findsNothing);
+      expect(find.byKey(const Key('feedback-received-comment')), findsNothing);
+    });
+
+    testWidgets('your OWN comment is still shown to you', (tester) async {
+      await pumpSection(tester, section(mine: const FeedbackModel(rating: 5, comment: 'My own words'), received: null, eligible: true));
+      expect(find.text('My own words'), findsOneWidget);
+    });
+
     testWidgets('your feedback has an Edit button when editing is wired, and tapping it calls back', (tester) async {
       var edits = 0;
       await pumpSection(

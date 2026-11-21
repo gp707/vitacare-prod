@@ -193,15 +193,19 @@ describe('changedAny', () => {
 });
 
 describe('feedback received wording', () => {
-  it('tells a caregiver the family left feedback and opens MyJobs, without the comment text', () => {
-    const m = feedbackReceived('PAT-JOB-548', true);
-    expect(m.body).toContain('the family left feedback');
+  it('tells the caregiver how many stars the family gave, and opens MyJobs', () => {
+    const m = feedbackReceived('PAT-JOB-548', 4);
+    expect(m.title).toBe('You received a rating');
+    expect(m.body).toContain('PAT-JOB-548');
+    expect(m.body).toContain('rated you 4 stars out of 5');
     expect(m.route).toBe('/caregiver/my-jobs');
   });
-  it('tells a family the caregiver left feedback and opens their home screen', () => {
-    const m = feedbackReceived('PAT-JOB-548', false);
-    expect(m.body).toContain('the caregiver left feedback');
-    expect(m.route).toBe('/home');
+  it('says "1 star" (singular) for a single star and "5 stars" for the best', () => {
+    expect(feedbackReceived('PAT-JOB-548', 1).body).toContain('rated you 1 star out of 5');
+    expect(feedbackReceived('PAT-JOB-548', 5).body).toContain('rated you 5 stars out of 5');
+  });
+  it('never carries a comment', () => {
+    expect(feedbackReceived('PAT-JOB-548', 3).body).not.toMatch(/comment|said|wrote/i);
   });
 });
 

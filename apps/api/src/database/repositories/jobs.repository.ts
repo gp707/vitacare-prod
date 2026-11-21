@@ -536,7 +536,8 @@ export class JobsRepository {
              'agreed_start_date', ja.agreed_start_date,
              'agreement_history', ${agreementHistorySql('ja')},
              'my_feedback', ${feedbackSql('ja', 'caregiver')},
-             'their_feedback', ${feedbackSql('ja', 'individual')}
+             -- the caregiver sees the family's star rating, never their written comment
+             'their_feedback', ${feedbackSql('ja', 'individual', false)}
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone, 'is_family', u.role = 'individual') AS job_poster
        FROM job_applications ja
@@ -578,7 +579,8 @@ export class JobsRepository {
              'agreed_start_date', ja.agreed_start_date,
              'agreement_history', ${agreementHistorySql('ja')},
              'my_feedback', ${feedbackSql('ja', 'caregiver')},
-             'their_feedback', ${feedbackSql('ja', 'individual')}
+             -- the caregiver sees the family's star rating, never their written comment
+             'their_feedback', ${feedbackSql('ja', 'individual', false)}
          ) AS my_application,
          jsonb_build_object('full_name', u.full_name, 'phone', u.phone, 'is_family', u.role = 'individual') AS job_poster
        FROM job_applications ja

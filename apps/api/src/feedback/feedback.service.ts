@@ -48,7 +48,8 @@ const view = (row: FeedbackRow | undefined): FeedbackView | null =>
  * Overall feedback between a patient/family and a caregiver, per engagement (one
  * caregiver on one job — never per salary cycle). Whether someone may write is
  * decided here, on the server, never by the app: see canLeaveFeedback. Write once
- * and final; a caregiver sees their own feedback and what the family wrote about them, while a
+ * and final; a caregiver sees their own feedback and the family's STAR RATING about them (never the
+ * comment), while a
  * patient/family sees only their own — the caregiver's feedback about them stays private (admin reads all).
  */
 @Injectable()
@@ -81,7 +82,8 @@ export class FeedbackService {
     const caregiver = await this.profilesRepo.findFullById(application.profile_id);
     if (!caregiver) throw new AppException('JOB_006');
     await this.submit(application, 'individual', userId, caregiver.user_id, dto, ipAddress);
-    void this.notificationsService.feedbackReceived(caregiver.user_id, { toCaregiver: true, displayId: jobDisplayId(job) });
+    // The caregiver hears about it at once, with the number of stars (never the comment).
+    void this.notificationsService.feedbackReceived(caregiver.user_id, { displayId: jobDisplayId(job), rating: dto.rating });
     return { message: 'Thank you for your feedback', ...(await this.stateFor(application, 'individual', true)) };
   }
 
@@ -148,6 +150,28 @@ export class FeedbackService {
     return { data: items, meta };
   }
 
+  /**
+   * Admin corrects any feedback (the patient's about a caregiver, or the caregiver's about a patient):
+   * rating and/or comment, replaced in place. Nobody is notified. Audit-logged with the old rating,
+   * against the person the feedback is about. GEN_002 when no such feedback exists.
+   */
+  async updateForAdmin(adminId: string, feedbackId: string, dto: SubmitFeedbackDto, ipAddress: string | null) {
+    const comment = dto.comment && dto.comment.length > 0 ? dto.comment : null;
+    const before = await this.feedbackRepo.updateById(feedbackId, dto.rating, comment);
+    if (!before) throw new AppException('GEN_002');
+    await this.auditService.log({
+      userId: adminId,
+      targetUserId: before.about_user_id,
+      action: AuditAction.FEEDBACK_SUBMITTED,
+      entityType: 'job_applications',
+      entityId: before.application_id,
+      beforeValue: { author_role: before.author_role, rating: before.old_rating },
+      afterValue: { author_role: before.author_role, rating: dto.rating, edited_by_admin: true },
+      ipAddress,
+    });
+    return { message: 'Feedback updated', id: feedbackId, rating: dto.rating, comment };
+  }
+
   // ── Shared ─────────────────────────────────────────────────────────────
 
   private async loadIndividualEngagement(userId: string, jobId: string, applicationId: string) {
@@ -191,7 +215,10 @@ export class FeedbackService {
     const mine = view(rows.find((r) => r.author_role === role));
     // What a caregiver wrote about a patient/family is never shown to that patient/family — only the
     // caregiver (and admin) can see it. The caregiver still sees what the family wrote about them.
-    const received = role === 'individual' ? null : view(rows.find((r) => r.author_role !== role));
+    // The caregiver sees the family's STAR RATING about them but never the written comment; only admin
+    // reads the comments.
+    const family = view(rows.find((r) => r.author_role !== role));
+    const received = role === 'individual' ? null : family ? { ...family, comment: null } : null;
     const can_edit = mine != null;
     if (mine) return { can_give: false, can_edit, reason: null, mine, received };
     if (!hasOtherParty) return { can_give: false, can_edit, reason: 'no_family_account', mine, received };

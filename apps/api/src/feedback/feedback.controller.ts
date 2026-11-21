@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -84,7 +84,7 @@ export class CaregiverFeedbackController {
   }
 }
 
-/** Admin: every feedback left, read-only. */
+/** Admin: every feedback left (rating and comment), and the one place a feedback can be corrected. */
 @Controller('admin/feedback')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
@@ -94,5 +94,17 @@ export class AdminFeedbackController {
   @Get()
   list(@Query() query: ListFeedbackQueryDto) {
     return this.feedbackService.listForAdmin(query);
+  }
+
+  /** Admin corrects a feedback's rating and/or comment (refused for a read-only admin by the policy). */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SubmitFeedbackDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.feedbackService.updateForAdmin(user.sub, id, dto, ip);
   }
 }

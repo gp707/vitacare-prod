@@ -9,6 +9,8 @@ import 'package:admin_web/core/providers.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
+import 'package:admin_web/core/network/api_exception.dart';
+import 'package:admin_web/shared/state/read_only_admin.dart';
 import 'package:admin_web/features/feedback/data/admin_feedback_repository.dart';
 import 'package:admin_web/features/feedback/screens/feedback_screen.dart';
 
@@ -42,8 +44,22 @@ class _FakeFeedbackRepository extends AdminFeedbackRepository {
   int? lastRating;
   String? lastSearch;
   int calls = 0;
+  // admin edits
+  String? updatedId;
+  int? updatedRating;
+  String? updatedComment;
+  ApiException? updateError;
 
   _FakeFeedbackRepository(this.items) : super(Dio());
+
+  @override
+  Future<void> update(String id, {required int rating, String? comment}) async {
+    if (updateError != null) throw updateError!;
+    updatedId = id;
+    updatedRating = rating;
+    updatedComment = comment;
+    items = [for (final i in items) if (i.id == id) _item(id: id, authorRole: i.authorRole, rating: rating, comment: comment) else i];
+  }
 
   @override
   Future<AdminFeedbackListResult> list({int page = 1, int limit = 20, String? authorRole, int? rating, String? search}) async {
@@ -58,7 +74,7 @@ class _FakeFeedbackRepository extends AdminFeedbackRepository {
   }
 }
 
-Future<void> _pump(WidgetTester tester, _FakeFeedbackRepository repo) async {
+Future<void> _pump(WidgetTester tester, _FakeFeedbackRepository repo, {bool readOnly = false}) async {
   await tester.binding.setSurfaceSize(const Size(2400, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
@@ -68,6 +84,7 @@ Future<void> _pump(WidgetTester tester, _FakeFeedbackRepository repo) async {
       overrides: [
         localStorageProvider.overrideWithValue(localStorage),
         adminFeedbackRepositoryProvider.overrideWithValue(repo),
+        isReadOnlyAdminProvider.overrideWithValue(readOnly),
         sessionProvider.overrideWith(
           (ref) => SessionNotifier(localStorage)..state = AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
@@ -145,5 +162,77 @@ void main() {
     await tester.tap(find.text('NUR-589 Sunandita Nandy'));
     await tester.pumpAndSettle();
     expect(find.text('opened /caregiver-detail:cp-1'), findsOneWidget);
+  });
+
+  group('admin can correct a feedback', () {
+    testWidgets('the dialog starts from the saved stars and comment; saving sends both and refreshes the list', (tester) async {
+      final repo = _FakeFeedbackRepository([_item(rating: 4, comment: 'Kind and punctual')]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-feedback-f1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit feedback'), findsOneWidget);
+      expect(tester.widget<TextField>(find.byKey(const Key('edit-feedback-comment'))).controller!.text, 'Kind and punctual');
+      await tester.tap(find.byKey(const Key('edit-feedback-star-2')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('edit-feedback-comment')), 'Corrected by admin');
+      await tester.tap(find.byKey(const Key('edit-feedback-save')));
+      await tester.pumpAndSettle();
+      expect(repo.updatedId, 'f1');
+      expect(repo.updatedRating, 2);
+      expect(repo.updatedComment, 'Corrected by admin');
+      // the list reloaded with the correction
+      expect(find.text('Corrected by admin'), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(2));
+    });
+
+    testWidgets('clearing the comment removes it', (tester) async {
+      final repo = _FakeFeedbackRepository([_item()]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-feedback-f1')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('edit-feedback-comment')), '');
+      await tester.tap(find.byKey(const Key('edit-feedback-save')));
+      await tester.pumpAndSettle();
+      expect(repo.updatedComment, isNull);
+    });
+
+    testWidgets('a feedback written by a caregiver can be corrected too', (tester) async {
+      final repo = _FakeFeedbackRepository([_item(id: 'f9', authorRole: 'caregiver', rating: 5, comment: 'Respectful')]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-feedback-f9')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('edit-feedback-star-3')));
+      await tester.tap(find.byKey(const Key('edit-feedback-save')));
+      await tester.pumpAndSettle();
+      expect(repo.updatedId, 'f9');
+      expect(repo.updatedRating, 3);
+    });
+
+    testWidgets('cancel changes nothing', (tester) async {
+      final repo = _FakeFeedbackRepository([_item()]);
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-feedback-f1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(repo.updatedId, isNull);
+    });
+
+    testWidgets('a server error is shown in the dialog, which stays open', (tester) async {
+      final repo = _FakeFeedbackRepository([_item()])..updateError = const ApiException(code: 'GEN_002', message: 'Not found');
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('edit-feedback-f1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('edit-feedback-save')));
+      await tester.pumpAndSettle();
+      expect(find.text('Not found'), findsOneWidget);
+      expect(find.byKey(const Key('edit-feedback-save')), findsOneWidget);
+    });
+
+    testWidgets('a read-only admin sees every rating and comment but has no Edit button', (tester) async {
+      await _pump(tester, _FakeFeedbackRepository([_item()]), readOnly: true);
+      expect(find.text('Kind and punctual'), findsOneWidget);
+      expect(find.byKey(const Key('edit-feedback-f1')), findsNothing);
+    });
   });
 }

@@ -25,6 +25,7 @@ describe('read-only admin policy', () => {
       '/admin/error-logs',
       '/admin/insights/summary',
       '/admin/rejections',
+      '/admin/feedback', // a read-only admin can read every rating and comment
     ])('allows GET %s', (path) => {
       expect(allowed('GET', `${P}${path}`)).toBe(true);
     });
@@ -91,6 +92,7 @@ describe('read-only admin policy', () => {
       ['PATCH', '/admin/error-logs/:id/resolve'],
       ['PATCH', '/admin/rate-card/:frequency'],
       ['PATCH', '/admin/app-versions/:platform'],
+      ['PATCH', '/admin/feedback/:id'], // only a full admin can correct a feedback
     ])('refuses %s %s', (method, path) => {
       expect(allowed(method, `${P}${path}`)).toBe(false);
     });

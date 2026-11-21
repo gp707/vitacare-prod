@@ -90,6 +90,29 @@ export class EngagementFeedbackRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  /** Admin: replaces the rating and comment of one feedback, whoever wrote it. Returns the row as it was
+   *  before (for the audit trail), or null when no such feedback exists. */
+  async updateById(
+    id: string,
+    rating: number,
+    comment: string | null,
+  ): Promise<{ application_id: string; author_role: FeedbackAuthorRole; author_user_id: string; about_user_id: string; old_rating: number } | null> {
+    const result = await this.db.query<{
+      application_id: string;
+      author_role: FeedbackAuthorRole;
+      author_user_id: string;
+      about_user_id: string;
+      old_rating: number;
+    }>(
+      `UPDATE engagement_feedback f SET rating = $2, comment = $3
+       FROM (SELECT id, rating FROM engagement_feedback WHERE id = $1) old
+       WHERE f.id = old.id
+       RETURNING f.application_id, f.author_role, f.author_user_id, f.about_user_id, old.rating AS old_rating`,
+      [id, rating, comment],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async listForAdmin(filters: FeedbackAdminFilters, page: ListPage): Promise<{ items: FeedbackAdminItem[]; total: number }> {
     const conditions: string[] = [];
     const params: unknown[] = [];

@@ -110,7 +110,7 @@ describe('FeedbackService', () => {
       expect(auditService.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'feedback_submitted', userId: 'patient-1', targetUserId: 'cg-user', entityId: 'app-1' }),
       );
-      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('cg-user', { toCaregiver: true, displayId: 'PAT-JOB-548' });
+      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('cg-user', { displayId: 'PAT-JOB-548', rating: 4 });
     });
 
     it('stores an empty comment as nothing', async () => {
@@ -304,7 +304,7 @@ describe('FeedbackService', () => {
     it('a patient\'s feedback about the caregiver still tells the caregiver', async () => {
       await service.submitForIndividual('patient-1', 'job-1', 'app-1', { rating: 4 }, null);
       expect(notificationsService.feedbackReceived).toHaveBeenCalledTimes(1);
-      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('cg-user', expect.objectContaining({ toCaregiver: true }));
+      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('cg-user', { displayId: 'PAT-JOB-548', rating: 4 });
     });
 
     it('cannot write about a job they never applied to', async () => {
@@ -329,12 +329,81 @@ describe('FeedbackService', () => {
       await expect(service.submitForCaregiver('cg-user', 'job-1', { rating: 5 }, null)).rejects.toMatchObject({ code: 'FEEDBACK_002' });
     });
 
-    it('sees what the family wrote about them as "received"', async () => {
+    it('sees the family\'s STAR RATING about them as "received"', async () => {
       const created = new Date();
       feedbackRepo.listByApplication.mockResolvedValue([{ author_role: 'individual', rating: 2, comment: null, created_at: created }]);
       const state = await service.getForCaregiver('cg-user', 'job-1');
       expect(state.received).toEqual({ rating: 2, comment: null, created_at: created });
       expect(state.mine).toBeNull();
+    });
+
+    it('never gets the written comment: the stars come through, the comment is always null', async () => {
+      const created = new Date();
+      feedbackRepo.listByApplication.mockResolvedValue([
+        { author_role: 'individual', rating: 4, comment: 'She was late twice', created_at: created },
+        { author_role: 'caregiver', rating: 5, comment: 'My own note', created_at: created },
+      ]);
+      const state = await service.getForCaregiver('cg-user', 'job-1');
+      expect(state.received).toEqual({ rating: 4, comment: null, created_at: created });
+      expect(JSON.stringify(state)).not.toContain('She was late twice');
+      // their own feedback, comment included, is theirs to see
+      expect(state.mine).toEqual({ rating: 5, comment: 'My own note', created_at: created });
+    });
+
+    it('the response to their own submit does not leak the comment either', async () => {
+      feedbackRepo.listByApplication.mockResolvedValue([
+        { author_role: 'individual', rating: 3, comment: 'Private comment', created_at: new Date() },
+        { author_role: 'caregiver', rating: 5, comment: null, created_at: new Date() },
+      ]);
+      const result = await service.submitForCaregiver('cg-user', 'job-1', { rating: 5 }, null);
+      expect(JSON.stringify(result)).not.toContain('Private comment');
+    });
+  });
+
+  describe('admin correcting a feedback', () => {
+    const before = {
+      application_id: 'app-1',
+      author_role: 'individual',
+      author_user_id: 'patient-1',
+      about_user_id: 'cg-user',
+      old_rating: 2,
+    };
+    beforeEach(() => {
+      feedbackRepo.updateById = jest.fn().mockResolvedValue(before);
+    });
+
+    it('replaces the rating and comment, audit-logs the old rating against the person it is about, and notifies nobody', async () => {
+      const result = await service.updateForAdmin('admin-1', 'f1', { rating: 4, comment: 'Corrected' }, '1.1.1.1');
+      expect(feedbackRepo.updateById).toHaveBeenCalledWith('f1', 4, 'Corrected');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          targetUserId: 'cg-user',
+          action: 'feedback_submitted',
+          entityId: 'app-1',
+          beforeValue: { author_role: 'individual', rating: 2 },
+          afterValue: { author_role: 'individual', rating: 4, edited_by_admin: true },
+        }),
+      );
+      expect(notificationsService.feedbackReceived).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ id: 'f1', rating: 4, comment: 'Corrected' });
+    });
+
+    it('an empty comment clears it', async () => {
+      await service.updateForAdmin('admin-1', 'f1', { rating: 3, comment: '' }, null);
+      expect(feedbackRepo.updateById).toHaveBeenCalledWith('f1', 3, null);
+    });
+
+    it('works on a caregiver-written feedback too', async () => {
+      feedbackRepo.updateById.mockResolvedValue({ ...before, author_role: 'caregiver', author_user_id: 'cg-user', about_user_id: 'patient-1' });
+      await service.updateForAdmin('admin-1', 'f2', { rating: 1 }, null);
+      expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({ targetUserId: 'patient-1' }));
+    });
+
+    it('GEN_002 when the feedback does not exist, and nothing is logged', async () => {
+      feedbackRepo.updateById.mockResolvedValue(null);
+      await expect(service.updateForAdmin('admin-1', 'nope', { rating: 3 }, null)).rejects.toMatchObject({ code: 'GEN_002' });
+      expect(auditService.log).not.toHaveBeenCalled();
     });
   });
 

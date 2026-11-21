@@ -132,10 +132,11 @@ export const agreementChangeCallReminder = (caregiverName: string, toOrganisatio
 });
 
 /** The other side left feedback about this person. */
-export const feedbackReceived = (displayId: string, toCaregiver: boolean): PushMessage => ({
-  title: 'You received feedback',
-  body: `${displayId}: ${toCaregiver ? 'the family' : 'the caregiver'} left feedback about you. Open the app to read it.`,
-  route: toCaregiver ? PushRoutes.caregiverMyJobs : PushRoutes.individualHome,
+export const feedbackReceived = (displayId: string, rating: number): PushMessage => ({
+  title: 'You received a rating',
+  // The star count only — the written comment is private to admin and never goes in a push.
+  body: `${displayId}: the family rated you ${rating} ${rating === 1 ? 'star' : 'stars'} out of 5. Open MyJobs to see it.`,
+  route: PushRoutes.caregiverMyJobs,
 });
 
 export const applicationDeclined = (displayId: string, reason?: string | null): PushMessage => ({
