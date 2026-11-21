@@ -14,6 +14,7 @@ import '../../../shared/widgets/sort_bar.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
 import '../../../shared/widgets/hide_for_read_only.dart';
+import '../../../shared/widgets/open_job.dart';
 
 class CaregiverListScreen extends ConsumerStatefulWidget {
   final String? initialStatus;
@@ -127,6 +128,47 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
 
   void _openDetail(AdminCaregiverListItem item) => Navigator.of(context)
       .pushNamed('/caregiver-detail', arguments: item.profileId);
+
+  /// Click on an assigned caregiver's status: open the job they are assigned to — straight away when it
+  /// is one, or a short list to pick from when it is several. (An "assigned" status with nothing behind
+  /// it just opens the profile.)
+  Future<void> _openAssignments(AdminCaregiverListItem item) async {
+    final list = item.assignments;
+    if (list.isEmpty) return _openDetail(item);
+    CaregiverAssignment? chosen = list.length == 1 ? list.first : null;
+    if (chosen == null) {
+      chosen = await showDialog<CaregiverAssignment>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: Text('${item.fullName} is assigned to (${list.length})'),
+          children: [
+            for (final a in list)
+              SimpleDialogOption(
+                key: Key('assignment-${a.jobId}'),
+                onPressed: () => Navigator.of(dialogContext).pop(a),
+                child: Text(a.summaryLine),
+              ),
+          ],
+        ),
+      );
+    }
+    if (chosen == null || !mounted) return;
+    await openJobOrRequirement(context, ref, jobId: chosen.jobId, isRequirement: chosen.isRequirement);
+  }
+
+  /// The status badge; for an assigned caregiver, hovering shows who they are assigned to.
+  Widget _statusCell(AdminCaregiverListItem item) {
+    final badge = VitaStatusBadge(status: item.verificationStatus);
+    if (item.verificationStatus != 'assigned') return badge;
+    return Tooltip(
+      message: item.assignmentHoverText,
+      waitDuration: const Duration(milliseconds: 250),
+      showDuration: const Duration(seconds: 10),
+      preferBelow: false,
+      textAlign: TextAlign.left,
+      child: badge,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -423,8 +465,10 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
                     DataCell(Text('${item.age}'), onTap: () => _openDetail(item)),
                     DataCell(_qualificationCell(item.highestQualification),
                         onTap: () => _openDetail(item)),
-                    DataCell(VitaStatusBadge(status: item.verificationStatus),
-                        onTap: () => _openDetail(item)),
+                    DataCell(_statusCell(item),
+                        onTap: item.verificationStatus == 'assigned'
+                            ? () => _openAssignments(item)
+                            : () => _openDetail(item)),
                     DataCell(_notesCell(item)),
                   ],
                 ),

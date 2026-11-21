@@ -165,8 +165,10 @@ JobApplicationModel _application({
   Map<String, dynamic>? myFeedback,
   Map<String, dynamic>? theirFeedback,
   List<Map<String, dynamic>> agreementHistory = const [],
+  double? overallRating,
 }) {
   return JobApplicationModel.fromJson({
+    'overall_rating': overallRating,
     'id': id,
     'job_id': jobId,
     'profile_id': 'profile-1',
@@ -1836,6 +1838,41 @@ void main() {
     });
   });
 
+
+  group('the caregiver\'s overall rating as stars in an arc over her picture', () {
+    _FakeIndividualRepository repoWith(List<JobApplicationModel> apps, {String status = 'active'}) => _FakeIndividualRepository(
+          requirements: [_requirement(status: status)],
+          applicationsByJobId: {'job-1': apps},
+        );
+
+    testWidgets('an accepted caregiver\'s card shows the arc', (tester) async {
+      await _pump(
+        tester,
+        repoWith([_application(id: 'a1', status: 'accepted', fullName: 'Asha', acceptedAt: '2026-11-01T10:00:00Z', overallRating: 4.5)], status: 'closed'),
+      );
+      final card = find.byKey(const Key('caregiver-card-a1'));
+      expect(find.descendant(of: card, matching: find.byKey(const Key('rating-arc-avatar'))), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.byIcon(Icons.star)), findsNWidgets(4));
+      expect(find.descendant(of: card, matching: find.byIcon(Icons.star_half)), findsOneWidget);
+    });
+
+    testWidgets('a waiting candidate\'s tile shows the arc too, so she is recognisable at a glance', (tester) async {
+      await _pump(tester, repoWith([_application(id: 'w1', status: 'applied', fullName: 'Ramesh', overallRating: 5)]));
+      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(5));
+    });
+
+    testWidgets('an unrated caregiver has no arc, on the card or the tile', (tester) async {
+      await _pump(
+        tester,
+        repoWith([
+          _application(id: 'a1', status: 'accepted', fullName: 'Asha', acceptedAt: '2026-11-01T10:00:00Z'),
+          _application(id: 'w1', status: 'applied', fullName: 'Ramesh'),
+        ]),
+      );
+      expect(find.byKey(const Key('rating-arc-avatar')), findsNothing);
+    });
+  });
 
   group('candidate tile spacing', () {
     testWidgets('name, phone, activity log and profile button have clear gaps between them', (tester) async {

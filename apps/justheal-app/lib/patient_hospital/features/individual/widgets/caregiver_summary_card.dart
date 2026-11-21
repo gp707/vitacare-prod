@@ -76,10 +76,16 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.white,
-                child: Text(initial, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
+              // Her overall rating as stars in an arc over the picture, so she is recognisable at a glance.
+              VitaRatingArcAvatar(
+                avatarRadius: 24,
+                rating: widget.application.overallRating,
+                starSize: 14,
+                avatar: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.white,
+                  child: Text(initial, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
+                ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

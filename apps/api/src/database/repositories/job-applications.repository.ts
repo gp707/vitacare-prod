@@ -1,5 +1,5 @@
 import { agreementHistorySql } from './agreement-log.sql';
-import { feedbackSql } from './engagement-feedback.sql';
+import { feedbackSql, overallRatingSql } from './engagement-feedback.sql';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { JobApplicationStatus } from '@vitacare/shared-constants';
@@ -58,6 +58,8 @@ export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   agreement_history: { salary: number; unit: 'daily' | 'monthly'; start_date: string; at: string }[];
   my_feedback: { rating: number; comment: string | null; created_at: string } | null;
   their_feedback: { rating: number; comment: string | null; created_at: string } | null;
+  /** The caregiver's overall rating (average + half a star, max 5), null when she has none. */
+  overall_rating: number | null;
 }
 
 @Injectable()
@@ -367,7 +369,8 @@ export class JobApplicationsRepository {
          ${agreementHistorySql('ja')} AS agreement_history,
          ${feedbackSql('ja', 'individual')} AS my_feedback,
          -- the caregiver's feedback about the patient is private: never sent to the patient's app
-         NULL::jsonb AS their_feedback
+         NULL::jsonb AS their_feedback,
+         ${overallRatingSql('ja.profile_id')} AS overall_rating
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id

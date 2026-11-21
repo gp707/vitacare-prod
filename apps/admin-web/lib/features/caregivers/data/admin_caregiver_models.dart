@@ -1,6 +1,60 @@
-import 'package:vitacare_shared/vitacare_shared.dart' show organisationDisplayId, patientDisplayId;
+import 'package:vitacare_shared/vitacare_shared.dart' show City, DutyType, organisationDisplayId, patientDisplayId;
 
 export 'package:vitacare_shared/vitacare_shared.dart' show PaginationMeta;
+
+/// One job / organisation requirement a caregiver is currently accepted onto (list endpoint, only
+/// for an `assigned` caregiver).
+class CaregiverAssignment {
+  final bool isRequirement;
+  final String jobId;
+  /// ADMIN-JOB-n / PAT-JOB-n / ORG-JOB-n.
+  final String label;
+  final String? posterName;
+  final String? posterRole;
+  final int? posterNumber;
+  final String? city;
+  final String? shift;
+  final String? acceptedAt;
+
+  const CaregiverAssignment({
+    required this.isRequirement,
+    required this.jobId,
+    required this.label,
+    this.posterName,
+    this.posterRole,
+    this.posterNumber,
+    this.city,
+    this.shift,
+    this.acceptedAt,
+  });
+
+  /// PAT-/ORG- id of the poster ("-" for an admin-posted job).
+  String? get posterDisplayLabel => switch (posterRole) {
+        'individual' => patientDisplayId(posterNumber),
+        'organisation' => organisationDisplayId(posterNumber),
+        _ => null,
+      };
+
+  /// One line for the hover card / list: "PAT-JOB-539 · Hansa PAT-625 · Bangalore · 24Hrs - Live In".
+  String get summaryLine => [
+        label,
+        if (posterName != null) '$posterName ${posterDisplayLabel ?? ''}'.trim(),
+        if (city != null) City.displayNames[city] ?? city!,
+        if (shift != null) DutyType.displayNames[shift] ?? shift!,
+      ].join(' · ');
+
+  factory CaregiverAssignment.fromJson(Map<String, dynamic> json) => CaregiverAssignment(
+        isRequirement: json['kind'] == 'organisation_requirement',
+        jobId: json['job_id'] as String,
+        label: json['label'] as String,
+        posterName: json['poster_name'] as String?,
+        posterRole: json['poster_role'] as String?,
+        posterNumber: (json['poster_number'] as num?)?.toInt(),
+        city: json['city'] as String?,
+        shift: json['shift'] as String?,
+        acceptedAt: json['accepted_at'] as String?,
+      );
+}
 
 class AdminCaregiverListItem {
   final String userId;
@@ -17,6 +71,9 @@ class AdminCaregiverListItem {
   /// Admin's internal note (list endpoint only).
   final String? notes;
 
+  /// What an `assigned` caregiver is currently accepted onto (list endpoint only; empty otherwise).
+  final List<CaregiverAssignment> assignments;
+
   const AdminCaregiverListItem({
     required this.userId,
     required this.profileId,
@@ -29,7 +86,20 @@ class AdminCaregiverListItem {
     required this.verificationStatus,
     required this.createdAt,
     this.notes,
+    this.assignments = const [],
   });
+
+  /// Hover text for the Status cell of an assigned caregiver.
+  String get assignmentHoverText {
+    if (assignments.isEmpty) {
+      return 'Marked as assigned, but not accepted onto any job or requirement right now.\nClick to open the profile';
+    }
+    return [
+      'Assigned to (${assignments.length}):',
+      for (final a in assignments) a.summaryLine,
+      assignments.length == 1 ? 'Click to open this job' : 'Click to see these jobs',
+    ].join('\n');
+  }
 
   factory AdminCaregiverListItem.fromJson(Map<String, dynamic> json) =>
       AdminCaregiverListItem(
@@ -44,6 +114,9 @@ class AdminCaregiverListItem {
         verificationStatus: json['verification_status'] as String,
         createdAt: json['created_at'] as String,
         notes: json['notes'] as String?,
+        assignments: ((json['assignments'] as List?) ?? const [])
+            .map((a) => CaregiverAssignment.fromJson(a as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -72,6 +145,8 @@ class AdminCaregiverDetail {
   final String gender;
   final int age;
   final String? selfiePhotoUrl;
+  /// Overall rating (average of patients' ratings + 1.5 stars, max 5); null when nobody has rated the caregiver.
+  final double? overallRating;
   final List<String> languages;
   final String? highestQualification;
   final String? religion;
@@ -98,6 +173,7 @@ class AdminCaregiverDetail {
     required this.gender,
     required this.age,
     this.selfiePhotoUrl,
+    this.overallRating,
     required this.languages,
     this.highestQualification,
     this.religion,
@@ -126,6 +202,7 @@ class AdminCaregiverDetail {
         gender: json['gender'] as String,
         age: json['age'] as int,
         selfiePhotoUrl: json['selfie_photo_url'] as String?,
+        overallRating: (json['overall_rating'] as num?)?.toDouble(),
         languages: List<String>.from(json['languages'] as List? ?? const []),
         highestQualification: json['highest_qualification'] as String?,
         religion: json['religion'] as String?,

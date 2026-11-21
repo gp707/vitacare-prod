@@ -43,6 +43,22 @@ export interface AdminCaregiverListItem {
   created_at: Date;
   /** Admin's internal note (admin_notes.internal_notes), shown inline in the list. */
   notes: string | null;
+  /** Only for a caregiver whose status is `assigned`: every job / organisation requirement she is
+   *  currently accepted onto, oldest first (shown on hover over her status, click opens the job). */
+  assignments: CaregiverAssignment[];
+}
+
+export interface CaregiverAssignment {
+  kind: 'job' | 'organisation_requirement';
+  job_id: string;
+  /** ADMIN-JOB-n / PAT-JOB-n / ORG-JOB-n. */
+  label: string;
+  poster_name: string | null;
+  poster_role: string | null;
+  poster_number: number | null;
+  city: string | null;
+  shift: string | null;
+  accepted_at: string | null;
 }
 
 export interface AdminCaregiverListFilters {
@@ -212,7 +228,33 @@ export class AdminCaregiversRepository {
       this.db.query<AdminCaregiverListItem>(
         `SELECT cp.id AS profile_id, cp.user_id, cp.caregiver_number, u.full_name, u.phone, cp.gender, cp.age,
                 cp.highest_qualification, cp.verification_status, cp.created_at,
-                an.internal_notes AS notes
+                an.internal_notes AS notes,
+                CASE WHEN cp.verification_status = 'assigned' THEN COALESCE((
+                  SELECT jsonb_agg(x.a ORDER BY x.a->>'accepted_at') FROM (
+                    SELECT jsonb_build_object(
+                             'kind', 'job', 'job_id', j.id,
+                             'label', CASE WHEN j.admin_job_number IS NOT NULL
+                                           THEN 'ADMIN-JOB-' || j.admin_job_number::text
+                                           ELSE 'PAT-JOB-' || j.patient_job_number::text END,
+                             'poster_name', pu.full_name, 'poster_role', pu.role, 'poster_number', ip.patient_number,
+                             'city', j.city, 'shift', j.duty_type, 'accepted_at', ja.accepted_at) AS a
+                    FROM job_applications ja
+                    JOIN jobs j ON j.id = ja.job_id
+                    LEFT JOIN users pu ON pu.id = j.posted_by
+                    LEFT JOIN individual_profiles ip ON ip.user_id = j.posted_by
+                    WHERE ja.profile_id = cp.id AND ja.status = 'accepted'
+                    UNION ALL
+                    SELECT jsonb_build_object(
+                             'kind', 'organisation_requirement', 'job_id', r.id,
+                             'label', 'ORG-JOB-' || r.requirement_number::text,
+                             'poster_name', op.organisation_name, 'poster_role', 'organisation', 'poster_number', op.org_number,
+                             'city', op.city, 'shift', NULL, 'accepted_at', oa.accepted_at) AS a
+                    FROM organisation_requirement_applications oa
+                    JOIN organisation_requirements r ON r.id = oa.requirement_id
+                    LEFT JOIN organisation_profiles op ON op.user_id = r.posted_by
+                    WHERE oa.profile_id = cp.id AND oa.status = 'accepted'
+                  ) x
+                ), '[]'::jsonb) ELSE '[]'::jsonb END AS assignments
          FROM caregiver_profiles cp
          JOIN users u ON u.id = cp.user_id
          LEFT JOIN admin_notes an ON an.profile_id = cp.id

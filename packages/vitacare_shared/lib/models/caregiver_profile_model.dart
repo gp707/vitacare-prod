@@ -23,6 +23,9 @@ class CaregiverProfileModel {
   final String? rejectionMessage;
   final List<String> preferredCities;
   final String createdAt;
+  /// Overall rating (the average of patients' ratings + 1.5 stars, never above 5), shown to everyone who
+  /// sees her profile; null when nobody has rated her yet.
+  final double? overallRating;
 
   const CaregiverProfileModel({
     required this.userId,
@@ -45,6 +48,7 @@ class CaregiverProfileModel {
     this.rejectionMessage,
     required this.preferredCities,
     required this.createdAt,
+    this.overallRating,
   });
 
   factory CaregiverProfileModel.fromJson(Map<String, dynamic> json) {
@@ -69,6 +73,7 @@ class CaregiverProfileModel {
       rejectionMessage: json['rejection_message'] as String?,
       preferredCities: List<String>.from(json['preferred_cities'] as List? ?? const []),
       createdAt: json['created_at'] as String,
+      overallRating: (json['overall_rating'] as num?)?.toDouble(),
     );
   }
 

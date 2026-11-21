@@ -344,6 +344,32 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           rejectionMessage: profile.rejectionMessage,
         ),
         const SizedBox(height: AppSpacing.lg),
+        // Her overall rating (the average of the families' ratings + 1.5 stars, max 5) as stars in an arc
+        // over her picture, the way everyone who reviews her will see it. Nothing until she has a rating.
+        if (profile.overallRating != null) ...[
+          Center(
+            child: VitaRatingArcAvatar(
+              avatarRadius: 44,
+              rating: profile.overallRating,
+              starSize: 22,
+              avatar: CircleAvatar(
+                radius: 44,
+                backgroundColor: AppColors.primaryLight,
+                backgroundImage: profile.selfiePhotoUrl != null ? NetworkImage(profile.selfiePhotoUrl!) : null,
+                child: profile.selfiePhotoUrl == null ? const Icon(Icons.person, size: 44, color: AppColors.primary) : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Center(
+            child: Text(
+              'Your overall rating: ${profile.overallRating!.toStringAsFixed(1)} / 5',
+              key: const Key('overall-rating-text'),
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade800),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         const ShareAppCard(audience: ShareAudience.caregiver, flow: 'caregiver', screen: 'profile'),
         const SizedBox(height: AppSpacing.lg),
         _Section(

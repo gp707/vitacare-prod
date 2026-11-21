@@ -98,7 +98,21 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Column(
                           children: [
-                            _Avatar(url: profile.selfiePhotoUrl),
+                            // Her overall rating as stars in an arc over her picture (none until she is rated).
+                            VitaRatingArcAvatar(
+                              avatar: _Avatar(url: profile.selfiePhotoUrl),
+                              avatarRadius: 48,
+                              rating: profile.overallRating,
+                              starSize: 24,
+                            ),
+                            if (profile.overallRating != null) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                'Overall rating: ${profile.overallRating!.toStringAsFixed(1)} / 5',
+                                key: const Key('overall-rating-text'),
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade800),
+                              ),
+                            ],
                             const SizedBox(height: AppSpacing.md),
                             Text(
                               profile.fullName,

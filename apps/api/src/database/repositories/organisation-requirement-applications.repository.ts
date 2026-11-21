@@ -5,6 +5,7 @@ import { DatabaseService, QueryRunner } from '../database.service';
 import { MyApplicationSummary } from './jobs.repository';
 import { OrganisationRequirementWithOrg } from './organisation-requirements.repository';
 import { orgAgreementHistorySql } from './agreement-log.sql';
+import { overallRatingSql } from './engagement-feedback.sql';
 
 export interface OrganisationRequirementApplicationRecord {
   id: string;
@@ -35,6 +36,8 @@ export interface OrganisationRequirementApplicationWithCaregiver
   decided_by_name: string | null;
   /** Every entry/change of the agreed salary and start date, oldest first. */
   agreement_history: { salary: number; unit: string; start_date: string; at: string }[];
+  /** The caregiver's overall rating (average + half a star, max 5), null when she has none. */
+  overall_rating: number | null;
 }
 
 /** An organisation requirement the caregiver is (or was) accepted onto —
@@ -220,7 +223,8 @@ export class OrganisationRequirementApplicationsRepository {
   async findByRequirementId(requirementId: string): Promise<OrganisationRequirementApplicationWithCaregiver[]> {
     const result = await this.db.query<OrganisationRequirementApplicationWithCaregiver>(
       `SELECT ora.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
-              ${orgAgreementHistorySql('ora')} AS agreement_history
+              ${orgAgreementHistorySql('ora')} AS agreement_history,
+              ${overallRatingSql('ora.profile_id')} AS overall_rating
        FROM organisation_requirement_applications ora
        JOIN caregiver_profiles cp ON cp.id = ora.profile_id
        JOIN users u ON u.id = cp.user_id

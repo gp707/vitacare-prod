@@ -5,6 +5,7 @@ import { VerificationStatus } from '@vitacare/shared-constants';
 describe('CaregiverService', () => {
   let service: CaregiverService;
   let notificationsService: any;
+  let feedbackRepo: any;
   let db: any;
   let usersRepo: any;
   let profilesRepo: any;
@@ -94,6 +95,7 @@ describe('CaregiverService', () => {
       organisationRequirementUpdated: jest.fn(),
       organisationRequirementNoLongerOpen: jest.fn(),
     };
+    feedbackRepo = { averageRatingForCaregiver: jest.fn().mockResolvedValue(null) };
     service = new CaregiverService(
       db,
       usersRepo,
@@ -105,6 +107,7 @@ describe('CaregiverService', () => {
       emailService,
       auditService,
       notificationsService,
+      feedbackRepo,
     );
   });
 
@@ -128,6 +131,38 @@ describe('CaregiverService', () => {
       expect(result.languages).toEqual(['hindi', 'english']);
       expect(result.preferred_cities).toEqual(['bangalore', 'mumbai']);
       expect(result.verification_status).toBe('pending_call');
+    });
+  });
+
+  describe('overall rating on the profile', () => {
+    const arrange = () => {
+      profilesRepo.findFullByUserId.mockResolvedValue({ ...fullProfile });
+      profilesRepo.findFullById.mockResolvedValue({ ...fullProfile });
+      languagesRepo.findByProfileId.mockResolvedValue([]);
+      preferredCitiesRepo.findByProfileId.mockResolvedValue([]);
+    };
+
+    it('is null (nothing shown) for a caregiver nobody has rated', async () => {
+      arrange();
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(null);
+      expect((await service.getProfile('user-1')).overall_rating).toBeNull();
+      expect((await service.getApplicantProfile('profile-1')).overall_rating).toBeNull();
+    });
+
+    it('is the average plus one and a half stars, on her own profile and on the one patients/organisations see', async () => {
+      arrange();
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(2.5);
+      expect((await service.getProfile('user-1')).overall_rating).toBe(4);
+      expect((await service.getApplicantProfile('profile-1')).overall_rating).toBe(4);
+      expect(feedbackRepo.averageRatingForCaregiver).toHaveBeenCalledWith(fullProfile.id);
+    });
+
+    it('is capped at 5, and an average that is already 5 stays 5', async () => {
+      arrange();
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(4);
+      expect((await service.getProfile('user-1')).overall_rating).toBe(5);
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(5);
+      expect((await service.getProfile('user-1')).overall_rating).toBe(5);
     });
   });
 

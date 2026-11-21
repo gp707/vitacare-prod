@@ -10,3 +10,4 @@ export 'widgets/vita_status_badge.dart';
 export 'widgets/vita_splash_branding.dart';
 export 'widgets/vita_app_bar_title.dart';
 export 'widgets/vita_brand_actions.dart';
+export 'widgets/vita_rating_arc_avatar.dart';

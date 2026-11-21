@@ -20,6 +20,7 @@ describe('AdminService', () => {
   let jobsRepo: any;
   let organisationRequirementsRepo: any;
   let ticketsRepo: any;
+  let feedbackRepo: any;
   let db: any;
 
   const detail = {
@@ -96,6 +97,7 @@ describe('AdminService', () => {
     jobsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
     organisationRequirementsRepo = { countPendingApproval: jest.fn().mockResolvedValue(0) };
     ticketsRepo = { countOpen: jest.fn().mockResolvedValue(0) };
+    feedbackRepo = { averageRatingForCaregiver: jest.fn().mockResolvedValue(null) };
     db = { withTransaction: jest.fn((fn: any) => fn({ query: jest.fn() })) };
 
     service = new AdminService(
@@ -116,6 +118,7 @@ describe('AdminService', () => {
       organisationRequirementsRepo,
       ticketsRepo,
       db,
+      feedbackRepo,
     );
   });
 
@@ -224,6 +227,16 @@ describe('AdminService', () => {
       const result = await service.getCaregiverDetail('profile-1');
       expect(caregiversRepo.listEngagements).toHaveBeenCalledWith(detail.id);
       expect(result.engagements).toEqual(engagements);
+    });
+
+    it('includes her overall rating (average + 1.5 stars, max 5), or null when nobody rated her', async () => {
+      caregiversRepo.getDetailById.mockResolvedValue(detail);
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(null);
+      expect((await service.getCaregiverDetail('profile-1')).overall_rating).toBeNull();
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(2);
+      expect((await service.getCaregiverDetail('profile-1')).overall_rating).toBe(3.5);
+      feedbackRepo.averageRatingForCaregiver.mockResolvedValue(4.5);
+      expect((await service.getCaregiverDetail('profile-1')).overall_rating).toBe(5);
     });
 
     it('includes preferred_cities from the junction table', async () => {

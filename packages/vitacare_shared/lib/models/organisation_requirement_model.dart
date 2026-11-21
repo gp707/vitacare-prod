@@ -199,6 +199,8 @@ class OrganisationRequirementApplicationModel {
   final String? agreedStartDate;
   /// Every entry / change of the agreed salary and start date, oldest first.
   final List<AgreementChange> agreementHistory;
+  /// The caregiver's overall rating (average of patients' ratings + 1.5 stars, max 5); null when unrated.
+  final double? overallRating;
   final String updatedAt;
 
   const OrganisationRequirementApplicationModel({
@@ -221,6 +223,7 @@ class OrganisationRequirementApplicationModel {
     this.agreedSalaryUnit,
     this.agreedStartDate,
     this.agreementHistory = const [],
+    this.overallRating,
     required this.updatedAt,
   });
 
@@ -245,6 +248,7 @@ class OrganisationRequirementApplicationModel {
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
         agreementHistory: parseAgreementHistory(json['agreement_history']),
+        overallRating: (json['overall_rating'] as num?)?.toDouble(),
         updatedAt: json['updated_at'] as String,
       );
 }

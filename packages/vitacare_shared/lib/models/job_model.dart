@@ -344,6 +344,9 @@ class JobApplicationModel {
   /// The agreed salary / start date the patient confirmed after accepting
   /// (null until filled in) — see MyApplicationModel.agreedSalary.
   final int? agreedSalary;
+  /// The caregiver's overall rating (average of patients' ratings + 1.5 stars, max 5); null when unrated.
+  /// Shown as stars around her picture so a poster can recognise her at a glance.
+  final double? overallRating;
   final String? agreedSalaryUnit;
   final String? agreedStartDate;
   /// Feedback the patient/family wrote about this caregiver / the caregiver wrote about them.
@@ -375,6 +378,7 @@ class JobApplicationModel {
     this.myFeedback,
     this.theirFeedback,
     this.agreementHistory = const [],
+    this.overallRating,
     required this.updatedAt,
   });
 
@@ -400,6 +404,7 @@ class JobApplicationModel {
         myFeedback: FeedbackModel.tryParse(json['my_feedback']),
         theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
         agreementHistory: parseAgreementHistory(json['agreement_history']),
+        overallRating: (json['overall_rating'] as num?)?.toDouble(),
         updatedAt: json['updated_at'] as String,
       );
 }

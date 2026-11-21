@@ -357,6 +357,22 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                   icon: const Icon(Icons.arrow_back),
                 ),
                 const SizedBox(width: AppSpacing.sm),
+                // Her overall rating as stars in an arc over her picture (nothing until she is rated).
+                if (detail.overallRating != null) ...[
+                  VitaRatingArcAvatar(
+                    key: const Key('caregiver-rating-arc'),
+                    avatarRadius: 30,
+                    rating: detail.overallRating,
+                    starSize: 16,
+                    avatar: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: AppColors.primaryLight,
+                      backgroundImage: detail.selfiePhotoUrl != null ? NetworkImage(detail.selfiePhotoUrl!) : null,
+                      child: detail.selfiePhotoUrl == null ? const Icon(Icons.person, color: AppColors.primary) : null,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,6 +387,10 @@ class _CaregiverDetailScreenState extends ConsumerState<CaregiverDetailScreen> {
                                 color: AppColors.textSecondary,
                                 fontWeight: FontWeight.w600)),
                     PhoneWithContact(phone: detail.phone),
+                      if (detail.overallRating != null)
+                        Text('Overall rating: ${detail.overallRating!.toStringAsFixed(1)} / 5',
+                            key: const Key('caregiver-overall-rating-text'),
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
                     ],
                   ),
                 ),

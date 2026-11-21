@@ -101,8 +101,11 @@ OrganisationRequirementApplicationModel _application({
   String? agreedSalaryUnit,
   String? agreedStartDate,
   List<Map<String, dynamic>> agreementHistory = const [],
+  double? overallRating,
+  String fullName = 'Test Caregiver',
 }) {
   return OrganisationRequirementApplicationModel.fromJson({
+    'overall_rating': overallRating,
     'agreed_salary': agreedSalary,
     'agreed_salary_unit': agreedSalaryUnit,
     'agreed_start_date': agreedStartDate,
@@ -111,7 +114,7 @@ OrganisationRequirementApplicationModel _application({
     'requirement_id': requirementId,
     'profile_id': 'profile-1',
     'status': status,
-    'full_name': 'Test Caregiver',
+    'full_name': fullName,
     'phone': '+919876543210',
     'applied_at': appliedAt,
     'accepted_at': acceptedAt,
@@ -1167,6 +1170,26 @@ void main() {
       expect(find.byKey(const Key('org-log-separator-1')), findsOneWidget);
       expect(find.byKey(const Key('org-log-separator-3')), findsOneWidget);
       expect(find.byKey(const Key('org-log-separator-4')), findsNothing);
+    });
+  });
+
+  group('the caregiver\'s overall rating as stars in an arc over her picture', () {
+    testWidgets('a rated applicant shows the arc, an unrated one does not', (tester) async {
+      await _pump(
+        tester,
+        _FakeOrganisationRepository(
+          requirements: [_requirement()],
+          applicationsByRequirementId: {
+            'req-1': [
+              _application(id: 'rated', fullName: 'Asha Rated', overallRating: 3.5),
+              _application(id: 'unrated', fullName: 'Ravi Unrated'),
+            ],
+          },
+        ),
+      );
+      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(3));
+      expect(find.byIcon(Icons.star_half), findsOneWidget);
     });
   });
 }

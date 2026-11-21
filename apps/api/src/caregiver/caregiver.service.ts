@@ -1,3 +1,5 @@
+import { EngagementFeedbackRepository } from '../database/repositories/engagement-feedback.repository';
+import { overallRating } from '../feedback/overall-rating';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -42,6 +44,7 @@ export class CaregiverService {
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
     private readonly notificationsService: NotificationsService,
+    private readonly feedbackRepo: EngagementFeedbackRepository,
   ) {}
 
   async getProfile(userId: string) {
@@ -85,6 +88,7 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       preferred_cities: preferredCities,
+      overall_rating: overallRating(await this.feedbackRepo.averageRatingForCaregiver(profile.id)),
       created_at: profile.created_at,
     };
   }
@@ -140,6 +144,7 @@ export class CaregiverService {
       verification_status: profile.verification_status,
       rejection_message: profile.rejection_message,
       preferred_cities: preferredCities,
+      overall_rating: overallRating(await this.feedbackRepo.averageRatingForCaregiver(profile.id)),
       created_at: profile.created_at,
     };
   }

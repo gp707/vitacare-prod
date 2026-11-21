@@ -6,8 +6,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/contact_actions.dart';
-import '../../jobs/widgets/job_detail_dialog.dart';
-import '../../organisation_requirements/widgets/requirement_widgets.dart';
+import '../../../shared/widgets/open_job.dart';
 import '../../../shared/widgets/vita_list_card.dart';
 import '../data/admin_accepted_repository.dart';
 
@@ -95,32 +94,9 @@ class _AcceptedScreenState extends ConsumerState<AcceptedScreen> {
   void _openCaregiver(AdminAcceptedItem item) =>
       Navigator.of(context).pushNamed('/caregiver-detail', arguments: item.caregiverProfileId);
 
-  /// Opens the job (or organisation requirement) this row is about, in place — the same detail view
-  /// the Jobs screen and the Audit Logs open.
-  Future<void> _openJob(AdminAcceptedItem item) async {
-    if (item.jobId.isEmpty) return;
-    if (!item.isRequirement) {
-      await showDialog<void>(context: context, builder: (_) => JobDetailDialog(jobId: item.jobId));
-      return;
-    }
-    try {
-      final (requirement, _) = await ref.read(adminOrganisationRequirementsRepositoryProvider).getDetail(item.jobId);
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => RequirementReadOnlyDialog(
-          requirement: requirement,
-          // Editing lives on the Jobs screen: close this view and go there.
-          onEdit: () {
-            Navigator.of(dialogContext).pop();
-            Navigator.of(context).pushNamed('/jobs');
-          },
-        ),
-      );
-    } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    }
-  }
+  /// Opens the job (or organisation requirement) this row is about, in place.
+  Future<void> _openJob(AdminAcceptedItem item) =>
+      openJobOrRequirement(context, ref, jobId: item.jobId, isRequirement: item.isRequirement);
 
   /// Opens the profile of whoever accepted: a patient/family or an organisation (an admin has none).
   void _openAcceptedBy(AdminAcceptedItem item) {

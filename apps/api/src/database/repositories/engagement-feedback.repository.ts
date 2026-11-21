@@ -90,6 +90,20 @@ export class EngagementFeedbackRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  /** The average of the star ratings patients/families gave this caregiver across every engagement,
+   *  or null when she has none. (Caregivers' feedback about families is never part of it.) */
+  async averageRatingForCaregiver(profileId: string): Promise<number | null> {
+    const result = await this.db.query<{ avg: string | null }>(
+      `SELECT AVG(f.rating)::numeric(10,4) AS avg
+       FROM engagement_feedback f
+       JOIN job_applications ja ON ja.id = f.application_id
+       WHERE ja.profile_id = $1 AND f.author_role = 'individual'`,
+      [profileId],
+    );
+    const avg = result.rows[0]?.avg;
+    return avg == null ? null : Number(avg);
+  }
+
   /** Admin: replaces the rating and comment of one feedback, whoever wrote it. Returns the row as it was
    *  before (for the audit trail), or null when no such feedback exists. */
   async updateById(

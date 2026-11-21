@@ -1,3 +1,5 @@
+import { EngagementFeedbackRepository } from '../database/repositories/engagement-feedback.repository';
+import { overallRating } from '../feedback/overall-rating';
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditAction, Config, DocumentType, UserRole, Validation, VerificationStatus } from '@vitacare/shared-constants';
@@ -52,6 +54,7 @@ export class AdminService {
     private readonly organisationRequirementsRepo: OrganisationRequirementsRepository,
     private readonly ticketsRepo: TicketsRepository,
     private readonly db: DatabaseService,
+    private readonly feedbackRepo: EngagementFeedbackRepository,
   ) {}
 
   async getDashboardStats(): Promise<DashboardStats> {
@@ -166,6 +169,7 @@ export class AdminService {
       rejection_message: profile.rejection_message,
       has_pending_edits: profile.has_pending_edits,
       preferred_cities: preferredCities,
+      overall_rating: overallRating(await this.feedbackRepo.averageRatingForCaregiver(profile.id)),
       admin_notes: {
         internal_notes: notes?.internal_notes ?? null,
         availability_remarks: notes?.availability_remarks ?? null,

@@ -25,7 +25,8 @@ Future<void> _pump(WidgetTester tester, CaregiverProfileViewScreen screen) async
   await tester.pumpAndSettle();
 }
 
-CaregiverProfileModel _profile({String? selfiePhotoUrl}) => CaregiverProfileModel.fromJson({
+CaregiverProfileModel _profile({String? selfiePhotoUrl, double? overallRating}) => CaregiverProfileModel.fromJson({
+      'overall_rating': overallRating,
       'user_id': 'user-1',
       'profile_id': 'profile-1',
       'caregiver_number': 500,
@@ -170,6 +171,28 @@ void main() {
       );
       expect(find.widgetWithText(FilledButton, 'Call'), findsNothing);
       expect(find.widgetWithText(OutlinedButton, 'WhatsApp'), findsNothing);
+    });
+  });
+
+  group('overall rating', () {
+    testWidgets('a rated caregiver shows the stars in an arc over her picture and the number under it', (tester) async {
+      await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile(overallRating: 4.5)));
+      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(4));
+      expect(find.byIcon(Icons.star_half), findsOneWidget);
+      expect(find.text('Overall rating: 4.5 / 5'), findsOneWidget);
+    });
+
+    testWidgets('a caregiver at the 5 cap shows five full stars', (tester) async {
+      await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile(overallRating: 5)));
+      expect(find.byIcon(Icons.star), findsNWidgets(5));
+      expect(find.text('Overall rating: 5.0 / 5'), findsOneWidget);
+    });
+
+    testWidgets('a caregiver nobody has rated shows no stars and no rating text', (tester) async {
+      await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile()));
+      expect(find.byKey(const Key('rating-arc-avatar')), findsNothing);
+      expect(find.byKey(const Key('overall-rating-text')), findsNothing);
     });
   });
 }

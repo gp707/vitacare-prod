@@ -926,6 +926,24 @@ class _ApplicantTile extends StatelessWidget {
         children: [
           Row(
             children: [
+              // A rated caregiver is recognisable at a glance: her overall rating as stars in an arc over
+              // her picture (nothing is shown until she has been rated).
+              if (application.overallRating != null) ...[
+                VitaRatingArcAvatar(
+                  avatarRadius: 18,
+                  rating: application.overallRating,
+                  starSize: 11,
+                  avatar: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AppColors.primaryLight,
+                    child: Text(
+                      application.fullName.trim().isEmpty ? '?' : application.fullName.trim()[0].toUpperCase(),
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
