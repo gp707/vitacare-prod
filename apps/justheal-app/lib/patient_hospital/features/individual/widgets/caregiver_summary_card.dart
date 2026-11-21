@@ -216,14 +216,15 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
             const SizedBox(height: AppSpacing.md),
             ApplicantTimeline(widget.application, onDark: true),
             // Overall feedback about this caregiver, once the work has started.
+            // The caregiver's own feedback about this patient is private: it is never shown here
+            // (and the server no longer sends it).
             if (widget.application.myFeedback != null ||
-                widget.application.theirFeedback != null ||
                 feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate)) ...[
               const SizedBox(height: AppSpacing.sm),
               FeedbackSection(
                 aboutLabel: 'caregiver',
                 mine: widget.application.myFeedback,
-                received: widget.application.theirFeedback,
+                received: null,
                 eligible: feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate),
                 onLeave: widget.onLeaveFeedback,
                 onEdit: widget.onLeaveFeedback,

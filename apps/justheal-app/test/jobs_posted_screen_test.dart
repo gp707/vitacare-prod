@@ -2386,16 +2386,30 @@ void main() {
       expect(find.text('Thank you for your feedback.'), findsOneWidget);
     });
 
-    testWidgets('once written, the card shows your feedback and what the caregiver wrote about you', (tester) async {
-      await open(
-        tester,
-        accepted(mine: {'rating': 4, 'comment': 'Good'}, theirs: {'rating': 5, 'comment': 'Respectful family'}),
-      );
+    testWidgets('once written, the card shows only the patient\'s own feedback', (tester) async {
+      await open(tester, accepted(mine: {'rating': 4, 'comment': 'Good'}));
       expect(find.byKey(const Key('leave-feedback')), findsNothing);
       expect(find.byKey(const Key('feedback-mine')), findsOneWidget);
       expect(find.text('Good'), findsOneWidget);
-      expect(find.byKey(const Key('feedback-received')), findsOneWidget);
-      expect(find.text('Respectful family'), findsOneWidget);
+      expect(find.byKey(const Key('feedback-received')), findsNothing);
+    });
+
+    testWidgets('what the caregiver wrote about the patient is never shown to the patient, even if it were sent', (tester) async {
+      await open(
+        tester,
+        accepted(mine: {'rating': 4, 'comment': 'Good'}, theirs: {'rating': 1, 'comment': 'Private note about the family'}),
+      );
+      expect(find.byKey(const Key('feedback-received')), findsNothing);
+      expect(find.text('Private note about the family'), findsNothing);
+      expect(find.text('Feedback about you'), findsNothing);
+    });
+
+    testWidgets('with no feedback written by the patient, a caregiver\'s feedback does not show up either', (tester) async {
+      await open(tester, accepted(theirs: {'rating': 2, 'comment': 'Private note about the family'}));
+      expect(find.byKey(const Key('feedback-received')), findsNothing);
+      expect(find.text('Private note about the family'), findsNothing);
+      // the patient can still rate the caregiver
+      expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
     });
 
     testWidgets('a server refusal is shown in the sheet', (tester) async {

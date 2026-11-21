@@ -148,7 +148,7 @@ describe('FeedbackService', () => {
       expect(auditService.log).not.toHaveBeenCalled();
     });
 
-    it('once written it shows what they wrote and what the caregiver wrote about them, and can_give turns off', async () => {
+    it('once written it shows only what the patient wrote — never what the caregiver wrote about them — and can_give turns off', async () => {
       const created = new Date();
       feedbackRepo.listByApplication.mockResolvedValue([
         { author_role: 'individual', rating: 4, comment: 'Good', created_at: created },
@@ -160,8 +160,17 @@ describe('FeedbackService', () => {
         can_edit: true,
         reason: null,
         mine: { rating: 4, comment: 'Good', created_at: created },
-        received: { rating: 5, comment: 'Lovely family', created_at: created },
+        received: null,
       });
+    });
+
+    it('never shows the caregiver\'s feedback to the patient, even before the patient wrote their own', async () => {
+      feedbackRepo.listByApplication.mockResolvedValue([
+        { author_role: 'caregiver', rating: 1, comment: 'Secret', created_at: new Date() },
+      ]);
+      const state = await service.getForIndividual('patient-1', 'job-1', 'app-1');
+      expect(state.received).toBeNull();
+      expect(JSON.stringify(state)).not.toContain('Secret');
     });
   });
 
@@ -284,12 +293,18 @@ describe('FeedbackService', () => {
       expect(state).toMatchObject({ can_give: true });
     });
 
-    it('saves it about the family and tells them', async () => {
+    it('saves it about the family and does NOT tell them (no push to the patient)', async () => {
       await service.submitForCaregiver('cg-user', 'job-1', { rating: 5, comment: 'Respectful' }, null);
       expect(feedbackRepo.insert).toHaveBeenCalledWith(
         expect.objectContaining({ author_role: 'caregiver', author_user_id: 'cg-user', about_user_id: 'patient-1', rating: 5 }),
       );
-      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('patient-1', { toCaregiver: false, displayId: 'PAT-JOB-548' });
+      expect(notificationsService.feedbackReceived).not.toHaveBeenCalled();
+    });
+
+    it('a patient\'s feedback about the caregiver still tells the caregiver', async () => {
+      await service.submitForIndividual('patient-1', 'job-1', 'app-1', { rating: 4 }, null);
+      expect(notificationsService.feedbackReceived).toHaveBeenCalledTimes(1);
+      expect(notificationsService.feedbackReceived).toHaveBeenCalledWith('cg-user', expect.objectContaining({ toCaregiver: true }));
     });
 
     it('cannot write about a job they never applied to', async () => {

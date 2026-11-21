@@ -48,7 +48,8 @@ const view = (row: FeedbackRow | undefined): FeedbackView | null =>
  * Overall feedback between a patient/family and a caregiver, per engagement (one
  * caregiver on one job — never per salary cycle). Whether someone may write is
  * decided here, on the server, never by the app: see canLeaveFeedback. Write once
- * and final; each person sees only their own feedback and what was written about them.
+ * and final; a caregiver sees their own feedback and what the family wrote about them, while a
+ * patient/family sees only their own — the caregiver's feedback about them stays private (admin reads all).
  */
 @Injectable()
 export class FeedbackService {
@@ -116,7 +117,8 @@ export class FeedbackService {
     const hasFamily = await this.hasFamilyAccount(job.posted_by);
     if (!hasFamily) throw new AppException('FEEDBACK_001');
     await this.submit(application, 'caregiver', userId, job.posted_by, dto, ipAddress);
-    void this.notificationsService.feedbackReceived(job.posted_by, { toCaregiver: false, displayId: jobDisplayId(job) });
+    // Deliberately NO push to the family: a caregiver's feedback about a patient is private (admin
+    // reads it, the patient never sees it and is not told it exists).
     return { message: 'Thank you for your feedback', ...(await this.stateFor(application, 'caregiver', true)) };
   }
 
@@ -187,7 +189,9 @@ export class FeedbackService {
   ): Promise<FeedbackState> {
     const rows = await this.feedbackRepo.listByApplication(application.id);
     const mine = view(rows.find((r) => r.author_role === role));
-    const received = view(rows.find((r) => r.author_role !== role));
+    // What a caregiver wrote about a patient/family is never shown to that patient/family — only the
+    // caregiver (and admin) can see it. The caregiver still sees what the family wrote about them.
+    const received = role === 'individual' ? null : view(rows.find((r) => r.author_role !== role));
     const can_edit = mine != null;
     if (mine) return { can_give: false, can_edit, reason: null, mine, received };
     if (!hasOtherParty) return { can_give: false, can_edit, reason: 'no_family_account', mine, received };

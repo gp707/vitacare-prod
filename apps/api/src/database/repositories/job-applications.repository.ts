@@ -365,7 +365,9 @@ export class JobApplicationsRepository {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
          ${agreementHistorySql('ja')} AS agreement_history,
-         ${feedbackSql('ja', 'individual')} AS my_feedback, ${feedbackSql('ja', 'caregiver')} AS their_feedback
+         ${feedbackSql('ja', 'individual')} AS my_feedback,
+         -- the caregiver's feedback about the patient is private: never sent to the patient's app
+         NULL::jsonb AS their_feedback
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id
        JOIN users u ON u.id = cp.user_id
