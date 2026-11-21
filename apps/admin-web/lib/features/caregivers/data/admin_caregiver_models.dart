@@ -71,8 +71,10 @@ class AdminCaregiverListItem {
   /// Admin's internal note (list endpoint only).
   final String? notes;
 
-  /// What an `assigned` caregiver is currently accepted onto (list endpoint only; empty otherwise).
-  final List<CaregiverAssignment> assignments;
+  /// What an `assigned` caregiver is currently accepted onto. null = the server did not say (an API
+  /// that predates this field): nothing may be claimed about it. An empty list means the server said
+  /// there is nothing (also the value for every caregiver who is not `assigned`).
+  final List<CaregiverAssignment>? assignments;
 
   const AdminCaregiverListItem({
     required this.userId,
@@ -86,18 +88,21 @@ class AdminCaregiverListItem {
     required this.verificationStatus,
     required this.createdAt,
     this.notes,
-    this.assignments = const [],
+    this.assignments,
   });
 
   /// Hover text for the Status cell of an assigned caregiver.
   String get assignmentHoverText {
-    if (assignments.isEmpty) {
+    final list = assignments;
+    // Not sent by the server: say nothing about jobs, just offer the profile.
+    if (list == null) return 'Assigned\nClick to open the profile';
+    if (list.isEmpty) {
       return 'Marked as assigned, but not accepted onto any job or requirement right now.\nClick to open the profile';
     }
     return [
-      'Assigned to (${assignments.length}):',
-      for (final a in assignments) a.summaryLine,
-      assignments.length == 1 ? 'Click to open this job' : 'Click to see these jobs',
+      'Assigned to (${list.length}):',
+      for (final a in list) a.summaryLine,
+      list.length == 1 ? 'Click to open this job' : 'Click to see these jobs',
     ].join('\n');
   }
 
@@ -114,9 +119,11 @@ class AdminCaregiverListItem {
         verificationStatus: json['verification_status'] as String,
         createdAt: json['created_at'] as String,
         notes: json['notes'] as String?,
-        assignments: ((json['assignments'] as List?) ?? const [])
-            .map((a) => CaregiverAssignment.fromJson(a as Map<String, dynamic>))
-            .toList(),
+        assignments: json['assignments'] is List
+            ? (json['assignments'] as List)
+                .map((a) => CaregiverAssignment.fromJson(a as Map<String, dynamic>))
+                .toList()
+            : null,
       );
 }
 

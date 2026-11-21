@@ -134,7 +134,7 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   /// it just opens the profile.)
   Future<void> _openAssignments(AdminCaregiverListItem item) async {
     final list = item.assignments;
-    if (list.isEmpty) return _openDetail(item);
+    if (list == null || list.isEmpty) return _openDetail(item);
     CaregiverAssignment? chosen = list.length == 1 ? list.first : null;
     if (chosen == null) {
       chosen = await showDialog<CaregiverAssignment>(

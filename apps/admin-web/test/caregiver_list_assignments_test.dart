@@ -46,7 +46,7 @@ CaregiverAssignment _requirement() => const CaregiverAssignment(
 
 AdminCaregiverListItem _item({
   String status = 'assigned',
-  List<CaregiverAssignment> assignments = const [],
+  List<CaregiverAssignment>? assignments = const [],
   String profileId = 'profile-1',
 }) =>
     AdminCaregiverListItem(
@@ -219,7 +219,41 @@ void main() {
     expect(find.byType(RequirementReadOnlyDialog), findsNothing);
   });
 
-  testWidgets('an "assigned" status with nothing behind it says so, and a click opens the caregiver\'s profile', (tester) async {
+  testWidgets('when the server did not send the job list at all, the hover claims nothing about jobs and a click opens the profile', (tester) async {
+    await _pump(tester, [_item(assignments: null)]);
+    await _hover(tester, _statusBadge);
+    expect(find.textContaining('not accepted onto any job'), findsNothing);
+    expect(find.textContaining('Assigned to ('), findsNothing);
+    expect(find.textContaining('Click to open the profile'), findsOneWidget);
+    await tester.tap(_statusBadge);
+    await tester.pumpAndSettle();
+    expect(find.text('opened /caregiver-detail:profile-1'), findsOneWidget);
+  });
+
+  test('the model tells "not sent" (null) apart from "sent, and empty"', () {
+    Map<String, dynamic> row([Map<String, dynamic> extra = const {}]) => {
+          'user_id': 'u1',
+          'profile_id': 'p1',
+          'full_name': 'X',
+          'phone': '+919999999999',
+          'gender': 'male',
+          'age': 30,
+          'verification_status': 'assigned',
+          'created_at': '2026-01-01T00:00:00Z',
+          ...extra,
+        };
+    expect(AdminCaregiverListItem.fromJson(row()).assignments, isNull);
+    expect(AdminCaregiverListItem.fromJson(row({'assignments': []})).assignments, isEmpty);
+    final one = AdminCaregiverListItem.fromJson(row({
+      'assignments': [
+        {'kind': 'job', 'job_id': 'j1', 'label': 'PAT-JOB-539', 'poster_name': 'Hansa', 'poster_role': 'individual', 'poster_number': 625},
+      ],
+    }));
+    expect(one.assignments, hasLength(1));
+    expect(one.assignmentHoverText, contains('Assigned to (1):'));
+  });
+
+  testWidgets('an "assigned" status the server says has nothing behind it says so, and a click opens the caregiver\'s profile', (tester) async {
     await _pump(tester, [_item()]);
     await _hover(tester, _statusBadge);
     expect(find.textContaining('not accepted onto any job or requirement'), findsOneWidget);
