@@ -2896,4 +2896,52 @@ void main() {
       expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
     });
   });
+
+  group('inviting a friend', () {
+    testWidgets('once a candidate has applied, a small "Share JustHeal" card appears under the requirement', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {'job-1': [_application(status: 'applied')]},
+        ),
+      );
+      expect(find.byKey(const Key('share-app-card')), findsOneWidget);
+      expect(find.byKey(const Key('share-app-whatsapp')), findsOneWidget);
+    });
+
+    testWidgets('before anyone has applied there is no prompt', (tester) async {
+      await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
+      expect(find.byKey(const Key('share-app-card')), findsNothing);
+    });
+
+    testWidgets('after sending feedback, the thank-you offers a one-tap "Share JustHeal"', (tester) async {
+      final requirement = _requirement(status: 'closed');
+      final repo = _FakeIndividualRepository(
+        requirements: [requirement],
+        applicationsByJobId: {
+          'job-1': [
+            _application(
+              id: 'app-1',
+              status: 'accepted',
+              fullName: 'Asha Accepted',
+              acceptedAt: '2026-11-01T10:00:00Z',
+              agreedSalary: 1000,
+              agreedSalaryUnit: 'daily',
+              agreedStartDate: '2026-11-10',
+            ),
+          ],
+        },
+      );
+      await _pump(tester, repo);
+      await tester.tap(find.byKey(const Key('leave-feedback')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('feedback-star-5')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('feedback-submit')));
+      await _settle(tester);
+      expect(find.text('Thank you for your feedback.'), findsOneWidget);
+      expect(find.text('Share JustHeal'), findsOneWidget);
+    });
+  });
 }

@@ -236,6 +236,18 @@ void main() {
     expect(kShowDeleteAccount, isFalse);
   });
 
+  testWidgets('a patient/family profile offers "Share on WhatsApp" with the family wording', (tester) async {
+    await _pump(tester, _FakeIndividualRepository());
+    expect(find.byKey(const Key('share-app-card')), findsOneWidget);
+    expect(find.text('Know a family that needs a nurse or caregiver?'), findsOneWidget);
+    expect(find.byKey(const Key('share-app-whatsapp')), findsOneWidget);
+  });
+
+  testWidgets('an organisation profile offers it too, with hospital/clinic wording', (tester) async {
+    await _pumpOrganisation(tester, _FakeOrganisationRepository());
+    expect(find.text('Know a hospital or clinic that is hiring?'), findsOneWidget);
+  });
+
   testWidgets('shows the account name and phone (read-only) with a pointer to the Help button', (tester) async {
     await _pump(tester, _FakeIndividualRepository());
 

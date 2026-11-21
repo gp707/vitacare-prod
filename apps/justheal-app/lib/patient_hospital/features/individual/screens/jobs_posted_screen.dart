@@ -20,6 +20,8 @@ import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/share/share_app_card.dart';
+import 'package:nursenow_app/share/share_messages.dart';
 
 // A UI-only sentinel — never sent to the backend as-is. Mutually exclusive
 // with every real language: picking a real language drops this, picking
@@ -441,6 +443,15 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
                         _buildCard(requirement),
                         const SizedBox(height: AppSpacing.md),
                       ],
+                    // Once candidates are applying, the app is clearly working: a gentle
+                    // reminder that a friend or relative could use it too.
+                    if (_applicationsByJobId.values.any((applications) => applications.isNotEmpty))
+                      const ShareAppCard(
+                        audience: ShareAudience.individual,
+                        flow: 'individual',
+                        screen: 'requirement_posted',
+                        compact: true,
+                      ),
                   ],
                 ),
         ),

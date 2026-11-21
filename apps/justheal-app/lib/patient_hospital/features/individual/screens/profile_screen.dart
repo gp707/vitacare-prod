@@ -1,3 +1,5 @@
+import 'package:nursenow_app/share/share_app_card.dart';
+import 'package:nursenow_app/share/share_messages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -319,6 +321,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const Divider(height: AppSpacing.xxl),
         _InlinePinField(
             onSave: (code) => _saveCode(code, authenticated.isOrganisation)),
+        const SizedBox(height: AppSpacing.xl),
+        ShareAppCard(
+          audience: authenticated.isOrganisation ? ShareAudience.organisation : ShareAudience.individual,
+          flow: authenticated.isOrganisation ? 'organisation' : 'individual',
+          screen: 'profile',
+        ),
       ],
     );
   }

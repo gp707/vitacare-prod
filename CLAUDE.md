@@ -1599,6 +1599,23 @@ engagement, **write once and final** (no edit, no delete). Patients/families and
   family" on Selected and Past cards of family-posted jobs. admin-web: sidebar **Feedback** (`/feedback`, in `_restorableRoutes`), read-only list with filters.
 - **Not built (deliberately):** edit/delete, admin hide/moderation, public averages, organisations, double-blind reveal, profanity filter. Admin hide is the first follow-up if abuse appears.
 
+## Sharing the app (invite a friend)
+
+Anyone with the app can invite others in two taps. No backend, no database, no account change; one new dependency (`share_plus`, `apps/justheal-app/pubspec.yaml`).
+
+- **Code (`apps/justheal-app/lib/share/`, used by both trees):** `share_messages.dart` (pure: `appInviteMessage(ShareAudience)`, `jobShareMessage(JobModel)`, `appStoreLink`),
+  `share_service.dart` (`shareViaWhatsApp` = `https://wa.me/?text=<message>` via `shareUrlLauncherProvider`, falling back to the OS share sheet via `shareSheetProvider`
+  when WhatsApp can't open; `shareViaSheet`; both providers are overridable in tests), `share_app_card.dart` (`ShareAppCard`, `ShareJobButton`).
+- **Message wording** depends on who shares (caregiver / patient-family / organisation), English only. The text never contains a name, phone number, address or patient detail.
+  A job share carries only the shift, city and the salary when it is a plain number (a sentence-style salary is left out).
+- **The link** is the Play Store page (`in.vitacasahealth.justheal`, Android only for now; iOS untested) with `&referrer=utm_source%3Dshare%26utm_medium%3D<app_invite|job_share>%26utm_campaign%3D<caregiver|individual|organisation>`,
+  so the Play Console's acquisition reports show installs from shares and who shared. There is no per-person referral code yet, so nobody can be credited with an install.
+- **Where it appears:** a full `ShareAppCard` on each Profile screen (caregiver: top of the profile; patient/organisation: below the PIN); a compact one on caregiver My Jobs ->
+  Selected once they hold a job, and on the patient's Requirement Posted screen once someone has applied; a **Share this job on WhatsApp** link on caregiver job cards in the
+  browse list only (`JobDetailCard(showShare: true)`); and after sending feedback the thank-you snackbar has a "Share JustHeal" action. Taps are counted by `Analytics.tap`
+  (`share_app_whatsapp`, `share_app_more`, `share_job_whatsapp`, `share_app_after_feedback`, `*_fallback`).
+- **Not built:** short link on our own domain (+ iOS/App Store redirect and a WhatsApp preview card), per-person referral codes and an admin "who brought whom" view, QR code, rewards.
+
 ## Support Tickets ("Forgot PIN")
 
 There's no OTP/email PIN reset (see "No OTP" above — phone login has no OTP, and this doesn't

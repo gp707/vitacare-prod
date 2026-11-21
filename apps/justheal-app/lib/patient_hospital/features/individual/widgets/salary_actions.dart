@@ -7,6 +7,8 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../data/individual_repository.dart';
 import 'agreement_dialog.dart';
+import 'package:nursenow_app/share/share_messages.dart';
+import 'package:nursenow_app/share/share_service.dart';
 import 'feedback_widgets.dart';
 import 'leave_days_dialog.dart';
 
@@ -178,7 +180,15 @@ Future<bool> leaveFeedbackFlow(
     onSubmit: (rating, comment) => _repo(ref).submitFeedback(jobId, application.id, rating, comment),
   );
   if (saved && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback.')));
+    // A good moment to ask: one tap on the snackbar opens WhatsApp with the invite typed.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Thank you for your feedback.'),
+      action: SnackBarAction(
+        label: 'Share JustHeal',
+        onPressed: () => shareViaWhatsApp(context, ref, appInviteMessage(ShareAudience.individual),
+            flow: 'individual', screen: 'requirement_posted', action: 'share_app_after_feedback'),
+      ),
+    ));
   }
   return saved;
 }

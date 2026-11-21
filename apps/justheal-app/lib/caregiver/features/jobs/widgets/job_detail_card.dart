@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
+import 'package:nursenow_app/share/share_app_card.dart';
+import 'package:nursenow_app/share/share_messages.dart';
 import '../../../app/scope_of_work_button.dart';
 import '../../../app/duty_requirements_button.dart';
 import '../../../core/providers.dart';
@@ -272,8 +274,10 @@ class _FieldLine extends StatelessWidget {
 /// time, so scanning the list stays fast.
 class JobDetailCard extends ConsumerWidget {
   final JobModel job;
+  /// Show "Share this job on WhatsApp" (the browse list; not once the caregiver is already on the job).
+  final bool showShare;
 
-  const JobDetailCard({super.key, required this.job});
+  const JobDetailCard({super.key, required this.job, this.showShare = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,6 +312,7 @@ class JobDetailCard extends ConsumerWidget {
             ],
           ),
         ),
+        if (showShare) ShareJobButton(message: jobShareMessage(job), screen: 'jobs'),
       ],
     );
   }

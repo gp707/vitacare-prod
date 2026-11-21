@@ -30,6 +30,7 @@ dependencies:
     path: ../../packages/vitacare_shared
   vitacare_ui:
     path: ../../packages/vitacare_ui
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

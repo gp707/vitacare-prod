@@ -20,6 +20,9 @@ import '../widgets/job_status_chip.dart';
 import '../widgets/salary_due_banner.dart';
 import '../widgets/salary_history.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
+import 'package:nursenow_app/share/share_app_card.dart';
+import 'package:nursenow_app/share/share_messages.dart';
+import 'package:nursenow_app/share/share_service.dart';
 
 /// "My Jobs" — every job/requirement this caregiver has ever gone for,
 /// split into 3 sub-tabs matching the stage of that application: Applied
@@ -382,7 +385,15 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       onSubmit: (rating, comment) => ref.read(jobsRepositoryProvider).submitFeedback(job.id, rating, comment),
     );
     if (!saved || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback.')));
+    // A good moment to ask: one tap on the snackbar opens WhatsApp with the invite typed.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Thank you for your feedback.'),
+      action: SnackBarAction(
+        label: 'Share JustHeal',
+        onPressed: () => shareViaWhatsApp(context, ref, appInviteMessage(ShareAudience.caregiver),
+            flow: 'caregiver', screen: 'my_jobs', action: 'share_app_after_feedback'),
+      ),
+    ));
     await _load();
   }
 
@@ -635,6 +646,14 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
+          // Being selected is the happiest moment: invite a friend who is also looking for work.
+          if (jobs.isNotEmpty || requirements.isNotEmpty)
+            const ShareAppCard(
+              audience: ShareAudience.caregiver,
+              flow: 'caregiver',
+              screen: 'my_jobs',
+              compact: true,
+            ),
         ],
       ),
     );

@@ -52,6 +52,45 @@ void main() {
     });
   });
 
+  group('JobDetailCard sharing', () {
+    JobModel job() => JobModel.fromJson({
+          'id': 'j1',
+          'patient_job_number': 548,
+          'city': 'bangalore',
+          'area': 'Whitefield',
+          'duty_type': 'day_duty',
+          'frequency_of_care': 'daily',
+          'salary_amount': '1100',
+          'languages': ['hindi'],
+          'status': 'active',
+          'posted_by': 'patient-1',
+          'posted_at': '2026-11-14T10:00:00Z',
+          'created_at': '2026-11-14T10:00:00Z',
+        });
+
+    Future<void> pumpCard(WidgetTester tester, {required bool showShare}) async {
+      await tester.binding.setSurfaceSize(const Size(390, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(body: Padding(padding: const EdgeInsets.all(16), child: JobDetailCard(job: job(), showShare: showShare))),
+        ),
+      ));
+      await tester.pump();
+    }
+
+    testWidgets('the browse list shows "Share this job on WhatsApp"', (tester) async {
+      await pumpCard(tester, showShare: true);
+      expect(find.byKey(const Key('share-job')), findsOneWidget);
+      expect(find.text('Share this job on WhatsApp'), findsOneWidget);
+    });
+
+    testWidgets('it is not shown by default (for example once the caregiver is already on the job)', (tester) async {
+      await pumpCard(tester, showShare: false);
+      expect(find.byKey(const Key('share-job')), findsNothing);
+    });
+  });
+
   group('SalaryBadge', () {
     testWidgets('has no calendar icon and shows the amount, tappable to a full-detail popup', (tester) async {
       await _pump(tester, const SalaryBadge(amount: '26000', frequencyOfCare: 'monthly'));

@@ -1,3 +1,5 @@
+import 'package:nursenow_app/share/share_app_card.dart';
+import 'package:nursenow_app/share/share_messages.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -342,6 +344,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               profile.verificationStatus, profile.rejectionMessage),
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: AppSpacing.lg),
+        const ShareAppCard(audience: ShareAudience.caregiver, flow: 'caregiver', screen: 'profile'),
         const SizedBox(height: AppSpacing.lg),
         _Section(
           title: 'Basic Info',

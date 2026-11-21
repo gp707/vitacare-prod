@@ -423,7 +423,7 @@ class _JobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          JobDetailCard(job: job),
+          JobDetailCard(job: job, showShare: true),
           const SizedBox(height: AppSpacing.md),
           if (isApplying)
             const Center(child: VitaLoadingIndicator())
