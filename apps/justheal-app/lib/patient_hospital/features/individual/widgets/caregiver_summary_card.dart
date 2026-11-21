@@ -143,7 +143,7 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  const Text('Agreed salary:', style: TextStyle(color: Colors.white70, fontSize: AppTypography.small)),
+                  const Text('Agreed salary:', style: TextStyle(color: Colors.white70, fontSize: AppTypography.subtitle)),
                   const SizedBox(width: AppSpacing.xs),
                   Text(
                     '₹${formatRupees(salary)} per $unitWord',
@@ -151,12 +151,12 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
                     softWrap: false,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
                   ),
-                  const Text('  ·  ', style: TextStyle(color: Colors.white70)),
+                  const Text('  ·  ', style: TextStyle(color: Colors.white70, fontSize: AppTypography.subtitle)),
                   Text(
                     'Starts ${formatLongDate(startDate)}',
                     key: Key('card-start-${widget.application.id}'),
                     softWrap: false,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.white, fontSize: AppTypography.subtitle),
                   ),
                 ],
               ),

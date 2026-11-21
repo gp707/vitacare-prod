@@ -2221,12 +2221,16 @@ class _ApplicantTile extends StatelessWidget {
           // Agreed salary / start date (or the button to add them) sits right
           // under the name + Accepted row so it is the first thing seen.
           if (!isDeciding && (_isAccepted || application.agreedSalary != null)) _buildAgreement(),
+          // Roomier rows: name -> phone -> activity log -> profile each get a clear gap.
+          const SizedBox(height: AppSpacing.md),
           // The phone number and profile stay visible no matter the
           // outcome — rejected (by either side) or completed candidates
           // are never hidden, so the patient/family can always look them
           // up again and reconsider.
           PhoneContactRow(phone: application.phone, name: application.fullName),
+          const SizedBox(height: AppSpacing.md),
           ApplicantTimeline(application),
+          const SizedBox(height: AppSpacing.md),
           if (isDeciding)
             const Padding(
               padding: EdgeInsets.only(top: AppSpacing.xs),

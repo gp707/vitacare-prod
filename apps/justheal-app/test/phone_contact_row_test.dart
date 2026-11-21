@@ -27,7 +27,8 @@ void main() {
   testWidgets('shows the number and a WhatsApp chip', (tester) async {
     await _pump(tester);
     expect(find.text('+919876543210'), findsOneWidget);
-    expect(find.text('WhatsApp'), findsOneWidget);
+    expect(find.byKey(const Key('whatsapp-glyph')), findsOneWidget);
+    expect(find.text('WhatsApp'), findsNothing); // icon only, no word
   });
 
   testWidgets('the number is a button: a pill with a call icon, next to the WhatsApp pill', (tester) async {
@@ -49,14 +50,14 @@ void main() {
 
   testWidgets('tapping WhatsApp opens a chat with the number, digits only and with the country code', (tester) async {
     final launched = await _pump(tester);
-    await tester.tap(find.text('WhatsApp'));
+    await tester.tap(find.byKey(const Key('whatsapp-icon-button')));
     await tester.pump();
     expect(launched.single.toString(), 'https://wa.me/919876543210');
   });
 
   testWidgets('if WhatsApp cannot be opened a banner shows the number to message by hand', (tester) async {
     await _pump(tester, launcher: (uri) async => false);
-    await tester.tap(find.text('WhatsApp'));
+    await tester.tap(find.byKey(const Key('whatsapp-icon-button')));
     await tester.pump();
     expect(find.text('Could not open WhatsApp. Message +919876543210 directly.'), findsOneWidget);
     await tester.pump(const Duration(seconds: 6));
@@ -64,7 +65,7 @@ void main() {
 
   testWidgets('a launcher that throws is handled the same way', (tester) async {
     await _pump(tester, launcher: (uri) async => throw Exception('no whatsapp'));
-    await tester.tap(find.text('WhatsApp'));
+    await tester.tap(find.byKey(const Key('whatsapp-icon-button')));
     await tester.pump();
     expect(find.text('Could not open WhatsApp. Message +919876543210 directly.'), findsOneWidget);
     await tester.pump(const Duration(seconds: 6));

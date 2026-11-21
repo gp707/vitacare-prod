@@ -1837,6 +1837,26 @@ void main() {
   });
 
 
+  group('candidate tile spacing', () {
+    testWidgets('name, phone, activity log and profile button have clear gaps between them', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {'job-1': [_application(id: 'r1', status: 'rejected', fullName: 'Ramesh Rejected', decidedBy: 'someone')]},
+        ),
+        expandRejected: true,
+      );
+      final name = tester.getRect(find.byKey(const Key('applicant-name-r1')));
+      final phone = tester.getRect(find.byKey(const Key('call-button')));
+      final log = tester.getRect(find.text('Show Activity Log'));
+      final profile = tester.getRect(find.widgetWithText(OutlinedButton, 'View Profile'));
+      expect(phone.top - name.bottom, greaterThanOrEqualTo(12), reason: 'name -> phone');
+      expect(log.top - phone.bottom, greaterThanOrEqualTo(12), reason: 'phone -> activity log');
+      expect(profile.top - log.bottom, greaterThanOrEqualTo(12), reason: 'activity log -> profile');
+    });
+  });
+
   group('rejected candidates are collapsed until tapped', () {
     _FakeIndividualRepository repoWith(List<JobApplicationModel> applications, {String status = 'active'}) =>
         _FakeIndividualRepository(
@@ -2181,6 +2201,10 @@ void main() {
       final labelY = tester.getCenter(find.descendant(of: line, matching: find.text('Agreed salary:'))).dy;
       expect((salaryY - startY).abs(), lessThan(8));
       expect((salaryY - labelY).abs(), lessThan(8));
+      double size(Finder f) => tester.widget<Text>(f).style!.fontSize!;
+      final label = find.descendant(of: line, matching: find.text('Agreed salary:'));
+      expect(size(label), size(find.byKey(const Key('card-salary-a1'))));
+      expect(size(find.byKey(const Key('card-start-a1'))), size(find.byKey(const Key('card-salary-a1'))));
     });
 
     testWidgets('every accepted caregiver card starts unfolded, showing its details', (tester) async {
@@ -2277,7 +2301,7 @@ void main() {
         ),
       );
       expect(find.byKey(const Key('whatsapp-tap')), findsNWidgets(2));
-      expect(find.text('WhatsApp'), findsNWidgets(2));
+      expect(find.byKey(const Key('whatsapp-glyph')), findsNWidgets(2));
     });
 
     testWidgets('tapping it opens a WhatsApp chat with that caregiver', (tester) async {

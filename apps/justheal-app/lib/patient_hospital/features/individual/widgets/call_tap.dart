@@ -131,27 +131,70 @@ class PhoneContactRow extends StatelessWidget {
             ),
           ),
         ),
+        // Icon only: the WhatsApp glyph (the screen-reader label still says "WhatsApp <name>").
         WhatsAppTap(
           phone: phone,
           name: name,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            key: const Key('whatsapp-icon-button'),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: onDark ? Colors.white : const Color(0xFF25D366).withValues(alpha: 0.12),
               border: Border.all(color: onDark ? Colors.white : const Color(0xFF25D366)),
-              borderRadius: BorderRadius.circular(16),
+              shape: BoxShape.circle,
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.chat, size: 14, color: Color(0xFF128C7E)),
-                SizedBox(width: 4),
-                Text('WhatsApp', style: TextStyle(color: Color(0xFF128C7E), fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
-              ],
-            ),
+            child: const WhatsAppGlyph(size: 24),
           ),
         ),
       ],
     );
   }
+}
+
+/// A small WhatsApp-style mark (green speech bubble with a handset in it). Drawn here because the
+/// icon sets the app has no brand icon.
+class WhatsAppGlyph extends StatelessWidget {
+  final double size;
+
+  const WhatsAppGlyph({super.key, this.size = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('whatsapp-glyph'),
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(size: Size.square(size), painter: _BubblePainter()),
+          Padding(
+            padding: EdgeInsets.only(bottom: size * 0.04),
+            child: Icon(Icons.call, size: size * 0.55, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BubblePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFF25D366);
+    final r = size.width / 2;
+    canvas.drawCircle(Offset(r, r), r * 0.92, paint);
+    // the bubble's tail, bottom-left
+    final tail = Path()
+      ..moveTo(size.width * 0.04, size.height * 0.98)
+      ..lineTo(size.width * 0.12, size.height * 0.62)
+      ..lineTo(size.width * 0.38, size.height * 0.86)
+      ..close();
+    canvas.drawPath(tail, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
