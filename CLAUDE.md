@@ -485,8 +485,7 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Patient screen UX (nursenow-app `JobsPostedScreen`).** (1) **Rejected candidates are collapsed** behind one "Rejected candidates (n)" row
   (`Key('rejected-toggle')`) until tapped; applied, accepted and *completed* (closed by caregiver) candidates always show, and the total
   count still includes everyone. (2) There is **no explanatory banner** above the candidates (the old "You have accepted a candidate. Reject
-  them to be able to make the job live again." note was removed). (3) The yellow Rate-Card guidance block is hidden once a salary is agreed (kept in the tree via
-  `Visibility(maintainState: true)` so mandatory-field validation can still scroll to it); rejected tiles are grey (red stays on the ✕ and
+  them to be able to make the job live again." note was removed). (3) The yellow Rate-Card guidance block ("This is just a guidance…", the Rate Card figure and the care-tier line) **always** sits at the bottom of the requirement card — it was hidden once a salary was agreed, and that was reversed on request (2026-11-21); rejected tiles are grey (red stays on the ✕ and
   label), Reject is a tonal button, Patient Details / Care Preferences have a neutral outline, activity-log times read "14 Nov 2026, 6:32 PM".
   `dart format` must NOT be run on this file (hand-formatted at ~120 columns; formatting rewrites ~800 lines).
 - **Accepted caregivers are cards at the top of the "n candidates applied in total" list on `JobsPostedScreen`.** A patient can have several accepted caregivers, each with their

@@ -1874,6 +1874,48 @@ void main() {
     });
   });
 
+  group('the yellow salary guidance at the bottom of the requirement', () {
+    const note = 'This is just a guidance, you must discuss it directly with caregivers. Fees are paid directly to the Nurse/Caregivers.';
+
+    testWidgets('shows on a live requirement with no caregiver yet', (tester) async {
+      await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')], applicationsByJobId: {'job-1': []}));
+      expect(find.text(note), findsOneWidget);
+      expect(find.textContaining('Guidance only'), findsOneWidget);
+    });
+
+    testWidgets('still shows after a caregiver was accepted and a salary agreed (it used to be hidden then)', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(
+                id: 'a1',
+                status: 'accepted',
+                fullName: 'Asha',
+                acceptedAt: '2026-11-01T10:00:00Z',
+                agreedSalary: 1200,
+                agreedSalaryUnit: 'daily',
+                agreedStartDate: '2026-11-05',
+              ),
+            ],
+          },
+        ),
+      );
+      expect(find.text(note), findsOneWidget);
+      expect(find.textContaining('Guidance only'), findsOneWidget);
+    });
+
+    testWidgets('is the yellow (amber) block, at the bottom of the card', (tester) async {
+      await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')], applicationsByJobId: {'job-1': []}));
+      final box = tester.widget<Container>(find.ancestor(of: find.text(note), matching: find.byType(Container)).first);
+      expect((box.decoration as BoxDecoration).color, Colors.amber);
+      // at the bottom of the card: below the job id at its top
+      expect(tester.getTopLeft(find.text(note)).dy, greaterThan(tester.getTopLeft(find.textContaining('PAT-JOB-').first).dy));
+    });
+  });
+
   group('candidate tile spacing', () {
     testWidgets('name, phone, activity log and profile button have clear gaps between them', (tester) async {
       await _pump(

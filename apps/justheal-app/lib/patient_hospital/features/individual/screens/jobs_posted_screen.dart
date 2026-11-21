@@ -1533,14 +1533,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  // Once a salary has been agreed with the accepted caregiver, this
-                  // guidance only competes with the real figure in the salary banner at
-                  // the top, so it is hidden (kept in the tree: validation scrolls to it).
-                  Visibility(
-                    visible: !widget.applications.any(
-                        (a) => a.status == JobApplicationStatus.accepted && a.agreedSalary != null),
-                    maintainState: true,
-                    child: Container(
+                  // The yellow salary guidance (Rate Card figure + care tier) always sits at the
+                  // bottom of the requirement, whether or not a salary was agreed with a caregiver.
+                  Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
@@ -1609,7 +1604,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                         ],
                       ],
                     ),
-                  ),
                   ),
                 ],
               ),
