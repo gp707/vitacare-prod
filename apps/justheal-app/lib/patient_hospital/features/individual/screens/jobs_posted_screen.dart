@@ -1065,7 +1065,9 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
       // cancelled or closed — so the border itself signals whether this
       // posting still needs attention.
       decoration: BoxDecoration(
-        color: Colors.white,
+        // A light green wash over the whole requirement rectangle: calm and clinical,
+        // like a medical form.
+        color: kMedicalGreenCard,
         border: Border.all(color: _cardBorderColor, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),
@@ -1962,6 +1964,8 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
             ),
           for (final application in accepted) ...[
             CaregiverSummaryCard(
+              // Keyed per caregiver so each card keeps its own folded/unfolded state across reloads.
+              key: ValueKey('caregiver-summary-${application.id}'),
               application: application,
               defaultUnit: defaultUnit,
               isDeciding: widget.decidingApplicationId.contains(application.id),
@@ -1989,26 +1993,27 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+                // The same red as a rejected candidate's own tile (and the Reject button), so
+                // the row that holds them reads as "the rejected ones" at a glance.
                 decoration: BoxDecoration(
-                  color: AppColors.textSecondary.withValues(alpha: 0.05),
-                  border: Border.all(color: AppColors.border),
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.45)),
                   borderRadius: BorderRadius.circular(AppSpacing.sm),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.cancel_outlined,
-                        size: 18, color: AppColors.textSecondary),
+                    const Icon(Icons.cancel_outlined, size: 18, color: AppColors.error),
                     const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
                         'Rejected candidates (${rejected.length})',
                         style: const TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary),
+                            color: AppColors.error),
                       ),
                     ),
                     Icon(_showRejected ? Icons.expand_less : Icons.expand_more,
-                        color: AppColors.textSecondary),
+                        color: AppColors.error),
                   ],
                 ),
               ),

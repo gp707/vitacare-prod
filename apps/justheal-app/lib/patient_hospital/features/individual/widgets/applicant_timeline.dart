@@ -33,8 +33,10 @@ String _formatDateTime(DateTime date) {
 /// doing, so those lines never need a name.
 class ApplicantTimeline extends StatefulWidget {
   final JobApplicationModel application;
+  /// On a dark (solid green) card: the link and every entry are white.
+  final bool onDark;
 
-  const ApplicantTimeline(this.application, {super.key});
+  const ApplicantTimeline(this.application, {super.key, this.onDark = false});
 
   @override
   State<ApplicantTimeline> createState() => _ApplicantTimelineState();
@@ -125,8 +127,8 @@ class _ApplicantTimelineState extends State<ApplicantTimeline> {
                 child: Text(
                 _expanded ? 'Hide Activity Log' : 'Show Activity Log',
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: widget.onDark ? Colors.white : AppColors.primary,
                   fontWeight: FontWeight.bold,
                   fontSize: _fontSize,
                   decoration: TextDecoration.underline,
@@ -136,21 +138,27 @@ class _ApplicantTimelineState extends State<ApplicantTimeline> {
               Icon(
                 _expanded ? Icons.expand_less : Icons.expand_more,
                 size: 16,
-                color: AppColors.primary,
+                color: widget.onDark ? Colors.white : AppColors.primary,
               ),
             ],
           ),
         ),
         if (_expanded) ...[
           const SizedBox(height: 2),
-          for (final entry in entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                entry.value,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: _fontSize),
+          for (var i = 0; i < entries.length; i++) ...[
+            // A very light line between two entries, so each event reads as its own item.
+            if (i > 0)
+              Divider(
+                key: Key('log-separator-$i'),
+                height: 9,
+                thickness: 0.5,
+                color: widget.onDark ? Colors.white.withValues(alpha: 0.3) : AppColors.border.withValues(alpha: 0.6),
               ),
+            Text(
+              entries[i].value,
+              style: TextStyle(color: widget.onDark ? Colors.white : AppColors.textSecondary, fontSize: _fontSize),
             ),
+          ],
         ],
       ],
     );

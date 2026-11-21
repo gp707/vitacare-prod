@@ -92,8 +92,10 @@ class WhatsAppTap extends ConsumerWidget {
 class PhoneContactRow extends StatelessWidget {
   final String phone;
   final String name;
+  /// On a dark (solid green) card: white number, and a white WhatsApp chip.
+  final bool onDark;
 
-  const PhoneContactRow({super.key, required this.phone, required this.name});
+  const PhoneContactRow({super.key, required this.phone, required this.name, this.onDark = false});
 
   @override
   Widget build(BuildContext context) {
@@ -102,17 +104,29 @@ class PhoneContactRow extends StatelessWidget {
       spacing: AppSpacing.sm,
       runSpacing: 2,
       children: [
+        // The number is a button (a pill, like the WhatsApp one next to it), not just a link.
         CallTap(
           phone: phone,
           name: name,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Container(
+            key: const Key('call-button'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: onDark ? Colors.white : AppColors.primary.withValues(alpha: 0.08),
+              border: Border.all(color: onDark ? Colors.white : AppColors.primary),
+              borderRadius: BorderRadius.circular(18),
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.call, size: 14, color: AppColors.primary),
+                Icon(Icons.call, size: 15, color: onDark ? AppColors.success : AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
-                Text(phone, style: const TextStyle(color: AppColors.primary, decoration: TextDecoration.underline)),
+                Flexible(
+                  child: Text(phone,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: onDark ? AppColors.success : AppColors.primary, fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
           ),
@@ -123,8 +137,8 @@ class PhoneContactRow extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFF25D366).withValues(alpha: 0.12),
-              border: Border.all(color: const Color(0xFF25D366)),
+              color: onDark ? Colors.white : const Color(0xFF25D366).withValues(alpha: 0.12),
+              border: Border.all(color: onDark ? Colors.white : const Color(0xFF25D366)),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Row(

@@ -5,12 +5,20 @@ import 'applicant_timeline.dart';
 import 'call_tap.dart';
 import 'feedback_widgets.dart';
 
+/// The accepted caregiver card's green: the Rate Card green (`AppColors.success`) mixed about 28% toward
+/// white — a clearly lighter, fresher green with white text on it. Lighter than this and white text stops
+/// being comfortable to read (it would need dark text instead).
+const Color kAcceptedGreen = Color(0xFF4DBE75);
+
 /// One accepted caregiver at a glance, on the patient's requirement screen: who they
 /// are and what was agreed with them (their own salary and start date). A patient can
 /// have several accepted caregivers, each with their own card and their own numbers.
 ///
 /// One button enters the salary and start date (a popup with both fields), or changes them.
-class CaregiverSummaryCard extends StatelessWidget {
+///
+/// Each card is its own unit: tapping its header folds it down to just the caregiver's name (and
+/// back), independent of every other accepted caregiver.
+class CaregiverSummaryCard extends StatefulWidget {
   final JobApplicationModel application;
   /// 'daily' or 'monthly' — the job's own frequency, used when no unit was stored.
   final String defaultUnit;
@@ -32,34 +40,46 @@ class CaregiverSummaryCard extends StatelessWidget {
   });
 
   @override
+  State<CaregiverSummaryCard> createState() => _CaregiverSummaryCardState();
+}
+
+class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
+  /// Open by default; the patient can fold this caregiver away.
+  bool _expanded = true;
+
+  @override
   Widget build(BuildContext context) {
-    final unitWord = (application.agreedSalaryUnit ?? defaultUnit) == 'daily' ? 'day' : 'month';
-    final salary = application.agreedSalary;
-    final startDate = application.agreedStartDate;
+    final unitWord = (widget.application.agreedSalaryUnit ?? widget.defaultUnit) == 'daily' ? 'day' : 'month';
+    final salary = widget.application.agreedSalary;
+    final startDate = widget.application.agreedStartDate;
     final hasAgreement = salary != null && startDate != null;
-    final initial = application.fullName.trim().isEmpty ? '?' : application.fullName.trim()[0].toUpperCase();
+    final initial = widget.application.fullName.trim().isEmpty ? '?' : widget.application.fullName.trim()[0].toUpperCase();
 
     return Container(
-      key: Key('caregiver-card-${application.id}'),
+      key: Key('caregiver-card-${widget.application.id}'),
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        // The green of the "Accepted" text, as a light tint behind the whole card.
-        color: AppColors.success.withValues(alpha: 0.1),
-        border: Border.all(color: AppColors.success.withValues(alpha: 0.6), width: 1.5),
+        // A solid, slightly lightened green with white text on it.
+        color: kAcceptedGreen,
+        border: Border.all(color: AppColors.success, width: 1.5),
         borderRadius: BorderRadius.circular(AppSpacing.md),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Who ──
-          Row(
+          // ── Who (tap to fold / unfold this caregiver) ──
+          InkWell(
+            key: Key('caregiver-card-toggle-${widget.application.id}'),
+            borderRadius: BorderRadius.circular(AppSpacing.sm),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: AppColors.primaryLight,
-                child: Text(initial, style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
+                backgroundColor: Colors.white,
+                child: Text(initial, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -70,44 +90,52 @@ class CaregiverSummaryCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            application.fullName,
+                            widget.application.fullName,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
-                        const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                        const Icon(Icons.check_circle, color: Colors.white, size: 16),
                       ],
                     ),
-                    const Text('Accepted', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
+                    const Text('Accepted', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: AppTypography.small)),
                   ],
                 ),
               ),
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                key: Key('caregiver-card-chevron-${widget.application.id}'),
+                color: Colors.white,
+                size: 28,
+              ),
             ],
           ),
+          ),
+          if (_expanded) ...[
           const SizedBox(height: AppSpacing.sm),
-          PhoneContactRow(phone: application.phone, name: application.fullName),
+          PhoneContactRow(phone: widget.application.phone, name: widget.application.fullName, onDark: true),
           const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white38),
           const SizedBox(height: AppSpacing.md),
 
           // ── Their own salary ──
           if (hasAgreement) ...[
-            const Text('Agreed salary', style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+            const Text('Agreed salary', style: TextStyle(color: Colors.white70, fontSize: AppTypography.small)),
             const SizedBox(height: 2),
             Text(
               '₹${formatRupees(salary)} per $unitWord',
-              key: Key('card-salary-${application.id}'),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title, color: AppColors.success),
+              key: Key('card-salary-${widget.application.id}'),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title, color: Colors.white),
             ),
             Text(
               'Starts ${formatLongDate(startDate)}',
-              key: Key('card-start-${application.id}'),
-              style: const TextStyle(color: AppColors.textSecondary),
+              key: Key('card-start-${widget.application.id}'),
+              style: const TextStyle(color: Colors.white),
             ),
           ] else
             Container(
-              key: Key('card-no-salary-${application.id}'),
+              key: Key('card-no-salary-${widget.application.id}'),
               width: double.infinity,
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
@@ -125,8 +153,8 @@ class CaregiverSummaryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   FilledButton.icon(
-                    key: Key('card-add-agreement-${application.id}'),
-                    onPressed: onAddAgreement,
+                    key: Key('card-add-agreement-${widget.application.id}'),
+                    onPressed: widget.onAddAgreement,
                     icon: const Icon(Icons.handshake_outlined, size: 16),
                     label: const Text('Enter salary and start date'),
                   ),
@@ -136,7 +164,7 @@ class CaregiverSummaryCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
 
           // ── Actions ──
-          if (isDeciding)
+          if (widget.isDeciding)
             const Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20)),
@@ -146,27 +174,31 @@ class CaregiverSummaryCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  key: Key('card-edit-agreement-${application.id}'),
-                  style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size.fromHeight(44))),
-                  onPressed: onAddAgreement,
+                  key: Key('card-edit-agreement-${widget.application.id}'),
+                  style: const ButtonStyle(
+                    minimumSize: WidgetStatePropertyAll(Size.fromHeight(44)),
+                    foregroundColor: WidgetStatePropertyAll(Colors.white),
+                    side: WidgetStatePropertyAll(BorderSide(color: Colors.white)),
+                  ),
+                  onPressed: widget.onAddAgreement,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Edit salary and start date'),
                 ),
               ),
             const SizedBox(height: AppSpacing.md),
-            ApplicantTimeline(application),
+            ApplicantTimeline(widget.application, onDark: true),
             // Overall feedback about this caregiver, once the work has started.
-            if (application.myFeedback != null ||
-                application.theirFeedback != null ||
-                feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate)) ...[
+            if (widget.application.myFeedback != null ||
+                widget.application.theirFeedback != null ||
+                feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate)) ...[
               const SizedBox(height: AppSpacing.sm),
               FeedbackSection(
                 aboutLabel: 'caregiver',
-                mine: application.myFeedback,
-                received: application.theirFeedback,
-                eligible: feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate),
-                onLeave: onLeaveFeedback,
-                onEdit: onLeaveFeedback,
+                mine: widget.application.myFeedback,
+                received: widget.application.theirFeedback,
+                eligible: feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate),
+                onLeave: widget.onLeaveFeedback,
+                onEdit: widget.onLeaveFeedback,
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
@@ -178,10 +210,12 @@ class CaregiverSummaryCard extends StatelessWidget {
               runSpacing: AppSpacing.xs,
               children: [
                 OutlinedButton.icon(
-                  onPressed: onViewProfile,
+                  onPressed: widget.onViewProfile,
                   style: const ButtonStyle(
                     visualDensity: VisualDensity.compact,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: WidgetStatePropertyAll(Colors.white),
+                    side: WidgetStatePropertyAll(BorderSide(color: Colors.white)),
                   ),
                   icon: const Icon(Icons.person_outline, size: 14),
                   label: const Text('View Profile'),
@@ -189,11 +223,13 @@ class CaregiverSummaryCard extends StatelessWidget {
                 // Rejecting a caregiver who is on the job ends that engagement; it is set
                 // apart from the everyday actions, and always asks for a reason first.
                 FilledButton.icon(
-                  onPressed: onReject,
+                  onPressed: widget.onReject,
                   style: ButtonStyle(
                     visualDensity: VisualDensity.compact,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    backgroundColor: WidgetStateProperty.all(AppColors.error.withValues(alpha: 0.1)),
+                    // On the green card the Reject button is a white pill with red text, so it
+                    // stays the one red action on the card.
+                    backgroundColor: WidgetStateProperty.all(Colors.white),
                     foregroundColor: WidgetStateProperty.all(AppColors.error),
                   ),
                   icon: const Icon(Icons.close, size: 14),
@@ -202,6 +238,7 @@ class CaregiverSummaryCard extends StatelessWidget {
               ],
             ),
           ],
+        ],
         ],
       ),
     );

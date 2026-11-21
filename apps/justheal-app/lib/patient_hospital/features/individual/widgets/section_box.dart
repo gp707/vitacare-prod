@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 
+/// The light green wash behind a patient's whole requirement card, and the slightly lighter green
+/// of the Patient Details / Care Preferences boxes sitting on it — a calm, clinical look.
+const Color kMedicalGreenCard = Color(0xFFE8F5EC);
+const Color kMedicalGreenSection = Color(0xFFF3FBF6);
+
 /// Consistent heading + bordered box wrapper for a form section, used on
 /// Post/Edit Requirement so the form reads as clearly separated blocks
 /// (Patient Details, Care Preferences, ...) instead of one long list of
@@ -62,11 +67,11 @@ class SectionBox extends StatelessWidget {
       padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
       decoration: BoxDecoration(
         // The compact boxes (Patient Details / Care Preferences on the patient's own
-        // requirement card) are plain information, so they get a calm outline;
-        // red is kept for the registration forms' own boxes.
-        color: compact ? Colors.white : AppColors.success.withValues(alpha: 0.06),
+        // requirement card) are plain information, so they get a light green fill and a calm
+        // green outline; red is kept for the registration forms' own boxes.
+        color: compact ? kMedicalGreenSection : AppColors.success.withValues(alpha: 0.06),
         border: compact
-            ? Border.all(color: AppColors.border, width: 1.5)
+            ? Border.all(color: AppColors.success.withValues(alpha: 0.35), width: 1.5)
             : Border.all(color: AppColors.error, width: 2.5),
         borderRadius: BorderRadius.circular(AppSpacing.sm),
       ),

@@ -16,6 +16,8 @@ import 'package:nursenow_app/patient_hospital/features/auth/state/session_notifi
 import 'package:nursenow_app/patient_hospital/features/auth/state/session_state.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/data/individual_repository.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/screens/jobs_posted_screen.dart';
+import 'package:nursenow_app/patient_hospital/features/individual/widgets/caregiver_summary_card.dart' show kAcceptedGreen;
+import 'package:nursenow_app/patient_hospital/features/individual/widgets/section_box.dart';
 import 'package:nursenow_app/patient_hospital/features/individual/widgets/call_tap.dart';
 import 'package:nursenow_app/patient_hospital/features/organisation/data/organisation_repository.dart';
 import 'package:nursenow_app/patient_hospital/core/fcm/fcm_service.dart';
@@ -435,7 +437,7 @@ void main() {
   });
 
   testWidgets(
-      'a live (active) requirement card has a wide red border on a plain white background — senior-citizen-friendly visibility',
+      'a live (active) requirement card has a wide red border on a light green background — senior-citizen-friendly visibility, a calm medical look',
       (tester) async {
     await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active')]));
 
@@ -446,7 +448,7 @@ void main() {
     final border = decoration.border as Border;
     expect(border.top.width, greaterThanOrEqualTo(2.5));
     expect(border.top.color, AppColors.error);
-    expect(decoration.color, Colors.white);
+    expect(decoration.color, kMedicalGreenCard);
   });
 
   testWidgets('a closed requirement card has a grey border, not red — it is no longer live', (tester) async {
@@ -710,8 +712,9 @@ void main() {
       ),
     );
 
+    // white check on the solid green accepted card
     final icon = tester.widget<Icon>(find.byIcon(Icons.check_circle));
-    expect(icon.color, AppColors.success);
+    expect(icon.color, Colors.white);
     expect(find.byIcon(Icons.cancel), findsNothing);
   });
 
@@ -2137,6 +2140,75 @@ void main() {
       expect(repo.agreementSalary, 1200);
     });
 
+    testWidgets('every accepted caregiver card starts unfolded, showing its details', (tester) async {
+      await _pump(tester, twoCaregivers());
+      for (final id in ['a1', 'a2', 'a3']) {
+        expect(find.byKey(Key('caregiver-card-chevron-$id')), findsOneWidget);
+        expect(tester.widget<Icon>(find.byKey(Key('caregiver-card-chevron-$id'))).icon, Icons.expand_less);
+      }
+      expect(find.descendant(of: find.byKey(const Key('caregiver-card-a1')), matching: find.text('₹1,000 per day')), findsOneWidget);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsOneWidget);
+    });
+
+    testWidgets('tapping a caregiver\'s header folds the whole card down to just their name, and tapping again unfolds it', (tester) async {
+      await _pump(tester, twoCaregivers());
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await _settle(tester);
+
+      final card = find.byKey(const Key('caregiver-card-a1'));
+      // the name (and the Accepted label) stay on the folded item
+      expect(find.descendant(of: card, matching: find.text('Asha Rao')), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Accepted')), findsOneWidget);
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-a1'))).icon, Icons.expand_more);
+      // everything else is folded away: phone, salary, buttons, activity log, feedback
+      expect(find.descendant(of: card, matching: find.text('₹1,000 per day')), findsNothing);
+      expect(find.descendant(of: card, matching: find.byKey(const Key('call-button'))), findsNothing);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Reject')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('View Profile')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Show Activity Log')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await _settle(tester);
+      expect(find.descendant(of: card, matching: find.text('₹1,000 per day')), findsOneWidget);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsOneWidget);
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-a1'))).icon, Icons.expand_less);
+    });
+
+    testWidgets('each caregiver folds independently: folding one leaves the others open', (tester) async {
+      await _pump(tester, twoCaregivers());
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await _settle(tester);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
+      // Meena (a2) is untouched and still shows everything
+      expect(find.descendant(of: find.byKey(const Key('caregiver-card-a2')), matching: find.text('₹30,000 per month')), findsOneWidget);
+      expect(find.byKey(const Key('card-edit-agreement-a2')), findsOneWidget);
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-a2'))).icon, Icons.expand_less);
+
+      // folding a second one doesn't reopen the first
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a2')));
+      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a2')));
+      await _settle(tester);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
+      expect(find.byKey(const Key('card-edit-agreement-a2')), findsNothing);
+      expect(find.text('Asha Rao'), findsOneWidget);
+      expect(find.text('Meena Das'), findsOneWidget);
+    });
+
+    testWidgets('a folded card stays folded after the list reloads (for example after a decision elsewhere)', (tester) async {
+      final repo = twoCaregivers();
+      await _pump(tester, repo);
+      await tester.ensureVisible(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await tester.tap(find.byKey(const Key('caregiver-card-toggle-a1')));
+      await _settle(tester);
+      // pull to refresh
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, 300));
+      await _settle(tester);
+      expect(find.byKey(const Key('card-edit-agreement-a1')), findsNothing);
+    });
+
     testWidgets('accepted caregivers come first in the list, then the candidates still waiting', (tester) async {
       await _pump(tester, twoCaregivers());
       expect(find.text('Asha Rao'), findsOneWidget);
@@ -2412,13 +2484,56 @@ void main() {
     });
   });
 
+  group('light green requirement card and red rejected row', () {
+    Color? fillOf(WidgetTester tester, Finder f) => ((tester.widget<Container>(f)).decoration as BoxDecoration).color;
+
+    testWidgets('the whole requirement rectangle, and the Patient Details / Care Preferences boxes, are light green', (tester) async {
+      await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'active', careReceiver: _careReceiverJson)]));
+      final card = find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first;
+      expect(fillOf(tester, card), kMedicalGreenCard);
+      for (final title in ['Patient Details', 'Care Preferences']) {
+        final box = find.ancestor(of: find.text(title), matching: find.byType(Container)).first;
+        expect(fillOf(tester, box), kMedicalGreenSection, reason: title);
+      }
+      // a light green, not white or grey: green is the strongest channel
+      final c = kMedicalGreenCard;
+      expect(c.g, greaterThan(c.r));
+      expect(c.g, greaterThan(c.b));
+    });
+
+    testWidgets('the card stays light green when the job is cancelled or closed', (tester) async {
+      await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'closed', cancelledAt: '2026-11-17T10:00:00Z')]));
+      final card = find.ancestor(of: find.text('Job Id: PAT-JOB-542'), matching: find.byType(Container)).first;
+      expect(fillOf(tester, card), kMedicalGreenCard);
+    });
+
+    testWidgets('the "Rejected candidates" row is the same red tint as a rejected candidate\'s tile', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active')],
+          applicationsByJobId: {
+            'job-1': [_application(id: 'r1', status: 'rejected', fullName: 'Ramesh Rejected', decidedBy: 'someone')],
+          },
+        ),
+        expandRejected: false,
+      );
+      final row = find.descendant(of: find.byKey(const Key('rejected-toggle')), matching: find.byType(Container)).first;
+      final decoration = tester.widget<Container>(row).decoration as BoxDecoration;
+      expect(decoration.color, AppColors.error.withValues(alpha: 0.1));
+      // its label and chevron use the red too
+      final label = tester.widget<Text>(find.text('Rejected candidates (1)'));
+      expect(label.style!.color, AppColors.error);
+    });
+  });
+
   group('colours: accepted is green, rejected is red', () {
     Color? backgroundOf(WidgetTester tester, Finder f) {
       final box = tester.widget<Container>(f);
       return (box.decoration as BoxDecoration).color;
     }
 
-    testWidgets('an accepted caregiver\'s card is tinted with the green of the "Accepted" text', (tester) async {
+    testWidgets('an accepted caregiver\'s card is a solid green, a little lighter than the Rate Card button, with white text', (tester) async {
       await _pump(
         tester,
         _FakeIndividualRepository(
@@ -2426,7 +2541,15 @@ void main() {
           applicationsByJobId: {'job-1': [_application(id: 'a1', status: 'accepted', fullName: 'Asha Accepted')]},
         ),
       );
-      expect(backgroundOf(tester, find.byKey(const Key('caregiver-card-a1'))), AppColors.success.withValues(alpha: 0.1));
+      expect(backgroundOf(tester, find.byKey(const Key('caregiver-card-a1'))), kAcceptedGreen);
+      // lighter than the Rate Card green, but still a green (not washed out)
+      expect(kAcceptedGreen.computeLuminance(), greaterThan(AppColors.success.computeLuminance()));
+      expect(kAcceptedGreen.g, greaterThan(kAcceptedGreen.r));
+      expect(kAcceptedGreen.g, greaterThan(kAcceptedGreen.b));
+      // white text on it: the name and the salary/start lines
+      final card = find.byKey(const Key('caregiver-card-a1'));
+      expect(tester.widget<Text>(find.descendant(of: card, matching: find.text('Asha Accepted'))).style!.color, Colors.white);
+      expect(tester.widget<Text>(find.descendant(of: card, matching: find.text('Accepted'))).style!.color, Colors.white);
     });
 
     testWidgets('a rejected candidate\'s tile is tinted with the red of the Reject button', (tester) async {
@@ -2452,7 +2575,7 @@ void main() {
       expect(tinted, isTrue);
     });
 
-    testWidgets('the Reject button uses that same red tint, so they match', (tester) async {
+    testWidgets('on the green card the Reject button is a white pill with red text (the one red action)', (tester) async {
       await _pump(
         tester,
         _FakeIndividualRepository(
@@ -2461,8 +2584,8 @@ void main() {
         ),
       );
       final reject = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Reject'));
-      final bg = reject.style!.backgroundColor!.resolve({});
-      expect(bg, AppColors.error.withValues(alpha: 0.1));
+      expect(reject.style!.backgroundColor!.resolve({}), Colors.white);
+      expect(reject.style!.foregroundColor!.resolve({}), AppColors.error);
     });
 
     testWidgets('a candidate still waiting keeps its own amber, not red or green', (tester) async {
@@ -2524,6 +2647,28 @@ void main() {
       final newest = tester.getTopLeft(find.textContaining('₹1,200 per day, starts')).dy;
       final oldest = tester.getTopLeft(find.textContaining('₹30,000 per month, starts')).dy;
       expect(newest, lessThan(oldest));
+    });
+
+    testWidgets('a very light separator sits between every two entries of the log, and not before the first or after the last', (tester) async {
+      await openLog(tester, withHistory([
+        {'salary': 30000, 'unit': 'monthly', 'start_date': '2026-11-01', 'at': '2026-11-17T10:00:00Z'},
+        {'salary': 1200, 'unit': 'daily', 'start_date': '2026-11-26', 'at': '2026-11-21T12:00:00Z'},
+      ]));
+      // applied + accepted + two salary entries = 4 entries -> 3 separators
+      for (final i in [1, 2, 3]) {
+        expect(find.byKey(Key('log-separator-$i')), findsOneWidget, reason: 'separator $i');
+      }
+      expect(find.byKey(const Key('log-separator-0')), findsNothing);
+      expect(find.byKey(const Key('log-separator-4')), findsNothing);
+      final divider = tester.widget<Divider>(find.byKey(const Key('log-separator-1')));
+      expect(divider.thickness, lessThanOrEqualTo(0.5));
+      expect(divider.color!.a, lessThan(0.5)); // faint, not a heavy rule
+    });
+
+    testWidgets('two entries have one separator between them', (tester) async {
+      await openLog(tester, withHistory(const [])); // applied + accepted
+      expect(find.byKey(const Key('log-separator-1')), findsOneWidget);
+      expect(find.byKey(const Key('log-separator-2')), findsNothing);
     });
 
     testWidgets('it sits alongside the other events (accepted, etc.), ordered by time', (tester) async {

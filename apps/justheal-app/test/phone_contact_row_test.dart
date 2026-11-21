@@ -30,6 +30,16 @@ void main() {
     expect(find.text('WhatsApp'), findsOneWidget);
   });
 
+  testWidgets('the number is a button: a pill with a call icon, next to the WhatsApp pill', (tester) async {
+    await _pump(tester);
+    final pill = tester.widget<Container>(find.byKey(const Key('call-button')));
+    final decoration = pill.decoration as BoxDecoration;
+    expect(decoration.border, isNotNull);
+    expect(decoration.borderRadius, isNotNull);
+    expect(find.descendant(of: find.byKey(const Key('call-button')), matching: find.byIcon(Icons.call)), findsOneWidget);
+    expect(find.byKey(const Key('whatsapp-tap')), findsOneWidget);
+  });
+
   testWidgets('tapping the number opens the dialer', (tester) async {
     final launched = await _pump(tester);
     await tester.tap(find.text('+919876543210'));
