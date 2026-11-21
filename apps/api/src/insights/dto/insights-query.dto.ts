@@ -36,6 +36,26 @@ export class ActiveUsersQueryDto extends PagedInsightsQueryDto {
   role?: (typeof INSIGHT_ROLES)[number];
 }
 
+export class AppVersionAccountsQueryDto extends PagedInsightsQueryDto {
+  @IsOptional()
+  @IsIn(['android', 'ios'], { message: 'GEN_005' })
+  platform?: 'android' | 'ios';
+
+  /** One exact version, e.g. "1.0.2". */
+  @IsOptional()
+  @Matches(/^\d+(\.\d+){0,2}$/, { message: 'GEN_005' })
+  version?: string;
+
+  @IsOptional()
+  @IsIn(INSIGHT_ROLES, { message: 'GEN_005' })
+  role?: (typeof INSIGHT_ROLES)[number];
+
+  /** 'below_minimum' = under their platform's minimum; 'not_reported' = no version known yet. */
+  @IsOptional()
+  @IsIn(['all', 'below_minimum', 'not_reported'], { message: 'GEN_005' })
+  status?: 'all' | 'below_minimum' | 'not_reported';
+}
+
 export class InactiveSinceRegistrationQueryDto extends PagedInsightsQueryDto {
   /** Only accounts registered at least this long ago — a person who
    *  registered ten minutes ago hasn't "failed to come back" yet. */

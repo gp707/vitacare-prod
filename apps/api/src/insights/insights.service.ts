@@ -7,6 +7,7 @@ import { LoginAttemptsRepository } from '../database/repositories/login-attempts
 import { RecordEventsDto } from './dto/record-events.dto';
 import {
   ActiveUsersQueryDto,
+  AppVersionAccountsQueryDto,
   InactiveSinceRegistrationQueryDto,
   LoginProblemsQueryDto,
   PagedInsightsQueryDto,
@@ -88,6 +89,30 @@ export class InsightsService {
       limit: query.limit,
       hours: query.hours,
       role: query.role,
+    });
+    return this.paged(items, total, query);
+  }
+
+  /** Who is on which app version: counts per platform + version (below-minimum flagged), the current
+   *  minimums, and how many accounts have not reported a version yet. */
+  async getAppVersionSummary() {
+    const { versions, notReported, minimums } = await this.insightsRepo.appVersionSummary();
+    return {
+      minimums,
+      versions,
+      not_reported: notReported,
+      below_minimum_total: versions.filter((v) => v.below_minimum).reduce((sum, v) => sum + v.total, 0),
+    };
+  }
+
+  async listAppVersionAccounts(query: AppVersionAccountsQueryDto) {
+    const { items, total } = await this.insightsRepo.listAccountsByAppVersion({
+      page: query.page,
+      limit: query.limit,
+      platform: query.platform,
+      version: query.version,
+      role: query.role,
+      status: query.status,
     });
     return this.paged(items, total, query);
   }

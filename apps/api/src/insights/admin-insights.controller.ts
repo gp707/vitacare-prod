@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { InsightsService } from './insights.service';
 import {
   ActiveUsersQueryDto,
+  AppVersionAccountsQueryDto,
   InactiveSinceRegistrationQueryDto,
   LoginProblemsQueryDto,
   PagedInsightsQueryDto,
@@ -29,6 +30,19 @@ export class AdminInsightsController {
   @Get('active-users')
   listActiveUsers(@Query() query: ActiveUsersQueryDto) {
     return this.insightsService.listActiveUsers(query);
+  }
+
+  /** Who is on which app version: counts per platform + version, the minimums, how many have not
+   *  reported one yet. */
+  @Get('app-versions/summary')
+  getAppVersionSummary() {
+    return this.insightsService.getAppVersionSummary();
+  }
+
+  /** The accounts behind those counts, filterable by platform, version, kind, below-minimum / not reported. */
+  @Get('app-versions/accounts')
+  listAppVersionAccounts(@Query() query: AppVersionAccountsQueryDto) {
+    return this.insightsService.listAppVersionAccounts(query);
   }
 
   /** Accounts that registered and never came back. */

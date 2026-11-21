@@ -24,6 +24,14 @@ class InsightAccount {
   final int? pendingApplicants;
   final DateTime? firstAppliedAt;
 
+  // Only populated by the "app versions" report (users.app_platform / app_version, migration 100).
+  /// 'android' | 'ios'; null until a build that reports its version has been used.
+  final String? appPlatform;
+  final String? appVersion;
+  final DateTime? appVersionSeenAt;
+  /// On a version under the minimum set for their platform.
+  final bool belowMinimum;
+
   const InsightAccount({
     required this.userId,
     required this.fullName,
@@ -41,6 +49,10 @@ class InsightAccount {
     this.applicants,
     this.pendingApplicants,
     this.firstAppliedAt,
+    this.appPlatform,
+    this.appVersion,
+    this.appVersionSeenAt,
+    this.belowMinimum = false,
   });
 
   /// e.g. `NUR-500`, `PAT-500` or `ORG-500`, whichever applies.
@@ -64,7 +76,96 @@ class InsightAccount {
         applicants: json['applicants'] as int?,
         pendingApplicants: json['pending_applicants'] as int?,
         firstAppliedAt: json['first_applied_at'] == null ? null : DateTime.parse(json['first_applied_at'] as String),
+        appPlatform: json['app_platform'] as String?,
+        appVersion: json['app_version'] as String?,
+        appVersionSeenAt: json['app_version_seen_at'] == null ? null : DateTime.parse(json['app_version_seen_at'] as String),
+        belowMinimum: json['below_minimum'] == true,
       );
+}
+
+/// How many accounts run one version of the app on one platform.
+class AppVersionCount {
+  final String platform;
+  final String version;
+  final int total;
+  final int caregivers;
+  final int patients;
+  final int organisations;
+  final bool belowMinimum;
+
+  const AppVersionCount({
+    required this.platform,
+    required this.version,
+    required this.total,
+    required this.caregivers,
+    required this.patients,
+    required this.organisations,
+    required this.belowMinimum,
+  });
+
+  factory AppVersionCount.fromJson(Map<String, dynamic> json) => AppVersionCount(
+        platform: json['platform'] as String,
+        version: json['version'] as String,
+        total: json['total'] as int,
+        caregivers: json['caregivers'] as int,
+        patients: json['patients'] as int,
+        organisations: json['organisations'] as int,
+        belowMinimum: json['below_minimum'] == true,
+      );
+}
+
+/// The minimum currently set for a platform and who it applies to.
+class AppVersionMinimumInfo {
+  final String platform;
+  final String minVersion;
+  final bool everyone;
+
+  const AppVersionMinimumInfo({required this.platform, required this.minVersion, required this.everyone});
+
+  factory AppVersionMinimumInfo.fromJson(Map<String, dynamic> json) => AppVersionMinimumInfo(
+        platform: json['platform'] as String,
+        minVersion: json['min_version'] as String,
+        everyone: (json['audience_mode'] as String?) != 'selected',
+      );
+}
+
+/// Everything the "App versions" tab shows above its account list.
+class AppVersionSummary {
+  final List<AppVersionMinimumInfo> minimums;
+  final List<AppVersionCount> versions;
+  /// Active accounts for which no version is known yet (older builds, or never opened since).
+  final int notReported;
+  final int notReportedCaregivers;
+  final int notReportedPatients;
+  final int notReportedOrganisations;
+  final int belowMinimumTotal;
+
+  const AppVersionSummary({
+    required this.minimums,
+    required this.versions,
+    required this.notReported,
+    required this.notReportedCaregivers,
+    required this.notReportedPatients,
+    required this.notReportedOrganisations,
+    required this.belowMinimumTotal,
+  });
+
+  factory AppVersionSummary.fromJson(Map<String, dynamic> json) {
+    final nr = (json['not_reported'] as Map<String, dynamic>?) ?? const {};
+    return AppVersionSummary(
+      minimums: ((json['minimums'] as List?) ?? const [])
+          .map((m) => AppVersionMinimumInfo.fromJson(m as Map<String, dynamic>))
+          .toList(),
+      versions: ((json['versions'] as List?) ?? const [])
+          .map((v) => AppVersionCount.fromJson(v as Map<String, dynamic>))
+          .toList(),
+      notReported: (nr['total'] as int?) ?? 0,
+      notReportedCaregivers: (nr['caregivers'] as int?) ?? 0,
+      notReportedPatients: (nr['patients'] as int?) ?? 0,
+      notReportedOrganisations: (nr['organisations'] as int?) ?? 0,
+      belowMinimumTotal: (json['below_minimum_total'] as int?) ?? 0,
+    );
+  }
 }
 
 /// One phone number whose login failed — the person to call. [fullName] etc.
@@ -229,6 +330,33 @@ class AdminInsightsRepository {
       _listAccounts('/admin/insights/active-users', {
         'hours': hours,
         if (role != null) 'role': role,
+        'page': page,
+        'limit': limit,
+      });
+
+  Future<AppVersionSummary> getAppVersionSummary() async {
+    try {
+      final res = await _dio.get('/admin/insights/app-versions/summary');
+      return AppVersionSummary.fromJson(res.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Accounts by app version. [status]: 'all', 'below_minimum' or 'not_reported'.
+  Future<InsightsPage<InsightAccount>> listAppVersionAccounts({
+    String? platform,
+    String? version,
+    String? role,
+    String status = 'all',
+    int page = 1,
+    int limit = 25,
+  }) =>
+      _listAccounts('/admin/insights/app-versions/accounts', {
+        if (platform != null) 'platform': platform,
+        if (version != null) 'version': version,
+        if (role != null) 'role': role,
+        'status': status,
         'page': page,
         'limit': limit,
       });

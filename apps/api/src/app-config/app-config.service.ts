@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AppPlatform, AppVersionAudienceMode, AuditAction } from '@vitacare/shared-constants';
 import { AppException } from '../common/exceptions/app.exception';
+import { isBelowMinVersion } from '../common/app-version';
+import { UsersRepository } from '../database/repositories/users.repository';
 import { AuditService } from '../audit/audit.service';
 import { AppMinVersionsRepository } from '../database/repositories/app-min-versions.repository';
 import { AppMaintenanceRepository } from '../database/repositories/app-maintenance.repository';
@@ -27,6 +29,7 @@ export class AppConfigService {
     private readonly appMaintenanceRepo: AppMaintenanceRepository,
     private readonly auditService: AuditService,
     private readonly accountSearchRepo: AccountSearchRepository,
+    private readonly usersRepo: UsersRepository,
   ) {}
 
   /** Public — called once on every cold launch, before login, by the
@@ -40,11 +43,17 @@ export class AppConfigService {
     const row = await this.appMinVersionsRepo.findByPlatform(platform);
     if (!row) throw new AppException('GEN_002');
 
+    // Remember what this account is running, so admin can see who is on which version (Insights). Never
+    // allowed to slow down or break the check itself.
+    if (callerUserId) {
+      void this.usersRepo.recordAppVersion(callerUserId, platform, version).catch(() => undefined);
+    }
+
     // A minimum aimed at selected categories / accounts only binds them. Not knowing who is asking (the
     // call before anyone has signed in) never blocks under a selected audience; the app asks again each
     // time an account signs in, with that account's token.
     const updateRequired =
-      this.isBelowMinVersion(version, row.min_version) && (await this.appliesToCaller(row, callerUserId));
+      isBelowMinVersion(version, row.min_version) && (await this.appliesToCaller(row, callerUserId));
     return {
       update_required: updateRequired,
       min_version: row.min_version,
@@ -169,17 +178,5 @@ export class AppConfigService {
     });
 
     return updated;
-  }
-
-  /** Never throws — an unparseable segment (missing/non-numeric) counts
-   *  as 0, so a malformed version string just can't out-rank a real one
-   *  rather than crashing the launch-time check. */
-  private isBelowMinVersion(current: string, min: string): boolean {
-    const parse = (v: string) => v.split('.').map((part) => parseInt(part, 10) || 0);
-    const [c1, c2, c3] = parse(current);
-    const [m1, m2, m3] = parse(min);
-    if (c1 !== m1) return c1 < m1;
-    if (c2 !== m2) return c2 < m2;
-    return c3 < m3;
   }
 }

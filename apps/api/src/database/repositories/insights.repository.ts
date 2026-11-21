@@ -22,6 +22,43 @@ export interface InsightAccount {
   organisation_name: string | null;
 }
 
+/** One platform + version, and how many accounts are on it. */
+export interface AppVersionCount {
+  platform: string;
+  version: string;
+  total: number;
+  caregivers: number;
+  patients: number;
+  organisations: number;
+  last_seen_at: Date;
+  /** Below that platform's current minimum version. */
+  below_minimum: boolean;
+}
+
+/** Accounts for which no app version has been reported yet, by kind. */
+export interface AppVersionNotReported {
+  total: number;
+  caregivers: number;
+  patients: number;
+  organisations: number;
+}
+
+/** The minimum currently set for a platform, and who it applies to (for the report's header). */
+export interface AppVersionMinimum {
+  platform: string;
+  min_version: string;
+  audience_mode: string;
+  audience_categories: string[];
+  audience_user_count: number;
+}
+
+export interface AppVersionAccount extends InsightAccount {
+  app_platform: string | null;
+  app_version: string | null;
+  app_version_seen_at: Date | null;
+  below_minimum: boolean;
+}
+
 export interface PosterWithoutAcceptedRecord extends InsightAccount {
   postings: number;
   applicants: number;
@@ -79,6 +116,13 @@ const ACCOUNT_JOINS = `
   LEFT JOIN individual_profiles ip ON ip.user_id = u.id
   LEFT JOIN organisation_profiles op ON op.user_id = u.id`;
 
+/** A dotted version as three whole numbers (a short "1.2" counts as 1.2.0), so versions compare correctly
+ *  in SQL. Safe to cast: the stored value only ever comes from a validated `^\d+(\.\d+){0,2}$`. */
+const versionParts = (column: string): string => `((string_to_array(${column}, '.') || '{0,0}'::text[])[1:3]::int[])`;
+
+/** True when the account's reported version is below the minimum set for its platform. */
+const BELOW_MINIMUM_SQL = `COALESCE(${versionParts('u.app_version')} < ${versionParts('amv.min_version')}, false)`;
+
 /** Read-only queries behind the admin "Insights" screen. Every list
  *  returns `{ items, total }` (paged) so admin-web can show "N of M".
  *  Reports that depend on `users.last_seen_at` are only as accurate as that
@@ -101,6 +145,76 @@ export class InsightsRepository {
       WHERE ${APP_ROLES_SQL} AND u.deleted_at IS NULL
         AND u.last_seen_at >= NOW() - ($1::int * INTERVAL '1 hour') ${roleClause}`;
     return this.page<InsightAccount>(ACCOUNT_COLUMNS, from, values, 'u.last_seen_at DESC', params);
+  }
+
+  /** How many accounts are on each platform + version (newest version first), flagged when below that
+   *  platform's minimum, plus how many have not reported a version yet. Admins are never counted. */
+  async appVersionSummary(): Promise<{
+    versions: AppVersionCount[];
+    notReported: AppVersionNotReported;
+    minimums: AppVersionMinimum[];
+  }> {
+    const minimums = await this.db.query<AppVersionMinimum>(
+      `SELECT platform, min_version, audience_mode, audience_categories,
+              COALESCE(cardinality(audience_user_ids), 0)::int AS audience_user_count
+       FROM app_min_versions ORDER BY platform`,
+    );
+    const versions = await this.db.query<AppVersionCount>(
+      `SELECT u.app_platform AS platform, u.app_version AS version,
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE u.role = 'caregiver')::int AS caregivers,
+              COUNT(*) FILTER (WHERE u.role = 'individual')::int AS patients,
+              COUNT(*) FILTER (WHERE u.role = 'organisation')::int AS organisations,
+              MAX(u.app_version_seen_at) AS last_seen_at,
+              BOOL_OR(${BELOW_MINIMUM_SQL}) AS below_minimum
+       FROM users u LEFT JOIN app_min_versions amv ON amv.platform = u.app_platform
+       WHERE ${APP_ROLES_SQL} AND u.deleted_at IS NULL AND u.app_version IS NOT NULL
+       GROUP BY u.app_platform, u.app_version
+       ORDER BY u.app_platform, ${versionParts('u.app_version')} DESC`,
+    );
+    const notReported = await this.db.query<AppVersionNotReported>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE u.role = 'caregiver')::int AS caregivers,
+              COUNT(*) FILTER (WHERE u.role = 'individual')::int AS patients,
+              COUNT(*) FILTER (WHERE u.role = 'organisation')::int AS organisations
+       FROM users u
+       WHERE ${APP_ROLES_SQL} AND u.deleted_at IS NULL AND u.is_active = true AND u.app_version IS NULL`,
+    );
+    return { versions: versions.rows, notReported: notReported.rows[0], minimums: minimums.rows };
+  }
+
+  /** The accounts behind those counts, newest-seen first. [status]: 'below_minimum' = on a version under
+   *  their platform's minimum; 'not_reported' = no version known yet; anything else = all. */
+  async listAccountsByAppVersion(
+    params: PageParams & { platform?: string; version?: string; role?: string; status?: string },
+  ): Promise<Page<AppVersionAccount>> {
+    const values: unknown[] = [];
+    const conditions: string[] = [`${APP_ROLES_SQL}`, 'u.deleted_at IS NULL'];
+    if (params.platform) {
+      values.push(params.platform);
+      conditions.push(`u.app_platform = $${values.length}`);
+    }
+    if (params.version) {
+      values.push(params.version);
+      conditions.push(`u.app_version = $${values.length}`);
+    }
+    if (params.role) {
+      values.push(params.role);
+      conditions.push(`u.role = $${values.length}`);
+    }
+    if (params.status === 'below_minimum') conditions.push(BELOW_MINIMUM_SQL);
+    else if (params.status === 'not_reported') conditions.push('u.app_version IS NULL', 'u.is_active = true');
+    const from = `
+      FROM users u ${ACCOUNT_JOINS}
+      LEFT JOIN app_min_versions amv ON amv.platform = u.app_platform
+      WHERE ${conditions.join(' AND ')}`;
+    return this.page<AppVersionAccount>(
+      `${ACCOUNT_COLUMNS}, u.app_platform, u.app_version, u.app_version_seen_at, ${BELOW_MINIMUM_SQL} AS below_minimum`,
+      from,
+      values,
+      'u.app_version_seen_at DESC NULLS LAST, u.created_at DESC',
+      params,
+    );
   }
 
   /** Accounts registered at least [minAgeHours] ago that never came back:

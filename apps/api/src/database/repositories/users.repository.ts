@@ -40,6 +40,19 @@ export class UsersRepository {
     await this.db.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
   }
 
+  /** Remembers which app version this account is running (migration 100), as reported by the app's own
+   *  version check. A write only when something changed or the last one is over an hour old, so the
+   *  several checks a launch makes cost one write at most. Leaves updated_at alone. */
+  async recordAppVersion(userId: string, platform: string, version: string): Promise<void> {
+    await this.db.query(
+      `UPDATE users SET app_platform = $2, app_version = $3, app_version_seen_at = NOW()
+       WHERE id = $1
+         AND (app_platform IS DISTINCT FROM $2 OR app_version IS DISTINCT FROM $3
+              OR app_version_seen_at IS NULL OR app_version_seen_at < NOW() - INTERVAL '1 hour')`,
+      [userId, platform, version],
+    );
+  }
+
   /** Phone is unique per app bucket, not globally (see migration 045) —
    *  caregiver ("NurseJobs"), individual+organisation ("NurseNow"), and
    *  admin+super_admin are three independent buckets, so the same phone can

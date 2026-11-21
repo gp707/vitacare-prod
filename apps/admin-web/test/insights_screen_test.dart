@@ -27,9 +27,16 @@ InsightAccount _account({
   int? applicants,
   int? pendingApplicants,
   String? verificationStatus = 'pending_call',
+  String? appPlatform,
+  String? appVersion,
+  bool belowMinimum = false,
 }) {
   final now = DateTime.now();
   return InsightAccount(
+    appPlatform: appPlatform,
+    appVersion: appVersion,
+    appVersionSeenAt: appVersion == null ? null : now.subtract(const Duration(hours: 2)),
+    belowMinimum: belowMinimum,
     userId: userId,
     fullName: fullName,
     phone: phone,
@@ -100,6 +107,22 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
   int? lastLoginDays;
   String? lastLoginStatus;
 
+  // app versions tab
+  AppVersionSummary appVersionSummary = const AppVersionSummary(
+    minimums: [],
+    versions: [],
+    notReported: 0,
+    notReportedCaregivers: 0,
+    notReportedPatients: 0,
+    notReportedOrganisations: 0,
+    belowMinimumTotal: 0,
+  );
+  List<InsightAccount> appVersionAccounts = [];
+  String? lastAvPlatform;
+  String? lastAvVersion;
+  String? lastAvRole;
+  String? lastAvStatus;
+
   _FakeInsightsRepository({
     this.active = const [],
     this.inactive = const [],
@@ -164,6 +187,25 @@ class _FakeInsightsRepository extends AdminInsightsRepository {
       items: loginProblems,
       meta: PaginationMeta(page: 1, limit: 25, total: loginProblems.length, totalPages: loginProblems.isEmpty ? 0 : 1),
     );
+  }
+
+  @override
+  Future<AppVersionSummary> getAppVersionSummary() async => appVersionSummary;
+
+  @override
+  Future<InsightsPage<InsightAccount>> listAppVersionAccounts({
+    String? platform,
+    String? version,
+    String? role,
+    String status = 'all',
+    int page = 1,
+    int limit = 25,
+  }) async {
+    lastAvPlatform = platform;
+    lastAvVersion = version;
+    lastAvRole = role;
+    lastAvStatus = status;
+    return _page(appVersionAccounts);
   }
 
   @override
@@ -509,5 +551,184 @@ void main() {
     await tester.tap(find.text('Never came back').first);
     await tester.pumpAndSettle();
     expect(find.text('NUR-500 · Gone Person'), findsOneWidget);
+  });
+
+  group('App versions: who is on which version', () {
+    AppVersionSummary summary({int notReported = 0}) => AppVersionSummary(
+          minimums: const [
+            AppVersionMinimumInfo(platform: 'android', minVersion: '1.0.2', everyone: true),
+            AppVersionMinimumInfo(platform: 'ios', minVersion: '1.0.0', everyone: false),
+          ],
+          versions: const [
+            AppVersionCount(platform: 'android', version: '1.1.0', total: 10, caregivers: 6, patients: 3, organisations: 1, belowMinimum: false),
+            AppVersionCount(platform: 'android', version: '1.0.0', total: 4, caregivers: 3, patients: 1, organisations: 0, belowMinimum: true),
+            AppVersionCount(platform: 'ios', version: '1.0.0', total: 1, caregivers: 0, patients: 0, organisations: 1, belowMinimum: false),
+          ],
+          notReported: notReported,
+          notReportedCaregivers: notReported == 0 ? 0 : 4,
+          notReportedPatients: notReported == 0 ? 0 : 2,
+          notReportedOrganisations: notReported == 0 ? 0 : 1,
+          belowMinimumTotal: 4,
+        );
+
+    testWidgets('shows a tile per platform and version with counts by kind, the minimums, and flags the old ones', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary();
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+
+      expect(find.text('Android minimum: 1.0.2'), findsOneWidget);
+      expect(find.text('iOS minimum: 1.0.0 (selected people only)'), findsOneWidget);
+      expect(find.text('Android 1.1.0'), findsOneWidget);
+      expect(find.text('10 accounts'), findsOneWidget);
+      expect(find.text('6 caregivers · 3 patients/family · 1 org'), findsOneWidget);
+      expect(find.text('Android 1.0.0'), findsOneWidget);
+      expect(find.text('iOS 1.0.0'), findsOneWidget);
+      // only the version under the minimum is flagged
+      Finder flag(String key) => find.descendant(of: find.byKey(Key(key)), matching: find.text('Below the minimum'));
+      expect(flag('app-version-tile-android-1.0.0'), findsOneWidget);
+      expect(flag('app-version-tile-android-1.1.0'), findsNothing);
+      expect(flag('app-version-tile-ios-1.0.0'), findsNothing);
+    });
+
+    testWidgets('lists the accounts with their app, version and when it was last reported; an old one is flagged', (tester) async {
+      final repo = _FakeInsightsRepository()
+        ..appVersionSummary = summary()
+        ..appVersionAccounts = [
+          _account(userId: 'a', fullName: 'Asha', appPlatform: 'android', appVersion: '1.1.0'),
+          _account(userId: 'b', fullName: 'Ravi', caregiverNumber: 501, appPlatform: 'android', appVersion: '1.0.0', belowMinimum: true),
+          _account(userId: 'c', fullName: 'Meena', caregiverNumber: 502),
+        ];
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+
+      expect(find.text('NUR-500 · Asha'), findsOneWidget);
+      expect(find.text('1.1.0'), findsOneWidget);
+      expect(find.text('1.0.0  ⚠ below the minimum'), findsOneWidget);
+      // Meena: no version known
+      expect(find.descendant(of: find.byType(DataTable), matching: find.text('Not reported yet')), findsOneWidget);
+      expect(find.textContaining('2 h ago ('), findsWidgets);
+    });
+
+    testWidgets('tapping a version tile shows only who is on it (platform + version are sent), and tapping again clears it', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary();
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      expect(repo.lastAvVersion, isNull);
+
+      await tester.tap(find.byKey(const Key('app-version-tile-android-1.0.0')));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvPlatform, 'android');
+      expect(repo.lastAvVersion, '1.0.0');
+      expect(repo.lastAvStatus, 'all');
+      expect(find.byKey(const Key('app-versions-selected-version')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('app-version-tile-android-1.0.0')));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvVersion, isNull);
+      expect(repo.lastAvPlatform, isNull);
+      expect(find.byKey(const Key('app-versions-selected-version')), findsNothing);
+    });
+
+    testWidgets('the chip\'s x clears the chosen version', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary();
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      await tester.tap(find.byKey(const Key('app-version-tile-ios-1.0.0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byKey(const Key('app-versions-selected-version')), matching: find.byTooltip('Delete')));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvVersion, isNull);
+    });
+
+    testWidgets('"Below the minimum" finds everyone who needs to update, and "Not reported yet" those with no version known', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary(notReported: 7);
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+
+      Finder segment(String label) =>
+          find.descendant(of: find.byKey(const Key('app-versions-status')), matching: find.text(label));
+      await tester.tap(segment('Below the minimum'));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvStatus, 'below_minimum');
+
+      await tester.tap(segment('Not reported yet'));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvStatus, 'not_reported');
+    });
+
+    testWidgets('the Not-reported tile shows how many, by kind, and filters to them', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary(notReported: 7);
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      expect(find.text('7 accounts'), findsOneWidget);
+      expect(find.text('4 caregivers · 2 patients/family · 1 org'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('app-version-tile-not-reported')));
+      await tester.pumpAndSettle();
+      expect(repo.lastAvStatus, 'not_reported');
+      expect(repo.lastAvVersion, isNull);
+    });
+
+    testWidgets('narrowing to one kind of account sends the role', (tester) async {
+      final repo = _FakeInsightsRepository()..appVersionSummary = summary();
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      await tester.tap(find.byType(DropdownButton<String?>).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Caregivers').last);
+      await tester.pumpAndSettle();
+      expect(repo.lastAvRole, 'caregiver');
+    });
+
+    testWidgets('when nothing has been reported yet it says so rather than showing an empty page', (tester) async {
+      final repo = _FakeInsightsRepository(); // no versions, nobody counted
+      await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      expect(find.byKey(const Key('app-versions-none-yet')), findsOneWidget);
+    });
+
+    testWidgets('an account can be called or opened straight from the list', (tester) async {
+      final repo = _FakeInsightsRepository()
+        ..appVersionSummary = summary()
+        ..appVersionAccounts = [_account(appPlatform: 'android', appVersion: '1.0.0', belowMinimum: true)];
+      final pushed = await _pump(tester, repo);
+      await _openTab(tester, 'App versions');
+      await tester.tap(find.text('NUR-500 · Ramesh Kumar'));
+      await tester.pumpAndSettle();
+      expect(pushed.single, startsWith('/caregiver-detail'));
+    });
+  });
+
+  test('the models read the report: counts, minimums, the not-reported tally and an account\'s version', () {
+    final s = AppVersionSummary.fromJson({
+      'minimums': [
+        {'platform': 'android', 'min_version': '1.0.2', 'audience_mode': 'all', 'audience_categories': [], 'audience_user_count': 0},
+        {'platform': 'ios', 'min_version': '1.0.0', 'audience_mode': 'selected', 'audience_categories': ['agency'], 'audience_user_count': 0},
+      ],
+      'versions': [
+        {'platform': 'android', 'version': '1.0.0', 'total': 3, 'caregivers': 3, 'patients': 0, 'organisations': 0, 'below_minimum': true},
+      ],
+      'not_reported': {'total': 5, 'caregivers': 2, 'patients': 2, 'organisations': 1},
+      'below_minimum_total': 3,
+    });
+    expect(s.minimums.first.everyone, isTrue);
+    expect(s.minimums.last.everyone, isFalse);
+    expect(s.versions.single.belowMinimum, isTrue);
+    expect(s.notReported, 5);
+    expect(s.belowMinimumTotal, 3);
+    final a = InsightAccount.fromJson({
+      'user_id': 'u',
+      'full_name': 'X',
+      'phone': '+91',
+      'role': 'caregiver',
+      'created_at': '2026-11-01T00:00:00Z',
+      'app_platform': 'ios',
+      'app_version': '1.2.0',
+      'app_version_seen_at': '2026-11-21T10:00:00Z',
+      'below_minimum': true,
+    });
+    expect(a.appPlatform, 'ios');
+    expect(a.appVersion, '1.2.0');
+    expect(a.belowMinimum, isTrue);
+    expect(InsightAccount.fromJson({'user_id': 'u', 'full_name': 'X', 'phone': '+91', 'role': 'caregiver', 'created_at': '2026-11-01T00:00:00Z'}).belowMinimum, isFalse);
   });
 }

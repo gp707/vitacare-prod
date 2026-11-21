@@ -14,6 +14,7 @@ const _tabNeverCameBack = 2;
 const _tabNoAccepted = 3;
 const _tabCaregiversNotApplied = 4;
 const _tabLoginProblems = 5;
+const _tabAppVersions = 6;
 
 String _roleLabel(String role) {
   switch (role) {
@@ -81,7 +82,7 @@ class InsightsScreen extends ConsumerStatefulWidget {
 }
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 6, vsync: this);
+  late final TabController _tabs = TabController(length: 7, vsync: this);
   InsightsSummary? _summary;
   String? _summaryError;
 
@@ -154,6 +155,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTick
                   Tab(text: 'No candidate accepted'),
                   Tab(text: 'Caregivers not applied'),
                   Tab(text: 'Login problems'),
+                  Tab(text: 'App versions'),
                 ],
               ),
               Expanded(
@@ -166,6 +168,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> with SingleTick
                     _NoAcceptedTab(),
                     _CaregiversNotAppliedTab(),
                     _LoginProblemsTab(),
+                    _AppVersionsTab(),
                   ],
                 ),
               ),
@@ -484,6 +487,231 @@ class _ActiveUsersTabState extends ConsumerState<_ActiveUsersTab> with Automatic
       columns: const ['Who', 'Type', 'Phone', 'Last active', 'Registered'],
       cells: (a) => [_who(a), _roleLabel(a.role), a.phone, '${_ago(a.lastSeenAt)} (${_stamp(a.lastSeenAt)})', _stamp(a.createdAt)],
       emptyText: 'Nobody has been active in this window yet.\nActivity is recorded from the first use of this release.',
+    );
+  }
+}
+
+/// Who is on which version of the app: version tiles (tap one to see who is on it), the minimum currently
+/// set per platform, and the account list behind them — with a quick way to find everyone below the
+/// minimum or whose version is not known yet.
+class _AppVersionsTab extends ConsumerStatefulWidget {
+  const _AppVersionsTab();
+
+  @override
+  ConsumerState<_AppVersionsTab> createState() => _AppVersionsTabState();
+}
+
+class _AppVersionsTabState extends ConsumerState<_AppVersionsTab> with AutomaticKeepAliveClientMixin {
+  String? _platform;
+  String? _version;
+  String? _role;
+  String _status = 'all';
+  AppVersionSummary? _summary;
+  String? _summaryError;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSummary());
+  }
+
+  Future<void> _loadSummary() async {
+    try {
+      final summary = await ref.read(adminInsightsRepositoryProvider).getAppVersionSummary();
+      if (mounted) {
+        setState(() {
+          _summary = summary;
+          _summaryError = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _summaryError = e.message);
+    }
+  }
+
+  static String _platformLabel(String? p) => p == 'ios' ? 'iOS' : (p == 'android' ? 'Android' : '-');
+
+  void _pickVersion(AppVersionCount v) => setState(() {
+        _platform = v.platform;
+        _version = v.version;
+        _status = 'all';
+      });
+
+  void _clearVersion() => setState(() {
+        _platform = null;
+        _version = null;
+      });
+
+  Widget _versionTile(AppVersionCount v) {
+    final selected = _platform == v.platform && _version == v.version;
+    final color = v.belowMinimum ? AppColors.warning : AppColors.border;
+    return InkWell(
+      key: Key('app-version-tile-${v.platform}-${v.version}'),
+      onTap: () => selected ? _clearVersion() : _pickVersion(v),
+      borderRadius: BorderRadius.circular(AppSpacing.sm),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        constraints: const BoxConstraints(minWidth: 190),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+          border: Border.all(color: selected ? AppColors.primary : color, width: selected || v.belowMinimum ? 2 : 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${_platformLabel(v.platform)} ${v.version}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('${v.total} account${v.total == 1 ? '' : 's'}', style: const TextStyle(fontSize: AppTypography.heading)),
+            Text(
+              '${v.caregivers} caregiver${v.caregivers == 1 ? '' : 's'} · ${v.patients} patient${v.patients == 1 ? '' : 's'}/family · ${v.organisations} org${v.organisations == 1 ? '' : 's'}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+            ),
+            if (v.belowMinimum)
+              const Text('Below the minimum',
+                  style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryBlock() {
+    if (_summaryError != null) return Text(_summaryError!, style: const TextStyle(color: AppColors.error));
+    final s = _summary;
+    if (s == null) return const Padding(padding: EdgeInsets.all(AppSpacing.sm), child: LinearProgressIndicator());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: AppSpacing.md,
+          children: [
+            for (final m in s.minimums)
+              Text(
+                '${_platformLabel(m.platform)} minimum: ${m.minVersion}${m.everyone ? '' : ' (selected people only)'}',
+                key: Key('app-version-minimum-${m.platform}'),
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final v in s.versions) _versionTile(v),
+            if (s.notReported > 0)
+              InkWell(
+                key: const Key('app-version-tile-not-reported'),
+                onTap: () => setState(() {
+                  _platform = null;
+                  _version = null;
+                  _status = _status == 'not_reported' ? 'all' : 'not_reported';
+                }),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  constraints: const BoxConstraints(minWidth: 190),
+                  decoration: BoxDecoration(
+                    color: _status == 'not_reported' ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppSpacing.sm),
+                    border: Border.all(color: _status == 'not_reported' ? AppColors.primary : AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Not reported yet', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${s.notReported} account${s.notReported == 1 ? '' : 's'}', style: const TextStyle(fontSize: AppTypography.heading)),
+                      Text(
+                        '${s.notReportedCaregivers} caregiver${s.notReportedCaregivers == 1 ? '' : 's'} · ${s.notReportedPatients} patient${s.notReportedPatients == 1 ? '' : 's'}/family · ${s.notReportedOrganisations} org${s.notReportedOrganisations == 1 ? '' : 's'}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                      ),
+                      const Text('older build, or not opened since',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (s.versions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: AppSpacing.sm),
+            child: Text(
+              'No version has been reported yet. Versions fill in as people open a build that reports them.',
+              key: Key('app-versions-none-yet'),
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _AccountReport<InsightAccount>(
+      openItem: _openAccount,
+      phoneOf: (a) => a.phone,
+      reloadKey: '$_platform-$_version-$_role-$_status',
+      loader: (page) => ref.read(adminInsightsRepositoryProvider).listAppVersionAccounts(
+            platform: _platform,
+            version: _version,
+            role: _role,
+            status: _status,
+            page: page,
+          ),
+      filters: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _summaryBlock(),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SegmentedButton<String>(
+                key: const Key('app-versions-status'),
+                segments: const [
+                  ButtonSegment(value: 'all', label: Text('Everyone')),
+                  ButtonSegment(value: 'below_minimum', label: Text('Below the minimum')),
+                  ButtonSegment(value: 'not_reported', label: Text('Not reported yet')),
+                ],
+                selected: {_status},
+                onSelectionChanged: (s) => setState(() {
+                  _status = s.first;
+                  if (_status == 'not_reported') {
+                    _platform = null;
+                    _version = null;
+                  }
+                }),
+              ),
+              _RoleFilter(value: _role, onChanged: (v) => setState(() => _role = v)),
+              if (_version != null)
+                InputChip(
+                  key: const Key('app-versions-selected-version'),
+                  label: Text('${_platformLabel(_platform)} $_version'),
+                  onDeleted: _clearVersion,
+                ),
+            ],
+          ),
+        ],
+      ),
+      columns: const ['Who', 'Type', 'Phone', 'App', 'Version', 'Last reported'],
+      cells: (a) => [
+        _who(a),
+        _roleLabel(a.role),
+        a.phone,
+        _platformLabel(a.appPlatform),
+        a.appVersion == null ? 'Not reported yet' : '${a.appVersion}${a.belowMinimum ? '  ⚠ below the minimum' : ''}',
+        a.appVersionSeenAt == null ? '-' : '${_ago(a.appVersionSeenAt)} (${_stamp(a.appVersionSeenAt)})',
+      ],
+      emptyText: 'Nobody matches.\nVersions fill in as people open a build that reports them.',
     );
   }
 }

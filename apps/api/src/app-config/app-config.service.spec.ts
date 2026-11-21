@@ -6,6 +6,7 @@ describe('AppConfigService', () => {
   let appMaintenanceRepo: any;
   let auditService: any;
   let accountSearchRepo: any;
+  let usersRepo: any;
 
   const androidRow = {
     platform: 'android',
@@ -37,7 +38,8 @@ describe('AppConfigService', () => {
     };
     auditService = { log: jest.fn() };
     accountSearchRepo = { search: jest.fn().mockResolvedValue([]), countExisting: jest.fn().mockResolvedValue(0) };
-    service = new AppConfigService(appMinVersionsRepo, appMaintenanceRepo, auditService, accountSearchRepo);
+    usersRepo = { recordAppVersion: jest.fn().mockResolvedValue(undefined) };
+    service = new AppConfigService(appMinVersionsRepo, appMaintenanceRepo, auditService, accountSearchRepo, usersRepo);
   });
 
   describe('checkVersion', () => {
@@ -383,6 +385,35 @@ describe('AppConfigService', () => {
       accountSearchRepo.search.mockResolvedValue([{ user_id: 'u1' }]);
       expect(await service.searchAccounts('  asha ', 'caregiver')).toEqual([{ user_id: 'u1' }]);
       expect(accountSearchRepo.search).toHaveBeenCalledWith('asha', 'caregiver');
+    });
+  });
+
+  describe('remembering which app version an account runs', () => {
+    it('records the platform and version of a signed-in caller, whatever the audience', async () => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue({ ...androidRow, audience_mode: 'selected', audience_categories: ['caregiver'], audience_user_ids: [] });
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('individual'); // not in the audience: still recorded
+      await service.checkVersion('android' as any, '1.4.2', 'patient-1');
+      expect(usersRepo.recordAppVersion).toHaveBeenCalledWith('patient-1', 'android', '1.4.2');
+    });
+
+    it('records it even when the account is already up to date', async () => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue(androidRow); // min 1.2.0
+      const result = await service.checkVersion('android' as any, '2.0.0', 'cg-1');
+      expect(result.update_required).toBe(false);
+      expect(usersRepo.recordAppVersion).toHaveBeenCalledWith('cg-1', 'android', '2.0.0');
+    });
+
+    it('records nothing for an anonymous caller (nobody to attach it to)', async () => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue(androidRow);
+      await service.checkVersion('android' as any, '1.0.0', null);
+      await service.checkVersion('android' as any, '1.0.0');
+      expect(usersRepo.recordAppVersion).not.toHaveBeenCalled();
+    });
+
+    it('a failing write never breaks or delays the check', async () => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue(androidRow);
+      usersRepo.recordAppVersion.mockRejectedValue(new Error('db down'));
+      await expect(service.checkVersion('android' as any, '1.0.0', 'cg-1')).resolves.toMatchObject({ update_required: true });
     });
   });
 });
