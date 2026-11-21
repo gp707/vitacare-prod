@@ -3,6 +3,7 @@ import { DatabaseService } from './database.service';
 import { UsersRepository } from './repositories/users.repository';
 import { DailyPushClaimsRepository } from './repositories/daily-push-claims.repository';
 import { EngagementFeedbackRepository } from './repositories/engagement-feedback.repository';
+import { AccountSearchRepository } from './repositories/account-search.repository';
 import { CaregiverProfilesRepository } from './repositories/caregiver-profiles.repository';
 import { CaregiverDocumentsRepository } from './repositories/caregiver-documents.repository';
 import { CaregiverLanguagesRepository } from './repositories/caregiver-languages.repository';
@@ -49,6 +50,7 @@ const repositories = [
   UsersRepository,
   DailyPushClaimsRepository,
   EngagementFeedbackRepository,
+  AccountSearchRepository,
   CaregiverProfilesRepository,
   CaregiverDocumentsRepository,
   CaregiverLanguagesRepository,

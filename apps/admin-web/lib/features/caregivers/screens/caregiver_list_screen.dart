@@ -140,13 +140,17 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
       chosen = await showDialog<CaregiverAssignment>(
         context: context,
         builder: (dialogContext) => SimpleDialog(
-          title: Text('${item.fullName} is assigned to (${list.length})'),
+          title: Text('${item.fullName} is working ${list.length} jobs in parallel'),
           children: [
-            for (final a in list)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text('Choose the job to open', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            for (var i = 0; i < list.length; i++)
               SimpleDialogOption(
-                key: Key('assignment-${a.jobId}'),
-                onPressed: () => Navigator.of(dialogContext).pop(a),
-                child: Text(a.summaryLine),
+                key: Key('assignment-${list[i].jobId}'),
+                onPressed: () => Navigator.of(dialogContext).pop(list[i]),
+                child: Text('${i + 1}. ${list[i].summaryLine}'),
               ),
           ],
         ),

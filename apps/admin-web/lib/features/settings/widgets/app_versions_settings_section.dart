@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../app_versions/data/app_versions_repository.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/confirm_action.dart';
+import 'app_version_audience_editor.dart';
 
 /// The "App Versions" tab of the Settings hub — lets an admin force-upgrade
 /// the single JustHeal binary (covers both the caregiver and patient/
@@ -54,6 +56,10 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
     final storeUrlController = TextEditingController(text: version.storeUrl ?? '');
     final updateMessageController = TextEditingController(text: version.updateMessage ?? '');
     String? dialogError;
+    // Who it applies to, edited in place and sent with Save.
+    var everyone = version.appliesToEveryone;
+    final categories = <String>{...version.audienceCategories};
+    final accounts = <AudienceAccount>[...version.audienceUsers];
 
     final saved = await showDialog<bool>(
       context: context,
@@ -79,6 +85,26 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                       const InputDecoration(labelText: 'Update message (shown to the user)'),
                   maxLines: 2,
                 ),
+                const SizedBox(height: AppSpacing.md),
+                AppVersionAudienceEditor(
+                  everyone: everyone,
+                  categories: categories,
+                  accounts: accounts,
+                  onEveryoneChanged: (v) => setDialogState(() => everyone = v),
+                  onCategoryToggled: (c, selected) => setDialogState(() {
+                    selected ? categories.add(c) : categories.remove(c);
+                  }),
+                  onAddAccount: () async {
+                    final picked = await showAccountPickerDialog(
+                      context,
+                      alreadyChosen: {for (final a in accounts) a.userId},
+                    );
+                    if (picked != null && !accounts.any((a) => a.userId == picked.userId)) {
+                      setDialogState(() => accounts.add(picked));
+                    }
+                  },
+                  onRemoveAccount: (a) => setDialogState(() => accounts.removeWhere((x) => x.userId == a.userId)),
+                ),
                 if (dialogError != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   Text(dialogError!, style: const TextStyle(color: AppColors.error)),
@@ -93,11 +119,28 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
               message: AdminHelp.saveMinVersion,
               child: ElevatedButton(
                 onPressed: () async {
+                  if (!everyone && categories.isEmpty && accounts.isEmpty) {
+                    setDialogState(() => dialogError = 'Pick at least one category or account, or choose Everyone.');
+                    return;
+                  }
+                  final audience = everyone
+                      ? const AppVersionAudience.everyone()
+                      : AppVersionAudience(
+                          mode: AppVersionAudienceMode.selected,
+                          categories: [
+                            for (final c in AppVersionAudienceCategory.all)
+                              if (categories.contains(c)) c,
+                          ],
+                          userIds: [for (final a in accounts) a.userId],
+                        );
+                  final who = everyone
+                      ? 'Anyone'
+                      : 'Anyone in ${AppMinVersion(platform: version.platform, minVersion: '', updatedAt: '', audienceMode: AppVersionAudienceMode.selected, audienceCategories: audience.categories, audienceUsers: accounts).audienceSummary}';
                   final ok = await confirmAction(
                     context,
                     title: 'Force update to ${minVersionController.text.trim()}?',
                     message:
-                        'Anyone on an older ${version.platform} version sees a full-screen "Update required" on their next launch and cannot use the app until they update. Make sure this version is already live in the store.',
+                        '$who on an older ${version.platform} version sees a full-screen "Update required" and cannot use the app until they update. Make sure this version is already live in the store.',
                     confirmLabel: 'Save',
                     destructive: true,
                   );
@@ -110,6 +153,7 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                           minVersion: minVersionController.text.trim(),
                           storeUrl: storeUrlController.text.trim(),
                           updateMessage: updateMessageController.text.trim(),
+                          audience: audience,
                         );
                     if (context.mounted) Navigator.of(context).pop(true);
                   } on ApiException catch (e) {
@@ -139,7 +183,9 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
         children: [
           const Text(
             'Raise the minimum version above what a user has installed to force them to '
-            'update the JustHeal app before they can use it again. One control per platform '
+            'update the JustHeal app before they can use it again — for everyone, or only for the '
+            'categories (patients, caregivers, hospitals, rehabs, clinics, agencies) and specific '
+            'accounts you choose. One control per platform '
             '(Android/iOS) — the caregiver and patient/hospital flows ship together in the '
             'same binary, so there\'s a single version to enforce, not two.',
             style: TextStyle(color: AppColors.textSecondary),
@@ -169,6 +215,19 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
                             ),
                             const SizedBox(height: 4),
                             Text('Minimum version: ${version.minVersion}'),
+                            Text(
+                              'Applies to: ${version.audienceSummary}',
+                              key: Key('audience-summary-${version.platform}'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: version.appliesToEveryone ? AppColors.textPrimary : AppColors.warning,
+                              ),
+                            ),
+                            if (!version.appliesToEveryone && version.audienceUsers.isNotEmpty)
+                              Text(
+                                version.audienceUsers.map((a) => a.chipLabel).join(', '),
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                              ),
                             if (version.storeUrl != null && version.storeUrl!.isNotEmpty)
                               Text('Store URL: ${version.storeUrl}',
                                   style: const TextStyle(color: AppColors.textSecondary)),

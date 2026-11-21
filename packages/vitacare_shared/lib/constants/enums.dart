@@ -37,6 +37,33 @@ class AppPlatform {
   static const all = [android, ios];
 }
 
+/// Who a forced minimum app version applies to: everyone, or only the selected categories/accounts.
+class AppVersionAudienceMode {
+  static const all = 'all';
+  static const selected = 'selected';
+}
+
+/// The categories an admin can target: patients/families, caregivers and each organisation type.
+/// Same keys as the user roles (caregiver/individual) and [OrganisationType] (hospital/rehab/clinic/agency).
+class AppVersionAudienceCategory {
+  static const caregiver = 'caregiver';
+  static const individual = 'individual';
+  static const hospital = 'hospital';
+  static const rehab = 'rehab';
+  static const clinic = 'clinic';
+  static const agency = 'agency';
+
+  static const all = [individual, caregiver, hospital, rehab, clinic, agency];
+  static const displayNames = {
+    individual: 'Patients / Families',
+    caregiver: 'Caregivers',
+    hospital: 'Hospitals',
+    rehab: 'Rehabs',
+    clinic: 'Clinics',
+    agency: 'Agencies',
+  };
+}
+
 class JobApplicationStatus {
   static const applied = 'applied';
   static const rejected = 'rejected';

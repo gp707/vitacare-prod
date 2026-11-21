@@ -16,8 +16,11 @@ class AppVersionRepository {
   AppVersionRepository(this._dio);
 
   /// Called once on every cold launch, before the splash screen loads the
-  /// session — this is why it's unauthenticated (GET /app-versions/check
-  /// takes no token). Returns null when no update is required. Deliberately
+  /// session, and again by VersionGate each time an account signs in. The
+  /// endpoint works without a token (so a never-logged-in user on a too-old
+  /// build is still blocked by a minimum meant for everyone), but this API
+  /// client attaches its session's token when it has one — that is how a
+  /// minimum aimed at selected categories or accounts finds out who is asking. Returns null when no update is required. Deliberately
   /// fails open on any error (network down, backend unreachable, unexpected
   /// response shape): a broken version check must never be the thing that
   /// locks every user out of the app. This is the single real check for

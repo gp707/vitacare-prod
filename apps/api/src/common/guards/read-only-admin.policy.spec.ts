@@ -35,6 +35,7 @@ describe('read-only admin policy', () => {
       '/admin/scope-of-work',
       '/admin/duty-requirements',
       '/admin/app-versions',
+      '/admin/accounts/search', // the account picker on the Settings screens
       '/admin/app-maintenance',
       '/admin/otp-settings',
       '/admin/job-settings',

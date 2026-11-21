@@ -5,6 +5,7 @@ describe('AppConfigService', () => {
   let appMinVersionsRepo: any;
   let appMaintenanceRepo: any;
   let auditService: any;
+  let accountSearchRepo: any;
 
   const androidRow = {
     platform: 'android',
@@ -27,6 +28,7 @@ describe('AppConfigService', () => {
       findByPlatform: jest.fn(),
       findAll: jest.fn(),
       update: jest.fn(),
+      categoryOfUser: jest.fn(),
     };
     appMaintenanceRepo = {
       find: jest.fn(),
@@ -34,7 +36,8 @@ describe('AppConfigService', () => {
       update: jest.fn(),
     };
     auditService = { log: jest.fn() };
-    service = new AppConfigService(appMinVersionsRepo, appMaintenanceRepo, auditService);
+    accountSearchRepo = { search: jest.fn().mockResolvedValue([]), countExisting: jest.fn().mockResolvedValue(0) };
+    service = new AppConfigService(appMinVersionsRepo, appMaintenanceRepo, auditService, accountSearchRepo);
   });
 
   describe('checkVersion', () => {
@@ -116,7 +119,7 @@ describe('AppConfigService', () => {
       expect(result).toBe(updatedRow);
       expect(appMinVersionsRepo.update).toHaveBeenCalledWith(
         'android',
-        { min_version: '1.3.0', store_url: 'https://play.google.com/x' },
+        { min_version: '1.3.0', store_url: 'https://play.google.com/x', audience: undefined },
         'admin-1',
       );
       expect(auditService.log).toHaveBeenCalledWith(
@@ -124,8 +127,8 @@ describe('AppConfigService', () => {
           userId: 'admin-1',
           action: 'app_version_updated',
           entityType: 'app_min_versions',
-          beforeValue: { platform: 'android', min_version: '1.2.0', store_url: androidRow.store_url },
-          afterValue: { platform: 'android', min_version: '1.3.0', store_url: 'https://play.google.com/x' },
+          beforeValue: expect.objectContaining({ platform: 'android', min_version: '1.2.0', store_url: androidRow.store_url }),
+          afterValue: expect.objectContaining({ platform: 'android', min_version: '1.3.0', store_url: 'https://play.google.com/x' }),
           ipAddress: '127.0.0.1',
         }),
       );
@@ -218,6 +221,168 @@ describe('AppConfigService', () => {
           ipAddress: '127.0.0.1',
         }),
       );
+    });
+  });
+
+  describe('who a minimum version applies to', () => {
+    const selectedRow = (over: Record<string, unknown> = {}) => ({
+      ...androidRow,
+      audience_mode: 'selected',
+      audience_categories: [],
+      audience_user_ids: [],
+      ...over,
+    });
+    const check = (row: any, caller?: string | null, version = '1.0.0') => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue(row);
+      return service.checkVersion('android' as any, version, caller);
+    };
+
+    it('"all" (and a row that predates audiences) binds everyone, signed in or not', async () => {
+      expect((await check({ ...androidRow, audience_mode: 'all' })).update_required).toBe(true);
+      expect((await check({ ...androidRow, audience_mode: 'all' }, 'someone')).update_required).toBe(true);
+      expect((await check(androidRow)).update_required).toBe(true); // no audience columns at all
+    });
+
+    it('a selected audience never blocks an anonymous caller (the app asks again after sign-in)', async () => {
+      const result = await check(selectedRow({ audience_categories: ['caregiver'] }), null);
+      expect(result.update_required).toBe(false);
+      expect(result.store_url).toBeNull();
+      expect(result.update_message).toBeNull();
+      expect(appMinVersionsRepo.categoryOfUser).not.toHaveBeenCalled();
+    });
+
+    it('binds a caregiver when "caregivers" is selected, and nobody else', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('caregiver');
+      expect((await check(selectedRow({ audience_categories: ['caregiver'] }), 'u1')).update_required).toBe(true);
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('individual');
+      expect((await check(selectedRow({ audience_categories: ['caregiver'] }), 'u2')).update_required).toBe(false);
+    });
+
+    it.each(['hospital', 'rehab', 'clinic', 'agency'])('an organisation of type %s is bound only when that type is selected', async (type) => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue(type);
+      expect((await check(selectedRow({ audience_categories: [type] }), 'org')).update_required).toBe(true);
+      const others = ['hospital', 'rehab', 'clinic', 'agency'].filter((t) => t !== type);
+      expect((await check(selectedRow({ audience_categories: others }), 'org')).update_required).toBe(false);
+    });
+
+    it('patients/families are their own category', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('individual');
+      expect((await check(selectedRow({ audience_categories: ['individual'] }), 'p1')).update_required).toBe(true);
+    });
+
+    it('a specific account is bound by id even when its category is not selected', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('individual');
+      const row = selectedRow({ audience_categories: ['caregiver'], audience_user_ids: ['p1'] });
+      expect((await check(row, 'p1')).update_required).toBe(true);
+      expect((await check(row, 'p2')).update_required).toBe(false);
+    });
+
+    it('categories and accounts add up (either one is enough)', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('caregiver');
+      const row = selectedRow({ audience_categories: ['caregiver'], audience_user_ids: ['p1'] });
+      expect((await check(row, 'c1')).update_required).toBe(true);
+      expect((await check(row, 'p1')).update_required).toBe(true);
+    });
+
+    it('an admin (no audience category) is never bound by a selected audience', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue(null);
+      expect((await check(selectedRow({ audience_categories: ['caregiver'] }), 'admin-1')).update_required).toBe(false);
+    });
+
+    it('a selected audience with nobody in it binds nobody', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('caregiver');
+      expect((await check(selectedRow(), 'c1')).update_required).toBe(false);
+    });
+
+    it('someone in the audience who already has the minimum version (or newer) is not told to update', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('caregiver');
+      const row = selectedRow({ audience_categories: ['caregiver'] }); // min 1.2.0
+      expect((await check(row, 'c1', '1.2.0')).update_required).toBe(false);
+      expect((await check(row, 'c1', '1.3.0')).update_required).toBe(false);
+      expect((await check(row, 'c1', '1.1.9')).update_required).toBe(true);
+    });
+
+    it('the message and store link are only sent to someone who is actually bound', async () => {
+      appMinVersionsRepo.categoryOfUser.mockResolvedValue('caregiver');
+      const bound = await check(selectedRow({ audience_categories: ['caregiver'] }), 'c1');
+      expect(bound).toMatchObject({ update_required: true, store_url: androidRow.store_url, update_message: androidRow.update_message });
+    });
+  });
+
+  describe('admin setting the audience', () => {
+    const base = { min_version: '1.2.0' };
+    beforeEach(() => {
+      appMinVersionsRepo.findByPlatform.mockResolvedValue({ ...androidRow, audience_mode: 'all', audience_categories: [], audience_user_ids: [] });
+      appMinVersionsRepo.update.mockImplementation(async (_p: string, input: any) => ({
+        ...androidRow,
+        audience_mode: input.audience?.mode ?? 'all',
+        audience_categories: input.audience?.categories ?? [],
+        audience_user_ids: input.audience?.user_ids ?? [],
+      }));
+    });
+
+    it('leaves the audience untouched when none is sent (an older admin-web)', async () => {
+      await service.adminUpdate('admin-1', 'android', base as any, null);
+      expect(appMinVersionsRepo.update).toHaveBeenCalledWith('android', expect.objectContaining({ audience: undefined }), 'admin-1');
+    });
+
+    it('"all" clears the categories and accounts', async () => {
+      await service.adminUpdate('admin-1', 'android', { ...base, audience_mode: 'all', audience_categories: ['caregiver'], audience_user_ids: ['x'] } as any, null);
+      expect(appMinVersionsRepo.update).toHaveBeenCalledWith('android', expect.objectContaining({ audience: { mode: 'all', categories: [], user_ids: [] } }), 'admin-1');
+      expect(accountSearchRepo.countExisting).not.toHaveBeenCalled();
+    });
+
+    it('"selected" stores the categories and accounts, without duplicates, after checking the accounts exist', async () => {
+      accountSearchRepo.countExisting.mockResolvedValue(2);
+      await service.adminUpdate(
+        'admin-1',
+        'android',
+        { ...base, audience_mode: 'selected', audience_categories: ['hospital', 'agency', 'hospital'], audience_user_ids: ['u1', 'u2', 'u1'] } as any,
+        null,
+      );
+      expect(accountSearchRepo.countExisting).toHaveBeenCalledWith(['u1', 'u2']);
+      expect(appMinVersionsRepo.update).toHaveBeenCalledWith(
+        'android',
+        expect.objectContaining({ audience: { mode: 'selected', categories: ['hospital', 'agency'], user_ids: ['u1', 'u2'] } }),
+        'admin-1',
+      );
+    });
+
+    it('refuses a selected audience with nobody in it (GEN_001)', async () => {
+      await expect(service.adminUpdate('admin-1', 'android', { ...base, audience_mode: 'selected' } as any, null)).rejects.toMatchObject({ code: 'GEN_001' });
+      expect(appMinVersionsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses an account that does not exist (GEN_001)', async () => {
+      accountSearchRepo.countExisting.mockResolvedValue(1);
+      await expect(
+        service.adminUpdate('admin-1', 'android', { ...base, audience_mode: 'selected', audience_user_ids: ['u1', 'ghost'] } as any, null),
+      ).rejects.toMatchObject({ code: 'GEN_001' });
+      expect(appMinVersionsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('audit-logs the audience before and after', async () => {
+      accountSearchRepo.countExisting.mockResolvedValue(1);
+      await service.adminUpdate('admin-1', 'android', { ...base, audience_mode: 'selected', audience_categories: ['caregiver'], audience_user_ids: ['u1'] } as any, '1.1.1.1');
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          beforeValue: expect.objectContaining({ audience_mode: 'all', audience_user_count: 0 }),
+          afterValue: expect.objectContaining({ audience_mode: 'selected', audience_categories: ['caregiver'], audience_user_count: 1 }),
+        }),
+      );
+    });
+  });
+
+  describe('searching accounts for the audience picker', () => {
+    it('needs at least 2 characters and never dumps the user base', async () => {
+      expect(await service.searchAccounts(' a ', null)).toEqual([]);
+      expect(accountSearchRepo.search).not.toHaveBeenCalled();
+    });
+
+    it('searches with the trimmed text and the optional category', async () => {
+      accountSearchRepo.search.mockResolvedValue([{ user_id: 'u1' }]);
+      expect(await service.searchAccounts('  asha ', 'caregiver')).toEqual([{ user_id: 'u1' }]);
+      expect(accountSearchRepo.search).toHaveBeenCalledWith('asha', 'caregiver');
     });
   });
 });

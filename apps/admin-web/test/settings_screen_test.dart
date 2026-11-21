@@ -190,7 +190,7 @@ class _FakeAppVersionsRepository extends AppVersionsRepository {
 
   @override
   Future<void> update(String platform,
-      {required String minVersion, String? storeUrl, String? updateMessage}) async {
+      {required String minVersion, String? storeUrl, String? updateMessage, AppVersionAudience? audience}) async {
     versions = versions
         .map((v) => v.platform == platform ? _version(platform: platform, minVersion: minVersion) : v)
         .toList();

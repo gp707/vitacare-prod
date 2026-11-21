@@ -173,18 +173,36 @@ void main() {
   testWidgets('hovering an assigned caregiver\'s status lists who they are assigned to', (tester) async {
     await _pump(tester, [_item(assignments: [_job()])]);
     await _hover(tester, _statusBadge);
-    expect(find.textContaining('Assigned to (1):'), findsOneWidget);
+    expect(find.textContaining('Assigned to 1 job:'), findsOneWidget);
     expect(find.textContaining('PAT-JOB-539 · Hansa PAT-625 · Bangalore · 24Hrs - Live In'), findsOneWidget);
     expect(find.textContaining('Click to open this job'), findsOneWidget);
+    // a single job is not described as "parallel"
+    expect(find.textContaining('in parallel'), findsNothing);
   });
 
   testWidgets('several assignments are all listed on hover', (tester) async {
     await _pump(tester, [_item(assignments: [_job(), _requirement()])]);
     await _hover(tester, _statusBadge);
-    expect(find.textContaining('Assigned to (2):'), findsOneWidget);
-    expect(find.textContaining('PAT-JOB-539'), findsOneWidget);
-    expect(find.textContaining('ORG-JOB-574 · Vita Health ORG-500 · Bangalore'), findsOneWidget);
-    expect(find.textContaining('Click to see these jobs'), findsOneWidget);
+    expect(find.textContaining('Working 2 jobs in parallel:'), findsOneWidget);
+    expect(find.textContaining('1. PAT-JOB-539'), findsOneWidget);
+    expect(find.textContaining('2. ORG-JOB-574 · Vita Health ORG-500 · Bangalore'), findsOneWidget);
+    expect(find.textContaining('Click to choose which job to open'), findsOneWidget);
+    expect(find.textContaining('Assigned to 1 job'), findsNothing);
+  });
+
+  testWidgets('three jobs in parallel are counted and numbered in order', (tester) async {
+    await _pump(tester, [
+      _item(assignments: [
+        _job(),
+        _job(id: 'job-uuid-548', label: 'PAT-JOB-548', poster: 'Krishna Sapra'),
+        _requirement(),
+      ]),
+    ]);
+    await _hover(tester, _statusBadge);
+    expect(find.textContaining('Working 3 jobs in parallel:'), findsOneWidget);
+    expect(find.textContaining('1. PAT-JOB-539'), findsOneWidget);
+    expect(find.textContaining('2. PAT-JOB-548 · Krishna Sapra'), findsOneWidget);
+    expect(find.textContaining('3. ORG-JOB-574'), findsOneWidget);
   });
 
   testWidgets('clicking the status of a caregiver with one job opens that job straight away', (tester) async {
@@ -200,7 +218,10 @@ void main() {
     await _pump(tester, [_item(assignments: [_job(), _requirement()])]);
     await tester.tap(_statusBadge);
     await tester.pumpAndSettle();
-    expect(find.textContaining('vita health dummy is assigned to (2)'), findsOneWidget);
+    expect(find.textContaining('vita health dummy is working 2 jobs in parallel'), findsOneWidget);
+    expect(find.text('Choose the job to open'), findsOneWidget);
+    expect(find.textContaining('1. PAT-JOB-539'), findsOneWidget);
+    expect(find.textContaining('2. ORG-JOB-574'), findsOneWidget);
     expect(find.byKey(const Key('assignment-job-uuid-539')), findsOneWidget);
     expect(find.byKey(const Key('assignment-req-uuid-574')), findsOneWidget);
 
@@ -250,7 +271,7 @@ void main() {
       ],
     }));
     expect(one.assignments, hasLength(1));
-    expect(one.assignmentHoverText, contains('Assigned to (1):'));
+    expect(one.assignmentHoverText, contains('Assigned to 1 job:'));
   });
 
   testWidgets('an "assigned" status the server says has nothing behind it says so, and a click opens the caregiver\'s profile', (tester) async {

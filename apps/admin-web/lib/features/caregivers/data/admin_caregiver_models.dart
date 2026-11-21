@@ -99,10 +99,14 @@ class AdminCaregiverListItem {
     if (list.isEmpty) {
       return 'Marked as assigned, but not accepted onto any job or requirement right now.\nClick to open the profile';
     }
+    // One caregiver can hold several jobs in parallel: say so, number them, and say what a click does.
+    if (list.length == 1) {
+      return ['Assigned to 1 job:', list.first.summaryLine, 'Click to open this job'].join('\n');
+    }
     return [
-      'Assigned to (${list.length}):',
-      for (final a in list) a.summaryLine,
-      list.length == 1 ? 'Click to open this job' : 'Click to see these jobs',
+      'Working ${list.length} jobs in parallel:',
+      for (var i = 0; i < list.length; i++) '${i + 1}. ${list[i].summaryLine}',
+      'Click to choose which job to open',
     ].join('\n');
   }
 

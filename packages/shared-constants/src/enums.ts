@@ -309,6 +309,26 @@ export const AppPlatform = {
 } as const;
 export type AppPlatform = (typeof AppPlatform)[keyof typeof AppPlatform];
 
+/** Who a forced minimum app version applies to: everyone, or only the selected categories/accounts. */
+export const AppVersionAudienceMode = {
+  ALL: 'all',
+  SELECTED: 'selected',
+} as const;
+export type AppVersionAudienceMode = (typeof AppVersionAudienceMode)[keyof typeof AppVersionAudienceMode];
+
+/** The categories an admin can target: patients/families, caregivers and each organisation type. Same
+ *  keys as UserRole (caregiver/individual) and OrganisationType (hospital/rehab/clinic/agency). */
+export const AppVersionAudienceCategory = {
+  CAREGIVER: 'caregiver',
+  INDIVIDUAL: 'individual',
+  HOSPITAL: 'hospital',
+  REHAB: 'rehab',
+  CLINIC: 'clinic',
+  AGENCY: 'agency',
+} as const;
+export type AppVersionAudienceCategory =
+  (typeof AppVersionAudienceCategory)[keyof typeof AppVersionAudienceCategory];
+
 export const UserRole = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',

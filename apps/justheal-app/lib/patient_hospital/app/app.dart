@@ -12,6 +12,7 @@ import '../features/auth/state/session_state.dart';
 import 'package:nursenow_app/caregiver/app/app.dart' show CaregiverSessionWatcher;
 import 'package:nursenow_app/caregiver/core/providers.dart' as caregiver;
 import 'pinch_to_zoom_wrapper.dart';
+import 'version_gate.dart';
 import 'router.dart';
 
 /// Redirects to /login the moment the session becomes unauthenticated,
@@ -132,7 +133,9 @@ class NurseNowApp extends StatelessWidget {
       builder: (context, child) => AnalyticsBootstrap(
         child: SessionWatcher(
           child: CaregiverSessionWatcher(
-            child: ConnectivityBanner(child: PinchToZoomWrapper(child: child!)),
+            // The version gate sits above everything: a signed-in account bound by a forced minimum
+            // version it does not meet gets the (undismissable) update screen over the whole app.
+            child: VersionGate(child: ConnectivityBanner(child: PinchToZoomWrapper(child: child!))),
           ),
         ),
       ),

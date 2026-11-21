@@ -9,6 +9,7 @@
 
 /** GETs this role may not read (settings, messages, push). */
 const BLOCKED_READ_PREFIXES = [
+  '/admin/accounts', // the account picker used on the Settings screens
   '/admin/app-maintenance',
   '/admin/app-versions',
   '/admin/audit-log-retention',
