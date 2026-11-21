@@ -33,6 +33,8 @@ class FeedbackSection extends StatelessWidget {
   /// The work has started (the button is shown); the server enforces it anyway.
   final bool eligible;
   final VoidCallback? onLeave;
+  /// When given, "Your feedback" gets an Edit button (patients/families can change theirs).
+  final VoidCallback? onEdit;
 
   const FeedbackSection({
     super.key,
@@ -41,6 +43,7 @@ class FeedbackSection extends StatelessWidget {
     required this.received,
     required this.eligible,
     this.onLeave,
+    this.onEdit,
   });
 
   @override
@@ -58,7 +61,8 @@ class FeedbackSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (mine != null) _FeedbackBlock(keyName: 'feedback-mine', title: 'Your feedback', feedback: mine!)
+          if (mine != null)
+            _FeedbackBlock(keyName: 'feedback-mine', title: 'Your feedback', feedback: mine!, onEdit: onEdit)
           else if (eligible)
             Align(
               alignment: Alignment.centerLeft,
@@ -83,8 +87,9 @@ class _FeedbackBlock extends StatelessWidget {
   final String keyName;
   final String title;
   final FeedbackModel feedback;
+  final VoidCallback? onEdit;
 
-  const _FeedbackBlock({required this.keyName, required this.title, required this.feedback});
+  const _FeedbackBlock({required this.keyName, required this.title, required this.feedback, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +98,19 @@ class _FeedbackBlock extends StatelessWidget {
       key: Key(keyName),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small)),
+        Row(
+          children: [
+            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.small))),
+            if (onEdit != null)
+              TextButton.icon(
+                key: const Key('edit-feedback'),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(0, 32)),
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edit'),
+              ),
+          ],
+        ),
         const SizedBox(height: 2),
         StarsRow(rating: feedback.rating),
         if (comment != null && comment.isNotEmpty) ...[
@@ -112,13 +129,17 @@ Future<bool> showFeedbackSheet(
   BuildContext context, {
   required String title,
   required Future<void> Function(int rating, String? comment) onSubmit,
+  /// Opens with this feedback filled in and says it can be changed again (patients/families).
+  FeedbackModel? existing,
+  /// True where the sender may change it afterwards (patients/families); false when it is final (caregivers).
+  bool canChangeLater = false,
 }) async {
   final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (_) => _FeedbackSheet(title: title, onSubmit: onSubmit),
+    builder: (_) => _FeedbackSheet(title: title, onSubmit: onSubmit, existing: existing, canChangeLater: canChangeLater),
   );
   return saved ?? false;
 }
@@ -126,16 +147,18 @@ Future<bool> showFeedbackSheet(
 class _FeedbackSheet extends StatefulWidget {
   final String title;
   final Future<void> Function(int rating, String? comment) onSubmit;
+  final FeedbackModel? existing;
+  final bool canChangeLater;
 
-  const _FeedbackSheet({required this.title, required this.onSubmit});
+  const _FeedbackSheet({required this.title, required this.onSubmit, this.existing, this.canChangeLater = false});
 
   @override
   State<_FeedbackSheet> createState() => _FeedbackSheetState();
 }
 
 class _FeedbackSheetState extends State<_FeedbackSheet> {
-  final _controller = TextEditingController();
-  int _rating = 0;
+  late final TextEditingController _controller = TextEditingController(text: widget.existing?.comment ?? '');
+  late int _rating = widget.existing?.rating ?? 0;
   bool _saving = false;
   bool _submitted = false;
   String? _error;
@@ -178,8 +201,10 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
             children: [
               Text(widget.title, style: const TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.xs),
-              const Text(
-                'Your feedback is about the whole time you worked together. It is shared only with them and the VitaCasa team, and cannot be changed after you send it.',
+              Text(
+                widget.existing != null
+                    ? 'Change your stars or comment and save. They will see the new version.'
+                    : 'Your feedback is about the whole time you worked together. It is shared only with them and the VitaCasa team. ${widget.canChangeLater ? 'You can change it later.' : 'It cannot be changed after you send it.'}',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -235,7 +260,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                     onPressed: _saving ? null : _send,
                     child: _saving
                         ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Send feedback'),
+                        : Text(widget.existing != null ? 'Save changes' : 'Send feedback'),
                   ),
                 ],
               ),

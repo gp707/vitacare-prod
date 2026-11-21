@@ -12,9 +12,6 @@ import {
   accountUnblocked,
   agreementSet,
   applicationAccepted,
-  leaveCancelled,
-  leaveMarked,
-  salaryPaid,
   feedbackReceived,
   applicationDeclined,
   caregiverApplied,
@@ -174,33 +171,6 @@ export class NotificationsService {
   /** The other party left feedback about this person (the text is never in the push). */
   async feedbackReceived(userId: string, info: { toCaregiver: boolean; displayId: string }): Promise<void> {
     await this.safe('feedback received', () => this.send(userId, feedbackReceived(info.displayId, info.toCaregiver)));
-  }
-
-  /** The family marked one of the caregiver's salary cycles as paid. */
-  async salaryCyclePaid(
-    caregiverUserId: string,
-    paid: { displayId: string; cycleStart: string; cycleEnd: string; amount: number; paidOn: string },
-  ): Promise<void> {
-    await this.safe('salary paid', () =>
-      this.send(caregiverUserId, salaryPaid(paid.displayId, paid.cycleStart, paid.cycleEnd, paid.amount, paid.paidOn)),
-    );
-  }
-
-  /** The family changed the caregiver's leave days. */
-  async leaveChanged(
-    caregiverUserId: string,
-    change:
-      | { kind: 'marked'; displayId: string; dates: string[] }
-      | { kind: 'cancelled'; displayId: string; date: string },
-  ): Promise<void> {
-    await this.safe('leave changed', () => {
-      switch (change.kind) {
-        case 'marked':
-          return this.send(caregiverUserId, leaveMarked(change.displayId, change.dates));
-        case 'cancelled':
-          return this.send(caregiverUserId, leaveCancelled(change.displayId, change.date));
-      }
-    });
   }
 
   // ── Changes to a posting, told to the caregivers it affects ─────────────

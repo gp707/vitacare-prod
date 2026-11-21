@@ -4,9 +4,6 @@ import { IndividualService } from './individual.service';
 describe('IndividualService', () => {
   let service: IndividualService;
   let notificationsService: any;
-  let leavesRepo: any;
-  let salaryCycles: any;
-  let salaryPaymentsRepo: any;
   let db: any;
   let jobsRepo: any;
   let jobApplicationsRepo: any;
@@ -89,8 +86,6 @@ describe('IndividualService', () => {
       organisationRequirementApplied: jest.fn(),
       applicationDecided: jest.fn(),
       agreementSet: jest.fn(),
-      leaveChanged: jest.fn(),
-      salaryCyclePaid: jest.fn(),
       jobUpdated: jest.fn(),
       jobCancelled: jest.fn(),
       jobNoLongerOpen: jest.fn(),
@@ -98,13 +93,6 @@ describe('IndividualService', () => {
       organisationRequirementUpdated: jest.fn(),
       organisationRequirementNoLongerOpen: jest.fn(),
     };
-    leavesRepo = {
-      addLeaves: jest.fn(),
-      removeLeave: jest.fn(),
-      getState: jest.fn().mockResolvedValue({ leave_dates: [], pauses: [] }),
-    };
-    salaryCycles = { listForApplication: jest.fn().mockResolvedValue([]) };
-    salaryPaymentsRepo = { insert: jest.fn().mockResolvedValue(true) };
     service = new IndividualService(
       db,
       jobsRepo,
@@ -118,9 +106,6 @@ describe('IndividualService', () => {
       caregiverProfilesRepo,
       fcmService,
       notificationsService,
-      leavesRepo,
-      salaryCycles,
-      salaryPaymentsRepo,
     );
   });
 
@@ -1287,230 +1272,6 @@ describe('IndividualService', () => {
       await expect(
         service.setAgreement('user-1', 'job-1', 'app-1', { agreed_salary: 800, agreed_start_date: '2099-02-31' } as any, null),
       ).rejects.toMatchObject({ code: 'GEN_001' });
-    });
-  });
-
-  describe('leave days', () => {
-    const istDay = (offset = 0) =>
-      new Date(Date.now() + 5.5 * 3600 * 1000 + offset * 24 * 3600 * 1000).toISOString().slice(0, 10);
-
-    beforeEach(() => {
-      jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'user-1', patient_job_number: 548, admin_job_number: null });
-      jobApplicationsRepo.findById.mockResolvedValue({
-        id: 'app-1',
-        job_id: 'job-1',
-        profile_id: 'prof-1',
-        status: 'accepted',
-        agreed_start_date: istDay(-10),
-      });
-      caregiverProfilesRepo.findFullById.mockResolvedValue({ id: 'prof-1', user_id: 'cg-user' });
-      leavesRepo.addLeaves.mockImplementation(async (_id: string, dates: string[]) => dates);
-      leavesRepo.removeLeave.mockResolvedValue(true);
-    });
-
-    describe('salary cycles', () => {
-      const cycle = (over: Record<string, unknown> = {}) => ({
-        cycle_start: istDay(-14),
-        cycle_end: istDay(-1),
-        rate: 1000,
-        rate_unit: 'daily',
-        leave_dates: [istDay(-10)],
-        worked_days: 13,
-        amount: 13000,
-        status: 'due',
-        paid_on: null,
-        ...over,
-      });
-
-      beforeEach(() => {
-        jobApplicationsRepo.findById.mockResolvedValue({
-          id: 'app-1',
-          job_id: 'job-1',
-          profile_id: 'prof-1',
-          status: 'accepted',
-          agreed_salary: 1000,
-          agreed_salary_unit: 'daily',
-          agreed_start_date: istDay(-14),
-        });
-      });
-
-      it('lists the cycles of the patient\'s own caregiver', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle()]);
-        const result = await service.listSalaryCycles('user-1', 'job-1', 'app-1');
-        expect(result.cycles).toHaveLength(1);
-      });
-
-      it('refuses another patient\'s job', async () => {
-        await expect(service.listSalaryCycles('someone-else', 'job-1', 'app-1')).rejects.toMatchObject({ code: 'GEN_002' });
-      });
-
-      it('marks a finished cycle paid today, freezes it, tells the caregiver and audit-logs it', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle()]);
-        await service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), {}, '1.1.1.1');
-        expect(salaryPaymentsRepo.insert).toHaveBeenCalledWith(
-          'app-1',
-          expect.objectContaining({ cycle_start: istDay(-14), amount: 13000, rate: 1000, paid_on: istDay() }),
-          'user-1',
-        );
-        expect(notificationsService.salaryCyclePaid).toHaveBeenCalledWith('cg-user', {
-          displayId: 'PAT-JOB-548',
-          cycleStart: istDay(-14),
-          cycleEnd: istDay(-1),
-          amount: 13000,
-          paidOn: istDay(),
-        });
-        expect(auditService.log).toHaveBeenCalledWith(
-          expect.objectContaining({ action: 'job_salary_paid', targetUserId: 'cg-user', entityId: 'app-1' }),
-        );
-      });
-
-      it('accepts an earlier payment date', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle()]);
-        await service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), { paid_on: istDay(-1) }, null);
-        expect(salaryPaymentsRepo.insert).toHaveBeenCalledWith('app-1', expect.objectContaining({ paid_on: istDay(-1) }), 'user-1');
-      });
-
-      it('JOB_035 for a payment date in the future or before the cycle began', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle()]);
-        await expect(
-          service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), { paid_on: istDay(1) }, null),
-        ).rejects.toMatchObject({ code: 'JOB_035' });
-        await expect(
-          service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), { paid_on: istDay(-20) }, null),
-        ).rejects.toMatchObject({ code: 'JOB_035' });
-        expect(salaryPaymentsRepo.insert).not.toHaveBeenCalled();
-      });
-
-      it('JOB_033 for a cycle that has not ended or does not exist', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle({ status: 'current' })]);
-        await expect(service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), {}, null)).rejects.toMatchObject({ code: 'JOB_033' });
-        await expect(service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-99), {}, null)).rejects.toMatchObject({ code: 'JOB_033' });
-      });
-
-      it('JOB_034 when it is already paid, and no second notification', async () => {
-        salaryCycles.listForApplication.mockResolvedValue([cycle({ status: 'paid', paid_on: istDay() })]);
-        await expect(service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), {}, null)).rejects.toMatchObject({ code: 'JOB_034' });
-        salaryCycles.listForApplication.mockResolvedValue([cycle()]);
-        salaryPaymentsRepo.insert.mockResolvedValue(false);
-        await expect(service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), {}, null)).rejects.toMatchObject({ code: 'JOB_034' });
-        expect(notificationsService.salaryCyclePaid).not.toHaveBeenCalled();
-      });
-
-      it('JOB_022 when the caregiver is no longer accepted', async () => {
-        jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'rejected' });
-        await expect(service.markSalaryCyclePaid('user-1', 'job-1', 'app-1', istDay(-14), {}, null)).rejects.toMatchObject({ code: 'JOB_022' });
-      });
-    });
-
-    describe('markLeaves', () => {
-      it('marks the days, tells the caregiver and audit-logs it', async () => {
-        const dates = [istDay(2), istDay(1)];
-        await service.markLeaves('user-1', 'job-1', 'app-1', { dates } as any, '1.1.1.1');
-        expect(leavesRepo.addLeaves).toHaveBeenCalledWith('app-1', [...dates].sort());
-        expect(notificationsService.leaveChanged).toHaveBeenCalledWith('cg-user', {
-          kind: 'marked',
-          displayId: 'PAT-JOB-548',
-          dates: [...dates].sort(),
-        });
-        expect(auditService.log).toHaveBeenCalledWith(
-          expect.objectContaining({ action: 'job_leave_updated', targetUserId: 'cg-user', entityId: 'app-1' }),
-        );
-      });
-
-      it('allows a past day inside the current cycle', async () => {
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-3)] } as any, null)).resolves.toBeDefined();
-      });
-
-      it('ignores duplicates in the request', async () => {
-        await service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(1), istDay(1)] } as any, null);
-        expect(leavesRepo.addLeaves).toHaveBeenCalledWith('app-1', [istDay(1)]);
-      });
-
-      it('does not notify again when every day was already marked', async () => {
-        leavesRepo.addLeaves.mockResolvedValue([]);
-        const result = await service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(1)] } as any, null);
-        expect(notificationsService.leaveChanged).not.toHaveBeenCalled();
-        expect(auditService.log).not.toHaveBeenCalled();
-        expect(result.message).toBe('Those days were already marked');
-      });
-
-      it('throws JOB_025 for a day before the cycle start date', async () => {
-        await expect(
-          service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-11)] } as any, null),
-        ).rejects.toMatchObject({ code: 'JOB_025' });
-        expect(leavesRepo.addLeaves).not.toHaveBeenCalled();
-      });
-
-      it('throws JOB_025 for a day in a later cycle (the next one, or far ahead)', async () => {
-        // start = 10 days ago, so the current cycle runs from 10 days ago to 3 days ahead
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(4)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(400)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
-      });
-
-      it('allows the first and last day of the current cycle', async () => {
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-10), istDay(3)] } as any, null)).resolves.toBeDefined();
-      });
-
-      it('throws JOB_025 for a day in an earlier cycle once a new cycle has begun', async () => {
-        // start 20 days ago: cycle 2 is now running (from 6 days ago to 7 days ahead)
-        jobApplicationsRepo.findById.mockResolvedValue({
-          id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'accepted', agreed_start_date: istDay(-20),
-        });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-10)] } as any, null)).rejects.toMatchObject({ code: 'JOB_025' });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(-6)] } as any, null)).resolves.toBeDefined();
-      });
-
-      it('rejects an impossible calendar date', async () => {
-        await expect(
-          service.markLeaves('user-1', 'job-1', 'app-1', { dates: ['2099-02-31'] } as any, null),
-        ).rejects.toMatchObject({ code: 'GEN_001' });
-      });
-
-      it('throws JOB_024 until the agreed salary and start date are set', async () => {
-        jobApplicationsRepo.findById.mockResolvedValue({
-          id: 'app-1', job_id: 'job-1', profile_id: 'prof-1', status: 'accepted', agreed_start_date: null,
-        });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(1)] } as any, null)).rejects.toMatchObject({
-          code: 'JOB_024',
-        });
-      });
-
-      it('throws JOB_022 for a caregiver who is not currently accepted', async () => {
-        jobApplicationsRepo.findById.mockResolvedValue({ id: 'app-1', job_id: 'job-1', status: 'rejected', agreed_start_date: null });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(1)] } as any, null)).rejects.toMatchObject({
-          code: 'JOB_022',
-        });
-      });
-
-      it('throws GEN_002 for a job that is not yours', async () => {
-        jobsRepo.findById.mockResolvedValue({ id: 'job-1', posted_by: 'someone-else' });
-        await expect(service.markLeaves('user-1', 'job-1', 'app-1', { dates: [istDay(1)] } as any, null)).rejects.toMatchObject({
-          code: 'GEN_002',
-        });
-      });
-    });
-
-    describe('cancelLeave', () => {
-      it('cancels a marked day, tells the caregiver and audit-logs it', async () => {
-        await service.cancelLeave('user-1', 'job-1', 'app-1', istDay(2), null);
-        expect(leavesRepo.removeLeave).toHaveBeenCalledWith('app-1', istDay(2));
-        expect(notificationsService.leaveChanged).toHaveBeenCalledWith('cg-user', {
-          kind: 'cancelled',
-          displayId: 'PAT-JOB-548',
-          date: istDay(2),
-        });
-        expect(auditService.log).toHaveBeenCalled();
-      });
-
-      it('throws JOB_028 when that day was not marked as leave', async () => {
-        leavesRepo.removeLeave.mockResolvedValue(false);
-        await expect(service.cancelLeave('user-1', 'job-1', 'app-1', istDay(2), null)).rejects.toMatchObject({ code: 'JOB_028' });
-        expect(notificationsService.leaveChanged).not.toHaveBeenCalled();
-      });
-
-      it('rejects a malformed date', async () => {
-        await expect(service.cancelLeave('user-1', 'job-1', 'app-1', 'tomorrow', null)).rejects.toMatchObject({ code: 'GEN_001' });
-      });
     });
   });
 

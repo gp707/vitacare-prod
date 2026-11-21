@@ -1,7 +1,6 @@
 import 'applicant_summary.dart';
 import 'care_receiver_model.dart';
 import 'feedback_model.dart';
-import 'salary_due.dart';
 
 /// The posting admin's contact info — only ever present on
 /// GET /caregiver/jobs/assigned, once the caregiver has actually been
@@ -61,8 +60,6 @@ class MyApplicationModel {
   /// means follow the job's frequency of care.
   final String? agreedSalaryUnit;
   final String? agreedStartDate;
-  /// Days the patient marked as leave (YYYY-MM-DD, sorted) — shown to the caregiver.
-  final List<String> leaveDates;
   /// Feedback this caregiver wrote about the family / the family wrote about them (null if none).
   final FeedbackModel? myFeedback;
   final FeedbackModel? theirFeedback;
@@ -80,7 +77,6 @@ class MyApplicationModel {
     this.agreedSalary,
     this.agreedSalaryUnit,
     this.agreedStartDate,
-    this.leaveDates = const [],
     this.myFeedback,
     this.theirFeedback,
   });
@@ -98,7 +94,6 @@ class MyApplicationModel {
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
-        leaveDates: parseLeaveDates(json['leave_dates']),
         myFeedback: FeedbackModel.tryParse(json['my_feedback']),
         theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
       );
@@ -322,8 +317,6 @@ class JobApplicationModel {
   final int? agreedSalary;
   final String? agreedSalaryUnit;
   final String? agreedStartDate;
-  /// Days marked as leave — see MyApplicationModel.
-  final List<String> leaveDates;
   /// Feedback the patient/family wrote about this caregiver / the caregiver wrote about them.
   final FeedbackModel? myFeedback;
   final FeedbackModel? theirFeedback;
@@ -348,7 +341,6 @@ class JobApplicationModel {
     this.agreedSalary,
     this.agreedSalaryUnit,
     this.agreedStartDate,
-    this.leaveDates = const [],
     this.myFeedback,
     this.theirFeedback,
     required this.updatedAt,
@@ -373,7 +365,6 @@ class JobApplicationModel {
         agreedSalary: (json['agreed_salary'] as num?)?.toInt(),
         agreedSalaryUnit: json['agreed_salary_unit'] as String?,
         agreedStartDate: json['agreed_start_date'] as String?,
-        leaveDates: parseLeaveDates(json['leave_dates']),
         myFeedback: FeedbackModel.tryParse(json['my_feedback']),
         theirFeedback: FeedbackModel.tryParse(json['their_feedback']),
         updatedAt: json['updated_at'] as String,

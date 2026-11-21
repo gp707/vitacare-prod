@@ -11,14 +11,15 @@ import {
 } from '../database/repositories/engagement-feedback.repository';
 import { JobApplicationRecord, JobApplicationsRepository } from '../database/repositories/job-applications.repository';
 import { JobsRepository } from '../database/repositories/jobs.repository';
-import { SalaryCyclePaymentsRepository } from '../database/repositories/salary-cycle-payments.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
-import { istToday } from '../jobs/salary-cycles.service';
 import { jobDisplayId } from '../notifications/notification-templates';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ListFeedbackQueryDto } from './dto/list-feedback-query.dto';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { canLeaveFeedback } from './feedback-eligibility';
+
+/** Today's date on the IST calendar (YYYY-MM-DD). */
+const istToday = (): string => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
 export interface FeedbackView {
   rating: number;
@@ -30,6 +31,8 @@ export interface FeedbackView {
 export interface FeedbackState {
   /** True while they may still write one: eligible and not yet written. */
   can_give: boolean;
+  /** True when they wrote one and may still change it (patients/families and caregivers alike). */
+  can_edit: boolean;
   /** Why not, when [can_give] is false and nothing was written yet. */
   reason: 'not_started' | 'no_family_account' | null;
   /** What this person wrote. */
@@ -55,7 +58,6 @@ export class FeedbackService {
     private readonly applicationsRepo: JobApplicationsRepository,
     private readonly profilesRepo: CaregiverProfilesRepository,
     private readonly usersRepo: UsersRepository,
-    private readonly paymentsRepo: SalaryCyclePaymentsRepository,
     private readonly auditService: AuditService,
     private readonly notificationsService: NotificationsService,
   ) {}
@@ -82,6 +84,25 @@ export class FeedbackService {
     return { message: 'Thank you for your feedback', ...(await this.stateFor(application, 'individual', true)) };
   }
 
+  /**
+   * The patient/family changes the feedback they already wrote (rating and/or comment).
+   * Allowed at any time and whatever the caregiver's status is now, since the engagement
+   * was already eligible when they first wrote it. The caregiver sees the new version;
+   * no second push is sent. The change is audit-logged with the previous rating.
+   * FEEDBACK_003 when there is nothing of theirs to change.
+   */
+  async updateForIndividual(
+    userId: string,
+    jobId: string,
+    applicationId: string,
+    dto: SubmitFeedbackDto,
+    ipAddress: string | null,
+  ) {
+    const { application } = await this.loadIndividualEngagement(userId, jobId, applicationId);
+    await this.update(application, 'individual', userId, dto, ipAddress);
+    return { message: 'Your feedback was updated', ...(await this.stateFor(application, 'individual', true)) };
+  }
+
   // ── The caregiver's side ───────────────────────────────────────────────
 
   async getForCaregiver(userId: string, jobId: string): Promise<FeedbackState> {
@@ -97,6 +118,16 @@ export class FeedbackService {
     await this.submit(application, 'caregiver', userId, job.posted_by, dto, ipAddress);
     void this.notificationsService.feedbackReceived(job.posted_by, { toCaregiver: false, displayId: jobDisplayId(job) });
     return { message: 'Thank you for your feedback', ...(await this.stateFor(application, 'caregiver', true)) };
+  }
+
+  /** The caregiver changes the feedback they already wrote about the family — same rules as the family's. */
+  async updateForCaregiver(userId: string, jobId: string, dto: SubmitFeedbackDto, ipAddress: string | null) {
+    const { application, job } = await this.loadCaregiverEngagement(userId, jobId);
+    await this.update(application, 'caregiver', userId, dto, ipAddress);
+    return {
+      message: 'Your feedback was updated',
+      ...(await this.stateFor(application, 'caregiver', await this.hasFamilyAccount(job.posted_by))),
+    };
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────
@@ -142,11 +173,9 @@ export class FeedbackService {
   }
 
   private async eligible(application: JobApplicationRecord): Promise<boolean> {
-    const paid = application.accepted_at ? (await this.paymentsRepo.listByApplication(application.id)).length > 0 : false;
     return canLeaveFeedback({
       acceptedAt: application.accepted_at,
       agreedStartDate: application.agreed_start_date,
-      hasPaidCycle: paid,
       today: istToday(),
     });
   }
@@ -159,10 +188,37 @@ export class FeedbackService {
     const rows = await this.feedbackRepo.listByApplication(application.id);
     const mine = view(rows.find((r) => r.author_role === role));
     const received = view(rows.find((r) => r.author_role !== role));
-    if (mine) return { can_give: false, reason: null, mine, received };
-    if (!hasOtherParty) return { can_give: false, reason: 'no_family_account', mine, received };
+    const can_edit = mine != null;
+    if (mine) return { can_give: false, can_edit, reason: null, mine, received };
+    if (!hasOtherParty) return { can_give: false, can_edit, reason: 'no_family_account', mine, received };
     const ok = await this.eligible(application);
-    return { can_give: ok, reason: ok ? null : 'not_started', mine, received };
+    return { can_give: ok, can_edit, reason: ok ? null : 'not_started', mine, received };
+  }
+
+  /** Replaces what [role]'s author already wrote on this engagement; FEEDBACK_003 when they wrote none. */
+  private async update(
+    application: JobApplicationRecord,
+    role: FeedbackAuthorRole,
+    authorUserId: string,
+    dto: SubmitFeedbackDto,
+    ipAddress: string | null,
+  ) {
+    const existing = (await this.feedbackRepo.listByApplication(application.id)).find((r) => r.author_role === role);
+    if (!existing) throw new AppException('FEEDBACK_003');
+    const comment = dto.comment && dto.comment.length > 0 ? dto.comment : null;
+    if (!(await this.feedbackRepo.update(application.id, role, dto.rating, comment))) {
+      throw new AppException('FEEDBACK_003');
+    }
+    await this.auditService.log({
+      userId: authorUserId,
+      targetUserId: existing.about_user_id,
+      action: AuditAction.FEEDBACK_SUBMITTED,
+      entityType: 'job_applications',
+      entityId: application.id,
+      beforeValue: { author_role: role, rating: existing.rating },
+      afterValue: { author_role: role, rating: dto.rating, edited: true },
+      ipAddress,
+    });
   }
 
   private async submit(

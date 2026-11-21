@@ -11,8 +11,6 @@ import { CreateIndividualRequirementDto } from './dto/create-individual-requirem
 import { UpdateIndividualRequirementDto } from './dto/update-individual-requirement.dto';
 import { DecideApplicationDto } from '../jobs/dto/decide-application.dto';
 import { SetAgreementDto } from './dto/set-agreement.dto';
-import { MarkCyclePaidDto } from './dto/mark-cycle-paid.dto';
-import { MarkLeaveDto } from './dto/mark-leave.dto';
 import { UpdatePhoneDto } from '../caregiver/dto/update-phone.dto';
 import { UpdateCodeDto } from '../caregiver/dto/update-code.dto';
 import { UpdateNameDto } from './dto/update-name.dto';
@@ -136,51 +134,6 @@ export class IndividualController {
     @ClientIp() ip: string | null,
   ) {
     return this.individualService.decideMyApplication(user.sub, jobId, applicationId, dto, ip);
-  }
-
-  @Post('requirements/:jobId/applications/:applicationId/leaves')
-  @HttpCode(HttpStatus.OK)
-  markLeaves(
-    @CurrentUser() user: JwtPayload,
-    @Param('jobId') jobId: string,
-    @Param('applicationId') applicationId: string,
-    @Body() dto: MarkLeaveDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.individualService.markLeaves(user.sub, jobId, applicationId, dto, ip);
-  }
-
-  @Delete('requirements/:jobId/applications/:applicationId/leaves/:date')
-  cancelLeave(
-    @CurrentUser() user: JwtPayload,
-    @Param('jobId') jobId: string,
-    @Param('applicationId') applicationId: string,
-    @Param('date') date: string,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.individualService.cancelLeave(user.sub, jobId, applicationId, date, ip);
-  }
-
-  @Get('requirements/:jobId/applications/:applicationId/salary-cycles')
-  listSalaryCycles(
-    @CurrentUser() user: JwtPayload,
-    @Param('jobId') jobId: string,
-    @Param('applicationId') applicationId: string,
-  ) {
-    return this.individualService.listSalaryCycles(user.sub, jobId, applicationId);
-  }
-
-  @Post('requirements/:jobId/applications/:applicationId/salary-cycles/:cycleStart/paid')
-  @HttpCode(HttpStatus.OK)
-  markSalaryCyclePaid(
-    @CurrentUser() user: JwtPayload,
-    @Param('jobId') jobId: string,
-    @Param('applicationId') applicationId: string,
-    @Param('cycleStart') cycleStart: string,
-    @Body() dto: MarkCyclePaidDto,
-    @ClientIp() ip: string | null,
-  ) {
-    return this.individualService.markSalaryCyclePaid(user.sub, jobId, applicationId, cycleStart, dto, ip);
   }
 
   @Post('requirements/:jobId/make-live')

@@ -15,7 +15,6 @@ import '../widgets/salary_actions.dart';
 import '../widgets/applicant_timeline.dart';
 import '../widgets/caregiver_summary_card.dart';
 import '../widgets/call_tap.dart';
-import 'caregiver_salary_screen.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
 import '../widgets/section_box.dart';
@@ -152,20 +151,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final saved = await openAgreementFlow(context, ref,
         jobId: jobId, requirement: requirement, application: application);
     if (saved && mounted) await _load();
-  }
-
-  /// One caregiver's salary and leave page. Reloads on return, since the patient may
-  /// have changed the agreement, marked leave or paused salary there.
-  Future<void> _openSalaryPage(String jobId, String applicationId) async {
-    final requirement = _requirements.where((r) => r.id == jobId).firstOrNull;
-    if (requirement == null || !mounted) return;
-    Analytics.tap('individual', 'requirement_posted', 'open_salary_page');
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CaregiverSalaryScreen(requirement: requirement, applicationId: applicationId),
-      ),
-    );
-    if (mounted) await _load();
   }
 
   /// Rate a caregiver (stars + a short comment); reloads on save.
@@ -399,7 +384,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
       onSetAgreement: (applicationId) =>
           _openAgreement(requirement.id, applicationId),
       onLeaveFeedback: (applicationId) => _leaveFeedback(requirement.id, applicationId),
-      onOpenSalary: (applicationId) => _openSalaryPage(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
       onMakeLive: () => _makeLiveAgain(requirement),
       onPermanentCancel: () => _permanentlyCancel(requirement),
@@ -473,7 +457,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
   final void Function(String applicationId) onLeaveFeedback;
-  final void Function(String applicationId) onOpenSalary;
   final VoidCallback onCancel;
   final VoidCallback onMakeLive;
   final VoidCallback onPermanentCancel;
@@ -489,7 +472,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onViewProfile,
     required this.onSetAgreement,
     required this.onLeaveFeedback,
-    required this.onOpenSalary,
     required this.onCancel,
     required this.onMakeLive,
     required this.onPermanentCancel,
@@ -1298,7 +1280,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
                 onLeaveFeedback: widget.onLeaveFeedback,
-                onOpenSalary: widget.onOpenSalary,
                 permanentlyCancelled: widget.requirement.isPermanentlyCancelled,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
@@ -1967,7 +1948,6 @@ class _ApplicantsSection extends StatefulWidget {
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
   final void Function(String applicationId) onLeaveFeedback;
-  final void Function(String applicationId) onOpenSalary;
   final String perUnit;
   /// Whether the job was permanently cancelled (nobody else can be accepted).
   final bool permanentlyCancelled;
@@ -1980,7 +1960,6 @@ class _ApplicantsSection extends StatefulWidget {
     required this.onViewProfile,
     required this.onSetAgreement,
     required this.onLeaveFeedback,
-    required this.onOpenSalary,
     required this.perUnit,
     required this.permanentlyCancelled,
   });
@@ -2011,7 +1990,6 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
         onReject: () => widget.onReject(application.id),
         onViewProfile: () => widget.onViewProfile(application.id),
         onSetAgreement: () => widget.onSetAgreement(application.id),
-        onOpenSalary: () => widget.onOpenSalary(application.id),
         perUnit: widget.perUnit,
       ),
       const SizedBox(height: AppSpacing.sm),
@@ -2039,17 +2017,19 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
     final rejected =
         sorted.where((a) => a.status == JobApplicationStatus.rejected).toList();
     final waiting = sorted.where((a) => a.status == JobApplicationStatus.applied).toList();
-    // Accepted caregivers head the list, each as a card with their own salary and leave.
+    // Accepted caregivers head the list, each as a card with their own salary and start date.
     // The one whose next salary is due soonest comes first; one with no salary yet comes last.
     final defaultUnit = widget.perUnit == 'day' ? 'daily' : 'monthly';
     final accepted = sorted.where((a) => a.status == JobApplicationStatus.accepted).toList()
+      // Earliest accepted first; the name breaks a tie.
       ..sort((a, b) {
-        final da = CaregiverSummaryCard.dueFor(a, defaultUnit);
-        final db = CaregiverSummaryCard.dueFor(b, defaultUnit);
+        final da = a.acceptedAt;
+        final db = b.acceptedAt;
         if (da == null && db == null) return a.fullName.compareTo(b.fullName);
         if (da == null) return 1;
         if (db == null) return -1;
-        return da.dueDate.compareTo(db.dueDate);
+        final byTime = da.compareTo(db);
+        return byTime != 0 ? byTime : a.fullName.compareTo(b.fullName);
       });
     final completedOnes = sorted.where((a) => a.status == JobApplicationStatus.completed).toList();
 
@@ -2079,7 +2059,6 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
               application: application,
               defaultUnit: defaultUnit,
               isDeciding: widget.decidingApplicationId.contains(application.id),
-              onOpenSalary: () => widget.onOpenSalary(application.id),
               onAddAgreement: () => widget.onSetAgreement(application.id),
               onLeaveFeedback: () => widget.onLeaveFeedback(application.id),
               onViewProfile: () => widget.onViewProfile(application.id),
@@ -2148,7 +2127,6 @@ class _ApplicantTile extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onViewProfile;
   final VoidCallback onSetAgreement;
-  final VoidCallback onOpenSalary;
   final String perUnit;
 
   const _ApplicantTile({
@@ -2160,7 +2138,6 @@ class _ApplicantTile extends StatelessWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.onOpenSalary,
     required this.perUnit,
   });
 
@@ -2176,7 +2153,7 @@ class _ApplicantTile extends StatelessWidget {
   bool get _isRejectedByCaregiver =>
       _isRejected && application.decidedBy == null;
 
-  /// What was agreed with this caregiver, with a button to their salary page. While
+  /// What was agreed with this caregiver. While
   /// nothing is agreed yet (accepted caregiver), the button that opens the same popup
   /// shown after accepting. A caregiver no longer on the job keeps their past details.
   Widget _buildAgreement() {
@@ -2192,7 +2169,7 @@ class _ApplicantTile extends StatelessWidget {
             onPressed: onSetAgreement,
             style: _compactButtonStyle,
             icon: const Icon(Icons.handshake_outlined, size: 14),
-            label: const Text('Add agreed salary & cycle start date'),
+            label: const Text('Enter salary and start date'),
           ),
         ),
       );
@@ -2214,17 +2191,20 @@ class _ApplicantTile extends StatelessWidget {
                 color: _isAccepted ? AppColors.success : AppColors.textSecondary),
           ),
           Text(
-            'Cycle starts ${formatLongDate(startDate)}',
+            'Starts ${formatLongDate(startDate)}',
             style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          OutlinedButton.icon(
-            key: const Key('open-salary-tile'),
-            onPressed: onOpenSalary,
-            style: _compactButtonStyle,
-            icon: const Icon(Icons.account_balance_wallet_outlined, size: 14),
-            label: const Text('Salary & leaves'),
-          ),
+          // Only a caregiver still on the job can have it changed; a past one is a read-only record.
+          if (_isAccepted) ...[
+            const SizedBox(height: AppSpacing.xs),
+            OutlinedButton.icon(
+              key: const Key('tile-edit-agreement'),
+              onPressed: onSetAgreement,
+              style: _compactButtonStyle,
+              icon: const Icon(Icons.edit_outlined, size: 14),
+              label: const Text('Edit salary and start date'),
+            ),
+          ],
         ],
       ),
     );

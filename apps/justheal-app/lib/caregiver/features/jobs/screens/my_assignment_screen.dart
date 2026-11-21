@@ -17,8 +17,6 @@ import '../widgets/job_poster_contact_card.dart';
 import '../../../app/tab_back_scope.dart';
 import '../widgets/job_progress_stepper.dart';
 import '../widgets/job_status_chip.dart';
-import '../widgets/salary_due_banner.dart';
-import '../widgets/salary_history.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 import 'package:nursenow_app/share/share_app_card.dart';
 import 'package:nursenow_app/share/share_messages.dart';
@@ -344,23 +342,6 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
   }
 
-  /// One entry per currently-accepted job whose agreement (salary, unit and
-  /// start date) has been filled in by the family.
-  List<SalaryDueEntry> _salaryDueEntries() {
-    final entries = <SalaryDueEntry>[];
-    for (final job in _selectedJobs) {
-      final application = job.myApplication;
-      final due = nextSalaryDue(
-        salary: application?.agreedSalary,
-        unit: application?.agreedSalaryUnit ?? (job.frequencyOfCare == FrequencyOfCare.daily ? 'daily' : 'monthly'),
-        startDate: application?.agreedStartDate,
-        leaveDates: application?.leaveDates ?? const [],
-      );
-      if (due != null) entries.add(SalaryDueEntry(label: jobDisplayId(job), due: due));
-    }
-    return entries;
-  }
-
   /// "Rate the family" + what they wrote about you, for a job a patient/family posted
   /// once the work has started. Null for admin-posted jobs and before there is anything to show.
   Widget? _feedbackFor(JobModel job) {
@@ -374,26 +355,37 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
       received: app.theirFeedback,
       eligible: eligible,
       onLeave: () => _leaveFeedback(job),
+      onEdit: () => _leaveFeedback(job),
     );
   }
 
+  /// Rate the family, or change the feedback already left (the sheet opens filled in).
   Future<void> _leaveFeedback(JobModel job) async {
-    Analytics.tap('caregiver', 'my_jobs', 'leave_feedback');
+    final existing = job.myApplication?.myFeedback;
+    Analytics.tap('caregiver', 'my_jobs', existing == null ? 'leave_feedback' : 'edit_feedback');
     final saved = await showFeedbackSheet(
       context,
-      title: 'Rate the family',
-      onSubmit: (rating, comment) => ref.read(jobsRepositoryProvider).submitFeedback(job.id, rating, comment),
+      title: existing == null ? 'Rate the family' : 'Your feedback about the family',
+      existing: existing,
+      canChangeLater: true,
+      onSubmit: (rating, comment) => existing == null
+          ? ref.read(jobsRepositoryProvider).submitFeedback(job.id, rating, comment)
+          : ref.read(jobsRepositoryProvider).updateFeedback(job.id, rating, comment),
     );
     if (!saved || !mounted) return;
-    // A good moment to ask: one tap on the snackbar opens WhatsApp with the invite typed.
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: const Text('Thank you for your feedback.'),
-      action: SnackBarAction(
-        label: 'Share JustHeal',
-        onPressed: () => shareViaWhatsApp(context, ref, appInviteMessage(ShareAudience.caregiver),
-            flow: 'caregiver', screen: 'my_jobs', action: 'share_app_after_feedback'),
-      ),
-    ));
+    if (existing != null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your feedback was updated.')));
+    } else {
+      // A good moment to ask: one tap on the snackbar opens WhatsApp with the invite typed.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Thank you for your feedback.'),
+        action: SnackBarAction(
+          label: 'Share JustHeal',
+          onPressed: () => shareViaWhatsApp(context, ref, appInviteMessage(ShareAudience.caregiver),
+              flow: 'caregiver', screen: 'my_jobs', action: 'share_app_after_feedback'),
+        ),
+      ));
+    }
     await _load();
   }
 
@@ -402,7 +394,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     final salary = application?.agreedSalary;
     final startDate = application?.agreedStartDate;
     if (salary == null || startDate == null) return null;
-    final box = AgreedTermsBox(
+    return AgreedTermsBox(
       salary: salary,
       perUnit: switch (application?.agreedSalaryUnit) {
         'daily' => 'day',
@@ -410,18 +402,6 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
         _ => job.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
       },
       startDate: startDate,
-      leaveDates: application?.leaveDates ?? const [],
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        box,
-        const SizedBox(height: AppSpacing.sm),
-        SalaryHistory(
-          key: Key('salary-history-${job.id}'),
-          load: () => ref.read(jobsRepositoryProvider).getSalaryCycles(job.id),
-        ),
-      ],
     );
   }
 
@@ -515,12 +495,6 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               ? const Center(child: VitaLoadingIndicator())
               : Column(
                   children: [
-                    // Next salary due (every 2 weeks from the agreed start date)
-                    // for the jobs the caregiver is currently on.
-                    SalaryDueBanner(
-                      entries: _salaryDueEntries(),
-                      caption: 'Salary is paid directly by the family, every 2 weeks.',
-                    ),
                     Expanded(
                       child: TabBarView(
                         children: [

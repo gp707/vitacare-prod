@@ -101,7 +101,7 @@ class _AgreementDialogState extends State<_AgreementDialog> {
     final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
-      // The cycle start date may be in the past (salary already running), up to a month back.
+      // The start date may be in the past (work already running), up to a month back.
       initialDate: _startDate ?? today,
       firstDate: today.subtract(const Duration(days: 30)),
       lastDate: today.add(const Duration(days: 365)),
@@ -145,12 +145,12 @@ class _AgreementDialogState extends State<_AgreementDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Confirm salary and cycle start date',
+              'Confirm salary and start date',
               style: TextStyle(fontSize: AppTypography.heading, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.sm),
             const Text(
-              'Clarity avoids confusion and future issues. Please enter the salary and cycle start date '
+              'Clarity avoids confusion and future issues. Please enter the salary and start date '
               'you agreed on; they will be sent to the caregiver.',
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -190,20 +190,13 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               onTap: _saving ? null : _pickDate,
               child: InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'Cycle start date',
+                  labelText: 'Start date',
                   border: const OutlineInputBorder(),
                   suffixIcon: const Icon(Icons.calendar_today, size: 18),
-                  errorText: dateMissing ? 'Pick the cycle start date' : null,
+                  errorText: dateMissing ? 'Pick the start date' : null,
                 ),
                 child: Text(_startDate == null ? 'Select a date' : _display(_startDate!)),
               ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            const Text(
-              'Salary is paid every 14 days, counted from this date. It can be a past date, up to a month back. It is a rolling window: '
-              'you can change the cycle start date any time.',
-              key: Key('cycle-hint'),
-              style: TextStyle(fontSize: AppTypography.small, color: AppColors.textSecondary),
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),

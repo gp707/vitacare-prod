@@ -277,16 +277,6 @@ class IndividualRepository {
     }
   }
 
-  /// Marks [dates] (YYYY-MM-DD) as leave for the accepted caregiver. The caregiver
-  /// is told, and those days are left out of the salary.
-  Future<void> markLeaves(String jobId, String applicationId, List<String> dates) async {
-    try {
-      await _dio.post(ApiRoutes.individualApplicationLeaves(jobId, applicationId), data: {'dates': dates});
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
   /// Leaves overall feedback (1-5 stars + an optional short comment) about this caregiver.
   /// Allowed once the work has started; write once, final.
   Future<void> submitFeedback(String jobId, String applicationId, int rating, String? comment) async {
@@ -300,33 +290,13 @@ class IndividualRepository {
     }
   }
 
-  /// Every salary cycle of this caregiver on this job, newest first: paid ones as
-  /// they were frozen, plus the unpaid ones worked out from today's agreement.
-  Future<List<SalaryCycleModel>> getSalaryCycles(String jobId, String applicationId) async {
+  /// Changes the feedback the patient/family already left about this caregiver.
+  Future<void> updateFeedback(String jobId, String applicationId, int rating, String? comment) async {
     try {
-      final res = await _dio.get(ApiRoutes.individualApplicationSalaryCycles(jobId, applicationId));
-      return parseSalaryCycles((res.data['data'] as Map<String, dynamic>)['cycles']);
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Marks an ended cycle as paid on [paidOn] (YYYY-MM-DD); the caregiver is told.
-  Future<void> markSalaryCyclePaid(String jobId, String applicationId, String cycleStart, String paidOn) async {
-    try {
-      await _dio.post(
-        ApiRoutes.individualApplicationSalaryCyclePaid(jobId, applicationId, cycleStart),
-        data: {'paid_on': paidOn},
+      await _dio.put(
+        ApiRoutes.individualApplicationFeedback(jobId, applicationId),
+        data: {'rating': rating, 'comment': comment ?? ''},
       );
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Cancels one day that was marked as leave: it is a working day again.
-  Future<void> cancelLeave(String jobId, String applicationId, String date) async {
-    try {
-      await _dio.delete(ApiRoutes.individualApplicationLeave(jobId, applicationId, date));
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

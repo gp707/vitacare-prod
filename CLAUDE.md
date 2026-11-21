@@ -1576,7 +1576,8 @@ email/password endpoint (`isAdminAccountRole`, `common/admin-roles.ts`).
 
 Overall feedback — 1-5 stars plus an optional comment of at most 200 characters (`Validation.FEEDBACK_COMMENT_MAX_LENGTH`, both shared packages) — that a patient/family
 and a caregiver leave each other. **Per engagement** (one caregiver on one job = one `job_applications` row), never per salary cycle. One feedback per person per
-engagement, **write once and final** (no edit, no delete). Patients/families and caregivers only; organisations are not included yet.
+engagement. **Both sides can change the feedback they wrote** (`PUT .../feedback`, any time, even after the caregiver was rejected or closed duty — it was eligible when first
+written; one feedback each, replaced in place, no history kept). Nobody can delete. Patients/families and caregivers only; organisations are not included yet.
 
 - **Who may write (server-side only, `FeedbackService` + `canLeaveFeedback` in `apps/api/src/feedback/`):** the caregiver was accepted (`accepted_at` set) AND the work
   has started — the agreed **cycle start date has arrived** (<= today IST) or a salary cycle was already marked paid. Never-accepted, accepted-but-not-started and
@@ -1588,8 +1589,9 @@ engagement, **write once and final** (no edit, no delete). Patients/families and
   **Apply 096 BEFORE deploying this backend**: the caregiver `assigned`/`history` payloads and the patient applicant list now select from this table, so they 500 without it.
 - **Visibility:** each person sees only their own feedback and what was written about them (not double-blind: you can read theirs before writing yours); admin reads
   everything. No public ratings or averages. Nothing is shown on profiles.
-- **API:** patient `GET`/`POST /individual/requirements/:jobId/applications/:applicationId/feedback`, caregiver `GET`/`POST /caregiver/jobs/:id/feedback`
-  (`{can_give, reason, mine, received}`; POST body `{rating 1-5, comment?}`), admin `GET /admin/feedback` (`author_role`, `rating`, `search` incl. `NUR-`/`PAT-` ids;
+- **API:** patient `GET`/`POST`/`PUT /individual/requirements/:jobId/applications/:applicationId/feedback` (PUT = change your own: `FEEDBACK_003` if you have none, audit-logged with the
+  old and new rating, **no second push**, no "edited" marker or timestamp is stored), caregiver `GET`/`POST`/`PUT /caregiver/jobs/:id/feedback`
+  (`{can_give, can_edit, reason, mine, received}`; body `{rating 1-5, comment?}`), admin `GET /admin/feedback` (`author_role`, `rating`, `search` incl. `NUR-`/`PAT-` ids;
   read-only, so a `read_only_admin` can read it). The apps get `my_feedback`/`their_feedback` inside the caregiver's `my_application` and the patient's applicant rows
   (`feedbackSql` in `job-application-leaves.repository.ts`); the caregiver's `job_poster` carries `is_family` so the app knows a family exists to rate.
 - **Side effects:** audit `feedback_submitted` (rating only, not the comment) and a push to the other party ("You received feedback", no text in the push; opens MyJobs / `/home`).
@@ -1597,7 +1599,7 @@ engagement, **write once and final** (no edit, no delete). Patients/families and
 - **Apps:** `FeedbackSection` + `showFeedbackSheet` (bottom sheet, keyboard-safe) duplicated per tree (`lib/patient_hospital/features/individual/widgets/feedback_widgets.dart`,
   `lib/caregiver/features/jobs/widgets/feedback_widgets.dart`). Patient: "Rate this caregiver" on the accepted caregiver card and on the salary page. Caregiver: "Rate this
   family" on Selected and Past cards of family-posted jobs. admin-web: sidebar **Feedback** (`/feedback`, in `_restorableRoutes`), read-only list with filters.
-- **Not built (deliberately):** edit/delete, admin hide/moderation, public averages, organisations, double-blind reveal, profanity filter. Admin hide is the first follow-up if abuse appears.
+- **Not built (deliberately):** delete, an "edited" marker/history, admin hide/moderation, public averages, organisations, double-blind reveal, profanity filter. Admin hide is the first follow-up if abuse appears.
 
 ## Sharing the app (invite a friend)
 

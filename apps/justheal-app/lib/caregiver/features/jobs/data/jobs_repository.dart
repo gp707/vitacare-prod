@@ -56,11 +56,10 @@ class JobsRepository {
     }
   }
 
-  /// This caregiver's cycle-by-cycle salary record for one job, newest first.
-  Future<List<SalaryCycleModel>> getSalaryCycles(String jobId) async {
+  /// Changes the feedback this caregiver already left about the family.
+  Future<void> updateFeedback(String jobId, int rating, String? comment) async {
     try {
-      final res = await _dio.get(ApiRoutes.caregiverJobSalaryCycles(jobId));
-      return parseSalaryCycles((res.data['data'] as Map<String, dynamic>)['cycles']);
+      await _dio.put(ApiRoutes.caregiverJobFeedback(jobId), data: {'rating': rating, 'comment': comment ?? ''});
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

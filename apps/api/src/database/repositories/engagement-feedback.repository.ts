@@ -74,6 +74,22 @@ export class EngagementFeedbackRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  /** Replaces the rating and comment of a feedback this person already wrote. False when there is none. */
+  async update(
+    applicationId: string,
+    authorRole: FeedbackAuthorRole,
+    rating: number,
+    comment: string | null,
+  ): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE engagement_feedback SET rating = $3, comment = $4
+       WHERE application_id = $1 AND author_role = $2
+       RETURNING id`,
+      [applicationId, authorRole, rating, comment],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async listForAdmin(filters: FeedbackAdminFilters, page: ListPage): Promise<{ items: FeedbackAdminItem[]; total: number }> {
     const conditions: string[] = [];
     const params: unknown[] = [];

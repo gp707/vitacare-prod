@@ -118,6 +118,7 @@ export const ErrorCatalog: Record<string, ErrorCatalogEntry> = {
   // Feedback errors
   FEEDBACK_001: { status: 400, message: 'You can leave feedback once the work has started' },
   FEEDBACK_002: { status: 400, message: 'You have already left feedback for this job' },
+  FEEDBACK_003: { status: 400, message: 'There is no feedback of yours to change yet' },
 
   // Rate card errors
   RATE_001: { status: 400, message: 'Rate card must have exactly 3 rows and 3 columns of text' },

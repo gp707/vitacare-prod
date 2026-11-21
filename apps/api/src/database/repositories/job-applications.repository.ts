@@ -1,4 +1,4 @@
-import { feedbackSql, leaveDatesSql, pausesSql, PausePeriod } from './job-application-leaves.repository';
+import { feedbackSql } from './engagement-feedback.sql';
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { JobApplicationStatus } from '@vitacare/shared-constants';
@@ -52,8 +52,6 @@ export interface JobApplicationWithCaregiver extends JobApplicationRecord {
   full_name: string;
   phone: string;
   decided_by_name: string | null;
-  leave_dates: string[];
-  pauses: PausePeriod[];
   /** Feedback this person wrote / that the other side wrote about them (migration 096), or null. */
   my_feedback: { rating: number; comment: string | null; created_at: string } | null;
   their_feedback: { rating: number; comment: string | null; created_at: string } | null;
@@ -150,15 +148,13 @@ export class JobApplicationsRepository {
   ): Promise<void> {
     const runner: QueryRunner = client ?? this.db;
     if (status === JobApplicationStatus.REJECTED) {
-      // The agreed salary, start date, leave days and pauses are KEPT as the record of
-      // what was agreed with a caregiver who is no longer on the job (the patient can
-      // still open their salary page). An open pause ends here, so it doesn't run on.
+      // The agreed salary and start date are KEPT as the record of what was agreed with a
+      // caregiver who is no longer on the job (and so feedback stays possible).
       await runner.query(
         `UPDATE job_applications SET status = $2, decided_by = $3, decline_reason = $4, rejected_at = NOW(), updated_at = NOW()
        WHERE id = $1`,
         [id, status, adminId, declineReason ?? null],
       );
-      await this.closeOpenPause(id, runner);
       return;
     }
     await runner.query(
@@ -169,26 +165,6 @@ export class JobApplicationsRepository {
        WHERE id = $1`,
       [id, status, adminId],
     );
-    await this.clearLeavesAndPauses(id, runner);
-  }
-
-  /** Ends a still-open salary pause today (IST) — used when the engagement ends
-   *  (rejected or the caregiver closes duty) so a pause never runs on afterwards. */
-  private async closeOpenPause(id: string, runner: QueryRunner): Promise<void> {
-    await runner.query(
-      `UPDATE job_application_pauses
-       SET resumed_on = GREATEST((NOW() AT TIME ZONE 'Asia/Kolkata')::date, paused_from)
-       WHERE application_id = $1 AND resumed_on IS NULL`,
-      [id],
-    );
-  }
-
-  /** Leave days and salary pauses belong to one engagement: a fresh (re-)acceptance
-   *  starts a new engagement, so the previous one's go with it (migration 093).
-   *  A rejection does NOT clear them — see decide(). */
-  private async clearLeavesAndPauses(id: string, runner: QueryRunner): Promise<void> {
-    await runner.query(`DELETE FROM job_application_leaves WHERE application_id = $1`, [id]);
-    await runner.query(`DELETE FROM job_application_pauses WHERE application_id = $1`, [id]);
   }
 
   /** Records the agreed salary/start date — only while the application is
@@ -335,8 +311,6 @@ export class JobApplicationsRepository {
       `UPDATE job_applications SET status = 'completed', completed_at = NOW(), close_reason = $2, updated_at = NOW() WHERE id = $1`,
       [id, closeReason],
     );
-    // Duty is closed: an open salary pause ends today instead of running on.
-    await this.closeOpenPause(id, runner);
   }
 
   /** How many jobs this caregiver is still actively accepted onto — used
@@ -379,7 +353,6 @@ export class JobApplicationsRepository {
   async findByJobId(jobId: string): Promise<JobApplicationWithCaregiver[]> {
     const result = await this.db.query<JobApplicationWithCaregiver>(
       `SELECT ja.*, u.full_name, u.phone, decider.full_name AS decided_by_name,
-         ${leaveDatesSql('ja')} AS leave_dates, ${pausesSql('ja')} AS pauses,
          ${feedbackSql('ja', 'individual')} AS my_feedback, ${feedbackSql('ja', 'caregiver')} AS their_feedback
        FROM job_applications ja
        JOIN caregiver_profiles cp ON cp.id = ja.profile_id

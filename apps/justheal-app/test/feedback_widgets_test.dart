@@ -12,14 +12,16 @@ import 'package:nursenow_app/patient_hospital/features/individual/widgets/feedba
 void main() {
   group('patient tree', () {
     _suite(
-      section: ({required mine, required received, required eligible, VoidCallback? onLeave}) => ph_widgets.FeedbackSection(
+      section: ({required mine, required received, required eligible, VoidCallback? onLeave, VoidCallback? onEdit}) => ph_widgets.FeedbackSection(
         aboutLabel: 'caregiver',
         mine: mine,
         received: received,
         eligible: eligible,
         onLeave: onLeave,
+        onEdit: onEdit,
       ),
-      open: (context, onSubmit) => ph_widgets.showFeedbackSheet(context, title: 'Rate Asha', onSubmit: onSubmit),
+      open: (context, onSubmit, {existing}) =>
+          ph_widgets.showFeedbackSheet(context, title: 'Rate Asha', onSubmit: onSubmit, existing: existing, canChangeLater: true),
       apiError: (message) => ph.ApiException(message: message, code: 'FEEDBACK_002'),
       stars: (rating) => ph_widgets.StarsRow(rating: rating),
     );
@@ -27,14 +29,16 @@ void main() {
 
   group('caregiver tree', () {
     _suite(
-      section: ({required mine, required received, required eligible, VoidCallback? onLeave}) => cg_widgets.FeedbackSection(
+      section: ({required mine, required received, required eligible, VoidCallback? onLeave, VoidCallback? onEdit}) => cg_widgets.FeedbackSection(
         aboutLabel: 'family',
         mine: mine,
         received: received,
         eligible: eligible,
         onLeave: onLeave,
+        onEdit: onEdit,
       ),
-      open: (context, onSubmit) => cg_widgets.showFeedbackSheet(context, title: 'Rate the family', onSubmit: onSubmit),
+      open: (context, onSubmit, {existing}) =>
+          cg_widgets.showFeedbackSheet(context, title: 'Rate the family', onSubmit: onSubmit, existing: existing, canChangeLater: true),
       apiError: (message) => cg.ApiException(message: message, code: 'FEEDBACK_002'),
       stars: (rating) => cg_widgets.StarsRow(rating: rating),
     );
@@ -46,11 +50,12 @@ typedef _SectionBuilder = Widget Function({
   required FeedbackModel? received,
   required bool eligible,
   VoidCallback? onLeave,
+  VoidCallback? onEdit,
 });
 
 void _suite({
   required _SectionBuilder section,
-  required Future<bool> Function(BuildContext, Future<void> Function(int, String?)) open,
+  required Future<bool> Function(BuildContext, Future<void> Function(int, String?), {FeedbackModel? existing}) open,
   required Exception Function(String) apiError,
   required Widget Function(int) stars,
 }) {
@@ -92,6 +97,23 @@ void _suite({
       expect(find.byKey(const Key('leave-feedback')), findsOneWidget);
     });
 
+    testWidgets('your feedback has an Edit button when editing is wired, and tapping it calls back', (tester) async {
+      var edits = 0;
+      await pumpSection(
+        tester,
+        section(mine: const FeedbackModel(rating: 4), received: null, eligible: true, onEdit: () => edits++),
+      );
+      await tester.tap(find.byKey(const Key('edit-feedback')));
+      expect(edits, 1);
+    });
+
+    testWidgets('no Edit button when editing is not wired, or when there is nothing of yours yet', (tester) async {
+      await pumpSection(tester, section(mine: const FeedbackModel(rating: 4), received: null, eligible: true));
+      expect(find.byKey(const Key('edit-feedback')), findsNothing);
+      await pumpSection(tester, section(mine: null, received: null, eligible: true, onEdit: () {}));
+      expect(find.byKey(const Key('edit-feedback')), findsNothing);
+    });
+
     testWidgets('a rating with no comment shows just the stars', (tester) async {
       await pumpSection(tester, section(mine: const FeedbackModel(rating: 3), received: null, eligible: true));
       expect(find.byKey(const Key('feedback-mine-comment')), findsNothing);
@@ -102,6 +124,7 @@ void _suite({
     Future<List<List<Object?>>> openSheet(
       WidgetTester tester, {
       Future<void> Function(int, String?)? onSubmit,
+      FeedbackModel? existing,
     }) async {
       final calls = <List<Object?>>[];
       await tester.pumpWidget(
@@ -110,7 +133,7 @@ void _suite({
             builder: (context) => Scaffold(
               body: Center(
                 child: TextButton(
-                  onPressed: () => open(context, onSubmit ?? (r, c) async => calls.add([r, c])),
+                  onPressed: () => open(context, onSubmit ?? (r, c) async => calls.add([r, c]), existing: existing),
                   child: const Text('open'),
                 ),
               ),
@@ -168,6 +191,33 @@ void _suite({
       await tester.pumpAndSettle();
       expect(find.text('You have already left feedback for this job'), findsOneWidget);
       expect(find.byKey(const Key('feedback-submit')), findsOneWidget);
+    });
+
+    testWidgets('editing: opens with your stars and comment filled in, says it can be changed, and saves a changed version', (tester) async {
+      final calls = await openSheet(tester, existing: const FeedbackModel(rating: 3, comment: 'Ok'));
+      expect(tester.widget<TextField>(find.byKey(const Key('feedback-comment'))).controller!.text, 'Ok');
+      expect(find.text('Save changes'), findsOneWidget);
+      expect(find.textContaining('Change your stars or comment'), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(3));
+      await tester.tap(find.byKey(const Key('feedback-star-5')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('feedback-comment')), 'Better');
+      await tester.tap(find.byKey(const Key('feedback-submit')));
+      await tester.pumpAndSettle();
+      expect(calls.single, [5, 'Better']);
+    });
+
+    testWidgets('editing keeps your stars if you only change the comment', (tester) async {
+      final calls = await openSheet(tester, existing: const FeedbackModel(rating: 4, comment: 'Good'));
+      await tester.enterText(find.byKey(const Key('feedback-comment')), 'Good, and on time');
+      await tester.tap(find.byKey(const Key('feedback-submit')));
+      await tester.pumpAndSettle();
+      expect(calls.single, [4, 'Good, and on time']);
+    });
+
+    testWidgets('a first-time sheet says it can be changed later', (tester) async {
+      await openSheet(tester);
+      expect(find.textContaining('You can change it later.'), findsOneWidget);
     });
 
     testWidgets('Not now closes without sending', (tester) async {

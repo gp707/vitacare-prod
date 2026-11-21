@@ -36,14 +36,6 @@ class ApiRoutes {
       '/individual/requirements/$jobId/applications/$applicationId';
   static String individualRequirementApplicationAgreement(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId/agreement';
-  static String individualApplicationLeaves(String jobId, String applicationId) =>
-      '/individual/requirements/$jobId/applications/$applicationId/leaves';
-  static String individualApplicationLeave(String jobId, String applicationId, String date) =>
-      '/individual/requirements/$jobId/applications/$applicationId/leaves/$date';
-  static String individualApplicationSalaryCycles(String jobId, String applicationId) =>
-      '/individual/requirements/$jobId/applications/$applicationId/salary-cycles';
-  static String individualApplicationSalaryCyclePaid(String jobId, String applicationId, String cycleStart) =>
-      '/individual/requirements/$jobId/applications/$applicationId/salary-cycles/$cycleStart/paid';
   static String individualApplicationFeedback(String jobId, String applicationId) =>
       '/individual/requirements/$jobId/applications/$applicationId/feedback';
   static String individualRequirementApplicantProfile(String jobId, String applicationId) =>
@@ -91,7 +83,6 @@ class ApiRoutes {
   static const caregiverJobsAssigned = '/caregiver/jobs/assigned';
   static const caregiverJobsHistory = '/caregiver/jobs/history';
   static String caregiverJobFeedback(String jobId) => '/caregiver/jobs/$jobId/feedback';
-  static String caregiverJobSalaryCycles(String jobId) => '/caregiver/jobs/$jobId/salary-cycles';
 
   static const appVersionCheck = '/app-versions/check';
   static const appMaintenanceCheck = '/app-maintenance/check';

@@ -112,35 +112,6 @@ export const agreementSet = (
   route: PushRoutes.caregiverMyJobs,
 });
 
-/** "24 Nov 2026", "24 Nov 2026 and 25 Nov 2026", or "5 days (24 Nov 2026 to 28 Nov 2026)". */
-export function describeLeaveDays(dates: string[]): string {
-  const sorted = [...dates].sort();
-  if (sorted.length === 1) return formatAgreedDate(sorted[0]);
-  if (sorted.length === 2) return `${formatAgreedDate(sorted[0])} and ${formatAgreedDate(sorted[1])}`;
-  return `${sorted.length} days (${formatAgreedDate(sorted[0])} to ${formatAgreedDate(sorted[sorted.length - 1])})`;
-}
-
-/** The family marked one or more days as leave: those days are not paid. */
-export const leaveMarked = (displayId: string, dates: string[]): PushMessage => ({
-  title: 'Leave marked',
-  body: `${displayId}: ${describeLeaveDays(dates)} marked as leave. Salary is not paid for leave days.`,
-  route: PushRoutes.caregiverMyJobs,
-});
-
-/** The family cancelled a leave day: it is a working day again. */
-export const leaveCancelled = (displayId: string, date: string): PushMessage => ({
-  title: 'Leave cancelled',
-  body: `${displayId}: leave on ${formatAgreedDate(date)} was cancelled. It is a working day again.`,
-  route: PushRoutes.caregiverMyJobs,
-});
-
-/** The family marked a salary cycle as paid. */
-export const salaryPaid = (displayId: string, cycleStart: string, cycleEnd: string, amount: number, paidOn: string): PushMessage => ({
-  title: 'Salary paid',
-  body: `${displayId}: salary of ₹${amount} for ${formatAgreedDate(cycleStart)} to ${formatAgreedDate(cycleEnd)} was paid on ${formatAgreedDate(paidOn)}. See the calculation in MyJobs.`,
-  route: PushRoutes.caregiverMyJobs,
-});
-
 /** The other side left feedback about this person. */
 export const feedbackReceived = (displayId: string, toCaregiver: boolean): PushMessage => ({
   title: 'You received feedback',

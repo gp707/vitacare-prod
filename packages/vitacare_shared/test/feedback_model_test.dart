@@ -16,6 +16,11 @@ void main() {
       expect(state.received, isNull);
     });
 
+    test('reads whether the feedback can still be changed', () {
+      expect(FeedbackState.fromJson({'can_give': false, 'can_edit': true}).canEdit, isTrue);
+      expect(FeedbackState.fromJson({'can_give': true}).canEdit, isFalse);
+    });
+
     test('a missing or malformed value is no feedback', () {
       expect(FeedbackModel.tryParse(null), isNull);
       expect(FeedbackModel.tryParse('nope'), isNull);

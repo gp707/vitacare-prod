@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@vitacare/shared-constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -33,6 +33,19 @@ export class IndividualFeedbackController {
   ) {
     return this.feedbackService.submitForIndividual(user.sub, jobId, applicationId, dto, ip);
   }
+
+  /** The patient/family changes the feedback they already left (a caregiver's stays final). */
+  @Put(':jobId/applications/:applicationId/feedback')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('jobId') jobId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: SubmitFeedbackDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.feedbackService.updateForIndividual(user.sub, jobId, applicationId, dto, ip);
+  }
 }
 
 /** The caregiver's feedback about the family they worked for. */
@@ -56,6 +69,18 @@ export class CaregiverFeedbackController {
     @ClientIp() ip: string | null,
   ) {
     return this.feedbackService.submitForCaregiver(user.sub, id, dto, ip);
+  }
+
+  /** The caregiver changes the feedback they already left about the family. */
+  @Put(':id/feedback')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SubmitFeedbackDto,
+    @ClientIp() ip: string | null,
+  ) {
+    return this.feedbackService.updateForCaregiver(user.sub, id, dto, ip);
   }
 }
 

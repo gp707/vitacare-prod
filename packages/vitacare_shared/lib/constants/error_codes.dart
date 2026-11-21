@@ -95,6 +95,7 @@ class ErrorCodes {
     'TICKET_001': 'This ticket has already been resolved',
     'FEEDBACK_001': 'You can leave feedback once the work has started',
     'FEEDBACK_002': 'You have already left feedback for this job',
+    'FEEDBACK_003': 'There is no feedback of yours to change yet',
     'RATE_001': 'Rate card must have exactly 3 rows and 3 columns of text',
     'SCOPE_001': 'Each scope of work tier must have at least one non-empty bullet',
     'DUTY_001': 'Each duty requirements list must have at least one non-empty bullet',

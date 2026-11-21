@@ -9,9 +9,6 @@ import {
   jobUpdated,
   JOB_APPLICANT_FIELDS,
   noApplicantsYet,
-  describeLeaveDays,
-  leaveMarked,
-  salaryPaid,
   feedbackReceived,
   applicationDeclined,
   caregiverApplied,
@@ -190,33 +187,6 @@ describe('changedAny', () => {
   it('treats null and missing as the same, and compares numbers and strings by value', () => {
     expect(changedAny({ salary_amount: null }, {}, ['salary_amount'])).toBe(false);
     expect(changedAny({ n: 5 }, { n: '5' }, ['n'])).toBe(false);
-  });
-});
-
-describe('leave wording', () => {
-  it('describes one, two and many leave days', () => {
-    expect(describeLeaveDays(['2026-11-24'])).toBe('24 Nov 2026');
-    expect(describeLeaveDays(['2026-11-25', '2026-11-24'])).toBe('24 Nov 2026 and 25 Nov 2026');
-    expect(describeLeaveDays(['2026-11-24', '2026-11-26', '2026-11-25', '2026-11-28'])).toBe(
-      '4 days (24 Nov 2026 to 28 Nov 2026)',
-    );
-  });
-  it('tells the caregiver which days are unpaid and opens MyJobs', () => {
-    const message = leaveMarked('PAT-JOB-548', ['2026-11-24']);
-    expect(message.body).toContain('24 Nov 2026');
-    expect(message.body).toContain('not paid');
-    expect(message.route).toBe('/caregiver/my-jobs');
-  });
-});
-
-describe('salary paid wording', () => {
-  it('names the cycle, the amount and the payment date, and opens MyJobs', () => {
-    const message = salaryPaid('PAT-JOB-548', '2026-11-18', '2026-12-01', 13000, '2026-12-02');
-    expect(message.title).toBe('Salary paid');
-    expect(message.body).toContain('₹13000');
-    expect(message.body).toContain('18 Nov 2026 to 1 Dec 2026');
-    expect(message.body).toContain('paid on 2 Dec 2026');
-    expect(message.route).toBe('/caregiver/my-jobs');
   });
 });
 

@@ -6,17 +6,15 @@ import 'call_tap.dart';
 import 'feedback_widgets.dart';
 
 /// One accepted caregiver at a glance, on the patient's requirement screen: who they
-/// are, what was agreed with them (their own salary and start date), the next salary
-/// due, and whether they are on leave or paused. A patient can have several accepted
-/// caregivers, each with their own card and their own numbers.
+/// are and what was agreed with them (their own salary and start date). A patient can
+/// have several accepted caregivers, each with their own card and their own numbers.
 ///
-/// "Salary & leaves" opens that caregiver's own page for the details and changes.
+/// One button enters the salary and start date (a popup with both fields), or changes them.
 class CaregiverSummaryCard extends StatelessWidget {
   final JobApplicationModel application;
   /// 'daily' or 'monthly' — the job's own frequency, used when no unit was stored.
   final String defaultUnit;
   final bool isDeciding;
-  final VoidCallback onOpenSalary;
   final VoidCallback onAddAgreement;
   final VoidCallback onViewProfile;
   final VoidCallback onReject;
@@ -27,20 +25,11 @@ class CaregiverSummaryCard extends StatelessWidget {
     required this.application,
     required this.defaultUnit,
     required this.isDeciding,
-    required this.onOpenSalary,
     required this.onAddAgreement,
     required this.onViewProfile,
     required this.onReject,
     this.onLeaveFeedback,
   });
-
-  /// The next salary due for this caregiver, or null until their salary is agreed.
-  static SalaryDue? dueFor(JobApplicationModel application, String defaultUnit) => nextSalaryDue(
-        salary: application.agreedSalary,
-        unit: application.agreedSalaryUnit ?? defaultUnit,
-        startDate: application.agreedStartDate,
-        leaveDates: application.leaveDates,
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +37,6 @@ class CaregiverSummaryCard extends StatelessWidget {
     final salary = application.agreedSalary;
     final startDate = application.agreedStartDate;
     final hasAgreement = salary != null && startDate != null;
-    final due = dueFor(application, defaultUnit);
-    final start = startDate == null ? null : DateTime.tryParse(startDate);
-    final now = DateTime.now();
-    final started = start != null && !start.isAfter(DateTime(now.year, now.month, now.day));
     final initial = application.fullName.trim().isEmpty ? '?' : application.fullName.trim()[0].toUpperCase();
 
     return Container(
@@ -115,14 +100,10 @@ class CaregiverSummaryCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.title, color: AppColors.success),
             ),
             Text(
-              started ? 'Cycle started ${formatLongDate(startDate)}' : 'Cycle starts ${formatLongDate(startDate)}',
+              'Starts ${formatLongDate(startDate)}',
               key: Key('card-start-${application.id}'),
               style: const TextStyle(color: AppColors.textSecondary),
             ),
-            if (due != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              _NextSalary(due: due),
-            ],
           ] else
             Container(
               key: Key('card-no-salary-${application.id}'),
@@ -138,7 +119,7 @@ class CaregiverSummaryCard extends StatelessWidget {
                 children: [
                   const Text('Salary not set yet', style: TextStyle(fontWeight: FontWeight.bold)),
                   const Text(
-                    'Agree the salary and cycle start date with this caregiver, then add them here.',
+                    'Agree the salary and start date with this caregiver, then enter them here.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
                   ),
                   const SizedBox(height: AppSpacing.xs),
@@ -146,7 +127,7 @@ class CaregiverSummaryCard extends StatelessWidget {
                     key: Key('card-add-agreement-${application.id}'),
                     onPressed: onAddAgreement,
                     icon: const Icon(Icons.handshake_outlined, size: 16),
-                    label: const Text('Add agreed salary & cycle start date'),
+                    label: const Text('Enter salary and start date'),
                   ),
                 ],
               ),
@@ -163,12 +144,12 @@ class CaregiverSummaryCard extends StatelessWidget {
             if (hasAgreement)
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  key: Key('open-salary-${application.id}'),
-                  style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size.fromHeight(48))),
-                  onPressed: onOpenSalary,
-                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                  label: const Text('Salary & leaves'),
+                child: OutlinedButton.icon(
+                  key: Key('card-edit-agreement-${application.id}'),
+                  style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size.fromHeight(44))),
+                  onPressed: onAddAgreement,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit salary and start date'),
                 ),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -184,6 +165,7 @@ class CaregiverSummaryCard extends StatelessWidget {
                 received: application.theirFeedback,
                 eligible: feedbackEligible(acceptedAt: application.acceptedAt, agreedStartDate: application.agreedStartDate),
                 onLeave: onLeaveFeedback,
+                onEdit: onLeaveFeedback,
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
@@ -221,89 +203,6 @@ class CaregiverSummaryCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// "Next salary · Tue 1 Dec 2026" with the amount for the 2 weeks, how long to go, and
-/// any leave or pause that changes it.
-class _NextSalary extends StatelessWidget {
-  final SalaryDue due;
-  const _NextSalary({required this.due});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasLeave = due.leaveDays.isNotEmpty;
-    return Container(
-      key: const Key('next-salary'),
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        border: Border.all(color: Colors.amber.shade300),
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.event_available, size: 16),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text('Next salary · ${formatDueDate(due.dueDate)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.end,
-            spacing: AppSpacing.xs,
-            children: [
-              Text(
-                '₹${formatRupees(due.amount)}',
-                key: const Key('next-salary-amount'),
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, height: 1.2),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '${dueInWords(due.daysLeft)}${hasLeave ? ' · ${due.workedDays} working days' : ''}',
-                  key: const Key('next-salary-when'),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          if (hasLeave) ...[
-            const SizedBox(height: AppSpacing.xs),
-            _Tag(
-              key: const Key('card-leave-tag'),
-              icon: Icons.event_busy_outlined,
-              text: due.leaveDays.length == 1 ? '1 day on leave this period' : '${due.leaveDays.length} days on leave this period',
-              color: Colors.deepOrange.shade800,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Tag extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  const _Tag({super.key, required this.icon, required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: AppSpacing.xs),
-        Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: AppTypography.small))),
-      ],
     );
   }
 }

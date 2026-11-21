@@ -24,15 +24,18 @@ class FeedbackModel {
 class FeedbackState {
   /// True while they may still write one (the work has started and they have not written yet).
   final bool canGive;
+  /// True when they wrote one and may still change it (patients/families only).
+  final bool canEdit;
   /// 'not_started' or 'no_family_account' when [canGive] is false and nothing was written.
   final String? reason;
   final FeedbackModel? mine;
   final FeedbackModel? received;
 
-  const FeedbackState({required this.canGive, this.reason, this.mine, this.received});
+  const FeedbackState({required this.canGive, this.canEdit = false, this.reason, this.mine, this.received});
 
   factory FeedbackState.fromJson(Map<String, dynamic> json) => FeedbackState(
         canGive: json['can_give'] as bool? ?? false,
+        canEdit: json['can_edit'] as bool? ?? false,
         reason: json['reason'] as String?,
         mine: FeedbackModel.tryParse(json['mine']),
         received: FeedbackModel.tryParse(json['received']),
