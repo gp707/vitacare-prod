@@ -119,6 +119,13 @@ class _AppVersionsSettingsSectionState extends ConsumerState<AppVersionsSettings
               message: AdminHelp.saveMinVersion,
               child: ElevatedButton(
                 onPressed: () async {
+                  // The server takes exactly three numbers; the app compares only those three, so a build
+                  // such as 1.0.4.2 counts as 1.0.4. Say so here instead of a bare "Invalid request body".
+                  if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(minVersionController.text.trim())) {
+                    setDialogState(() => dialogError =
+                        'Enter the minimum version as three numbers, like 1.0.4 (a build like 1.0.4.2 counts as 1.0.4).');
+                    return;
+                  }
                   if (!everyone && categories.isEmpty && accounts.isEmpty) {
                     setDialogState(() => dialogError = 'Pick at least one category or account, or choose Everyone.');
                     return;

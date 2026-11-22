@@ -149,6 +149,17 @@ void main() {
       expect(find.byKey(const Key('audience-add-account')), findsOneWidget);
     });
 
+    testWidgets('a four-part version like 1.0.4.2 is refused with a clear message, not "Invalid request body"', (tester) async {
+      final repo = _FakeRepo([_row()]);
+      await _pump(tester, repo);
+      await _openEdit(tester);
+      await tester.enterText(find.byType(TextField).first, '1.0.4.2');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('three numbers, like 1.0.4'), findsOneWidget);
+      expect(repo.saveCalls, 0);
+    });
+
     testWidgets('saving Everyone sends mode "all"', (tester) async {
       final repo = _FakeRepo([_row()]);
       await _pump(tester, repo);
