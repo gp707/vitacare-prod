@@ -13,6 +13,7 @@ import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
 import '../data/admin_caregivers_repository.dart';
 import '../data/admin_caregiver_models.dart';
+import '../../../shared/widgets/assigned_accounts_filter.dart';
 import '../../../shared/widgets/hide_for_read_only.dart';
 import '../../../shared/widgets/open_job.dart';
 
@@ -129,12 +130,15 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
   void _openDetail(AdminCaregiverListItem item) => Navigator.of(context)
       .pushNamed('/caregiver-detail', arguments: item.profileId);
 
-  /// Click on an assigned caregiver's status: open the job they are assigned to — straight away when it
+  /// Click on an assigned caregiver's status: show the patients/families (or organisations) she is assigned to;
+  /// for admin-posted jobs only, open the job they are assigned to — straight away when it
   /// is one, or a short list to pick from when it is several. (An "assigned" status with nothing behind
   /// it just opens the profile.)
   Future<void> _openAssignments(AdminCaregiverListItem item) async {
     final list = item.assignments;
     if (list == null || list.isEmpty) return _openDetail(item);
+    // Assigned to patients/families or organisations: show those accounts (a filtered list, several at once).
+    if (list.any((a) => a.hasAccount)) return _openAssignedAccounts(item, list);
     CaregiverAssignment? chosen = list.length == 1 ? list.first : null;
     if (chosen == null) {
       chosen = await showDialog<CaregiverAssignment>(
@@ -158,6 +162,46 @@ class _CaregiverListScreenState extends ConsumerState<CaregiverListScreen> {
     }
     if (chosen == null || !mounted) return;
     await openJobOrRequirement(context, ref, jobId: chosen.jobId, isRequirement: chosen.isRequirement);
+  }
+
+  /// The Patients/Family list (or Rehab/Hospitals) narrowed to the accounts this caregiver is assigned to. When she
+  /// works for both kinds, a short dialog asks which list to open.
+  Future<void> _openAssignedAccounts(AdminCaregiverListItem item, List<CaregiverAssignment> list) async {
+    List<String> idsOf(String role) =>
+        {for (final a in list) if (a.hasAccount && a.posterRole == role) a.posterId!}.toList();
+    final patients = idsOf('individual');
+    final organisations = idsOf('organisation');
+    String? route;
+    if (patients.isNotEmpty && organisations.isNotEmpty) {
+      route = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: Text('${item.fullName} is assigned to both'),
+          children: [
+            SimpleDialogOption(
+              key: const Key('assigned-open-patients'),
+              onPressed: () => Navigator.of(dialogContext).pop('/patients-family'),
+              child: Text('Patients / families (${patients.length})'),
+            ),
+            SimpleDialogOption(
+              key: const Key('assigned-open-organisations'),
+              onPressed: () => Navigator.of(dialogContext).pop('/rehab-hospitals'),
+              child: Text('Rehabs / hospitals (${organisations.length})'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      route = patients.isNotEmpty ? '/patients-family' : '/rehab-hospitals';
+    }
+    if (route == null || !mounted) return;
+    await Navigator.of(context).pushNamed(
+      route,
+      arguments: AssignedAccountsFilter(
+        userIds: route == '/patients-family' ? patients : organisations,
+        caregiverName: item.fullName,
+      ),
+    );
   }
 
   /// The status badge; for an assigned caregiver, hovering shows who they are assigned to.

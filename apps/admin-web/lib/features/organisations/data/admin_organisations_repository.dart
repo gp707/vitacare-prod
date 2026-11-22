@@ -70,6 +70,8 @@ class AdminOrganisationsListResult {
 class OrganisationListFilters {
   final String? search;
   final String? blockStatus;
+  /// Only these accounts (user ids).
+  final List<String>? userIds;
   final String? organisationType;
   final String? city;
   final String sort;
@@ -78,6 +80,7 @@ class OrganisationListFilters {
   const OrganisationListFilters(
       {this.search,
       this.blockStatus,
+      this.userIds,
       this.organisationType,
       this.city,
       this.sort = 'created_at',
@@ -88,6 +91,7 @@ class OrganisationListFilters {
         'order': order,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (blockStatus != null) 'block_status': blockStatus,
+        if (userIds != null && userIds!.isNotEmpty) 'user_ids': userIds!.join(','),
         if (organisationType != null) 'organisation_type': organisationType,
         if (city != null) 'city': city,
       };

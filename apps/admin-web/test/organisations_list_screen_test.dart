@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:admin_web/core/providers.dart';
+import 'package:admin_web/shared/widgets/assigned_accounts_filter.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
@@ -101,7 +102,7 @@ Future<void> _selectFilterDropdown(
 }
 
 Future<void> _pump(
-    WidgetTester tester, _FakeAdminOrganisationsRepository repo) async {
+    WidgetTester tester, _FakeAdminOrganisationsRepository repo, {AssignedAccountsFilter? assigned}) async {
   await tester.binding.setSurfaceSize(const Size(2900, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -120,7 +121,19 @@ Future<void> _pump(
                 AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
       ],
-      child: const MaterialApp(home: OrganisationsListScreen()),
+      child: MaterialApp(
+        // Opened from a caregiver's "Assigned" status: the route carries the accounts to show. A single
+        // initial route (no parent underneath: it would never be laid out).
+        initialRoute: '/rehab-hospitals',
+        onGenerateInitialRoutes: (name) => [
+          MaterialPageRoute<void>(
+            settings: RouteSettings(name: name, arguments: assigned),
+            builder: (_) => const OrganisationsListScreen(),
+          ),
+        ],
+        onGenerateRoute: (settings) =>
+            MaterialPageRoute<void>(settings: settings, builder: (_) => const OrganisationsListScreen()),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -469,5 +482,26 @@ void main() {
     expect(find.byType(DataTable), findsNothing);
     expect(find.text('City Rehab Center'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'View Jobs'), findsOneWidget);
+  });
+
+  testWidgets('opened from a caregiver\'s Assigned status: only those accounts are asked for, with a banner and Show all', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository([_item()]);
+    await _pump(tester, repo,
+        assigned: const AssignedAccountsFilter(userIds: ['u-1', 'u-2'], caregiverName: 'Asha'));
+    expect(repo.lastFilters?.userIds, ['u-1', 'u-2']);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsOneWidget);
+    expect(find.textContaining('Showing the 2 organisations Asha is assigned to'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('assigned-accounts-show-all')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters?.userIds, isNull);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsNothing);
+  });
+
+  testWidgets('opened normally there is no banner and no account filter', (tester) async {
+    final repo = _FakeAdminOrganisationsRepository([_item()]);
+    await _pump(tester, repo);
+    expect(repo.lastFilters?.userIds, isNull);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsNothing);
   });
 }

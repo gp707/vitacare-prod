@@ -9,6 +9,8 @@ class CaregiverAssignment {
   final String jobId;
   /// ADMIN-JOB-n / PAT-JOB-n / ORG-JOB-n.
   final String label;
+  /// The poster's account (user) id, to open that account in the Patients/Family or Rehab/Hospitals list.
+  final String? posterId;
   final String? posterName;
   final String? posterRole;
   final int? posterNumber;
@@ -20,6 +22,7 @@ class CaregiverAssignment {
     required this.isRequirement,
     required this.jobId,
     required this.label,
+    this.posterId,
     this.posterName,
     this.posterRole,
     this.posterNumber,
@@ -35,6 +38,16 @@ class CaregiverAssignment {
         _ => null,
       };
 
+  /// "Hansa · PAT-625" — who she is assigned to (a patient/family or an organisation); an admin-posted job has no
+  /// such account, so it reads "Admin-posted job (ADMIN-JOB-n)".
+  String get assignedToLine {
+    final id = posterDisplayLabel;
+    if (posterName == null && id == null) return 'Admin-posted job ($label)';
+    return [if (posterName != null) posterName!, if (id != null) id].join(' · ');
+  }
+
+  bool get hasAccount => posterId != null && (posterRole == 'individual' || posterRole == 'organisation');
+
   /// One line for the hover card / list: "PAT-JOB-539 · Hansa PAT-625 · Bangalore · 24Hrs - Live In".
   String get summaryLine => [
         label,
@@ -47,6 +60,7 @@ class CaregiverAssignment {
         isRequirement: json['kind'] == 'organisation_requirement',
         jobId: json['job_id'] as String,
         label: json['label'] as String,
+        posterId: json['poster_id'] as String?,
         posterName: json['poster_name'] as String?,
         posterRole: json['poster_role'] as String?,
         posterNumber: (json['poster_number'] as num?)?.toInt(),
@@ -99,14 +113,12 @@ class AdminCaregiverListItem {
     if (list.isEmpty) {
       return 'Marked as assigned, but not accepted onto any job or requirement right now.\nClick to open the profile';
     }
-    // One caregiver can hold several jobs in parallel: say so, number them, and say what a click does.
-    if (list.length == 1) {
-      return ['Assigned to 1 job:', list.first.summaryLine, 'Click to open this job'].join('\n');
-    }
+    // One caregiver can hold several in parallel: list each patient (or organisation) by name and id.
+    final withAccount = list.any((a) => a.hasAccount);
     return [
-      'Working ${list.length} jobs in parallel:',
-      for (var i = 0; i < list.length; i++) '${i + 1}. ${list[i].summaryLine}',
-      'Click to choose which job to open',
+      list.length == 1 ? 'Assigned to:' : 'Assigned to ${list.length} (in parallel):',
+      for (final a in list) '• ${a.assignedToLine}',
+      withAccount ? 'Click to see them' : 'Click to open the job',
     ].join('\n');
   }
 

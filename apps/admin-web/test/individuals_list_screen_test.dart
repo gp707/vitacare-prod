@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
 
 import 'package:admin_web/core/providers.dart';
+import 'package:admin_web/shared/widgets/assigned_accounts_filter.dart';
 import 'package:admin_web/core/storage/local_storage.dart';
 import 'package:admin_web/features/auth/state/session_notifier.dart';
 import 'package:admin_web/features/auth/state/session_state.dart';
@@ -94,7 +95,7 @@ Future<void> _selectFilterDropdown(
 }
 
 Future<void> _pump(
-    WidgetTester tester, _FakeAdminIndividualsRepository repo) async {
+    WidgetTester tester, _FakeAdminIndividualsRepository repo, {AssignedAccountsFilter? assigned}) async {
   // The Actions column sits at the right edge of a horizontally-scrolling
   // DataTable — the default 800x600 test surface clips it off-screen.
   await tester.binding.setSurfaceSize(const Size(2600, 800));
@@ -115,7 +116,19 @@ Future<void> _pump(
                 AdminSessionAuthenticated(userId: 'admin-1', role: 'admin'),
         ),
       ],
-      child: const MaterialApp(home: IndividualsListScreen()),
+      child: MaterialApp(
+        // Opened from a caregiver's "Assigned" status: the route carries the accounts to show. A single
+        // initial route (no parent underneath: it would never be laid out).
+        initialRoute: '/patients-family',
+        onGenerateInitialRoutes: (name) => [
+          MaterialPageRoute<void>(
+            settings: RouteSettings(name: name, arguments: assigned),
+            builder: (_) => const IndividualsListScreen(),
+          ),
+        ],
+        onGenerateRoute: (settings) =>
+            MaterialPageRoute<void>(settings: settings, builder: (_) => const IndividualsListScreen()),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -476,5 +489,26 @@ void main() {
         reason: 'card shows it as "ID: PAT-500", not bare');
     expect(find.textContaining('PAT-500'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'View Jobs'), findsOneWidget);
+  });
+
+  testWidgets('opened from a caregiver\'s Assigned status: only those accounts are asked for, with a banner and Show all', (tester) async {
+    final repo = _FakeAdminIndividualsRepository([_item()]);
+    await _pump(tester, repo,
+        assigned: const AssignedAccountsFilter(userIds: ['u-1', 'u-2'], caregiverName: 'Asha'));
+    expect(repo.lastFilters?.userIds, ['u-1', 'u-2']);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsOneWidget);
+    expect(find.textContaining('Showing the 2 patients/families Asha is assigned to'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('assigned-accounts-show-all')));
+    await tester.pumpAndSettle();
+    expect(repo.lastFilters?.userIds, isNull);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsNothing);
+  });
+
+  testWidgets('opened normally there is no banner and no account filter', (tester) async {
+    final repo = _FakeAdminIndividualsRepository([_item()]);
+    await _pump(tester, repo);
+    expect(repo.lastFilters?.userIds, isNull);
+    expect(find.byKey(const Key('assigned-accounts-banner')), findsNothing);
   });
 }

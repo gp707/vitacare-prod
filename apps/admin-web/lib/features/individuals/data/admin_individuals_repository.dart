@@ -52,12 +52,15 @@ class AdminIndividualsListResult {
 class IndividualListFilters {
   final String? search;
   final String? blockStatus;
+  /// Only these accounts (user ids).
+  final List<String>? userIds;
   final String sort;
   final String order;
 
   const IndividualListFilters(
       {this.search,
       this.blockStatus,
+      this.userIds,
       this.sort = 'created_at',
       this.order = 'desc'});
 
@@ -66,6 +69,7 @@ class IndividualListFilters {
         'order': order,
         if (search != null && search!.isNotEmpty) 'search': search,
         if (blockStatus != null) 'block_status': blockStatus,
+        if (userIds != null && userIds!.isNotEmpty) 'user_ids': userIds!.join(','),
       };
 }
 

@@ -14,6 +14,7 @@ import '../data/admin_organisations_repository.dart';
 import '../../../shared/widgets/action_help.dart';
 import '../../../shared/widgets/inline_notes_panel.dart';
 import '../../../shared/widgets/sort_bar.dart';
+import '../../../shared/widgets/assigned_accounts_filter.dart';
 import '../../../shared/widgets/hide_for_read_only.dart';
 
 /// NurseNow hospital/rehab/clinic accounts — mirrors IndividualsListScreen
@@ -41,10 +42,23 @@ class _OrganisationsListScreenState
   bool _loading = true;
   String? _errorMessage;
 
+  AssignedAccountsFilter? _assigned;
+  bool _readArguments = false;
+
   final _searchController = TextEditingController();
   String? _blockStatus;
   String? _organisationType;
   String? _city;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Opened from a caregiver's "Assigned" status: only the accounts she is assigned to.
+    if (_readArguments) return;
+    _readArguments = true;
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    if (arg is AssignedAccountsFilter) _assigned = arg;
+  }
 
   @override
   void initState() {
@@ -118,6 +132,7 @@ class _OrganisationsListScreenState
       final result = await ref.read(adminOrganisationsRepositoryProvider).list(
             page: _page,
             filters: OrganisationListFilters(
+              userIds: _assigned?.userIds,
               search: _searchController.text.trim().isEmpty
                   ? null
                   : _searchController.text.trim(),
@@ -347,6 +362,18 @@ class _OrganisationsListScreenState
               const Text('Rehab / Hospitals',
                   style: TextStyle(fontSize: AppTypography.display, fontWeight: FontWeight.bold)),
               const SizedBox(height: AppSpacing.md),
+              if (_assigned != null)
+                AssignedAccountsBanner(
+                  filter: _assigned!,
+                  noun: 'organisations',
+                  onShowAll: () {
+                    setState(() {
+                      _assigned = null;
+                      _page = 1;
+                    });
+                    _load();
+                  },
+                ),
               _buildFilterPanel(),
               const SizedBox(height: AppSpacing.xs),
               // Wide layouts sort by clicking the table's column headers; the
