@@ -189,10 +189,12 @@ void main() {
       expect(find.text('Overall rating: 5.0 / 5'), findsOneWidget);
     });
 
-    testWidgets('a caregiver nobody has rated shows no stars and no rating text', (tester) async {
+    testWidgets('a caregiver nobody has rated still shows the arc, with empty stars and "Not rated yet"', (tester) async {
       await _pump(tester, CaregiverProfileViewScreen(fetchProfile: () async => _profile()));
-      expect(find.byKey(const Key('rating-arc-avatar')), findsNothing);
-      expect(find.byKey(const Key('overall-rating-text')), findsNothing);
+      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
+      expect(find.byIcon(Icons.star_border), findsNWidgets(5));
+      expect(find.byIcon(Icons.star), findsNothing);
+      expect(find.text('Not rated yet'), findsOneWidget);
     });
   });
 }

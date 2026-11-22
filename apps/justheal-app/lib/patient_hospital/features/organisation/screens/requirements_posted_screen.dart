@@ -566,12 +566,9 @@ class _RequirementCard extends StatelessWidget {
   /// (admin-rejected or already cancelled once).
   bool get _canCancel => !requirement.isCancelled && requirement.rejectionReason == null;
 
-  /// Mirrors the backend's own JOB_014 check — editing is blocked the
-  /// moment ANY caregiver has ever applied, regardless of the requirement's
-  /// own status or that application's own status (applied/accepted/
-  /// rejected/completed all lock it) — a deliberately stricter rule than
-  /// the jobs pipeline's own edit lock.
-  bool get _hasAnyApplication => applications.isNotEmpty;
+  /// Mirrors the backend's own JOB_014 check — editing is locked while any caregiver is applied,
+  /// accepted or has closed duty. Once every candidate is rejected (or nobody applied) it unlocks.
+  bool get _hasAnyApplication => applications.any((a) => a.status != JobApplicationStatus.rejected);
 
   String get _statusLabel {
     switch (requirement.status) {
@@ -924,70 +921,57 @@ class _ApplicantTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Row 1: the name (tap opens the profile, where the overall rating is shown) and the status.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // A rated caregiver is recognisable at a glance: her overall rating as stars in an arc over
-              // her picture (nothing is shown until she has been rated).
-              if (application.overallRating != null) ...[
-                VitaRatingArcAvatar(
-                  avatarRadius: 18,
-                  rating: application.overallRating,
-                  starSize: 11,
-                  avatar: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primaryLight,
-                    child: Text(
-                      application.fullName.trim().isEmpty ? '?' : application.fullName.trim()[0].toUpperCase(),
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+              Expanded(
+                child: InkWell(
+                  key: Key('applicant-name-${application.id}'),
+                  onTap: onViewProfile,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: application.fullName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                              decoration: TextDecoration.underline),
+                        ),
+                        if (_isAccepted)
+                          const WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          // Tapping the name or the number below opens the dialer.
-                          child: CallTap(
-                            phone: application.phone,
-                            name: application.fullName,
-                            child: Text(application.fullName,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w600)),
-                          ),
-                        ),
-                        if (_isAccepted) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          const Icon(Icons.check_circle, color: AppColors.success, size: 16),
-                        ],
-                      ],
-                    ),
-                    PhoneContactRow(phone: application.phone, name: application.fullName),
-                  ],
-                ),
               ),
+              const SizedBox(width: AppSpacing.sm),
               if (isDeciding)
                 const SizedBox(height: 20, width: 20, child: VitaLoadingIndicator(size: 20))
               else
-                // The status sits up here beside the name, never in the
-                // same row as the Accept/Reject buttons below.
                 Text(
                   _statusLabel,
                   style: TextStyle(color: _statusColor, fontWeight: FontWeight.bold),
                 ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+          // Row 2: phone and WhatsApp, on the tile's full width so the number is never cut.
+          PhoneContactRow(phone: application.phone, name: application.fullName),
+          const SizedBox(height: AppSpacing.md),
           if (_isAccepted && !isDeciding) _buildAgreement(),
-          const SizedBox(height: 2),
           // The full per-transition log — actor, action, date/time, and
           // reason (if any) — not just the bare current status word.
           _ApplicantTimeline(application),
           if (!isDeciding) ...[
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.md),
             // View Profile on the left, Accept + Reject together on the right.
             // FittedBox scales the pair down on a very narrow tile instead of
             // letting Reject wrap onto a second line.
@@ -999,7 +983,7 @@ class _ApplicantTile extends StatelessWidget {
                   icon: const Icon(Icons.person_outline, size: 16),
                   label: const Text('View Profile'),
                 ),
-                const SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -1018,7 +1002,7 @@ class _ApplicantTile extends StatelessWidget {
                               icon: const Icon(Icons.check, size: 16),
                               label: Text((_isRejected || _isCompleted) ? 'Accept Anyway' : 'Accept'),
                             ),
-                          if (canAccept && canReject) const SizedBox(width: AppSpacing.xs),
+                          if (canAccept && canReject) const SizedBox(width: AppSpacing.md),
                           if (canReject)
                             FilledButton.icon(
                               onPressed: onReject,
@@ -1045,7 +1029,7 @@ class _ApplicantTile extends StatelessWidget {
 
 /// Tight padding / tap target so the three applicant buttons fit one row.
 final _compactButtonStyle = ButtonStyle(
-  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0)),
+  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6)),
   minimumSize: WidgetStateProperty.all(Size.zero),
   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
   visualDensity: VisualDensity.compact,

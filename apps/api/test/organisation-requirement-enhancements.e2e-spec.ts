@@ -518,8 +518,7 @@ describe('Organisation requirement enhancements (e2e)', () => {
       expect(res.body.error.code).toBe('JOB_014');
     });
 
-    it('rejects editing (JOB_014) even once that lone application was rejected — ANY application at all '
-      + 'locks editing, a deliberately stricter rule than the jobs pipeline', async () => {
+    it('allows editing again once every candidate was rejected', async () => {
       const org = await registerOrganisation('0175');
       const create = await request(app.getHttpServer())
         .post('/v1/organisation/requirements')
@@ -555,8 +554,8 @@ describe('Organisation requirement enhancements (e2e)', () => {
         .patch(`/v1/organisation/requirements/${requirementId}`)
         .set('Authorization', `Bearer ${org.access_token}`)
         .send(selfEditPayload())
-        .expect(400);
-      expect(res.body.error.code).toBe('JOB_014');
+        .expect(200);
+      expect(res.body.success).toBe(true);
     });
 
     it('rejects an unauthenticated request', async () => {

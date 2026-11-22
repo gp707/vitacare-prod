@@ -102,17 +102,20 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                             VitaRatingArcAvatar(
                               avatar: _Avatar(url: profile.selfiePhotoUrl),
                               avatarRadius: 48,
-                              rating: profile.overallRating,
+                              // Always drawn here: empty stars until she has been rated.
+                              rating: profile.overallRating ?? 0,
                               starSize: 24,
                             ),
-                            if (profile.overallRating != null) ...[
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                'Overall rating: ${profile.overallRating!.toStringAsFixed(1)} / 5',
-                                key: const Key('overall-rating-text'),
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade800),
-                              ),
-                            ],
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              profile.overallRating != null
+                                  ? 'Overall rating: ${profile.overallRating!.toStringAsFixed(1)} / 5'
+                                  : 'Not rated yet',
+                              key: const Key('overall-rating-text'),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: profile.overallRating != null ? Colors.amber.shade800 : AppColors.textSecondary),
+                            ),
                             const SizedBox(height: AppSpacing.md),
                             Text(
                               profile.fullName,

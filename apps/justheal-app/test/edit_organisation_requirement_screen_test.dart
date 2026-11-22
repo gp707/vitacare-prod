@@ -24,8 +24,26 @@ class _FakeOrganisationRepository extends OrganisationRepository {
   String? capturedPreferredGender;
   String? capturedExperienceRequired;
   String? capturedEmploymentType;
+  int setRangeCalls = 0;
+  int? capturedMin;
+  int? capturedMax;
+  String? capturedUnit;
 
   _FakeOrganisationRepository({this.editError}) : super(Dio());
+
+  @override
+  Future<OrganisationRequirementModel> setSalaryRange(
+    String requirementId, {
+    required int salaryMin,
+    required int salaryMax,
+    required String salaryUnit,
+  }) async {
+    setRangeCalls++;
+    capturedMin = salaryMin;
+    capturedMax = salaryMax;
+    capturedUnit = salaryUnit;
+    return _requirement();
+  }
 
   @override
   Future<OrganisationRequirementModel> editRequirement(
@@ -77,6 +95,9 @@ OrganisationRequirementModel _requirement({
   String? preferredGender,
   String? experienceRequired,
   String? employmentType,
+  int? salaryMin,
+  int? salaryMax,
+  String? salaryUnit,
 }) {
   return OrganisationRequirementModel.fromJson({
     'id': id,
@@ -91,6 +112,9 @@ OrganisationRequirementModel _requirement({
     'preferred_gender': preferredGender,
     'experience_required': experienceRequired,
     'employment_type': employmentType,
+    'salary_min': salaryMin,
+    'salary_max': salaryMax,
+    'salary_unit': salaryUnit,
     'status': 'pending_review',
     'posted_at': '2026-08-01T10:00:00Z',
   });
@@ -101,7 +125,7 @@ Future<void> _pump(
   _FakeOrganisationRepository repo, {
   required OrganisationRequirementModel requirement,
 }) async {
-  await tester.binding.setSurfaceSize(const Size(400, 1200));
+  await tester.binding.setSurfaceSize(const Size(400, 1700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
   final localStorage = await LocalStorage.create();
@@ -118,6 +142,56 @@ Future<void> _pump(
 }
 
 void main() {
+  group('salary range on the edit form', () {
+    testWidgets('is shown pre-filled, and a changed range is saved through setSalaryRange', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo,
+          requirement: _requirement(salaryMin: 4500, salaryMax: 5000, salaryUnit: 'monthly'));
+      expect(find.text('Salary range'), findsOneWidget);
+      expect(find.text('4500'), findsOneWidget);
+      expect(find.text('5000'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Highest (₹ per month)'), '6000');
+      await tester.tap(find.text('Per day'));
+      await tester.pump();
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      expect(repo.editCalled, isTrue);
+      expect(repo.setRangeCalls, 1);
+      expect(repo.capturedMin, 4500);
+      expect(repo.capturedMax, 6000);
+      expect(repo.capturedUnit, 'daily');
+    });
+
+    testWidgets('an unchanged range sends nothing extra', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo,
+          requirement: _requirement(salaryMin: 4500, salaryMax: 5000, salaryUnit: 'monthly'));
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+      expect(repo.editCalled, isTrue);
+      expect(repo.setRangeCalls, 0);
+    });
+
+    testWidgets('a requirement with no range can add one; one box alone is refused', (tester) async {
+      final repo = _FakeOrganisationRepository();
+      await _pump(tester, repo, requirement: _requirement());
+      await tester.enterText(find.widgetWithText(TextField, 'Lowest (₹ per month)'), '3000');
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+      expect(repo.editCalled, isFalse);
+      expect(find.text('Enter both the lowest and the highest salary'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Highest (₹ per month)'), '3500');
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+      expect(repo.setRangeCalls, 1);
+      expect(repo.capturedMin, 3000);
+      expect(repo.capturedMax, 3500);
+    });
+  });
+
   testWidgets('pre-fills every org-owned field from the existing requirement', (tester) async {
     final repo = _FakeOrganisationRepository();
     await _pump(

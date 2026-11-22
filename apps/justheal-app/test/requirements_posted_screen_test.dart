@@ -439,7 +439,7 @@ void main() {
     );
 
     expect(find.text('Closed — caregiver assigned'), findsOneWidget);
-    expect(find.text('Test Caregiver'), findsOneWidget);
+    expect(find.byKey(const Key('applicant-name-app-1')), findsOneWidget);
     expect(find.text('Accepted'), findsOneWidget);
   });
 
@@ -794,10 +794,8 @@ void main() {
     expect(find.text('Edit the Requirement (Locked)'), findsOneWidget);
   });
 
-  testWidgets(
-      'a rejected or completed application locks editing too — ANY application at all locks it, not just an '
-      'active applied/accepted one', (tester) async {
-    for (final status in ['rejected', 'completed']) {
+  testWidgets('a completed (closed duty) or accepted application keeps editing locked', (tester) async {
+    for (final status in ['accepted', 'completed']) {
       final repo = _FakeOrganisationRepository(
         requirements: [_requirement()],
         applicationsByRequirementId: {
@@ -821,6 +819,23 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await _settle(tester);
     }
+  });
+
+  testWidgets('editing unlocks when every candidate was rejected, and stays locked if one is still waiting',
+      (tester) async {
+    await _pump(
+      tester,
+      _FakeOrganisationRepository(
+        requirements: [_requirement()],
+        applicationsByRequirementId: {
+          'req-1': [_application(id: 'a', status: 'rejected'), _application(id: 'b', status: 'rejected')],
+        },
+      ),
+    );
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await _settle(tester);
+    expect(find.text('Edit the Requirement'), findsOneWidget);
+    expect(find.text('Edit the Requirement (Locked)'), findsNothing);
   });
 
   testWidgets('Hide Job for New Applications is disabled once the requirement was admin-rejected', (tester) async {
@@ -1173,23 +1188,21 @@ void main() {
     });
   });
 
-  group('the caregiver\'s overall rating as stars in an arc over her picture', () {
-    testWidgets('a rated applicant shows the arc, an unrated one does not', (tester) async {
+  group('applicant tile header', () {
+    testWidgets('no picture or star arc on the tile; name is a tappable link, phone below', (tester) async {
       await _pump(
         tester,
         _FakeOrganisationRepository(
           requirements: [_requirement()],
           applicationsByRequirementId: {
-            'req-1': [
-              _application(id: 'rated', fullName: 'Asha Rated', overallRating: 3.5),
-              _application(id: 'unrated', fullName: 'Ravi Unrated'),
-            ],
+            'req-1': [_application(id: 'rated', fullName: 'Asha Rated', overallRating: 3.5)],
           },
         ),
       );
-      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
-      expect(find.byIcon(Icons.star), findsNWidgets(3));
-      expect(find.byIcon(Icons.star_half), findsOneWidget);
+      expect(find.byKey(const Key('rating-arc-avatar')), findsNothing);
+      expect(find.byIcon(Icons.star), findsNothing);
+      expect(find.byKey(const Key('applicant-name-rated')), findsOneWidget);
+      expect(find.byKey(const Key('call-button')), findsOneWidget);
     });
   });
 }

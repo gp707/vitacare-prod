@@ -148,16 +148,13 @@ export class OrganisationRequirementApplicationsRepository {
     );
   }
 
-  /** Used by OrganisationRequirementsService.editRequirement (JOB_014) —
-   *  deliberately ANY application at all (applied/accepted/rejected/
-   *  completed), not just an active one. Unlike the jobs pipeline's
-   *  equivalent (JobApplicationsRepository.hasActiveApplicationForJob,
-   *  which only counts applied/accepted), an organisation requirement
-   *  locks for editing the moment any caregiver has ever responded to it —
-   *  a deliberate stricter rule requested specifically for Organisation. */
-  async hasAnyApplicationForRequirement(requirementId: string): Promise<boolean> {
+  /** Used by OrganisationRequirementsService.editRequirement (JOB_014): the requirement stays locked
+   *  while any caregiver is applied, accepted or has completed duty on it. Once EVERY candidate is
+   *  rejected (or nobody ever applied) it can be edited again. */
+  async hasNonRejectedApplicationForRequirement(requirementId: string): Promise<boolean> {
     const result = await this.db.query<{ count: string }>(
-      `SELECT COUNT(*) FROM organisation_requirement_applications WHERE requirement_id = $1`,
+      `SELECT COUNT(*) FROM organisation_requirement_applications
+        WHERE requirement_id = $1 AND status <> 'rejected'`,
       [requirementId],
     );
     return Number(result.rows[0].count) > 0;

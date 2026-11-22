@@ -128,10 +128,9 @@ export class OrganisationRequirementsService {
    *  status change, no posted_at bump, no re-broadcast push, and no admin
    *  re-review required, same as IndividualService.editRequirement.
    *  Allowed regardless of the requirement's current status (pending_review,
-   *  active, or closed) — the only gate is whether ANY caregiver has ever
-   *  applied (JOB_014), not just one still `applied`/`accepted` — a
-   *  rejected or completed application locks editing too, a deliberately
-   *  stricter rule than the jobs pipeline's equivalent check. There is
+   *  active, or closed) — the only gate is whether a caregiver is still
+   *  applied, accepted or has completed duty (JOB_014). Once every candidate
+   *  is rejected (or nobody applied) the requirement can be edited again. There is
    *  nothing admin-owned left to protect — admin's own role is a pure
    *  approve/reject click (see approveRequirement below), no fields at
    *  all. */
@@ -146,8 +145,8 @@ export class OrganisationRequirementsService {
 
     this.validateTypeOfNurseOther(dto.type_of_nurse, dto.type_of_nurse_other);
 
-    const hasAnyApplication = await this.applicationsRepo.hasAnyApplicationForRequirement(id);
-    if (hasAnyApplication) throw new AppException('JOB_014');
+    const hasLockingApplication = await this.applicationsRepo.hasNonRejectedApplicationForRequirement(id);
+    if (hasLockingApplication) throw new AppException('JOB_014');
 
     const requirement = await this.requirementsRepo.updateOwnFields(id, {
       type_of_nurse: dto.type_of_nurse,

@@ -55,6 +55,13 @@ class SalaryRangeInput extends StatelessWidget {
           ],
           selected: {unit},
           showSelectedIcon: false,
+              style: ButtonStyle(
+                // The chosen option is green (not the default grey) so it is obvious which one is active.
+                backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? AppColors.success : null),
+                foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? Colors.white : null),
+              ),
           onSelectionChanged: enabled ? (selection) => onUnitChanged(selection.first) : null,
         ),
         const SizedBox(height: AppSpacing.sm),

@@ -244,11 +244,11 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Make it live again?'),
+        title: const Text('Unhide and Make it Live?'),
         content: Text(
           'Caregivers will see this job again and can apply. '
           'Caregivers you have already accepted stay accepted.'
-          '${requirement.isCancelled ? ' Candidates who were rejected when you cancelled can apply again.' : ''}',
+          '${requirement.isCancelled ? ' Candidates who were rejected when you hid the job can apply again.' : ''}',
         ),
         actions: [
           TextButton(
@@ -257,7 +257,7 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Make it live'),
+            child: const Text('Yes, unhide it'),
           ),
         ],
       ),
@@ -281,19 +281,19 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancel this job?'),
+        title: const Text('Hide this job for new applications?'),
         content: const Text(
-          'The job will be closed and caregivers will no longer see it. Candidates who applied '
+          'The job will be hidden and caregivers will no longer see it. Candidates who applied '
           'but are not accepted will be rejected. Caregivers you have already accepted stay '
-          'accepted. You can make the job live again at any time.',
+          'accepted. You can unhide it and make it live again at any time.',
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('No, keep it')),
+              child: const Text('No, keep it live')),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Yes, cancel it',
+            child: const Text('Yes, hide it',
                 style: TextStyle(color: AppColors.error)),
           ),
         ],
@@ -998,7 +998,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
         return 'Live — visible to caregivers';
       case JobStatus.closed:
         if (widget.requirement.isCancelled) {
-          return _hasAcceptedApplicant ? 'Cancelled — caregiver assigned' : 'Cancelled';
+          return _hasAcceptedApplicant ? 'Hidden — caregiver assigned' : 'Hidden';
         }
         if (widget.requirement.rejectionReason != null) return 'Rejected';
         return _hasAcceptedApplicant ? 'Closed — caregiver assigned' : 'Closed';
@@ -1044,15 +1044,15 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     final menuActions = <_MenuAction>[
       if (!_canCancel && !_canMakeLive)
         // Admin-rejected: the patient can neither cancel nor revive it.
-        _MenuAction(label: 'Cancel the Job (Unavailable)', enabled: false, destructive: true, onSelected: widget.onCancel)
+        _MenuAction(label: 'Hide Job for New Applications (Unavailable)', enabled: false, destructive: true, onSelected: widget.onCancel)
       else ...[
         // Closed — because a caregiver was accepted, or because the patient cancelled — can
         // be made live again at any time; nobody already accepted is ever rejected by it.
-        if (_canMakeLive) _MenuAction(label: 'Make it live again', enabled: true, onSelected: widget.onMakeLive),
+        if (_canMakeLive) _MenuAction(label: 'Unhide and Make it Live', enabled: true, onSelected: widget.onMakeLive),
         // Live (or still in review, or closed by an acceptance) can be cancelled at any time:
         // candidates still waiting are rejected, accepted caregivers are left alone.
         if (_canCancel)
-          _MenuAction(label: 'Cancel the Job', enabled: true, destructive: true, onSelected: widget.onCancel),
+          _MenuAction(label: 'Hide Job for New Applications', enabled: true, destructive: true, onSelected: widget.onCancel),
       ],
     ];
 

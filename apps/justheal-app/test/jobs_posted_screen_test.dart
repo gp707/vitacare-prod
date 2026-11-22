@@ -1213,7 +1213,7 @@ void main() {
 
     expect(find.text('Edit the Job'), findsNothing);
     expect(find.text('Post Similar Requirement'), findsNothing);
-    expect(find.text('Cancel the Job'), findsOneWidget);
+    expect(find.text('Hide Job for New Applications'), findsOneWidget);
   });
 
   testWidgets('fields are always editable, even with an active application — no lock any more', (tester) async {
@@ -1417,18 +1417,18 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Cancel the Job'), findsOneWidget);
-    expect(find.text('Make it live again'), findsNothing);
-    await tester.tap(find.text('Cancel the Job'));
+    expect(find.text('Hide Job for New Applications'), findsOneWidget);
+    expect(find.text('Unhide and Make it Live'), findsNothing);
+    await tester.tap(find.text('Hide Job for New Applications'));
     await _settle(tester);
 
     // The warning says exactly what happens to whom.
-    expect(find.text('Cancel this job?'), findsOneWidget);
+    expect(find.text('Hide this job for new applications?'), findsOneWidget);
     expect(find.textContaining('Candidates who applied but are not accepted will be rejected'), findsOneWidget);
     expect(find.textContaining('Caregivers you have already accepted stay accepted'), findsOneWidget);
-    expect(find.textContaining('make the job live again at any time'), findsOneWidget);
+    expect(find.textContaining('unhide it and make it live again at any time'), findsOneWidget);
     expect(repo.cancelledJobId, isNull);
-    await tester.tap(find.text('Yes, cancel it'));
+    await tester.tap(find.text('Yes, hide it'));
     await _settle(tester);
 
     expect(repo.cancelledJobId, 'job-1');
@@ -1440,9 +1440,9 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Cancel the Job'));
+    await tester.tap(find.text('Hide Job for New Applications'));
     await _settle(tester);
-    await tester.tap(find.text('No, keep it'));
+    await tester.tap(find.text('No, keep it live'));
     await _settle(tester);
 
     expect(repo.cancelledJobId, isNull);
@@ -1460,12 +1460,12 @@ void main() {
       ),
     );
 
-    expect(find.text('Cancelled'), findsOneWidget);
+    expect(find.text('Hidden'), findsOneWidget);
     expect(find.textContaining('candidate applied in total'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Make it live again'), findsOneWidget);
-    expect(find.text('Cancel the Job'), findsNothing);
+    expect(find.text('Unhide and Make it Live'), findsOneWidget);
+    expect(find.text('Hide Job for New Applications'), findsNothing);
     expect(find.text('Make Active Again'), findsNothing);
   });
 
@@ -1477,11 +1477,11 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Make it live again'));
+    await tester.tap(find.text('Unhide and Make it Live'));
     await _settle(tester);
-    expect(find.text('Make it live again?'), findsOneWidget);
-    expect(find.textContaining('Candidates who were rejected when you cancelled can apply again.'), findsOneWidget);
-    await tester.tap(find.text('Make it live'));
+    expect(find.text('Unhide and Make it Live?'), findsOneWidget);
+    expect(find.textContaining('Candidates who were rejected when you hid the job can apply again.'), findsOneWidget);
+    await tester.tap(find.text('Yes, unhide it'));
     await _settle(tester);
 
     expect(repo.madeLiveJobId, 'job-1');
@@ -1496,9 +1496,9 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    await tester.tap(find.text('Make it live again'));
+    await tester.tap(find.text('Unhide and Make it Live'));
     await _settle(tester);
-    await tester.tap(find.text('Make it live'));
+    await tester.tap(find.text('Yes, unhide it'));
     await _settle(tester);
 
     expect(find.text('Posting is blocked on your account'), findsOneWidget);
@@ -1520,7 +1520,7 @@ void main() {
     expect(find.text('Rejected'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_vert));
     await _settle(tester);
-    expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
+    expect(find.text('Hide Job for New Applications (Unavailable)'), findsOneWidget);
   });
 
 
@@ -2065,39 +2065,39 @@ void main() {
     testWidgets('a job closed by an acceptance offers both Make it live again and Cancel the Job', (tester) async {
       await _pump(tester, repo());
       await openMenu(tester);
-      expect(find.text('Make it live again'), findsOneWidget);
-      expect(find.text('Cancel the Job'), findsOneWidget);
+      expect(find.text('Unhide and Make it Live'), findsOneWidget);
+      expect(find.text('Hide Job for New Applications'), findsOneWidget);
       expect(find.text('Permanently cancel'), findsNothing);
     });
 
     testWidgets('a live job (even with a caregiver already accepted) offers only Cancel the Job', (tester) async {
       await _pump(tester, repo(status: 'active'));
       await openMenu(tester);
-      expect(find.text('Cancel the Job'), findsOneWidget);
-      expect(find.text('Make it live again'), findsNothing);
+      expect(find.text('Hide Job for New Applications'), findsOneWidget);
+      expect(find.text('Unhide and Make it Live'), findsNothing);
     });
 
     testWidgets('a job still in admin review can be cancelled, and cannot be made live', (tester) async {
       await _pump(tester, _FakeIndividualRepository(requirements: [_requirement(status: 'pending_review')]));
       await openMenu(tester);
-      expect(find.text('Cancel the Job'), findsOneWidget);
-      expect(find.text('Make it live again'), findsNothing);
+      expect(find.text('Hide Job for New Applications'), findsOneWidget);
+      expect(find.text('Unhide and Make it Live'), findsNothing);
     });
 
     testWidgets('a cancelled job can be made live again but not cancelled again', (tester) async {
       await _pump(tester, repo(cancelledAt: '2026-11-17T10:00:00Z'));
       await openMenu(tester);
-      expect(find.text('Make it live again'), findsOneWidget);
-      expect(find.text('Cancel the Job'), findsNothing);
+      expect(find.text('Unhide and Make it Live'), findsOneWidget);
+      expect(find.text('Hide Job for New Applications'), findsNothing);
     });
 
     testWidgets('Make it live again confirms, and says nobody already accepted is rejected', (tester) async {
       final r = repo();
       await _pump(tester, r);
       await openMenu(tester);
-      await tester.tap(find.text('Make it live again'));
+      await tester.tap(find.text('Unhide and Make it Live'));
       await _settle(tester);
-      expect(find.text('Make it live again?'), findsOneWidget);
+      expect(find.text('Unhide and Make it Live?'), findsOneWidget);
       expect(find.textContaining('Caregivers you have already accepted stay accepted.'), findsOneWidget);
       expect(r.madeLiveJobId, isNull);
 
@@ -2110,9 +2110,9 @@ void main() {
       final r = repo();
       await _pump(tester, r);
       await openMenu(tester);
-      await tester.tap(find.text('Make it live again'));
+      await tester.tap(find.text('Unhide and Make it Live'));
       await _settle(tester);
-      await tester.tap(find.text('Make it live'));
+      await tester.tap(find.text('Yes, unhide it'));
       await _settle(tester);
       expect(r.madeLiveJobId, 'job-1');
       expect(r.decidedStatus, isNull);
@@ -2127,12 +2127,12 @@ void main() {
       ]);
       await _pump(tester, r);
       await openMenu(tester);
-      await tester.tap(find.text('Cancel the Job'));
+      await tester.tap(find.text('Hide Job for New Applications'));
       await _settle(tester);
-      expect(find.text('Cancel this job?'), findsOneWidget);
+      expect(find.text('Hide this job for new applications?'), findsOneWidget);
       expect(find.textContaining('Candidates who applied but are not accepted will be rejected'), findsOneWidget);
       expect(find.textContaining('Caregivers you have already accepted stay accepted'), findsOneWidget);
-      await tester.tap(find.text('Yes, cancel it'));
+      await tester.tap(find.text('Yes, hide it'));
       await _settle(tester);
       expect(r.cancelledJobId, 'job-1');
       expect(r.decidedStatus, isNull); // the app never rejects anyone itself; the server rejects only the waiting ones
@@ -2146,7 +2146,7 @@ void main() {
           _application(id: 'app-3', status: 'rejected', fullName: 'Ramesh Rejected', decidedBy: 'someone', declineReason: 'This requirement was cancelled.'),
         ]),
       );
-      expect(find.text('Cancelled — caregiver assigned'), findsOneWidget);
+      expect(find.text('Hidden — caregiver assigned'), findsOneWidget);
       expect(find.text('Asha Accepted'), findsOneWidget);
       expect(find.byKey(const Key('caregiver-card-app-9')), findsOneWidget);
       // a candidate rejected by the cancel can still be accepted ("Accept Anyway"), as always
@@ -2169,9 +2169,9 @@ void main() {
     testWidgets('an admin-rejected requirement can be neither cancelled nor made live by the patient', (tester) async {
       await _pump(tester, repo(rejectionReason: 'Duplicate posting', apps: [_application(status: 'accepted')]));
       await openMenu(tester);
-      expect(find.text('Make it live again'), findsNothing);
-      expect(find.text('Cancel the Job'), findsNothing);
-      expect(find.text('Cancel the Job (Unavailable)'), findsOneWidget);
+      expect(find.text('Unhide and Make it Live'), findsNothing);
+      expect(find.text('Hide Job for New Applications'), findsNothing);
+      expect(find.text('Hide Job for New Applications (Unavailable)'), findsOneWidget);
     });
 
     testWidgets('a live job with a caregiver accepted lets more candidates be accepted, with no banner', (tester) async {

@@ -7,6 +7,7 @@ import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../widgets/salary_range_input.dart';
 import '../widgets/special_skills_char_limit_note.dart';
 import 'package:nursenow_app/analytics/analytics.dart';
 
@@ -40,6 +41,15 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   late String? _preferredGender;
   late String? _experienceRequired;
   late String? _employmentType;
+
+  // Salary range, edited on the same form. An existing range can be changed but not removed (no endpoint
+  // clears it), so once one is set both boxes are required.
+  late final _salaryMinController =
+      TextEditingController(text: widget.requirement.hasSalaryRange ? widget.requirement.salaryMin.toString() : '');
+  late final _salaryMaxController =
+      TextEditingController(text: widget.requirement.hasSalaryRange ? widget.requirement.salaryMax.toString() : '');
+  late String _salaryUnit = widget.requirement.hasSalaryRange ? widget.requirement.salaryUnit! : 'monthly';
+  final _salaryRangeKey = GlobalKey();
 
   bool _saving = false;
   String? _error;
@@ -75,8 +85,23 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
   bool get _isSpecialSkillsValid =>
       _specialSkillsController.text.length <= Validation.specialSkillsMaxLength;
 
+  String? get _salaryRangeProblem => salaryRangeError(
+        _salaryMinController.text,
+        _salaryMaxController.text,
+        required: widget.requirement.hasSalaryRange,
+      );
+  bool get _hasSalaryRange =>
+      _salaryMinController.text.trim().isNotEmpty && _salaryMaxController.text.trim().isNotEmpty;
+  bool get _salaryRangeChanged =>
+      _hasSalaryRange &&
+      (!widget.requirement.hasSalaryRange ||
+          int.parse(_salaryMinController.text.trim()) != widget.requirement.salaryMin ||
+          int.parse(_salaryMaxController.text.trim()) != widget.requirement.salaryMax ||
+          _salaryUnit != widget.requirement.salaryUnit);
+
   bool get _canSubmit =>
       !_saving &&
+      _salaryRangeProblem == null &&
       _isTypeOfNurseValid &&
       _isTypeOfNurseOtherValid &&
       _isNumberOfVacanciesValid &&
@@ -87,6 +112,7 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
         if (_typeOfNurse == TypeOfNurse.others) _typeOfNurseOtherKey,
         _numberOfVacanciesKey,
         if (!_isSpecialSkillsValid) _specialSkillsKey,
+        if (_salaryRangeProblem != null) _salaryRangeKey,
       ];
 
   @override
@@ -95,6 +121,8 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
     _specialSkillsController.dispose();
     _specialSkillsScrollController.dispose();
     _numberOfVacanciesController.dispose();
+    _salaryMinController.dispose();
+    _salaryMaxController.dispose();
     super.dispose();
   }
 
@@ -135,6 +163,15 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
             experienceRequired: _experienceRequired,
             employmentType: _employmentType,
           );
+      // The salary range has its own endpoint (it can change at any time); only sent when it changed.
+      if (_salaryRangeChanged) {
+        await ref.read(organisationRepositoryProvider).setSalaryRange(
+              widget.requirement.id,
+              salaryMin: int.parse(_salaryMinController.text.trim()),
+              salaryMax: int.parse(_salaryMaxController.text.trim()),
+              salaryUnit: _salaryUnit,
+            );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -250,6 +287,41 @@ class _EditOrganisationRequirementScreenState extends ConsumerState<EditOrganisa
                 DropdownMenuItem(value: Gender.female, child: Text('Female')),
               ],
               onChanged: (value) => setState(() => _preferredGender = value),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              key: _salaryRangeKey,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.payments_outlined, color: AppColors.primaryDark),
+                      SizedBox(width: AppSpacing.sm),
+                      Flexible(child: Text('Salary range', style: TextStyle(fontWeight: FontWeight.bold))),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const Text(
+                    'Caregivers see this range. You can change it any time.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SalaryRangeInput(
+                    minController: _salaryMinController,
+                    maxController: _salaryMaxController,
+                    unit: _salaryUnit,
+                    onUnitChanged: (u) => setState(() => _salaryUnit = u),
+                    onChanged: () => setState(() {}),
+                    errorText: _showValidationErrors ? _salaryRangeProblem : null,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             SwitchListTile(

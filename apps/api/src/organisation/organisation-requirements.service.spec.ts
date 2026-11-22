@@ -45,7 +45,7 @@ describe('OrganisationRequirementsService', () => {
       markCompleted: jest.fn(),
       countAcceptedByProfileId: jest.fn(),
       findAssignedByProfileId: jest.fn(),
-      hasAnyApplicationForRequirement: jest.fn(),
+      hasNonRejectedApplicationForRequirement: jest.fn(),
       setAgreement: jest.fn(),
     };
     caregiverProfilesRepo = { findByUserId: jest.fn(), findFullById: jest.fn(), markAvailable: jest.fn(), countAcceptedWork: jest.fn() };
@@ -274,25 +274,24 @@ describe('OrganisationRequirementsService', () => {
       });
     });
 
-    it('throws JOB_014 when any application exists at all — even a rejected or completed one, not just '
-      + 'an active applied/accepted one (a deliberately stricter rule than the jobs pipeline)', async () => {
+    it('throws JOB_014 while an application is applied, accepted or completed (all-rejected is editable)', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
-      applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(true);
+      applicationsRepo.hasNonRejectedApplicationForRequirement.mockResolvedValue(true);
       await expect(service.editRequirement('org-1', 'req-1', editDto, null)).rejects.toMatchObject({
         code: 'JOB_014',
       });
       expect(requirementsRepo.updateOwnFields).not.toHaveBeenCalled();
     });
 
-    it('calls hasAnyApplicationForRequirement (not the active-only check) when deciding whether editing is locked',
+    it('calls hasNonRejectedApplicationForRequirement (not the active-only check) when deciding whether editing is locked',
       async () => {
         requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
-        applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(false);
+        applicationsRepo.hasNonRejectedApplicationForRequirement.mockResolvedValue(false);
         requirementsRepo.updateOwnFields.mockResolvedValue({ id: 'req-1' });
 
         await service.editRequirement('org-1', 'req-1', editDto, null);
 
-        expect(applicationsRepo.hasAnyApplicationForRequirement).toHaveBeenCalledWith('req-1');
+        expect(applicationsRepo.hasNonRejectedApplicationForRequirement).toHaveBeenCalledWith('req-1');
       });
 
     it('updates only the org-owned fields, regardless of the requirement status', async () => {
@@ -302,7 +301,7 @@ describe('OrganisationRequirementsService', () => {
         status: 'active',
         type_of_nurse: 'nursing_completed',
       });
-      applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(false);
+      applicationsRepo.hasNonRejectedApplicationForRequirement.mockResolvedValue(false);
       requirementsRepo.updateOwnFields.mockResolvedValue({
         id: 'req-1',
         status: 'active',
@@ -327,7 +326,7 @@ describe('OrganisationRequirementsService', () => {
 
     it('persists type_of_nurse_other only when type_of_nurse is others', async () => {
       requirementsRepo.findById.mockResolvedValue({ id: 'req-1', posted_by: 'org-1' });
-      applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(false);
+      applicationsRepo.hasNonRejectedApplicationForRequirement.mockResolvedValue(false);
       requirementsRepo.updateOwnFields.mockResolvedValue({ id: 'req-1' });
 
       await service.editRequirement(
@@ -1148,7 +1147,7 @@ describe('OrganisationRequirementsService', () => {
 
       it('works even when caregivers have already applied (the rest of the edit is locked by JOB_014, this is not)', async () => {
         requirementsRepo.findById.mockResolvedValue(live);
-        applicationsRepo.hasAnyApplicationForRequirement.mockResolvedValue(true);
+        applicationsRepo.hasNonRejectedApplicationForRequirement.mockResolvedValue(true);
         requirementsRepo.setSalaryRange.mockResolvedValue({ ...live, ...range });
         await expect(service.setSalaryRange('org-1', 'req-1', range, null)).resolves.toMatchObject(range);
         expect(requirementsRepo.setSalaryRange).toHaveBeenCalledWith('req-1', range);

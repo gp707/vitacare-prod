@@ -5,10 +5,10 @@ import 'applicant_timeline.dart';
 import 'call_tap.dart';
 import 'feedback_widgets.dart';
 
-/// The accepted caregiver card's green: the Rate Card green (`AppColors.success`) mixed about 28% toward
-/// white — a clearly lighter, fresher green with white text on it. Lighter than this and white text stops
-/// being comfortable to read (it would need dark text instead).
-const Color kAcceptedGreen = Color(0xFF4DBE75);
+/// The accepted caregiver card's green: the Rate Card green (`AppColors.success`) mixed about 36% toward
+/// white — a soft, light green with white text on it. It went lighter in steps on request; the lighter it
+/// gets the weaker white text reads (about 2.2:1 here), so going further would need dark text instead.
+const Color kAcceptedGreen = Color(0xFF5CC583);
 
 /// One accepted caregiver at a glance, on the patient's requirement screen: who they
 /// are and what was agreed with them (their own salary and start date). A patient can

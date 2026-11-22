@@ -175,6 +175,13 @@ class _AgreementDialogState extends State<_AgreementDialog> {
               ],
               selected: {_unit},
               showSelectedIcon: false,
+              style: ButtonStyle(
+                // The chosen option is green (not the default grey) so it is obvious which one is active.
+                backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? AppColors.success : null),
+                foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? Colors.white : null),
+              ),
               onSelectionChanged: _saving ? null : (selection) => setState(() => _unit = selection.first),
             ),
             const SizedBox(height: AppSpacing.sm),
