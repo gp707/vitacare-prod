@@ -29,6 +29,7 @@ export class AdminOrganisationsService {
     const { items, total } = await this.organisationsRepo.listOrganisations(
       {
         search: query.search,
+        userIds: query.user_ids,
         blockStatus: query.block_status,
         organisationType: query.organisation_type,
         city: query.city,

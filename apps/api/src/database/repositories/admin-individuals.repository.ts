@@ -19,6 +19,8 @@ export interface AdminIndividualListFilters {
   /** Matches full_name, phone, or the display id (PAT-<n>). */
   search?: string;
   blockStatus?: 'active' | 'job_posting_blocked' | 'blocked';
+  /** Only these accounts (user ids). */
+  userIds?: string[];
 }
 
 export const INDIVIDUAL_SORT_COLUMNS = {
@@ -40,6 +42,10 @@ function buildIndividualsWhereClause(filters: AdminIndividualListFilters): {
     conditions.push(
       `(u.full_name ILIKE $${params.length} OR u.phone ILIKE $${params.length} OR ('PAT-' || ip.patient_number::text) ILIKE $${params.length})`,
     );
+  }
+  if (filters.userIds && filters.userIds.length > 0) {
+    params.push(filters.userIds);
+    conditions.push(`u.id = ANY($${params.length}::uuid[])`);
   }
   if (filters.blockStatus === 'blocked') {
     conditions.push(`u.is_active = false`);

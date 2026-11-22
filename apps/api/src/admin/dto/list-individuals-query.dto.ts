@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Validation } from '@vitacare/shared-constants';
 
 export class ListIndividualsQueryDto {
@@ -32,4 +32,12 @@ export class ListIndividualsQueryDto {
   @IsOptional()
   @IsIn(['active', 'job_posting_blocked', 'blocked'], { message: 'GEN_005' })
   block_status?: 'active' | 'job_posting_blocked' | 'blocked';
+
+  /** Comma-separated account (user) ids: show only these accounts (e.g. the patients a caregiver is assigned to). */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.split(',').map((v) => v.trim()).filter(Boolean) : value))
+  @IsArray({ message: 'GEN_005' })
+  @ArrayMaxSize(100, { message: 'GEN_005' })
+  @IsUUID('all', { each: true, message: 'GEN_005' })
+  user_ids?: string[];
 }

@@ -37,6 +37,8 @@ export interface AdminOrganisationListFilters {
   blockStatus?: 'active' | 'job_posting_blocked' | 'blocked';
   organisationType?: string;
   city?: string;
+  /** Only these accounts (user ids). */
+  userIds?: string[];
 }
 
 function buildOrganisationsWhereClause(filters: AdminOrganisationListFilters): {
@@ -51,6 +53,10 @@ function buildOrganisationsWhereClause(filters: AdminOrganisationListFilters): {
       `(op.organisation_name ILIKE $${params.length} OR u.full_name ILIKE $${params.length}
         OR u.phone ILIKE $${params.length} OR ('ORG-' || op.org_number::text) ILIKE $${params.length})`,
     );
+  }
+  if (filters.userIds && filters.userIds.length > 0) {
+    params.push(filters.userIds);
+    conditions.push(`u.id = ANY($${params.length}::uuid[])`);
   }
   if (filters.blockStatus === 'blocked') {
     conditions.push(`u.is_active = false`);

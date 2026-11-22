@@ -53,6 +53,8 @@ export interface CaregiverAssignment {
   job_id: string;
   /** ADMIN-JOB-n / PAT-JOB-n / ORG-JOB-n. */
   label: string;
+  /** The poster's account (user) id — null for nothing; used to open that account's list entry. */
+  poster_id: string | null;
   poster_name: string | null;
   poster_role: string | null;
   poster_number: number | null;
@@ -236,7 +238,7 @@ export class AdminCaregiversRepository {
                              'label', CASE WHEN j.admin_job_number IS NOT NULL
                                            THEN 'ADMIN-JOB-' || j.admin_job_number::text
                                            ELSE 'PAT-JOB-' || j.patient_job_number::text END,
-                             'poster_name', pu.full_name, 'poster_role', pu.role, 'poster_number', ip.patient_number,
+                             'poster_id', j.posted_by, 'poster_name', pu.full_name, 'poster_role', pu.role, 'poster_number', ip.patient_number,
                              'city', j.city, 'shift', j.duty_type, 'accepted_at', ja.accepted_at) AS a
                     FROM job_applications ja
                     JOIN jobs j ON j.id = ja.job_id
@@ -247,7 +249,7 @@ export class AdminCaregiversRepository {
                     SELECT jsonb_build_object(
                              'kind', 'organisation_requirement', 'job_id', r.id,
                              'label', 'ORG-JOB-' || r.requirement_number::text,
-                             'poster_name', op.organisation_name, 'poster_role', 'organisation', 'poster_number', op.org_number,
+                             'poster_id', r.posted_by, 'poster_name', op.organisation_name, 'poster_role', 'organisation', 'poster_number', op.org_number,
                              'city', op.city, 'shift', NULL, 'accepted_at', oa.accepted_at) AS a
                     FROM organisation_requirement_applications oa
                     JOIN organisation_requirements r ON r.id = oa.requirement_id

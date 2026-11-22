@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { City, OrganisationType, Validation } from '@vitacare/shared-constants';
 
 export class ListOrganisationsQueryDto {
@@ -46,4 +46,12 @@ export class ListOrganisationsQueryDto {
   @IsOptional()
   @IsIn([...Object.values(City), 'others'], { message: 'GEN_005' })
   city?: string;
+
+  /** Comma-separated account (user) ids: show only these accounts (e.g. the patients a caregiver is assigned to). */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.split(',').map((v) => v.trim()).filter(Boolean) : value))
+  @IsArray({ message: 'GEN_005' })
+  @ArrayMaxSize(100, { message: 'GEN_005' })
+  @IsUUID('all', { each: true, message: 'GEN_005' })
+  user_ids?: string[];
 }

@@ -25,7 +25,7 @@ export class AdminIndividualsService {
 
   async listIndividuals(query: ListIndividualsQueryDto) {
     const { items, total } = await this.individualsRepo.listIndividuals(
-      { search: query.search, blockStatus: query.block_status },
+      { search: query.search, blockStatus: query.block_status, userIds: query.user_ids },
       { page: query.page, limit: query.limit, sort: query.sort, order: query.order },
     );
     const meta: PaginationMeta = {
