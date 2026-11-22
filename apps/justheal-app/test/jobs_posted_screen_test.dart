@@ -2295,15 +2295,11 @@ void main() {
       expect(repo.agreementSalary, 1200);
     });
 
-    testWidgets('Agreed salary, the amount and the start date sit on one line', (tester) async {
+    testWidgets('Agreed salary, the amount and the start date are full size (they wrap, never shrink)', (tester) async {
       await _pump(tester, twoCaregivers());
       final line = find.byKey(const Key('card-agreement-line-a1'));
       expect(line, findsOneWidget);
-      final salaryY = tester.getCenter(find.byKey(const Key('card-salary-a1'))).dy;
-      final startY = tester.getCenter(find.byKey(const Key('card-start-a1'))).dy;
-      final labelY = tester.getCenter(find.descendant(of: line, matching: find.text('Agreed salary:'))).dy;
-      expect((salaryY - startY).abs(), lessThan(8));
-      expect((salaryY - labelY).abs(), lessThan(8));
+      expect(find.descendant(of: line, matching: find.byType(FittedBox)), findsNothing);
       double size(Finder f) => tester.widget<Text>(f).style!.fontSize!;
       final label = find.descendant(of: line, matching: find.text('Agreed salary:'));
       expect(size(label), size(find.byKey(const Key('card-salary-a1'))));

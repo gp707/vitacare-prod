@@ -2109,7 +2109,8 @@ class _ApplicantTile extends StatelessWidget {
           ),
           Text(
             'Starts ${formatLongDate(startDate)}',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: AppTypography.small),
+            // Same size as the salary line above it (it used to be the small 12 pt text).
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
           // Only a caregiver still on the job can have it changed; a past one is a read-only record.
           if (_isAccepted) ...[

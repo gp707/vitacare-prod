@@ -141,33 +141,26 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
 
           // ── Their own salary ──
           if (hasAgreement) ...[
-            // Label, amount and start date on one line, scaled down a little rather than wrapped.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Row(
-                key: Key('card-agreement-line-${widget.application.id}'),
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  const Text('Agreed salary:', style: TextStyle(color: Colors.white70, fontSize: AppTypography.subtitle)),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    '₹${formatRupees(salary)} per $unitWord',
-                    key: Key('card-salary-${widget.application.id}'),
-                    softWrap: false,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
-                  ),
-                  const Text('  ·  ', style: TextStyle(color: Colors.white70, fontSize: AppTypography.subtitle)),
-                  Text(
-                    'Starts ${formatLongDate(startDate)}',
-                    key: Key('card-start-${widget.application.id}'),
-                    softWrap: false,
-                    style: const TextStyle(color: Colors.white, fontSize: AppTypography.subtitle),
-                  ),
-                ],
-              ),
+            // Label, amount and start date at full size: they wrap onto a second line on a narrow phone
+            // rather than shrinking (a scaled-down line read as very small next to the rest of the card).
+            Wrap(
+              key: Key('card-agreement-line-${widget.application.id}'),
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.md,
+              runSpacing: 2,
+              children: [
+                const Text('Agreed salary:', style: TextStyle(color: Colors.white70, fontSize: AppTypography.subtitle)),
+                Text(
+                  '₹${formatRupees(salary)} per $unitWord',
+                  key: Key('card-salary-${widget.application.id}'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppTypography.subtitle, color: Colors.white),
+                ),
+                Text(
+                  'Starts ${formatLongDate(startDate)}',
+                  key: Key('card-start-${widget.application.id}'),
+                  style: const TextStyle(color: Colors.white, fontSize: AppTypography.subtitle),
+                ),
+              ],
             ),
           ] else
             Container(
