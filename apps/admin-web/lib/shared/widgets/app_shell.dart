@@ -83,7 +83,8 @@ class AppShell extends ConsumerWidget {
                   ref: ref,
                   badgeCounts: badgeCounts)),
         ),
-        body: child,
+        // SelectionArea: the admin can select and copy any text on a screen (tables, names, ids, phones).
+        body: SelectionArea(child: child),
         bottomNavigationBar: bottomBar,
       );
     }
@@ -105,7 +106,7 @@ class AppShell extends ConsumerWidget {
                 onToggleCollapsed: () =>
                     ref.read(sidebarCollapsedProvider.notifier).toggle()),
           ),
-          Expanded(child: child),
+          Expanded(child: SelectionArea(child: child)),
         ],
       ),
       bottomNavigationBar: bottomBar,

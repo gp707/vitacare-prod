@@ -686,8 +686,16 @@ void main() {
           // Straight to /settings/maintenance — mirrors a direct URL visit
           // or a page refresh restored via root_screen.dart's
           // _restorableRoutes.
+          // Only the one route (no parent '/settings' underneath it, which Navigator would otherwise stack
+          // below and never lay out — the SelectionArea in AppShell needs laid-out boxes).
           child: MaterialApp(
             initialRoute: '/settings/maintenance',
+            onGenerateInitialRoutes: (name) => [
+              MaterialPageRoute<void>(
+                settings: RouteSettings(name: name),
+                builder: (_) => SettingsScreen(initialTabIndex: SettingsScreen.tabRoutes.indexOf(name)),
+              ),
+            ],
             routes: {
               for (var i = 0; i < SettingsScreen.tabRoutes.length; i++)
                 SettingsScreen.tabRoutes[i]: (_) => SettingsScreen(initialTabIndex: i),

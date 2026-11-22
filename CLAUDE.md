@@ -1433,6 +1433,13 @@ and never blocks or fails a push. API (any signed-in role, `JwtAuthGuard` only):
 merged into `MessagesBellButton` (patient/caregiver: alerts first, then the existing computed messages; badge counts both; polled every 60 s; opening an alert and closing it marks it read on the server and drops it). The
 **organisation** now has a bell too (`MessagesBellButton(inboxOnly: true)` on Requirements Posted and Profile): it shows only its alerts, since an organisation has no computed messages.
 
+## Copy and paste in admin-web (2026-11-22)
+
+Flutter web text is not selectable by default. `AppShell` (`shared/widgets/app_shell.dart`) now wraps the content area (both the wide layout and the compact/Drawer one) in a `SelectionArea`, so on every screen that uses it
+(all of them except Login) the admin can drag-select and copy text from tables, details and cards. Clicking a row/button still works as before. Not covered: text inside dialogs and bottom sheets (they sit above the
+shell), and text fields have always been copyable. Gotcha for tests: `SelectionArea` sorts its selectables using laid-out boxes, so a test that starts a `MaterialApp` on a nested `initialRoute` (Navigator stacks the parent
+route underneath, which is never laid out) must give `onGenerateInitialRoutes` a single route — see `settings_screen_test.dart`.
+
 ## Admin Insights (activity, usage, drop-off)
 
 admin-web's **Insights** screen (`/insights`, sidebar item right after Error Logs, any admin) answers

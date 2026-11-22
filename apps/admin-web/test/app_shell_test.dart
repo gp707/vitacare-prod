@@ -62,6 +62,25 @@ Future<void> _pumpShellAs(WidgetTester tester, String role, {DashboardStats? bad
 }
 
 void main() {
+  testWidgets('the content area is selectable, so the admin can copy text from tables and details', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
+    final localStorage = await LocalStorage.create();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        localStorageProvider.overrideWithValue(localStorage),
+        sessionProvider.overrideWith((ref) => SessionNotifier(localStorage)..state = const AdminSessionAuthenticated(userId: 'u1', role: 'admin')),
+      ],
+      child: const MaterialApp(
+        home: AppShell(current: AppShellSection.dashboard, child: Text('PAT-625 Hansa +919876543210')),
+      ),
+    ));
+    await tester.pump();
+    expect(find.ancestor(of: find.text('PAT-625 Hansa +919876543210'), matching: find.byType(SelectionArea)), findsOneWidget);
+  });
+
   testWidgets('sidebar order: Jobs, Caregivers, Insights, Rejections first; Dashboard just above Logout', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
