@@ -19,7 +19,11 @@ class JobPosterContactCard extends StatelessWidget {
   /// Injectable for widget tests — defaults to the real url_launcher call.
   final Future<bool> Function(Uri uri)? launcher;
 
-  const JobPosterContactCard({super.key, required this.poster, this.showPhone = true, this.launcher});
+  /// The caregiver's own feedback about whoever posted the job ("Write feedback about the family"),
+  /// shown inside this box. Null when there is none to show (organisations, or work not started).
+  final Widget? feedback;
+
+  const JobPosterContactCard({super.key, required this.poster, this.showPhone = true, this.launcher, this.feedback});
 
   Future<void> _open(BuildContext context, Uri uri, String failureMessage) async {
     bool launched;
@@ -93,6 +97,10 @@ class JobPosterContactCard extends StatelessWidget {
                 ),
               ],
             ),
+          ],
+          if (feedback != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            feedback!,
           ],
         ],
       ),

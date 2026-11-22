@@ -342,17 +342,27 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
     );
   }
 
-  /// "Rate the family" + what they wrote about you, for a job a patient/family posted
-  /// once the work has started. Null for admin-posted jobs and before there is anything to show.
+  /// What the family rated you (stars only), on its own: separate from your own feedback below.
   Widget? _feedbackFor(JobModel job) {
+    final app = job.myApplication;
+    if (app == null || job.jobPoster?.isFamily != true || app.theirFeedback == null) return null;
+    return FeedbackSection(aboutLabel: 'family', mine: null, received: app.theirFeedback, eligible: false);
+  }
+
+  /// "Write feedback about the family", inside the Posted by box, once the work has started (and your
+  /// own feedback with an Edit button once written). Null for organisations (no feedback for them yet),
+  /// admin-posted jobs, and before the work has started.
+  Widget? _feedbackAboutPoster(JobModel job) {
     final app = job.myApplication;
     if (app == null || job.jobPoster?.isFamily != true) return null;
     final eligible = feedbackEligible(acceptedAt: app.acceptedAt, agreedStartDate: app.agreedStartDate);
-    if (app.myFeedback == null && app.theirFeedback == null && !eligible) return null;
+    if (app.myFeedback == null && !eligible) return null;
     return FeedbackSection(
       aboutLabel: 'family',
+      leaveLabel: 'Write feedback about the family',
+      mineTitle: 'Your feedback about the family',
       mine: app.myFeedback,
-      received: app.theirFeedback,
+      received: null,
       eligible: eligible,
       onLeave: () => _leaveFeedback(job),
       onEdit: () => _leaveFeedback(job),
@@ -607,7 +617,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               timeline: job.myApplication != null ? ApplicationTimeline(job.myApplication!) : null,
               agreement: _agreementFor(job),
               feedback: _feedbackFor(job),
-              contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!) : null,
+              contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!, feedback: _feedbackAboutPoster(job)) : null,
               actionLabel: 'Close Duty',
               busy: _busyId.contains(job.id),
               onAction: () => _completeJob(job),
@@ -699,7 +709,7 @@ class _MyAssignmentScreenState extends ConsumerState<MyAssignmentScreen> {
               ),
               timeline: ApplicationTimeline(job.myApplication!),
               feedback: _feedbackFor(job),
-              contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!, showPhone: false) : null,
+              contactCard: job.jobPoster != null ? JobPosterContactCard(poster: job.jobPoster!, showPhone: false, feedback: _feedbackAboutPoster(job)) : null,
               actionLabel: _canReapplyToJob(job) ? 'Reapply' : null,
               busy: _busyId.contains(job.id),
               onAction: _canReapplyToJob(job) ? () => _reapplyToJob(job) : null,
@@ -906,7 +916,7 @@ class _RequirementSummary extends StatelessWidget {
         Text(_typeOfNurseText, style: const TextStyle(color: AppColors.textSecondary)),
         if (salaryRangeLabel(requirement) != null) ...[
           const SizedBox(height: AppSpacing.xs),
-          SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+          SalaryRangeLine(label: salaryRangeLabel(requirement)!, negotiateWith: negotiationPartner(requirement)),
         ],
         const SizedBox(height: AppSpacing.xs),
         InkWell(

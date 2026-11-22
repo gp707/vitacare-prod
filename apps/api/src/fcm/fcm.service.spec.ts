@@ -16,6 +16,7 @@ describe('FcmService', () => {
   let service: FcmService;
   let configService: any;
   let usersRepo: any;
+  let inbox: any;
 
   const config: Record<string, string> = {
     FIREBASE_PROJECT_ID: 'vitacasahealth-caregivers',
@@ -32,7 +33,11 @@ describe('FcmService', () => {
       listCaregiverFcmTokens: jest.fn(),
       listCaregiverFcmTokensByStatus: jest.fn(),
     };
-    service = new FcmService(configService, usersRepo);
+    inbox = {
+      insertForUsers: jest.fn().mockResolvedValue(undefined),
+      userIdsForTokens: jest.fn().mockResolvedValue(['user-a', 'user-b']),
+    };
+    service = new FcmService(configService, usersRepo, inbox);
     service.onModuleInit();
   });
 
@@ -43,6 +48,34 @@ describe('FcmService', () => {
     expect(sendEachForMulticast).toHaveBeenCalledWith({
       tokens: ['phone-1', 'phone-2'],
       notification: { title: 'Title', body: 'Body' },
+    });
+  });
+
+  describe('the bell inbox keeps a copy of every push', () => {
+    it('a push to one account is stored for that account, with its route, even with no device registered', async () => {
+      usersRepo.listFcmTokensByUserIds.mockResolvedValue([]);
+      await service.sendToUser('user-1', 'Title', 'Body', { route: '/home' });
+      expect(inbox.insertForUsers).toHaveBeenCalledWith(['user-1'], 'Title', 'Body', '/home');
+      expect(sendEachForMulticast).not.toHaveBeenCalled();
+    });
+
+    it('a broadcast to device tokens is stored for the accounts owning those tokens', async () => {
+      await service.broadcastToTokens(['t1', 't2'], 'Daily', 'Body', { route: '/org-home' });
+      expect(inbox.userIdsForTokens).toHaveBeenCalledWith(['t1', 't2']);
+      expect(inbox.insertForUsers).toHaveBeenCalledWith(['user-a', 'user-b'], 'Daily', 'Body', '/org-home');
+    });
+
+    it('a new-job broadcast to caregivers is stored with the Jobs route', async () => {
+      usersRepo.listCaregiverFcmTokens.mockResolvedValue(['token-a']);
+      await service.sendToAllCaregivers('New Job', 'Bangalore');
+      expect(inbox.insertForUsers).toHaveBeenCalledWith(['user-a', 'user-b'], 'New Job', 'Bangalore', '/caregiver/jobs');
+    });
+
+    it('a failing inbox write never stops the push', async () => {
+      inbox.insertForUsers.mockRejectedValue(new Error('db down'));
+      usersRepo.listFcmTokensByUserIds.mockResolvedValue(['phone-1']);
+      await expect(service.sendToUser('user-1', 'Title', 'Body')).resolves.toBeUndefined();
+      expect(sendEachForMulticast).toHaveBeenCalled();
     });
   });
 

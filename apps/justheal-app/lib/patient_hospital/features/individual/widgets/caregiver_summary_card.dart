@@ -3,7 +3,6 @@ import 'package:vitacare_shared/vitacare_shared.dart';
 import 'package:vitacare_ui/vitacare_ui.dart';
 import 'applicant_timeline.dart';
 import 'call_tap.dart';
-import 'feedback_widgets.dart';
 
 /// The accepted caregiver card's green: the Rate Card green (`AppColors.success`) mixed about 36% toward
 /// white — a soft, light green with white text on it. It went lighter in steps on request; the lighter it
@@ -26,7 +25,6 @@ class CaregiverSummaryCard extends StatefulWidget {
   final VoidCallback onAddAgreement;
   final VoidCallback onViewProfile;
   final VoidCallback onReject;
-  final VoidCallback? onLeaveFeedback;
 
   const CaregiverSummaryCard({
     super.key,
@@ -36,7 +34,6 @@ class CaregiverSummaryCard extends StatefulWidget {
     required this.onAddAgreement,
     required this.onViewProfile,
     required this.onReject,
-    this.onLeaveFeedback,
   });
 
   @override
@@ -44,8 +41,26 @@ class CaregiverSummaryCard extends StatefulWidget {
 }
 
 class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
-  /// Open by default; the patient can fold this caregiver away.
-  bool _expanded = true;
+  /// Open for a newly accepted caregiver (within the last day), while salary or start date is not
+  /// entered, and until today is past the agreed start date; otherwise folded. The patient can fold or
+  /// unfold any card by tapping its header.
+  late bool _expanded = _isNewlyAccepted(widget.application.acceptedAt) ||
+      widget.application.agreedSalary == null ||
+      widget.application.agreedStartDate == null ||
+      !_isPast(widget.application.agreedStartDate);
+
+  /// True once today's date is later than [yyyyMmDd] (the start date itself still counts as "not past").
+  static bool _isPast(String? yyyyMmDd) {
+    final start = yyyyMmDd == null ? null : DateTime.tryParse(yyyyMmDd);
+    if (start == null) return false;
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day).isAfter(DateTime(start.year, start.month, start.day));
+  }
+
+  static bool _isNewlyAccepted(String? acceptedAt) {
+    final at = acceptedAt == null ? null : DateTime.tryParse(acceptedAt);
+    return at != null && DateTime.now().difference(at) < const Duration(days: 1);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +68,6 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
     final salary = widget.application.agreedSalary;
     final startDate = widget.application.agreedStartDate;
     final hasAgreement = salary != null && startDate != null;
-    final initial = widget.application.fullName.trim().isEmpty ? '?' : widget.application.fullName.trim()[0].toUpperCase();
 
     return Container(
       key: Key('caregiver-card-${widget.application.id}'),
@@ -76,18 +90,6 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
             children: [
-              // Her overall rating as stars in an arc over the picture, so she is recognisable at a glance.
-              VitaRatingArcAvatar(
-                avatarRadius: 24,
-                rating: widget.application.overallRating,
-                starSize: 14,
-                avatar: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  child: Text(initial, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: AppTypography.title)),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,21 +223,6 @@ class _CaregiverSummaryCardState extends State<CaregiverSummaryCard> {
               ),
             const SizedBox(height: AppSpacing.md),
             ApplicantTimeline(widget.application, onDark: true),
-            // Overall feedback about this caregiver, once the work has started.
-            // The caregiver's own feedback about this patient is private: it is never shown here
-            // (and the server no longer sends it).
-            if (widget.application.myFeedback != null ||
-                feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate)) ...[
-              const SizedBox(height: AppSpacing.sm),
-              FeedbackSection(
-                aboutLabel: 'caregiver',
-                mine: widget.application.myFeedback,
-                received: null,
-                eligible: feedbackEligible(acceptedAt: widget.application.acceptedAt, agreedStartDate: widget.application.agreedStartDate),
-                onLeave: widget.onLeaveFeedback,
-                onEdit: widget.onLeaveFeedback,
-              ),
-            ],
             const SizedBox(height: AppSpacing.sm),
             // A Wrap, not a Row: with large text the two buttons drop to separate lines.
             Wrap(

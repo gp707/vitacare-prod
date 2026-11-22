@@ -554,7 +554,7 @@ class _RequirementCard extends StatelessWidget {
             ),
           if (salaryRangeLabel(requirement) != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+            SalaryRangeLine(label: salaryRangeLabel(requirement)!, negotiateWith: negotiationPartner(requirement)),
           ],
           const SizedBox(height: AppSpacing.sm),
           Wrap(

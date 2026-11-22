@@ -18,7 +18,11 @@ class CaregiverProfileViewScreen extends StatefulWidget {
   /// defaults to the real url_launcher call.
   final Future<bool> Function(Uri uri)? launcher;
 
-  const CaregiverProfileViewScreen({super.key, required this.fetchProfile, this.launcher});
+  /// Extra section shown under Call/WhatsApp — the patient flow puts its own feedback about this
+  /// caregiver here. Organisations pass nothing.
+  final WidgetBuilder? feedbackBuilder;
+
+  const CaregiverProfileViewScreen({super.key, required this.fetchProfile, this.launcher, this.feedbackBuilder});
 
   @override
   State<CaregiverProfileViewScreen> createState() => _CaregiverProfileViewScreenState();
@@ -150,6 +154,10 @@ class _CaregiverProfileViewScreenState extends State<CaregiverProfileViewScreen>
                                 ),
                               ],
                             ),
+                            if (widget.feedbackBuilder != null) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              widget.feedbackBuilder!(context),
+                            ],
                             const SizedBox(height: AppSpacing.lg),
                             _InfoCard(profile: profile),
                             const SizedBox(height: AppSpacing.md),

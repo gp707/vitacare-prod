@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitacare_shared/vitacare_shared.dart';
@@ -14,19 +15,17 @@ import 'package:nursenow_app/analytics/analytics.dart';
 /// Help sit flush right, immediately next to the bell (no longer centered
 /// in the AppBar — that was an earlier iteration, reversed on explicit
 /// request).
-/// [showBell] is false only for a shared route (profile_screen.dart) when
-/// the session turns out to be Organisation — Organisation has no
-/// requirement/care-tier/applicant concepts feeding resolveMessages(), so
-/// there's nothing for a bell on that account type to count.
+/// An Organisation has no requirement/care-tier/applicant concepts feeding resolveMessages(), so its bell
+/// ([inboxOnly]) shows only the alerts (pushes) it was sent.
 /// [showRateCard] is false for Organisation too: rate-card guidance is for
 /// individual hiring only (CLAUDE.md "Rate Card").
 List<Widget> individualAppBarActions(
-        {required bool showBell, bool showRateCard = true}) =>
+        {required bool showBell, bool showRateCard = true, bool inboxOnly = false}) =>
     [
       const TextZoomButton(),
       if (showRateCard) const RateCardButton(),
       const WhatsAppHelpButton(),
-      if (showBell) const MessagesBellButton(),
+      if (showBell) MessagesBellButton(inboxOnly: inboxOnly),
     ];
 
 /// A swinging bell with an unread-count badge, replacing the old Messages
@@ -46,7 +45,11 @@ List<Widget> individualAppBarActions(
 /// stays unread until the user actually opens and dismisses it, not just
 /// on a bare tap.
 class MessagesBellButton extends ConsumerStatefulWidget {
-  const MessagesBellButton({super.key});
+  /// True for an account with no requirement/job messages of its own (an organisation): the bell then
+  /// shows only the alerts it was sent.
+  final bool inboxOnly;
+
+  const MessagesBellButton({super.key, this.inboxOnly = false});
 
   @override
   ConsumerState<MessagesBellButton> createState() => _MessagesBellButtonState();
@@ -57,7 +60,10 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
   late final AnimationController _controller;
   late final Animation<double> _swing;
 
+  List<MessageItem> _computed = const [];
+  List<MessageItem> _inbox = const [];
   List<MessageItem> _messages = const [];
+  Timer? _poll;
   String? _error;
   int _unreadCount = 0;
 
@@ -69,15 +75,43 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
     _swing = Tween<double>(begin: -0.12, end: 0.12)
         .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     _load();
+    // New alerts arrive while a screen is open: look again every minute.
+    _poll = Timer.periodic(const Duration(seconds: 60), (_) => _loadInbox());
   }
 
   @override
   void dispose() {
+    _poll?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    await Future.wait([_loadInbox(), if (!widget.inboxOnly) _loadComputed()]);
+  }
+
+  /// The alerts (pushes) this account was sent, kept for 2 days or until read.
+  Future<void> _loadInbox() async {
+    try {
+      final items = await ref.read(inboxRepositoryProvider).list();
+      if (!mounted) return;
+      _inbox = [for (final n in items) MessageItem('inbox:${n.id}', Icons.notifications_active, n.text)];
+      _merge();
+    } catch (_) {
+      // Fails open — a passive badge never blocks the screen it sits in.
+    }
+  }
+
+  void _merge() {
+    final readIds = ref.read(localStorageProvider).readMessageIds;
+    setState(() {
+      _messages = [..._inbox, ..._computed];
+      _unreadCount = _messages.where((m) => !readIds.contains(m.id)).length;
+    });
+    _syncAnimation();
+  }
+
+  Future<void> _loadComputed() async {
     try {
       final individualRepo = ref.read(individualRepositoryProvider);
       final results = await Future.wait([
@@ -91,13 +125,9 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
           : <JobApplicationModel>[];
       if (!mounted) return;
       final messages = resolveMessages(templates, requirements, applications);
-      final readIds = ref.read(localStorageProvider).readMessageIds;
-      setState(() {
-        _messages = messages;
-        _error = null;
-        _unreadCount = messages.where((m) => !readIds.contains(m.id)).length;
-      });
-      _syncAnimation();
+      _computed = messages;
+      _error = null;
+      _merge();
     } on ApiException catch (e) {
       // Fails open — a passive badge must never crash or block the screen
       // it's embedded in over a failed fetch, same convention RateCardButton
@@ -168,6 +198,16 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
           Future<void> markRead(String id) async {
             if (readIds.contains(id)) return;
             setSheetState(() => readIds.add(id));
+            if (id.startsWith('inbox:')) {
+              // A pushed alert: reading it takes it off the bell for good (kept on the server).
+              try {
+                await ref.read(inboxRepositoryProvider).markRead(id.substring(6));
+              } catch (_) {}
+              if (!mounted) return;
+              _inbox = _inbox.where((m) => m.id != id).toList();
+              _merge();
+              return;
+            }
             await ref.read(localStorageProvider).markMessagesRead([id]);
             if (!mounted) return;
             setState(() => _unreadCount =
@@ -201,7 +241,7 @@ class _MessagesBellButtonState extends ConsumerState<MessagesBellButton>
                                 color: AppColors.textSecondary,
                                 fontSize: AppTypography.caption)),
                       ),
-                      if (error != null)
+                      if (error != null && messages.isEmpty)
                         Text(error,
                             style: const TextStyle(color: AppColors.error))
                       else if (messages.isEmpty)

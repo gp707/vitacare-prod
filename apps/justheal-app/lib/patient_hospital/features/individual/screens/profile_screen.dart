@@ -129,7 +129,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final isOrg =
               session is SessionAuthenticated && session.isOrganisation;
           return individualAppBarActions(
-              showBell: !isOrg, showRateCard: !isOrg);
+              showBell: true, showRateCard: !isOrg, inboxOnly: isOrg);
         }(),
       ),
       backgroundColor: AppColors.background,

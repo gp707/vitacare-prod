@@ -85,8 +85,11 @@ class SalaryBadge extends StatelessWidget {
   final String amount;
   final String? frequencyOfCare;
 
+  /// Who the caregiver can negotiate with, for the note in the popup ("the family").
+  final String negotiateWith;
+
   const SalaryBadge(
-      {super.key, required this.amount, required this.frequencyOfCare});
+      {super.key, required this.amount, required this.frequencyOfCare, this.negotiateWith = 'the family'});
 
   // Tapping shows the same figure again, just in a dialog with room to
   // never truncate — the badge itself stays compact for the collapsed card
@@ -97,12 +100,23 @@ class SalaryBadge extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Salary'),
-        content: Text(
-          frequencyLabel != null ? '₹$amount ($frequencyLabel)' : '₹$amount',
-          style: const TextStyle(
-              fontSize: AppTypography.title,
-              fontWeight: FontWeight.bold,
-              color: AppColors.success),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              frequencyLabel != null ? '₹$amount ($frequencyLabel)' : '₹$amount',
+              style: const TextStyle(
+                  fontSize: AppTypography.title,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.success),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'This is a range, you can negotiate directly with $negotiateWith.',
+              key: const Key('salary-negotiate-note'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -628,33 +642,75 @@ class JobFullDetailScreen extends StatelessWidget {
 class SalaryRangeLine extends StatelessWidget {
   final String label;
 
-  const SalaryRangeLine({super.key, required this.label});
+  /// Who the caregiver can negotiate with ("the hospital", "the clinic", ...), for the popup note.
+  final String negotiateWith;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: const Key('org-salary-range'),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.success),
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
-          const SizedBox(width: AppSpacing.xs),
-          Flexible(
-            child: Text(
+  const SalaryRangeLine({super.key, required this.label, this.negotiateWith = 'the organisation'});
+
+  void _showDetail(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Salary range'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+              style: const TextStyle(
+                  fontSize: AppTypography.title, fontWeight: FontWeight.bold, color: AppColors.success),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'This is a range, you can negotiate directly with $negotiateWith.',
+              key: const Key('salary-negotiate-note'),
+            ),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close'))],
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: const Key('org-salary-range-tap'),
+      borderRadius: BorderRadius.circular(AppSpacing.sm),
+      onTap: () => _showDetail(context),
+      child: Container(
+        key: const Key('org-salary-range'),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.08),
+          border: Border.all(color: AppColors.success),
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.payments_outlined, size: 18, color: AppColors.success),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "the hospital" / "the clinic" / "the rehab" / "the agency" — who a caregiver negotiates a posted
+/// salary range with; "the organisation" when the type is unknown.
+String negotiationPartner(OrganisationRequirementModel requirement) {
+  final type = requirement.organisationType;
+  final name = type == null ? null : OrganisationType.displayNames[type];
+  return name == null ? 'the organisation' : 'the ${name.toLowerCase()}';
 }
 
 class RequirementFullDetailScreen extends StatelessWidget {
@@ -707,7 +763,7 @@ class RequirementFullDetailScreen extends StatelessWidget {
                 ),
               if (salaryRangeLabel(requirement) != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                SalaryRangeLine(label: salaryRangeLabel(requirement)!),
+                SalaryRangeLine(label: salaryRangeLabel(requirement)!, negotiateWith: negotiationPartner(requirement)),
               ],
               const SizedBox(height: AppSpacing.md),
               const Divider(height: 1),

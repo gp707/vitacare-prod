@@ -26,6 +26,7 @@ import { ErrorLogsModule } from './error-logs/error-logs.module';
 import { InsightsModule } from './insights/insights.module';
 import { LoginAttemptsModule } from './login-attempts/login-attempts.module';
 import { AdminPushNotificationsModule } from './admin-push-notifications/admin-push-notifications.module';
+import { UserNotificationsModule } from './user-notifications/user-notifications.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { AdminRejectionsModule } from './admin-rejections/admin-rejections.module';
@@ -64,6 +65,7 @@ import { validateEnv } from './config/env.validation';
     InsightsModule,
     LoginAttemptsModule,
     AdminPushNotificationsModule,
+    UserNotificationsModule,
     TicketsModule,
     FeedbackModule,
     AdminRejectionsModule,

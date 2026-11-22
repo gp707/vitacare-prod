@@ -19,6 +19,8 @@ describe('AdminPushNotificationsService', () => {
     created_at: new Date('2026-01-01T00:00:00Z'),
   };
 
+  let inboxRepo: any;
+
   beforeEach(() => {
     repo = {
       create: jest.fn().mockResolvedValue(notification),
@@ -33,7 +35,15 @@ describe('AdminPushNotificationsService', () => {
     usersRepo = { listFcmTokensByUserIds: jest.fn().mockResolvedValue(['token-1', 'token-2']) };
     fcmService = { sendToTokens: jest.fn() };
     auditService = { log: jest.fn() };
-    service = new AdminPushNotificationsService(repo, usersRepo, fcmService, auditService);
+    inboxRepo = { insertForUsers: jest.fn().mockResolvedValue(undefined) };
+    service = new AdminPushNotificationsService(repo, usersRepo, fcmService, auditService, inboxRepo);
+  });
+
+  describe('the bell', () => {
+    it('an admin push is also stored under each recipient\'s bell', async () => {
+      await service.create('admin-1', { title: 'Hello', body: 'World', recipient_user_ids: ['user-1', 'user-2'] } as any, null);
+      expect(inboxRepo.insertForUsers).toHaveBeenCalledWith(['user-1', 'user-2'], notification.title, notification.body, null);
+    });
   });
 
   describe('create', () => {

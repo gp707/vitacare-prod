@@ -14,6 +14,7 @@ import '../data/individual_repository.dart';
 import '../widgets/salary_actions.dart';
 import '../widgets/applicant_timeline.dart';
 import '../widgets/caregiver_summary_card.dart';
+import '../widgets/profile_feedback.dart';
 import '../widgets/call_tap.dart';
 import '../widgets/area_char_limit_note.dart';
 import '../widgets/duty_requirements_button.dart';
@@ -153,16 +154,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
     if (saved && mounted) await _load();
   }
 
-  /// Rate a caregiver (stars + a short comment); reloads on save.
-  Future<void> _leaveFeedback(String jobId, String applicationId) async {
-    final application = (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
-        .where((a) => a.id == applicationId)
-        .firstOrNull;
-    if (application == null || !mounted) return;
-    final saved = await leaveFeedbackFlow(context, ref, jobId: jobId, application: application);
-    if (saved && mounted) await _load();
-  }
-
   /// A reason is mandatory (JOB_012 is the server-side backstop) — the
   /// dialog's Confirm button stays disabled until something is typed, so
   /// there's no way to submit a reject without one.
@@ -218,6 +209,9 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
   /// The single candidate currently under review, per the forced
   /// one-at-a-time flow — see _ApplicantsSection.
   void _viewProfile(String jobId, String applicationId) {
+    final application = (_applicationsByJobId[jobId] ?? const <JobApplicationModel>[])
+        .where((a) => a.id == applicationId)
+        .firstOrNull;
     Analytics.tap('individual', 'requirement_posted', 'view_candidate_profile');
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -225,6 +219,10 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           fetchProfile: () => ref
               .read(individualRepositoryProvider)
               .getApplicantProfile(jobId, applicationId),
+          // The patient writes (or changes) their feedback about this caregiver right on the profile.
+          feedbackBuilder: application == null
+              ? null
+              : (_) => ProfileFeedback(jobId: jobId, application: application, onSaved: _load),
         ),
       ),
     );
@@ -329,7 +327,6 @@ class _JobsPostedScreenState extends ConsumerState<JobsPostedScreen> {
           _viewProfile(requirement.id, applicationId),
       onSetAgreement: (applicationId) =>
           _openAgreement(requirement.id, applicationId),
-      onLeaveFeedback: (applicationId) => _leaveFeedback(requirement.id, applicationId),
       onCancel: () => _cancelRequirement(requirement),
       onMakeLive: () => _makeLiveAgain(requirement),
       onSaved: _load,
@@ -400,7 +397,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
-  final void Function(String applicationId) onLeaveFeedback;
   final VoidCallback onCancel;
   final VoidCallback onMakeLive;
   final VoidCallback onSaved;
@@ -413,7 +409,6 @@ class _RequirementCard extends ConsumerStatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.onLeaveFeedback,
     required this.onCancel,
     required this.onMakeLive,
     required this.onSaved,
@@ -458,6 +453,8 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
   final _weightFocusNode = FocusNode();
   final _areaFocusNode = FocusNode();
 
+  final _patientDetailsSectionKey = GlobalKey();
+  final _carePreferencesSectionKey = GlobalKey();
   final _patientNameKey = GlobalKey();
   final _ageKey = GlobalKey();
   final _genderKey = GlobalKey();
@@ -968,12 +965,31 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     }
   }
 
+  /// "Edit this job": opens Patient Details and Care Preferences together and scrolls to them.
+  void _editThisJob() {
+    Analytics.tap('individual', 'requirement_posted', 'edit_this_job');
+    setState(() {
+      _patientDetailsExpanded = true;
+      _carePreferencesExpanded = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = (_patientDetailsSectionKey.currentContext ?? _carePreferencesSectionKey.currentContext);
+      if (ctx == null) return;
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    });
+  }
+
   bool get _hasAcceptedApplicant =>
       widget.applications.any((a) => a.status == JobApplicationStatus.accepted);
 
-  /// A job can be cancelled at any time (pending review, live, or closed by an acceptance) unless it was
-  /// already cancelled or the admin rejected it (mirrors the backend's JOB_015).
-  bool get _canCancel => !widget.requirement.isCancelled && widget.requirement.rejectionReason == null;
+  /// "Hide Job for New Applications" is offered only while the job is live or in review. A closed job
+  /// (accepted caregiver, or already hidden) is already off the caregivers' list, so only "Unhide and
+  /// Make it Live" is shown there. The server would still accept it (JOB_015 only blocks an already
+  /// cancelled or admin-rejected job).
+  bool get _canCancel =>
+      widget.requirement.status != JobStatus.closed &&
+      !widget.requirement.isCancelled &&
+      widget.requirement.rejectionReason == null;
 
   /// Any closed job can be put back live — closed by an acceptance or cancelled — unless the admin
   /// rejected it (mirrors the backend's JOB_015).
@@ -1042,6 +1058,8 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
     // is cancelled — cancelling an already-cancelled one makes no sense,
     // but bringing it back does.
     final menuActions = <_MenuAction>[
+      // Opens Patient Details and Care Preferences together and scrolls to them.
+      _MenuAction(label: 'Edit this job', enabled: true, onSelected: _editThisJob),
       if (!_canCancel && !_canMakeLive)
         // Admin-rejected: the patient can neither cancel nor revive it.
         _MenuAction(label: 'Hide Job for New Applications (Unavailable)', enabled: false, destructive: true, onSelected: widget.onCancel)
@@ -1187,7 +1205,6 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                 onReject: widget.onReject,
                 onViewProfile: widget.onViewProfile,
                 onSetAgreement: widget.onSetAgreement,
-                onLeaveFeedback: widget.onLeaveFeedback,
                 perUnit: widget.requirement.frequencyOfCare == FrequencyOfCare.daily ? 'day' : 'month',
               ),
             const SizedBox(height: AppSpacing.md),
@@ -1204,6 +1221,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
             children: [
               if (careReceiver != null) ...[
                     SectionBox(
+                      key: _patientDetailsSectionKey,
                       icon: Icons.person,
                       title: 'Patient Details',
                       collapsible: true,
@@ -1340,6 +1358,7 @@ class _RequirementCardState extends ConsumerState<_RequirementCard> {
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   SectionBox(
+                    key: _carePreferencesSectionKey,
                     icon: Icons.tune,
                     title: 'Care Preferences',
                     collapsible: true,
@@ -1848,7 +1867,6 @@ class _ApplicantsSection extends StatefulWidget {
   final void Function(String applicationId) onReject;
   final void Function(String applicationId) onViewProfile;
   final void Function(String applicationId) onSetAgreement;
-  final void Function(String applicationId) onLeaveFeedback;
   final String perUnit;
 
   const _ApplicantsSection({
@@ -1858,7 +1876,6 @@ class _ApplicantsSection extends StatefulWidget {
     required this.onReject,
     required this.onViewProfile,
     required this.onSetAgreement,
-    required this.onLeaveFeedback,
     required this.perUnit,
   });
 
@@ -1960,7 +1977,6 @@ class _ApplicantsSectionState extends State<_ApplicantsSection> {
               defaultUnit: defaultUnit,
               isDeciding: widget.decidingApplicationId.contains(application.id),
               onAddAgreement: () => widget.onSetAgreement(application.id),
-              onLeaveFeedback: () => widget.onLeaveFeedback(application.id),
               onViewProfile: () => widget.onViewProfile(application.id),
               onReject: () => widget.onReject(application.id),
             ),
@@ -2156,24 +2172,6 @@ class _ApplicantTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              // A rated caregiver is recognisable at a glance: her overall rating as stars in an arc over
-              // her picture (nothing is shown until she has been rated).
-              if (application.overallRating != null) ...[
-                VitaRatingArcAvatar(
-                  avatarRadius: 18,
-                  rating: application.overallRating,
-                  starSize: 11,
-                  avatar: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primaryLight,
-                    child: Text(
-                      application.fullName.trim().isEmpty ? '?' : application.fullName.trim()[0].toUpperCase(),
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-              ],
               Expanded(
                 child: Row(
                   children: [

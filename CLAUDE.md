@@ -816,6 +816,9 @@ location) that didn't fit the Individual/admin jobs-table model.
 - **Patient wording matches organisation (2026-11-22):** the patient card menu/dialogs/status say **Hide Job for New Applications** / **Unhide and Make it Live** / status **Hidden** (and "Hidden — caregiver assigned") instead of Cancel the Job / Make it live again / Cancelled. Wording only: behaviour is unchanged (hiding still rejects candidates who are only waiting, accepted caregivers stay), the API and `cancelRequirement`/`makeLive` names are unchanged.
 - **Profile rating is always drawn (2026-11-22):** `CaregiverProfileViewScreen` (what a patient/organisation opens) always shows the star arc over the picture — five empty stars and "Not rated yet" until she has a rating, then the filled stars and "Overall rating: x / 5". Elsewhere (her own profile, accepted card) the arc still appears only once rated. The Per day / Per month toggles (organisation salary range, agreed-salary popup) show the active option in green.
 - **Organisation edit form includes the salary range (2026-11-22):** `EditOrganisationRequirementScreen` shows the same `SalaryRangeInput` as posting, pre-filled. Save calls `editRequirement` and then, only if the range changed, `setSalaryRange` (its own endpoint). A range that already exists can be changed but not removed (no endpoint clears it), so both boxes are then required; with no range yet, both empty is fine and one box alone is refused.
+- **Patient applicant list has no initial circle or star arc (2026-11-22):** the accepted caregiver card and the candidate tiles on `JobsPostedScreen` show the name (tap = profile) with no avatar; the rating is on the profile page only, same as the organisation tiles.
+- **Patient card menu (2026-11-22):** **Hide Job for New Applications** is offered only while the job is live or in review; a closed job (accepted caregiver, or already hidden) shows only **Unhide and Make it Live**; an admin-rejected one shows a disabled Hide. UI-only: the server still accepts the cancel call on a closed job.
+- **Patient flow changes (2026-11-22):** (1) the accepted caregiver card starts **unfolded when newly accepted** (within the last 24 h, by `acceptedAt`) **or while salary or start date is not entered, or until today is past the agreed start date**; otherwise it starts folded (tap the header to open). (2) **Feedback moved off the card onto the caregiver's profile page**: `CaregiverProfileViewScreen` takes an optional `feedbackBuilder`; the patient flow passes `ProfileFeedback` (`individual/widgets/profile_feedback.dart`), where the patient writes, views and edits their own feedback about that caregiver (before the work starts it says "You can leave feedback once the work has started."). Organisations pass no builder, so they see none. (3) **Edit this job** is the first item in the card's three-dots menu (no separate button); it unfolds Patient Details and Care Preferences together and scrolls to them.
 - **Organisation requirement edit lock (JOB_014) — unlocks when every candidate is rejected (2026-11-22).** `OrganisationRequirementsService.editRequirement` refuses only while some application is NOT `rejected`
   (applied, accepted or completed — `hasNonRejectedApplicationForRequirement`); with no applicants, or all of them rejected, the organisation can edit again. It used to lock on ANY application ever. The app mirrors it
   (`_hasAnyApplication` in `requirements_posted_screen.dart`). Applicant tile layout (same session): name on row 1 (tap = profile, with the status beside it), phone + WhatsApp on row 2, no picture/star arc (rating lives on the profile).
@@ -1338,8 +1341,8 @@ as the selection UI rather than building a new one.
 
 One binary, three kinds of person (caregiver, patient/family, organisation), so every push is addressed to an
 **account**, never a screen or a device. Admin-composed pushes are described above ("Admin Push Notifications");
-this section is the automatic, event-driven ones. English only; nothing is stored per person (no inbox/history
-yet — deliberately deferred). Built in `apps/api/src/notifications/` (`NotificationsService`,
+this section is the automatic, event-driven ones. English only. Each push is also kept under the person's bell for up to 2 days
+(see "Alerts under the bell" at the end of this section). Built in `apps/api/src/notifications/` (`NotificationsService`,
 `DutyRemindersService`, `NoApplicantsNudgeService`, and `notification-templates.ts` — all wording, routes and
 timing rules live in that one file, pure functions, unit-tested).
 
@@ -1416,9 +1419,19 @@ timing rules live in that one file, pure functions, unit-tested).
   Both are **applied to production** (2026-11-01). Because the deploy order was migration-first, re-run 087 once
   after the new backend is live to pick up tokens the previous release wrote to `users.fcm_token` meanwhile.
   The new backend writes to 088's columns when a poster accepts a caregiver, so 088 must always precede it.
-- **Known limits.** No inbox/history; no per-user opt-out; a claimed reminder whose send fails is lost; the
+- **Known limits.** The bell keeps alerts only 2 days (no longer history); no per-user opt-out; a claimed reminder whose send fails is lost; the
   pre-existing daily-reminder and admin scheduled-push cron jobs still have no multi-instance guard; dead
   tokens (uninstalled apps) are not pruned; iOS untested; none of this has been exercised on a physical phone.
+
+### Alerts under the bell (2026-11-22, migration 101 — validated in a rolled-back transaction, NOT yet applied; apply it BEFORE deploying this backend)
+
+Every push the backend sends is also stored for each recipient in `user_notifications` (`user_id`, `title`, `body`, `route`, `created_at`, `read_at`) and shown under that person's **bell** — caregiver, patient/family and
+organisation alike. An alert stays there until it is **read or 2 days old, whichever comes first** (`USER_NOTIFICATION_LIFETIME_HOURS = 48`): the API only returns unread rows under 48 h, and a nightly job (03:45 IST) deletes
+read/expired rows. Stored in `FcmService` (the one place all pushes go through): `sendToUser` stores for the account even if it has no device registered; `broadcastToTokens`, `sendToAllCaregivers` and the 08:00 availability reminder
+store for the accounts that own those device tokens (a recipient with no token is not covered for those); admin-composed pushes are stored for every selected recipient in `AdminPushNotificationsService`. Storing is best-effort
+and never blocks or fails a push. API (any signed-in role, `JwtAuthGuard` only): `GET /notifications`, `PATCH /notifications/:id/read` (`GEN_002` if not yours / already read). App: `InboxRepository` + `inboxRepositoryProvider` per tree,
+merged into `MessagesBellButton` (patient/caregiver: alerts first, then the existing computed messages; badge counts both; polled every 60 s; opening an alert and closing it marks it read on the server and drops it). The
+**organisation** now has a bell too (`MessagesBellButton(inboxOnly: true)` on Requirements Posted and Profile): it shows only its alerts, since an organisation has no computed messages.
 
 ## Admin Insights (activity, usage, drop-off)
 

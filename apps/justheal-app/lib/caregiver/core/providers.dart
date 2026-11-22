@@ -1,3 +1,4 @@
+import 'inbox/inbox_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'network/api_client.dart';
@@ -63,6 +64,10 @@ final scopeOfWorkRepositoryProvider = Provider<ScopeOfWorkRepository>((ref) {
 
 final dutyRequirementsRepositoryProvider = Provider<DutyRequirementsRepository>((ref) {
   return DutyRequirementsRepository(ref.watch(apiClientProvider).dio);
+});
+
+final inboxRepositoryProvider = Provider<InboxRepository>((ref) {
+  return InboxRepository(ref.watch(apiClientProvider).dio);
 });
 
 final caregiverMessagesRepositoryProvider = Provider<CaregiverMessagesRepository>((ref) {

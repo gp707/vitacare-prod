@@ -84,6 +84,15 @@ class _FakeIndividualMessagesRepository extends IndividualMessagesRepository {
   Future<List<IndividualMessageModel>> get() async => const [];
 }
 
+/// An ISO timestamp [hours] hours ago — "newly accepted" (within a day) keeps an accepted card unfolded.
+String _hoursAgo(int hours) => DateTime.now().subtract(Duration(hours: hours)).toUtc().toIso8601String();
+
+/// Feedback now lives on the caregiver's profile page: open it from the accepted card's name.
+Future<void> _openFirstCaregiverProfile(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('caregiver-name-app-1')));
+  await tester.pumpAndSettle();
+}
+
 final _dutyRequirements = const DutyRequirementsModel(
   liveIn: ['Bed, bedsheet, pillow and blanket must be provided.'],
   dayDuty: ['Breakfast and lunch for the nurse.'],
@@ -176,7 +185,8 @@ JobApplicationModel _application({
     'full_name': fullName,
     'phone': '+919876543210',
     'applied_at': appliedAt,
-    'accepted_at': acceptedAt,
+    // A fresh acceptance by default: the accepted card starts unfolded only when newly accepted.
+    'accepted_at': acceptedAt ?? (status == 'accepted' ? DateTime.now().toUtc().toIso8601String() : null),
     'rejected_at': rejectedAt,
     'completed_at': completedAt,
     'decided_by_name': decidedByName,
@@ -1066,6 +1076,9 @@ void main() {
       ),
     );
 
+    // These accepted times are old, so the card starts folded: unfold it first.
+    await tester.tap(find.byIcon(Icons.expand_more).first);
+    await tester.pumpAndSettle();
     await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Accepted by Asha Patel:'), findsOneWidget);
@@ -1099,6 +1112,9 @@ void main() {
       ),
     );
 
+    // These accepted times are old, so the card starts folded: unfold it first.
+    await tester.tap(find.byIcon(Icons.expand_more).first);
+    await tester.pumpAndSettle();
     await _expandAllActivityLogs(tester);
     expect(find.textContaining('Applied:'), findsOneWidget);
     expect(find.textContaining('Rejected by Asha Patel:'), findsOneWidget);
@@ -1845,32 +1861,40 @@ void main() {
           applicationsByJobId: {'job-1': apps},
         );
 
-    testWidgets('an accepted caregiver\'s card shows the arc', (tester) async {
-      await _pump(
-        tester,
-        repoWith([_application(id: 'a1', status: 'accepted', fullName: 'Asha', acceptedAt: '2026-11-01T10:00:00Z', overallRating: 4.5)], status: 'closed'),
-      );
-      final card = find.byKey(const Key('caregiver-card-a1'));
-      expect(find.descendant(of: card, matching: find.byKey(const Key('rating-arc-avatar'))), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.byIcon(Icons.star)), findsNWidgets(4));
-      expect(find.descendant(of: card, matching: find.byIcon(Icons.star_half)), findsOneWidget);
-    });
-
-    testWidgets('a waiting candidate\'s tile shows the arc too, so she is recognisable at a glance', (tester) async {
-      await _pump(tester, repoWith([_application(id: 'w1', status: 'applied', fullName: 'Ramesh', overallRating: 5)]));
-      expect(find.byKey(const Key('rating-arc-avatar')), findsOneWidget);
-      expect(find.byIcon(Icons.star), findsNWidgets(5));
-    });
-
-    testWidgets('an unrated caregiver has no arc, on the card or the tile', (tester) async {
+    testWidgets('no initial circle or star arc on the accepted card or on a waiting tile', (tester) async {
       await _pump(
         tester,
         repoWith([
-          _application(id: 'a1', status: 'accepted', fullName: 'Asha', acceptedAt: '2026-11-01T10:00:00Z'),
-          _application(id: 'w1', status: 'applied', fullName: 'Ramesh'),
-        ]),
+          _application(id: 'a1', status: 'accepted', fullName: 'Asha', acceptedAt: _hoursAgo(5), overallRating: 4.5),
+          _application(id: 'w1', status: 'applied', fullName: 'Ramesh', overallRating: 5),
+        ], status: 'closed'),
       );
       expect(find.byKey(const Key('rating-arc-avatar')), findsNothing);
+      expect(find.byType(CircleAvatar), findsNothing);
+      expect(find.byIcon(Icons.star), findsNothing);
+      expect(find.byKey(const Key('caregiver-name-a1')), findsOneWidget);
+      expect(find.byKey(const Key('applicant-name-w1')), findsOneWidget);
+    });
+  });
+
+  group('Edit this job', () {
+    testWidgets('opens Patient Details and Care Preferences together', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'active', careReceiver: _careReceiverJson)],
+          applicationsByJobId: {'job-1': []},
+        ),
+      );
+      // Both sections start folded: their fields are not on screen.
+      expect(find.widgetWithText(TextField, 'Patient\'s Age (Mandatory)'), findsNothing);
+      expect(find.byKey(const Key('edit-this-job')), findsNothing); // no separate button any more
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await _settle(tester);
+      await tester.tap(find.text('Edit this job'));
+      await _settle(tester);
+      expect(find.widgetWithText(TextField, 'Patient\'s Age (Mandatory)'), findsOneWidget);
+      expect(find.text('Hours Care Needed (Mandatory)'), findsWidgets);
     });
   });
 
@@ -1894,7 +1918,7 @@ void main() {
                 id: 'a1',
                 status: 'accepted',
                 fullName: 'Asha',
-                acceptedAt: '2026-11-01T10:00:00Z',
+                acceptedAt: _hoursAgo(5),
                 agreedSalary: 1200,
                 agreedSalaryUnit: 'daily',
                 agreedStartDate: '2026-11-05',
@@ -2062,11 +2086,11 @@ void main() {
       await _settle(tester);
     }
 
-    testWidgets('a job closed by an acceptance offers both Make it live again and Cancel the Job', (tester) async {
+    testWidgets('a job closed by an acceptance offers only Unhide and Make it Live (no Hide)', (tester) async {
       await _pump(tester, repo());
       await openMenu(tester);
       expect(find.text('Unhide and Make it Live'), findsOneWidget);
-      expect(find.text('Hide Job for New Applications'), findsOneWidget);
+      expect(find.text('Hide Job for New Applications'), findsNothing);
       expect(find.text('Permanently cancel'), findsNothing);
     });
 
@@ -2120,8 +2144,8 @@ void main() {
       expect(find.text('The job is live again.'), findsOneWidget);
     });
 
-    testWidgets('Cancel the Job on a job with an accepted caregiver warns that waiting candidates are rejected but the accepted stay', (tester) async {
-      final r = repo(apps: [
+    testWidgets('Hide on a LIVE job with an accepted caregiver warns that waiting candidates are rejected but the accepted stay', (tester) async {
+      final r = repo(status: 'active', apps: [
         _application(id: 'app-9', status: 'accepted', fullName: 'Asha Accepted'),
         _application(id: 'app-3', status: 'applied', fullName: 'Ramesh Applied'),
       ]);
@@ -2198,10 +2222,10 @@ void main() {
           applicationsByJobId: {
             'job-1': [
               // Asha: daily 1000, accepted second
-              _application(id: 'a1', status: 'accepted', fullName: 'Asha Rao', acceptedAt: '2026-11-03T10:00:00Z',
+              _application(id: 'a1', status: 'accepted', fullName: 'Asha Rao', acceptedAt: _hoursAgo(2),
                   agreedSalary: 1000, agreedSalaryUnit: 'daily', agreedStartDate: iso(-2)),
               // Meena: monthly 30000, accepted first
-              _application(id: 'a2', status: 'accepted', fullName: 'Meena Das', acceptedAt: '2026-11-01T10:00:00Z',
+              _application(id: 'a2', status: 'accepted', fullName: 'Meena Das', acceptedAt: _hoursAgo(5),
                   agreedSalary: 30000, agreedSalaryUnit: 'monthly', agreedStartDate: iso(-10)),
               // Ravi: accepted, no salary yet
               _application(id: 'a3', status: 'accepted', fullName: 'Ravi Kumar'),
@@ -2284,6 +2308,31 @@ void main() {
       final label = find.descendant(of: line, matching: find.text('Agreed salary:'));
       expect(size(label), size(find.byKey(const Key('card-salary-a1'))));
       expect(size(find.byKey(const Key('card-start-a1'))), size(find.byKey(const Key('card-salary-a1'))));
+    });
+
+    testWidgets('an old acceptance with salary and start date starts folded; a new one, or one with them missing, starts unfolded', (tester) async {
+      await _pump(
+        tester,
+        _FakeIndividualRepository(
+          requirements: [_requirement(status: 'closed')],
+          applicationsByJobId: {
+            'job-1': [
+              _application(id: 'old', status: 'accepted', fullName: 'Old Accepted', acceptedAt: '2026-10-01T10:00:00Z',
+                  agreedSalary: 1000, agreedSalaryUnit: 'daily', agreedStartDate: '2026-10-05'),
+              _application(id: 'future', status: 'accepted', fullName: 'Starts Later', acceptedAt: '2026-10-01T10:00:00Z',
+                  agreedSalary: 1000, agreedSalaryUnit: 'daily', agreedStartDate: '2099-01-01'),
+              _application(id: 'nosalary', status: 'accepted', fullName: 'No Salary Yet', acceptedAt: '2026-10-01T10:00:00Z'),
+              _application(id: 'new', status: 'accepted', fullName: 'New Accepted', acceptedAt: _hoursAgo(1)),
+            ],
+          },
+        ),
+      );
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-old'))).icon, Icons.expand_more);
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-new'))).icon, Icons.expand_less);
+      // old acceptance, but the start date has not passed yet: stays unfolded
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-future'))).icon, Icons.expand_less);
+      // old, but salary / start date not entered yet: stays unfolded so the button is in view
+      expect(tester.widget<Icon>(find.byKey(const Key('caregiver-card-chevron-nosalary'))).icon, Icons.expand_less);
     });
 
     testWidgets('every accepted caregiver card starts unfolded, showing its details', (tester) async {
@@ -2429,6 +2478,7 @@ void main() {
         applicationsByJobId: {'job-1': [application]},
       );
       await _pump(tester, repo);
+      await _openFirstCaregiverProfile(tester);
       return repo;
     }
 
@@ -2447,7 +2497,7 @@ void main() {
     testWidgets('with no agreed start date yet there is no button', (tester) async {
       await open(
         tester,
-        _application(id: 'app-1', status: 'accepted', fullName: 'Asha Accepted', acceptedAt: '2026-11-01T10:00:00Z'),
+        _application(id: 'app-1', status: 'accepted', fullName: 'Asha Accepted', acceptedAt: _hoursAgo(5)),
       );
       expect(find.byKey(const Key('leave-feedback')), findsNothing);
     });
@@ -2534,7 +2584,7 @@ void main() {
               id: 'app-1',
               status: 'accepted',
               fullName: 'Asha Accepted',
-              acceptedAt: '2026-11-01T10:00:00Z',
+              acceptedAt: _hoursAgo(5),
               agreedSalary: 1000,
               agreedSalaryUnit: 'daily',
               agreedStartDate: '2026-11-10',
@@ -2543,6 +2593,7 @@ void main() {
         },
       );
       await _pump(tester, repo);
+      await _openFirstCaregiverProfile(tester);
       await tester.tap(find.byKey(const Key('leave-feedback')));
       await _settle(tester);
       await tester.tap(find.byKey(const Key('feedback-star-5')));
@@ -2558,7 +2609,7 @@ void main() {
             id: 'app-1',
             status: 'accepted',
             fullName: 'Asha Accepted',
-            acceptedAt: '2026-11-01T10:00:00Z',
+            acceptedAt: _hoursAgo(5),
             agreedSalary: 1000,
             agreedSalaryUnit: 'daily',
             agreedStartDate: '2026-11-10',
@@ -2571,6 +2622,7 @@ void main() {
           applicationsByJobId: {'job-1': [withFeedback()]},
         );
         await _pump(tester, repo);
+        await _openFirstCaregiverProfile(tester);
         return repo;
       }
 
@@ -2628,7 +2680,7 @@ void main() {
                 id: 'app-1',
                 status: 'accepted',
                 fullName: 'Asha Accepted',
-                acceptedAt: '2026-11-01T10:00:00Z',
+                acceptedAt: _hoursAgo(5),
                 agreedSalary: 1000,
                 agreedSalaryUnit: 'daily',
                 agreedStartDate: '2026-11-10',
@@ -2637,6 +2689,7 @@ void main() {
           },
         );
         await _pump(tester, repo);
+        await _openFirstCaregiverProfile(tester);
         await tester.tap(find.byKey(const Key('leave-feedback')));
         await _settle(tester);
         expect(find.textContaining('You can change it later.'), findsOneWidget);
@@ -2805,7 +2858,7 @@ void main() {
           id: 'a1',
           status: 'accepted',
           fullName: 'Asha Accepted',
-          acceptedAt: '2026-11-01T10:00:00Z',
+          acceptedAt: _hoursAgo(5),
           agreedSalary: 1200,
           agreedSalaryUnit: 'daily',
           agreedStartDate: '2026-11-26',

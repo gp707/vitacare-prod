@@ -107,6 +107,10 @@ class ApiRoutes {
   static const adminProfilePassword = '/admin/profile/password';
 
   static const individualMessages = '/individual-messages';
+
+  /// The signed-in person's own bell alerts (any role) and marking one read.
+  static const notifications = '/notifications';
+  static String notificationRead(String id) => '/notifications/$id/read';
   static const adminIndividualMessages = '/admin/individual-messages';
 
   static const caregiverMessages = '/caregiver-messages';

@@ -5,6 +5,7 @@ import 'package:vitacare_ui/vitacare_ui.dart';
 import '../../../app/icon_widgets.dart';
 import '../../../app/logout_helper.dart';
 import '../../../app/nursenow_bottom_nav.dart';
+import '../../../app/messages_bell.dart';
 import '../../../app/text_zoom_button.dart';
 import '../../../app/whatsapp_help_button.dart';
 import '../../../core/network/api_exception.dart';
@@ -284,7 +285,7 @@ class _RequirementsPostedScreenState extends ConsumerState<RequirementsPostedScr
       appBar: VitaAppBar(
         title: 'Requirements Posted',
         onTripleTap: () => logoutAndNavigateToLogin(context, ref),
-        actions: const [TextZoomButton(), WhatsAppHelpButton()],
+        actions: const [TextZoomButton(), WhatsAppHelpButton(), MessagesBellButton(inboxOnly: true)],
       ),
       backgroundColor: AppColors.background,
       bottomNavigationBar: const NurseNowBottomNav(currentIndex: 1),

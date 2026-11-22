@@ -36,8 +36,14 @@ class FeedbackSection extends StatelessWidget {
   /// When given, "Your feedback" gets an Edit button (patients/families can change theirs).
   final VoidCallback? onEdit;
 
+  /// Wording of the write button and of the written feedback's heading (defaults suit the patient app).
+  final String? leaveLabel;
+  final String mineTitle;
+
   const FeedbackSection({
     super.key,
+    this.leaveLabel,
+    this.mineTitle = 'Your feedback',
     required this.aboutLabel,
     required this.mine,
     required this.received,
@@ -62,7 +68,7 @@ class FeedbackSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (mine != null)
-            _FeedbackBlock(keyName: 'feedback-mine', title: 'Your feedback', feedback: mine!, onEdit: onEdit)
+            _FeedbackBlock(keyName: 'feedback-mine', title: mineTitle, feedback: mine!, onEdit: onEdit)
           else if (eligible)
             Align(
               alignment: Alignment.centerLeft,
@@ -70,7 +76,7 @@ class FeedbackSection extends StatelessWidget {
                 key: const Key('leave-feedback'),
                 onPressed: onLeave,
                 icon: const Icon(Icons.star_outline, size: 18),
-                label: Text('Rate this $aboutLabel'),
+                label: Text(leaveLabel ?? 'Rate this $aboutLabel'),
               ),
             ),
           if (received != null) ...[

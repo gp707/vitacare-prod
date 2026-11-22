@@ -8,6 +8,7 @@ import {
   AdminPushNotificationsRepository,
 } from '../database/repositories/admin-push-notifications.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { UserNotificationsRepository } from '../database/repositories/user-notifications.repository';
 import { AuditService } from '../audit/audit.service';
 import { FcmService } from '../fcm/fcm.service';
 import { CreatePushNotificationDto } from './dto/create-push-notification.dto';
@@ -22,6 +23,7 @@ export class AdminPushNotificationsService {
     private readonly usersRepo: UsersRepository,
     private readonly fcmService: FcmService,
     private readonly auditService: AuditService,
+    private readonly inboxRepo: UserNotificationsRepository,
   ) {}
 
   /** [dto.scheduled_at] omitted or already in the past sends immediately,
@@ -107,6 +109,12 @@ export class AdminPushNotificationsService {
   private async send(notification: AdminPushNotificationRecord): Promise<boolean> {
     try {
       const recipientUserIds = await this.repo.getRecipientUserIds(notification.id);
+      // Under each recipient's bell too, even one with no device registered (best-effort).
+      try {
+        await this.inboxRepo.insertForUsers(recipientUserIds, notification.title, notification.body, null);
+      } catch (error) {
+        this.logger.error(`Failed to store alert for push notification ${notification.id}`, error);
+      }
       const tokens = await this.usersRepo.listFcmTokensByUserIds(recipientUserIds);
       await this.fcmService.sendToTokens(tokens, notification.title, notification.body);
       await this.repo.markSent(notification.id);

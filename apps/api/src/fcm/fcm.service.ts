@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { App, cert, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { UserNotificationsRepository } from '../database/repositories/user-notifications.repository';
 
 /**
  * Push notifications to caregivers (CLAUDE.md: caregivers use FCM push, not
@@ -20,7 +21,26 @@ export class FcmService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersRepo: UsersRepository,
+    private readonly inbox: UserNotificationsRepository,
   ) {}
+
+  /** Keeps a copy of a push under each recipient's bell. Best-effort: never fails or delays the push. */
+  private async store(userIds: string[], title: string, body: string, route: string | null): Promise<void> {
+    try {
+      await this.inbox.insertForUsers(userIds, title, body, route);
+    } catch (error) {
+      this.logger.error('Failed to store alert for the bell', error);
+    }
+  }
+
+  /** Same, for a push that was addressed by device token rather than by account. */
+  private async storeForTokens(tokens: string[], title: string, body: string, route: string | null): Promise<void> {
+    try {
+      await this.inbox.insertForUsers(await this.inbox.userIdsForTokens(tokens), title, body, route);
+    } catch (error) {
+      this.logger.error('Failed to store alert for the bell', error);
+    }
+  }
 
   onModuleInit(): void {
     const privateKey = this.configService
@@ -42,6 +62,8 @@ export class FcmService implements OnModuleInit {
     body: string,
     data?: Record<string, string>,
   ): Promise<void> {
+    // The bell keeps it even when the account has no device registered.
+    await this.store([userId], title, body, data?.route ?? null);
     // Every device the account is signed in on, not just the last one.
     const tokens = await this.usersRepo.listFcmTokensByUserIds([userId]);
     if (tokens.length === 0) return;
@@ -82,6 +104,7 @@ export class FcmService implements OnModuleInit {
     body: string,
     data?: Record<string, string>,
   ): Promise<number> {
+    await this.storeForTokens(tokens, title, body, data?.route ?? null);
     let handed = 0;
     for (let i = 0; i < tokens.length; i += 500) {
       const batch = tokens.slice(i, i + 500);
@@ -110,6 +133,7 @@ export class FcmService implements OnModuleInit {
   ): Promise<void> {
     const tokens = await this.usersRepo.listCaregiverFcmTokens(options.preferredGender);
     if (tokens.length === 0) return;
+    await this.storeForTokens(tokens, title, body, '/caregiver/jobs');
 
     try {
       await getMessaging(this.app).sendEachForMulticast({
@@ -133,6 +157,12 @@ export class FcmService implements OnModuleInit {
   async sendDailyAvailabilityReminder(): Promise<void> {
     const tokens = await this.usersRepo.listCaregiverFcmTokensByStatus(['available', 'unavailable']);
     if (tokens.length === 0) return;
+    await this.storeForTokens(
+      tokens,
+      'Update your availability',
+      'Confirm your status for today — mark yourself available to keep getting job matches.',
+      null,
+    );
 
     try {
       await getMessaging(this.app).sendEachForMulticast({
